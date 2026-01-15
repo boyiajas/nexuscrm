@@ -17,8 +17,18 @@ class User extends Authenticatable
         'password',
         'role',
         'status',
+        'department',
         'department_id',
         'last_login_at',
+        'username',
+        'first_name',
+        'middle_initial',
+        'last_name',
+        'primary_phone',
+        'secondary_phone',
+        'inactivity_timeout',
+        'is_provider',
+        'is_time_clock_user',
     ];
 
     protected $hidden = [
@@ -30,6 +40,8 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'last_login_at' => 'datetime',
+        'is_provider' => 'boolean',
+        'is_time_clock_user' => 'boolean',
     ];
 
     public function department()

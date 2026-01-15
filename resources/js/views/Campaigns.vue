@@ -72,27 +72,32 @@
               <td>{{ c.total_recipients || 0 }}</td>
               <td>{{ c.created_at }}</td>
               <td class="text-end">
-                <button
-                  class="btn btn-sm btn-outline-primary me-1"
-                  @click="openEditModal(c)"
-                  :disabled="!canManage"
-                >
-                  Edit
-                </button>
-                <button
-                  class="btn btn-sm btn-outline-success me-1"
-                  @click="sendCampaign(c)"
-                  :disabled="!canSend(c)"
-                >
-                  Send
-                </button>
-                <button
-                  class="btn btn-sm btn-outline-danger"
-                  @click="deleteCampaign(c)"
-                  :disabled="!canManage"
-                >
-                  Delete
-                </button>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button
+                    class="btn btn-outline-primary"
+                    title="Edit"
+                    @click="openEditModal(c)"
+                    :disabled="!canManage"
+                  >
+                    <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <button
+                    class="btn btn-outline-success"
+                    title="Send"
+                    @click="sendCampaign(c)"
+                    :disabled="!canSend(c)"
+                  >
+                    <i class="bi bi-send-check"></i>
+                  </button>
+                  <button
+                    class="btn btn-outline-danger"
+                    title="Delete"
+                    @click="deleteCampaign(c)"
+                    :disabled="!canManage"
+                  >
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
               </td>
             </tr>
 

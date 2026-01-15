@@ -5,7 +5,7 @@
     <ul class="nav nav-tabs mb-3" id="settingsTabs" role="tablist">
       <li class="nav-item" role="presentation">
         <button class="nav-link active" id="account-tab" data-bs-toggle="tab" data-bs-target="#account" type="button">
-          Account
+          User Account
         </button>
       </li>
       <li class="nav-item" role="presentation">
@@ -34,33 +34,115 @@
 
       <!-- ACCOUNT TAB -->
       <div class="tab-pane fade show active" id="account">
-        <h5 class="mb-3">Account Information</h5>
-
-        <form @submit.prevent="updateAccount" class="row g-3">
-          <div class="col-md-6">
-            <label class="form-label">Name</label>
-            <input v-model="form.name" type="text" class="form-control" required />
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">User Account Information</h5>
+          <div class="form-check form-switch">
+            <label class="form-check-label me-2">Active user</label>
+            <input class="form-check-input" type="checkbox" v-model="form.active">
           </div>
+        </div>
+        <small class="text-muted d-block mb-3">Basic information and working information for this user.</small>
 
-          <div class="col-md-6">
-            <label class="form-label">Email</label>
-            <input v-model="form.email" type="email" class="form-control" required />
-          </div>
+        <div class="account-layout">
+            <form @submit.prevent="updateAccount">
+              <div class="row g-3 account-row">
+                <div class="col-md-6">
+                  <div class="card h-100 account-card">
+                    <div class="card-body">
+                      <h6 class="mb-3">Contact Information</h6>
+                      <div class="mb-3 d-flex gap-3 align-items-center">
+                        <div class="avatar-placeholder text-center border rounded p-3 text-muted small">
+                          <i class="bi bi-person fs-2 d-block"></i>
+                          Upload available after creating the user.
+                        </div>
+                      </div>
+                      <div class="row g-2 mb-2">
+                        <div class="col-md-5">
+                          <label class="form-label">First Name *</label>
+                          <input v-model="form.first_name" type="text" class="form-control" required />
+                        </div>
+                        <div class="col-md-2">
+                          <label class="form-label">M.I.</label>
+                          <input v-model="form.middle_initial" type="text" class="form-control" maxlength="1" />
+                        </div>
+                        <div class="col-md-5">
+                          <label class="form-label">Last Name *</label>
+                          <input v-model="form.last_name" type="text" class="form-control" required />
+                        </div>
+                      </div>
 
-          <div class="col-md-6">
-            <label class="form-label">Department</label>
-            <input v-model="form.department" type="text" class="form-control" />
-          </div>
+                      <div class="row g-3">
+                        <div class="col-md-12">
+                          <label class="form-label">Username</label>
+                          <input v-model="form.username" type="text" class="form-control" />
+                        </div>
+                        <div class="col-md-12">
+                          <label class="form-label">Email *</label>
+                          <input v-model="form.email" type="email" class="form-control" required />
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label">Primary Phone Number</label>
+                          <input v-model="form.primary_phone" type="text" class="form-control" placeholder="(xxx) xxx-xxxx" />
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label">Secondary Phone Number</label>
+                          <input v-model="form.secondary_phone" type="text" class="form-control" placeholder="(xxx) xxx-xxxx" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-          <div class="col-md-6">
-            <label class="form-label">Role</label>
-            <input v-model="form.role" type="text" class="form-control" disabled />
-          </div>
+                <div class="col-md-6">
+                  <div class="card h-100 account-card">
+                    <div class="card-body">
+                      <h6 class="mb-3">Working Information</h6>
+                      <div class="row g-3">
+                        <div class="col-md-12">
+                          <label class="form-label">Department</label>
+                          <input v-model="form.department" type="text" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label">Role</label>
+                          <input v-model="form.role" type="text" class="form-control" disabled />
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label">Inactivity Timeout *</label>
+                          <select v-model="form.inactivity_timeout" class="form-select">
+                            <option value="">Select time...</option>
+                            <option value="5">5 minutes</option>
+                            <option value="10">10 minutes</option>
+                            <option value="15">15 minutes</option>
+                            <option value="30">30 minutes</option>
+                          </select>
+                          <small class="text-muted">HIPAA recommends a 10 minute timeout.</small>
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label d-block">Is Provider</label>
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" v-model="form.is_provider">
+                            <label class="form-check-label">No / Yes</label>
+                          </div>
+                        </div>
+                        <div class="col-md-6">
+                          <label class="form-label d-block">Time clock user</label>
+                          <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" v-model="form.is_time_clock_user">
+                            <label class="form-check-label">No / Yes</label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-          <div class="col-12 text-end mt-3">
-            <button class="btn btn-primary">Save Changes</button>
-          </div>
-        </form>
+              <div class="text-end mt-3">
+                <button class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-outline-secondary ms-2" @click="loadUser">Cancel</button>
+              </div>
+            </form>
+        </div>
       </div>
 
       <!-- SECURITY TAB -->
@@ -215,9 +297,17 @@
                     </small>
                   </td>
                   <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary me-1" @click="editTemplate(t)">Edit</button>
-                    <button class="btn btn-sm btn-outline-success me-1" @click="submitTemplate(t)">Submit</button>
-                    <button class="btn btn-sm btn-outline-danger" @click="deleteTemplate(t)">Delete</button>
+                    <div class="btn-group btn-group-sm" role="group">
+                      <button class="btn btn-outline-primary" title="Edit" @click="editTemplate(t)">
+                        <i class="bi bi-pencil-square"></i>
+                      </button>
+                      <button class="btn btn-outline-success" title="Submit" @click="submitTemplate(t)">
+                        <i class="bi bi-upload"></i>
+                      </button>
+                      <button class="btn btn-outline-danger" title="Delete" @click="deleteTemplate(t)">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 <tr v-if="wa.templates.length === 0">
@@ -301,6 +391,16 @@ export default {
         email: '',
         department: '',
         role: '',
+        first_name: '',
+        middle_initial: '',
+        last_name: '',
+        username: '',
+        primary_phone: '',
+        secondary_phone: '',
+        inactivity_timeout: '10',
+        is_provider: false,
+        is_time_clock_user: false,
+        active: true,
       },
       mfa: {
         enabled: false,
@@ -359,7 +459,8 @@ export default {
     // Load profile
     loadUser() {
       axios.get('/api/user').then((res) => {
-        this.form = res.data;
+        const fallback = { ...this.form };
+        this.form = Object.assign(fallback, res.data || {});
       });
     },
     updateAccount() {
@@ -555,3 +656,27 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.account-layout {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+.account-card {
+  min-width: 0;
+}
+.sidebar {
+  width: 230px;
+  transition: width 0.2s ease;
+}
+.avatar-placeholder {
+  width: 150px;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+</style>

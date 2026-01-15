@@ -15,7 +15,11 @@ class Client extends Model
         'email',
         'assigned_to_id',
         'tags',
-        'last_contacted_at'
+        'last_contacted_at',
+        'id_number',
+        'bank_name',
+        'account_number',
+        'branch_code',
         // Note: removed 'department' column since we're using many-to-many
     ];
 

@@ -37,13 +37,17 @@
                 </span>
               </td>
               <td class="text-end">
-                <button class="btn btn-sm btn-outline-primary me-1" @click="openEditModal(u)">
-                  Edit
-                </button>
-
-                <button class="btn btn-sm btn-outline-danger" @click="remove(u)">
-                  Delete
-                </button>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button class="btn btn-outline-secondary" title="View" @click="openProfileModal(u)">
+                    <i class="bi bi-eye"></i>
+                  </button>
+                  <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(u)">
+                    <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <button class="btn btn-outline-danger" title="Delete" @click="remove(u)">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
               </td>
             </tr>
 
@@ -86,9 +90,114 @@
       </div>
     </div>
 
+    <!-- Profile Modal -->
+    <div class="modal fade" tabindex="-1" ref="profileModalRef">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-person-badge me-1"></i>
+              User Profile — {{ profile.name || 'User' }}
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-lg-6">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h6 class="mb-3">Contact Information</h6>
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                      <div class="avatar-placeholder text-center border rounded p-3 text-muted small">
+                        <i class="bi bi-person fs-2 d-block"></i>
+                        Profile photo
+                      </div>
+                      <div>
+                        <div class="fw-semibold">{{ profile.name || 'Name' }}</div>
+                        <div class="text-muted small">{{ profile.email }}</div>
+                        <div class="text-muted small">{{ profile.username || 'Username' }}</div>
+                      </div>
+                    </div>
+                    <div class="row g-2 mb-2">
+                      <div class="col-md-5">
+                        <label class="form-label small text-muted">First Name</label>
+                        <div class="fw-semibold">{{ profile.first_name || '-' }}</div>
+                      </div>
+                      <div class="col-md-2">
+                        <label class="form-label small text-muted">M.I.</label>
+                        <div class="fw-semibold">{{ profile.middle_initial || '-' }}</div>
+                      </div>
+                      <div class="col-md-5">
+                        <label class="form-label small text-muted">Last Name</label>
+                        <div class="fw-semibold">{{ profile.last_name || '-' }}</div>
+                      </div>
+                    </div>
+                    <div class="row g-3">
+                      <div class="col-md-12">
+                        <label class="form-label small text-muted">Email</label>
+                        <div class="fw-semibold">{{ profile.email || '-' }}</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small text-muted">Primary Phone</label>
+                        <div class="fw-semibold">{{ profile.primary_phone || '-' }}</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small text-muted">Secondary Phone</label>
+                        <div class="fw-semibold">{{ profile.secondary_phone || '-' }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-6">
+                <div class="card h-100">
+                  <div class="card-body">
+                    <h6 class="mb-3">Working Information</h6>
+                    <div class="row g-3">
+                      <div class="col-md-12">
+                        <label class="form-label small text-muted">Department</label>
+                        <div class="fw-semibold">{{ profile.department || '-' }}</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small text-muted">Role</label>
+                        <div class="fw-semibold">{{ profile.role || '-' }}</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small text-muted">Inactivity Timeout</label>
+                        <div class="fw-semibold">{{ profile.inactivity_timeout ? profile.inactivity_timeout + ' minutes' : '-' }}</div>
+                        <small class="text-muted">HIPAA recommends 10 min timeout.</small>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small text-muted">Is Provider</label>
+                        <div class="fw-semibold">{{ profile.is_provider ? 'Yes' : 'No' }}</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small text-muted">Time clock user</label>
+                        <div class="fw-semibold">{{ profile.is_time_clock_user ? 'Yes' : 'No' }}</div>
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small text-muted">Status</label>
+                        <div class="fw-semibold">{{ profile.status || 'Active' }}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            <button v-if="!isEdit" class="btn btn-primary" @click="openEditModal(profile)">Edit</button>
+            <button v-else class="btn btn-primary" @click="openEditModal(profile)">Edit</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- MODAL -->
     <div class="modal fade" tabindex="-1" ref="modalRef">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-xl">
         <div class="modal-content">
 
           <div class="modal-header">
@@ -106,6 +215,21 @@
                 <input v-model="form.name" type="text" class="form-control" required />
               </div>
 
+              <div class="row g-3 mb-3">
+                <div class="col-md-4">
+                  <label class="form-label">First Name</label>
+                  <input v-model="form.first_name" type="text" class="form-control" />
+                </div>
+                <div class="col-md-2">
+                  <label class="form-label">M.I.</label>
+                  <input v-model="form.middle_initial" type="text" class="form-control" maxlength="1" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Last Name</label>
+                  <input v-model="form.last_name" type="text" class="form-control" />
+                </div>
+              </div>
+
               <div class="mb-3">
                 <label class="form-label">Email</label>
                 <input v-model="form.email" type="email" class="form-control" required />
@@ -115,6 +239,11 @@
               <div class="mb-3" v-if="!isEdit">
                 <label class="form-label">Password</label>
                 <input v-model="form.password" type="password" class="form-control" required minlength="6" />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input v-model="form.username" type="text" class="form-control" />
               </div>
 
               <div class="mb-3">
@@ -134,6 +263,36 @@
                     {{ d.name }}
                   </option>
                 </select>
+              </div>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">Primary Phone</label>
+                  <input v-model="form.primary_phone" type="text" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Secondary Phone</label>
+                  <input v-model="form.secondary_phone" type="text" class="form-control" />
+                </div>
+              </div>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">Inactivity Timeout (minutes)</label>
+                  <input v-model="form.inactivity_timeout" type="number" min="1" class="form-control" />
+                </div>
+                <div class="col-md-3 d-flex align-items-center">
+                  <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" v-model="form.is_provider" />
+                    <label class="form-check-label">Is Provider</label>
+                  </div>
+                </div>
+                <div class="col-md-3 d-flex align-items-center">
+                  <div class="form-check form-switch mt-3">
+                    <input class="form-check-input" type="checkbox" v-model="form.is_time_clock_user" />
+                    <label class="form-check-label">Time clock user</label>
+                  </div>
+                </div>
               </div>
 
               <div class="mb-3">
@@ -178,6 +337,15 @@ export default {
         role: "STAFF",
         department: "",
         status: "Active",
+        first_name: "",
+        middle_initial: "",
+        last_name: "",
+        username: "",
+        primary_phone: "",
+        secondary_phone: "",
+        inactivity_timeout: "",
+        is_provider: false,
+        is_time_clock_user: false,
       },
 
       pagination: {
@@ -192,11 +360,29 @@ export default {
       },
 
       modal: null,
+      profileModal: null,
+      profile: {
+        name: "",
+        email: "",
+        username: "",
+        first_name: "",
+        middle_initial: "",
+        last_name: "",
+        primary_phone: "",
+        secondary_phone: "",
+        department: "",
+        role: "",
+        inactivity_timeout: "",
+        is_provider: false,
+        is_time_clock_user: false,
+        status: "",
+      },
     };
   },
 
   mounted() {
     this.modal = new Modal(this.$refs.modalRef);
+    this.profileModal = new Modal(this.$refs.profileModalRef);
     this.fetchUsers();
     this.fetchDepartments();
   },
@@ -254,13 +440,39 @@ export default {
         role: "STAFF",
         department: "",
         status: "Active",
+        first_name: "",
+        middle_initial: "",
+        last_name: "",
+        username: "",
+        primary_phone: "",
+        secondary_phone: "",
+        inactivity_timeout: "",
+        is_provider: false,
+        is_time_clock_user: false,
       };
       this.modal.show();
     },
 
     openEditModal(u) {
       this.isEdit = true;
-      this.form = { ...u, password: "" };
+      this.form = {
+        id: u.id,
+        name: u.name || "",
+        email: u.email || "",
+        password: "",
+        role: u.role || "STAFF",
+        department: u.department || "",
+        status: u.status || "Active",
+        first_name: u.first_name || "",
+        middle_initial: u.middle_initial || "",
+        last_name: u.last_name || "",
+        username: u.username || "",
+        primary_phone: u.primary_phone || "",
+        secondary_phone: u.secondary_phone || "",
+        inactivity_timeout: u.inactivity_timeout || "",
+        is_provider: !!u.is_provider,
+        is_time_clock_user: !!u.is_time_clock_user,
+      };
       this.modal.show();
     },
 
@@ -284,6 +496,28 @@ export default {
       axios.delete(`/api/users/${u.id}`).then(() => {
         this.fetchUsers();
       });
+    },
+    openProfileModal(user) {
+      this.profile = {
+        name: user.name,
+        email: user.email,
+        username: user.username || "",
+        first_name: user.first_name || "",
+        middle_initial: user.middle_initial || "",
+        last_name: user.last_name || "",
+        primary_phone: user.primary_phone || "",
+        secondary_phone: user.secondary_phone || "",
+        department: user.department || "",
+        role: user.role || "",
+        inactivity_timeout: user.inactivity_timeout || "",
+        is_provider: !!user.is_provider,
+        is_time_clock_user: !!user.is_time_clock_user,
+        status: user.status || "Active",
+      };
+      if (!this.profileModal) {
+        this.profileModal = new Modal(this.$refs.profileModalRef);
+      }
+      this.profileModal.show();
     },
   },
 };

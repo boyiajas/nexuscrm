@@ -52,6 +52,31 @@ class ClientController extends Controller
         return $query->orderBy('name')->paginate(20);
     }
 
+    /**
+     * Show a single client with departments.
+     */
+    public function show(Client $client)
+    {
+        $client->load('departments');
+        return response()->json([
+            'id' => $client->id,
+            'name' => $client->name,
+            'email' => $client->email,
+            'phone' => $client->phone,
+            'id_number' => $client->id_number,
+            'bank_name' => $client->bank_name,
+            'account_number' => $client->account_number,
+            'branch_code' => $client->branch_code,
+            'tags' => $client->tags ?? [],
+            'departments' => $client->departments->map(function ($dept) {
+                return [
+                    'id' => $dept->id,
+                    'name' => $dept->name,
+                ];
+            }),
+        ]);
+    }
+
     public function store(Request $request)
     {
         $user = Auth::user();
@@ -65,6 +90,10 @@ class ClientController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', 'unique:clients,email'],
             'phone' => ['nullable', 'string', 'max:50'],
+            'id_number' => ['nullable', 'string', 'max:255'],
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'account_number' => ['nullable', 'string', 'max:255'],
+            'branch_code' => ['nullable', 'string', 'max:255'],
             'department_ids' => ['required', 'array', 'min:1'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
             'assigned_to_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -77,6 +106,10 @@ class ClientController extends Controller
                 'name' => $data['name'],
                 'email' => $data['email'] ?? null,
                 'phone' => $data['phone'] ?? null,
+                'id_number' => $data['id_number'] ?? null,
+                'bank_name' => $data['bank_name'] ?? null,
+                'account_number' => $data['account_number'] ?? null,
+                'branch_code' => $data['branch_code'] ?? null,
                 'assigned_to_id' => $data['assigned_to_id'] ?? null,
                 'tags' => $data['tags'] ?? null,
                 'primary_department_id' => $data['department_ids'][0] ?? null,
@@ -126,6 +159,10 @@ class ClientController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255', 'unique:clients,email,' . $client->id],
             'phone' => ['nullable', 'string', 'max:50'],
+            'id_number' => ['nullable', 'string', 'max:255'],
+            'bank_name' => ['nullable', 'string', 'max:255'],
+            'account_number' => ['nullable', 'string', 'max:255'],
+            'branch_code' => ['nullable', 'string', 'max:255'],
             'department_ids' => ['sometimes', 'array'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
             'assigned_to_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -141,6 +178,10 @@ class ClientController extends Controller
                 'name' => $data['name'],
                 'email' => $data['email'] ?? $client->email,
                 'phone' => $data['phone'] ?? $client->phone,
+                'id_number' => $data['id_number'] ?? $client->id_number,
+                'bank_name' => $data['bank_name'] ?? $client->bank_name,
+                'account_number' => $data['account_number'] ?? $client->account_number,
+                'branch_code' => $data['branch_code'] ?? $client->branch_code,
                 'assigned_to_id' => $data['assigned_to_id'] ?? $client->assigned_to_id,
                 'tags' => $data['tags'] ?? $client->tags,
             ]);

@@ -105,12 +105,14 @@
                 <span v-if="!c.tags || c.tags.length === 0" class="text-muted">-</span>
               </td>
               <td class="text-end">
-                <button class="btn btn-sm btn-outline-primary me-1" @click="openEditModal(c)">
-                  Edit
-                </button>
-                <button class="btn btn-sm btn-outline-danger" @click="remove(c)">
-                  Delete
-                </button>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(c)">
+                    <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <button class="btn btn-outline-danger" title="Delete" @click="remove(c)">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="clients.length === 0">
@@ -163,7 +165,7 @@
 
     <!-- Create/Edit Modal -->
     <div class="modal fade" tabindex="-1" ref="modalRef">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-lg">
         <div class="modal-content">
 
           <div class="modal-header">
@@ -189,6 +191,26 @@
               <div class="mb-3">
                 <label class="form-label">Phone</label>
                 <input v-model="form.phone" type="text" class="form-control" />
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">ID Number</label>
+                <input v-model="form.id_number" type="text" class="form-control" />
+              </div>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">Bank Name</label>
+                  <input v-model="form.bank_name" type="text" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Account Number</label>
+                  <input v-model="form.account_number" type="text" class="form-control" />
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Branch Code</label>
+                <input v-model="form.branch_code" type="text" class="form-control" />
               </div>
 
               <div class="mb-3">
@@ -392,6 +414,10 @@ export default {
         name: '',
         email: '',
         phone: '',
+        id_number: '',
+        bank_name: '',
+        account_number: '',
+        branch_code: '',
         department_ids: [],
         tags: [],
       };
@@ -411,6 +437,10 @@ export default {
           name: fullClient.name,
           email: fullClient.email || '',
           phone: fullClient.phone || '',
+          id_number: fullClient.id_number || '',
+          bank_name: fullClient.bank_name || '',
+          account_number: fullClient.account_number || '',
+          branch_code: fullClient.branch_code || '',
           department_ids: fullClient.departments ? fullClient.departments.map(d => d.id) : [],
           tags: fullClient.tags || [],
         };

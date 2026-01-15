@@ -211,8 +211,20 @@
               <tbody>
                 <tr v-for="w in whatsappMessages" :key="w.id">
                   <td>
-                    <div class="fw-semibold">{{ w.template_name || '(No name)' }}</div>
-                    <small class="text-muted">Twilio / Meta template</small>
+                    <div class="fw-semibold">
+                      <span v-if="isFlowSend(w)">
+                        {{ w.flow_name || w.template_name || '(Flow)' }}
+                        <span class="badge bg-info text-dark ms-1">Flow</span>
+                      </span>
+                      <span v-else>
+                        {{ w.template_name || '(No name)' }}
+                        <span class="badge bg-light text-dark border ms-1">Template</span>
+                      </span>
+                    </div>
+                    <small class="text-muted">
+                      <span v-if="isFlowSend(w)">Flow definition</span>
+                      <span v-else>Twilio / Meta template</span>
+                    </small>
                   </td>
                   <td>
                     <span class="badge" :class="statusColor(whatsappStatus(w))">
@@ -815,76 +827,139 @@
             </div>
             <div class="modal-body">
                 <p class="text-muted small">
-                Select one of your <strong>pre-approved Twilio WhatsApp templates</strong>,
-                and optionally choose specific campaign clients (leave empty = all).
+                  Choose whether to send a Twilio template or a saved WhatsApp Flow. Leave recipients empty to target all campaign clients.
                 </p>
 
-                <!-- Template select -->
+                <!-- Mode toggle -->
                 <div class="mb-3">
-                <label class="form-label">WhatsApp Template</label>
-                <select
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button
+                      type="button"
+                      class="btn"
+                      :class="whatsappForm.mode === 'template' ? 'btn-success' : 'btn-outline-success'"
+                      @click="whatsappForm.mode = 'template'"
+                    >
+                      <i class="bi bi-stack me-1"></i>
+                      Template
+                    </button>
+                    <button
+                      type="button"
+                      class="btn"
+                      :class="whatsappForm.mode === 'flow' ? 'btn-success' : 'btn-outline-success'"
+                      @click="whatsappForm.mode = 'flow'"
+                    >
+                      <i class="bi bi-diagram-3 me-1"></i>
+                      Flow
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Template select -->
+                <div class="mb-3" v-if="whatsappForm.mode === 'template'">
+                  <label class="form-label">WhatsApp Template</label>
+                  <select
                     v-model="whatsappForm.templateId"
                     class="form-select"
-                >
+                  >
                     <option value="">-- Select a template --</option>
                     <option
-                    v-for="t in whatsappTemplates"
-                    :key="t.id"
-                    :value="t.id"
+                      v-for="t in whatsappTemplates"
+                      :key="t.id"
+                      :value="t.id"
                     >
-                    {{ t.name }} ({{ t.language }}) – {{ t.category }}
-                    <span v-if="t.media_urls && t.media_urls.length"> 📷</span>
+                      {{ t.name }} ({{ t.language }}) – {{ t.category }}
+                      <span v-if="t.media_urls && t.media_urls.length"> 📷</span>
                     </option>
-                </select>
-                <small class="text-muted">
+                  </select>
+                  <small class="text-muted">
                     Templates are synced from your Twilio / Meta WhatsApp account.
-                </small>
+                  </small>
                 </div>
                 <!-- Template preview -->
-                <div v-if="currentWhatsappTemplate" class="mb-3">
-                    <div class="card border-success">
-                        <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                            <strong>Template Preview</strong>
-                            <small class="text-muted">
-                                {{ currentWhatsappTemplate.language || 'N/A' }}
-                                <span v-if="currentWhatsappTemplate.category">
-                                · {{ currentWhatsappTemplate.category }}
-                                </span>
-                            </small>
-                        </div>
-                        <div class="card-body py-2">
-                            <!-- 🔹 Image header, if any -->
-                            <div
-                                v-if="
-                                currentWhatsappTemplate.media_urls &&
-                                currentWhatsappTemplate.media_urls.length
-                                "
-                                class="mb-2 text-center"
-                            >
-                                <img
-                                :src="currentWhatsappTemplate.media_urls[0]"
-                                alt="WhatsApp template media"
-                                class="img-fluid rounded border"
-                                style="max-height: 200px; object-fit: contain;"
-                                />
-                            </div>
-
-                            <!-- Text body -->
-                            <pre class="mb-0 small">{{ currentWhatsappTemplate.body_preview }}</pre>
-                        </div>
+                <div v-if="whatsappForm.mode === 'template' && currentWhatsappTemplate" class="mb-3">
+                  <div class="card border-success">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                      <strong>Template Preview</strong>
+                      <small class="text-muted">
+                        {{ currentWhatsappTemplate.language || 'N/A' }}
+                        <span v-if="currentWhatsappTemplate.category">
+                          · {{ currentWhatsappTemplate.category }}
+                        </span>
+                      </small>
                     </div>
+                    <div class="card-body py-2">
+                      <div
+                        v-if="
+                          currentWhatsappTemplate.media_urls &&
+                          currentWhatsappTemplate.media_urls.length
+                        "
+                        class="mb-2 text-center"
+                      >
+                        <img
+                          :src="currentWhatsappTemplate.media_urls[0]"
+                          alt="WhatsApp template media"
+                          class="img-fluid rounded border"
+                          style="max-height: 200px; object-fit: contain;"
+                        />
+                      </div>
+
+                      <pre class="mb-0 small">{{ currentWhatsappTemplate.body_preview }}</pre>
+                    </div>
+                  </div>
                 </div>
                 
                 <!-- Open full preview / configure page -->
-                <div class="mb-3">
-                <button
+                <div class="mb-3" v-if="whatsappForm.mode === 'template'">
+                  <button
                     type="button"
                     class="btn btn-outline-secondary btn-sm"
                     @click="goToWhatsappTemplatePreview"
-                >
+                  >
                     <i class="bi bi-eye me-1"></i>
                     Preview / Configure Template
-                </button>
+                  </button>
+                </div>
+
+                <!-- Flow select -->
+                <div class="mb-3" v-if="whatsappForm.mode === 'flow'">
+                  <label class="form-label">WhatsApp Flow</label>
+                  <select
+                    v-model="whatsappForm.flowId"
+                    class="form-select"
+                  >
+                    <option value="">-- Select a flow --</option>
+                    <option
+                      v-for="f in whatsappFlows"
+                      :key="f.id"
+                      :value="f.id"
+                    >
+                      {{ f.name }} ({{ f.status || 'active' }})
+                    </option>
+                  </select>
+                  <small class="text-muted">
+                    Saved flows with branching Yes/No logic.
+                  </small>
+                </div>
+                <div class="mb-3" v-if="whatsappForm.mode === 'flow' && currentWhatsappFlow">
+                  <div class="card border-info">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                      <strong>Flow Preview</strong>
+                      <small class="text-muted">{{ currentWhatsappFlow.template_name || 'Flow steps' }}</small>
+                    </div>
+                    <div class="card-body">
+                      <ol class="small mb-0">
+                        <li v-for="(step, idx) in (currentWhatsappFlow.flow_definition || [])" :key="idx">
+                          <strong>{{ step.label || step.id }}</strong>
+                          <div class="text-muted">{{ step.message }}</div>
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
+                  <div class="mt-2">
+                    <router-link class="btn btn-outline-secondary btn-sm" :to="{ name: 'whatsapp-flows' }">
+                      <i class="bi bi-diagram-3 me-1"></i> Open Flows Page
+                    </router-link>
+                  </div>
                 </div>
 
                 <!-- Recipients via vue-multiselect -->
@@ -995,7 +1070,7 @@
                     type="button"
                     class="btn btn-outline-success"
                     @click="saveWhatsappTemplate(false)"
-                    :disabled="whatsappForm.sending || !whatsappForm.templateId"
+                    :disabled="whatsappForm.sending || !canSubmitWhatsapp"
                 >
                     <span
                     v-if="whatsappForm.sending && whatsappForm.action === 'save'"
@@ -1009,7 +1084,7 @@
                     type="button"
                     class="btn btn-success"
                     @click="saveWhatsappTemplate(true)"
-                    :disabled="whatsappForm.sending || !whatsappForm.templateId"
+                    :disabled="whatsappForm.sending || !canSubmitWhatsapp"
                 >
                     <span
                     v-if="whatsappForm.sending && whatsappForm.action === 'queue'"
@@ -1397,8 +1472,11 @@ export default {
       addWhatsappModal: null,
       whatsappModalLoading: false,
       whatsappTemplates: [],
+      whatsappFlows: [],
       whatsappForm: {
+        mode: 'template', // 'template' | 'flow'
         templateId: '',
+        flowId: '',
         clientsMode: 'all',
         selectedClients: [],
         trackResponses: false,
@@ -1523,6 +1601,19 @@ export default {
             (t) => t.id === this.whatsappForm.templateId
         ) || null;
     },
+    currentWhatsappFlow() {
+      if (!this.whatsappForm.flowId) return null;
+      return this.whatsappFlows.find((f) => f.id === this.whatsappForm.flowId) || null;
+    },
+    canSubmitWhatsapp() {
+      if (this.whatsappForm.mode === 'template') {
+        return !!this.whatsappForm.templateId;
+      }
+      if (this.whatsappForm.mode === 'flow') {
+        return !!this.whatsappForm.flowId;
+      }
+      return false;
+    },
     currentEmailTemplate() {
       return this.emailTemplates.find(t => t.id === this.emailForm.templateId) || null;
     },
@@ -1589,6 +1680,10 @@ export default {
     whatsappTemplateId(message) {
       if (!message) return null;
       return message.template_sid || message.template_id || message.templateId || message.templateSid || null;
+    },
+    isFlowSend(message) {
+      if (!message) return false;
+      return !!(message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow);
     },
     canSendWhatsapp(message) {
       if (!message) return false;
@@ -1860,7 +1955,9 @@ export default {
       this.whatsappModalLoading = true;
       this.editingWhatsappMessageId = null;
       this.whatsappForm = {
+        mode: 'template',
         templateId: '',
+        flowId: '',
         selectedClients: [],
         trackResponses: false,
         enableLiveChat: false,
@@ -1870,30 +1967,33 @@ export default {
 
       const preSelected = this.$route.query.whatsapp_template;
 
-      axios
-        .get('/api/whatsapp-templates')
-        .then((res) => {
-          this.whatsappTemplates = res.data.data || res.data;
+      Promise.all([
+        axios.get('/api/whatsapp-templates').catch(() => ({ data: [] })),
+        axios.get('/api/whatsapp-flows').catch(() => ({ data: [] })),
+      ]).then(([tplRes, flowRes]) => {
+        this.whatsappTemplates = tplRes.data.data || tplRes.data || [];
+        this.whatsappFlows = flowRes.data.data || flowRes.data || [];
 
-          if (preSelected && this.whatsappTemplates.some((t) => t.id === preSelected)) {
-            this.whatsappForm.templateId = preSelected;
-          }
-        })
-        .catch(() => {
-          this.whatsappTemplates = [];
-        })
-        .finally(() => {
-          this.addWhatsappModal.show();
-          this.whatsappModalLoading = false;
-        });
+        if (preSelected && this.whatsappTemplates.some((t) => t.id === preSelected)) {
+          this.whatsappForm.templateId = preSelected;
+        }
+      }).finally(() => {
+        this.addWhatsappModal.show();
+        this.whatsappModalLoading = false;
+      });
     },
     saveWhatsappTemplate(sendNow = true) {
-      if (!this.whatsappForm.templateId) return;
+      const isTemplate = this.whatsappForm.mode === 'template';
+      const isFlow = this.whatsappForm.mode === 'flow';
+      if (isTemplate && !this.whatsappForm.templateId) return;
+      if (isFlow && !this.whatsappForm.flowId) return;
 
       const id = this.$route.params.id;
       const hasSelection = this.whatsappForm.selectedClients.length > 0;
       const payload = {
-        template_id: this.whatsappForm.templateId,
+        mode: this.whatsappForm.mode,
+        template_id: isTemplate ? this.whatsappForm.templateId : null,
+        flow_id: isFlow ? this.whatsappForm.flowId : null,
         clients_mode: hasSelection ? 'selected' : 'all',
         client_ids: hasSelection ? this.whatsappForm.selectedClients.map((c) => c.id) : [],
         send_now: sendNow,
@@ -1929,15 +2029,13 @@ export default {
         });
     },
     editWhatsappTemplate(message) {
+      const isFlow = !!(message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow);
       const templateId = this.whatsappTemplateId(message);
-      if (!templateId) {
-        alert('No template id available for this batch.');
-        return;
-      }
-
       this.editingWhatsappMessageId = message.id;
       this.whatsappForm = {
-        templateId,
+        mode: isFlow ? 'flow' : 'template',
+        templateId: templateId || '',
+        flowId: isFlow ? (message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow?.id || '') : '',
         selectedClients: [],
         trackResponses: false,
         enableLiveChat: !!message.enable_live_chat,
@@ -1946,17 +2044,33 @@ export default {
       };
 
       const campaignId = this.$route.params.id;
-      axios
-        .get(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/recipients`)
-        .then((res) => {
-          const recipients = res.data.recipients || [];
-          const selectedIds = recipients.map((r) => r.client_id).filter(Boolean);
-          const optionsMap = new Map(this.campaignClientOptions.map((c) => [c.id, c]));
-          this.whatsappForm.selectedClients = selectedIds.map((id) => optionsMap.get(id)).filter(Boolean);
-        })
-        .finally(() => {
-          this.addWhatsappModal.show();
+      const loadLists = [];
+      if (!this.whatsappTemplates.length) loadLists.push(axios.get('/api/whatsapp-templates').catch(() => ({ data: [] })));
+      if (!this.whatsappFlows.length) loadLists.push(axios.get('/api/whatsapp-flows').catch(() => ({ data: [] })));
+      Promise.all(loadLists).then((responses) => {
+        responses.forEach((res) => {
+          if (Array.isArray(res?.data)) {
+            // crude detection: if first item has flow_definition -> flows
+            if (res.data.length && res.data[0].flow_definition !== undefined) {
+              this.whatsappFlows = res.data;
+            } else {
+              this.whatsappTemplates = res.data;
+            }
+          }
         });
+      }).finally(() => {
+        axios
+          .get(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/recipients`)
+          .then((res) => {
+            const recipients = res.data.recipients || [];
+            const selectedIds = recipients.map((r) => r.client_id).filter(Boolean);
+            const optionsMap = new Map(this.campaignClientOptions.map((c) => [c.id, c]));
+            this.whatsappForm.selectedClients = selectedIds.map((id) => optionsMap.get(id)).filter(Boolean);
+          })
+          .finally(() => {
+            this.addWhatsappModal.show();
+          });
+      });
     },
     deleteWhatsappTemplate(message) {
       if (!confirm(`Delete this WhatsApp batch "${message.template_name || ''}"?`)) return;

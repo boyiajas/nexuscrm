@@ -8,6 +8,7 @@ use App\Models\CampaignClient;
 use App\Models\CampaignEmailRecipient;
 use App\Models\CampaignSmsRecipient;
 use App\Models\CampaignWhatsappRecipient;
+use App\Models\WhatsAppFlow;
 use App\Models\Client;
 use App\Services\TwilioWhatsAppService;
 use Illuminate\Http\JsonResponse;
@@ -453,6 +454,10 @@ class CampaignController extends Controller
             ])
             ->get([
                 'id',
+                'mode',
+                'whatsapp_flow_id',
+                'flow_name',
+                'flow_definition',
                 'template_sid',
                 'template_name',
                 'name',
@@ -482,6 +487,10 @@ class CampaignController extends Controller
 
             return [
                 'id'            => $m->id,
+                'mode'          => $m->mode ?? 'template',
+                'whatsapp_flow_id' => $m->whatsapp_flow_id,
+                'flow_name'     => $m->flow_name,
+                'flow_definition' => $m->flow_definition,
                 'template_sid'  => $m->template_sid,
                 'template_name' => $m->template_name,
                 'name'          => $m->name,
@@ -513,7 +522,9 @@ class CampaignController extends Controller
         $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
 
         $data = $request->validate([
-            'template_id'      => ['required', 'string'],
+            'mode'             => ['required', 'in:template,flow'],
+            'template_id'      => ['nullable', 'string'],
+            'flow_id'          => ['nullable', 'integer', 'exists:whatsapp_flows,id'],
             'clients_mode'     => ['required', 'in:all,selected'],
             'client_ids'       => ['array'],
             'client_ids.*'     => ['integer', 'exists:clients,id'],
@@ -527,6 +538,14 @@ class CampaignController extends Controller
             return response()->json(['message' => 'client_ids is required when clients_mode = selected'], 422);
         }
 
+        $mode = $data['mode'] ?? 'template';
+        if ($mode === 'template' && empty($data['template_id'])) {
+            return response()->json(['message' => 'template_id is required for template mode'], 422);
+        }
+        if ($mode === 'flow' && empty($data['flow_id'])) {
+            return response()->json(['message' => 'flow_id is required for flow mode'], 422);
+        }
+
         // Build clients list based on selection
         $clientsQuery = $campaign->clients();
         if ($data['clients_mode'] === 'selected') {
@@ -538,14 +557,31 @@ class CampaignController extends Controller
             return response()->json(['message' => 'No clients found for this batch.'], 422);
         }
 
-        // Refresh template info
-        $templateSid  = $data['template_id'];
-        $template     = $this->twilioWhatsApp->getTemplateDetails($templateSid);
-        $friendlyName = $template['friendly_name'] ?? $templateSid;
-        $types        = $template['types'] ?? [];
-        $previewBody  = $types['twilio/text']['body']
-                        ?? $types['twilio/quick-reply']['body']
-                        ?? null;
+        // Refresh template/flow info
+        $templateSid  = null;
+        $friendlyName = null;
+        $previewBody  = null;
+        $flowId       = null;
+        $flowName     = null;
+        $flowDef      = null;
+
+        if ($mode === 'template') {
+            $templateSid  = $data['template_id'];
+            $template     = $this->twilioWhatsApp->getTemplateDetails($templateSid);
+            $friendlyName = $template['friendly_name'] ?? $templateSid;
+            $types        = $template['types'] ?? [];
+            $previewBody  = $types['twilio/text']['body']
+                            ?? $types['twilio/quick-reply']['body']
+                            ?? null;
+        } else {
+            $flow        = WhatsAppFlow::findOrFail($data['flow_id']);
+            $flowId      = $flow->id;
+            $flowName    = $flow->name;
+            $flowDef     = $flow->flow_definition;
+            $templateSid = $flow->template_sid;
+            $friendlyName = $flowName;
+            $previewBody = $flowDef && isset($flowDef[0]['message']) ? $flowDef[0]['message'] : 'Flow start';
+        }
 
         $total = $clients->count();
         $now   = now();
@@ -568,19 +604,23 @@ class CampaignController extends Controller
 
         // Update message meta
         $message->update([
-            'template_sid'  => $templateSid,
-            'template_name' => $friendlyName,
-            'name'          => $friendlyName,
-            'preview_body'  => $previewBody,
-            'sent_at'       => $sendNow ? $now : null,
-            'total'         => $total,
-            'delivered'     => 0,
-            'failed'        => 0,
-            'pending'       => $sendNow ? $total : 0,
+            'mode'             => $mode,
+            'template_sid'     => $templateSid,
+            'template_name'    => $friendlyName,
+            'name'             => $friendlyName,
+            'preview_body'     => $previewBody,
+            'whatsapp_flow_id' => $flowId,
+            'flow_name'        => $flowName,
+            'flow_definition'  => $flowDef,
+            'sent_at'          => $sendNow ? $now : null,
+            'total'            => $total,
+            'delivered'        => 0,
+            'failed'           => 0,
+            'pending'          => $sendNow ? $total : 0,
             'enable_live_chat' => $data['enable_live_chat'] ?? $message->enable_live_chat,
         ]);
 
-        if ($sendNow) {
+        if ($sendNow && $templateSid) {
             // Mark campaign clients as pending
             CampaignClient::where('campaign_id', $campaign->id)
                 ->whereIn('client_id', $clients->pluck('id'))
@@ -597,11 +637,14 @@ class CampaignController extends Controller
                 }
                 try {
                     $subject = $client->name ?? '';
+                    $bodyVar = $mode === 'flow'
+                        ? ($flowDef[0]['message'] ?? '')
+                        : '';
                     $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
                         $client->phone,
                         $templateSid,
                         $subject,
-                        '',
+                        $bodyVar,
                         $campaign->whatsapp_from
                     );
                 } catch (\Throwable $e) {
@@ -634,7 +677,7 @@ class CampaignController extends Controller
             return response()->json(['message' => 'Batch already sent.'], 422);
         }
 
-        if (!$message->template_sid) {
+        if (!$message->template_sid && $message->mode === 'template') {
             return response()->json(['message' => 'Template ID missing for this batch.'], 422);
         }
 
@@ -670,27 +713,32 @@ class CampaignController extends Controller
             ]);
 
         // Send via Twilio
-        foreach ($recipients as $recipient) {
-            $client = $recipient->client;
-            $phone  = $recipient->phone ?: $client?->phone;
-            if (!$phone) {
-                continue;
-            }
-            try {
-                $subject = $client?->name ?? '';
-                $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
-                    $phone,
-                    $message->template_sid,
-                    $subject,
-                    ''
-                );
-            } catch (\Throwable $e) {
-                \Log::error('Failed to send WhatsApp draft', [
-                    'campaign_id' => $campaign->id,
-                    'client_id'   => $client?->id,
-                    'message_id'  => $message->id,
-                    'error'       => $e->getMessage(),
-                ]);
+        if ($message->template_sid) {
+            foreach ($recipients as $recipient) {
+                $client = $recipient->client;
+                $phone  = $recipient->phone ?: $client?->phone;
+                if (!$phone) {
+                    continue;
+                }
+                try {
+                    $subject = $client?->name ?? '';
+                    $bodyVar = $message->mode === 'flow'
+                        ? ($message->flow_definition[0]['message'] ?? '')
+                        : '';
+                    $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
+                        $phone,
+                        $message->template_sid,
+                        $subject,
+                        $bodyVar
+                    );
+                } catch (\Throwable $e) {
+                    \Log::error('Failed to send WhatsApp draft', [
+                        'campaign_id' => $campaign->id,
+                        'client_id'   => $client?->id,
+                        'message_id'  => $message->id,
+                        'error'       => $e->getMessage(),
+                    ]);
+                }
             }
         }
 
@@ -907,6 +955,8 @@ class CampaignController extends Controller
 
         $meta = [
             'id'            => $message->id,
+            'mode'          => $message->mode ?? 'template',
+            'flow_name'     => $message->flow_name,
             'template_name' => $message->template_name ?? $message->name,
             'subject'       => null, // WhatsApp has no subject, keep for consistency with Email
             'status'        => $status,
@@ -947,7 +997,9 @@ class CampaignController extends Controller
         $this->authorizeManageCampaign($campaign);
 
         $data = $request->validate([
-            'template_id'      => ['required', 'string'],
+            'mode'             => ['required', 'in:template,flow'],
+            'template_id'      => ['nullable', 'string'],
+            'flow_id'          => ['nullable', 'integer', 'exists:whatsapp_flows,id'],
             'clients_mode'     => ['required', 'in:all,selected'],
             'client_ids'       => ['array'],
             'client_ids.*'     => ['integer', 'exists:clients,id'],
@@ -962,6 +1014,14 @@ class CampaignController extends Controller
             return response()->json([
                 'message' => 'client_ids is required when clients_mode = selected',
             ], 422);
+        }
+
+        $mode = $data['mode'] ?? 'template';
+        if ($mode === 'template' && empty($data['template_id'])) {
+            return response()->json(['message' => 'template_id is required for template mode'], 422);
+        }
+        if ($mode === 'flow' && empty($data['flow_id'])) {
+            return response()->json(['message' => 'flow_id is required for flow mode'], 422);
         }
 
         // Determine which clients this batch is for
@@ -980,30 +1040,51 @@ class CampaignController extends Controller
             ], 422);
         }
 
-        // Get template details for nice naming + preview text
-        $templateSid   = $data['template_id'];
-        $template      = $this->twilioWhatsApp->getTemplateDetails($templateSid);
-        $friendlyName  = $template['friendly_name'] ?? $templateSid;
-        $types         = $template['types'] ?? [];
-        $previewBody   = $types['twilio/text']['body']
-                        ?? $types['twilio/quick-reply']['body']
-                        ?? null;
+        $templateSid  = null;
+        $friendlyName = null;
+        $previewBody  = null;
+        $flowId       = null;
+        $flowName     = null;
+        $flowDef      = null;
+        $flowTemplateSid = null;
+
+        if ($mode === 'template') {
+            $templateSid   = $data['template_id'];
+            $template      = $this->twilioWhatsApp->getTemplateDetails($templateSid);
+            $friendlyName  = $template['friendly_name'] ?? $templateSid;
+            $types         = $template['types'] ?? [];
+            $previewBody   = $types['twilio/text']['body']
+                            ?? $types['twilio/quick-reply']['body']
+                            ?? null;
+        } else {
+            $flow = WhatsAppFlow::findOrFail($data['flow_id']);
+            $flowId   = $flow->id;
+            $flowName = $flow->name;
+            $flowDef  = $flow->flow_definition;
+            $flowTemplateSid = $flow->template_sid;
+            $friendlyName = $flowName;
+            $templateSid  = $flowTemplateSid;
+            $previewBody  = $flowDef && isset($flowDef[0]['message']) ? $flowDef[0]['message'] : 'Flow start';
+        }
 
         // Create parent WhatsApp "batch" row via relationship
         $total = $clients->count();
         $now   = now();
 
         $message = $campaign->whatsappMessages()->create([
+            'mode'              => $mode,
             'template_sid'      => $templateSid,
             'template_name'     => $friendlyName,
             'name'              => $friendlyName,
             'preview_body'      => $previewBody,
+            'whatsapp_flow_id'  => $flowId,
+            'flow_name'         => $flowName,
+            'flow_definition'   => $flowDef,
             'sent_at'           => $sendNow ? $now : null,
             'total'             => $total,
             'delivered'         => 0,
             'failed'            => 0,
             'pending'           => $sendNow ? $total : 0,
-            // these will simply be ignored if not fillable / not in schema
             'track_responses'   => $data['track_responses']  ?? false,
             'enable_live_chat'  => $data['enable_live_chat'] ?? false,
         ]);
@@ -1035,35 +1116,30 @@ class CampaignController extends Controller
         }
         
             // 🔹 ONLY send via Twilio if send_now is true
-        if ($sendNow) {
-             /**
-             * 🔹 OPTIONAL: actually send via Twilio here
-             * For large volumes you should dispatch a queued Job instead.
-             * This example sends synchronously so you see everything working end-to-end;
-             * feel free to move this into a Job later.
-             */
+        if ($sendNow && $templateSid) {
             foreach ($clients as $client) {
                 if (!$client->phone) {
                     continue;
                 }
 
                 try {
-                    // Map whatever variable(s) you want; here we just set {{1}} = client name
                     $subject = $client->name ?? '';
+                    $bodyVar = $mode === 'flow'
+                        ? ($flowDef[0]['message'] ?? '')
+                        : '';
+
                     $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
                         $client->phone,
                         $templateSid,
                         $subject,
-                        '', // second variable if needed
+                        $bodyVar,
                         $campaign->whatsapp_from
                     );
-
-                    // You could also increment delivered/pending here or in a callback webhook
                 } catch (\Throwable $e) {
-                    // Log but don't break entire batch
                     Log::error('Failed to send WhatsApp for client', [
                         'campaign_id' => $campaign->id,
                         'client_id'   => $client->id,
+                        'mode'        => $mode,
                         'error'       => $e->getMessage(),
                     ]);
                 }

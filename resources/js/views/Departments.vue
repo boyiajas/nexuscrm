@@ -34,12 +34,14 @@
                 <span v-if="!d.whatsapp_numbers || d.whatsapp_numbers.length === 0" class="text-muted">Default</span>
               </td>
               <td class="text-end">
-                <button class="btn btn-sm btn-outline-primary me-1" @click="openEditModal(d)">
-                  Edit
-                </button>
-                <button class="btn btn-sm btn-outline-danger" @click="remove(d)">
-                  Delete
-                </button>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(d)">
+                    <i class="bi bi-pencil-square"></i>
+                  </button>
+                  <button class="btn btn-outline-danger" title="Delete" @click="remove(d)">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
               </td>
             </tr>
 
