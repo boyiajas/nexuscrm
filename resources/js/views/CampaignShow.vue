@@ -463,11 +463,14 @@
                 </span>
               </h5>
               <small class="text-muted d-block">
-                Template / Subject:
-                <strong>{{ recipientModal.meta.template_name || recipientModal.meta.subject || '-' }}</strong>
-                · Status:
+                <span class="text-white">Template / Subject:</span>
+                <strong class="text-white">{{ recipientModal.meta.template_name || recipientModal.meta.subject || '-' }}</strong>
+                · <span class="text-white">Status:</span>
                 <span class="badge ms-1" :class="statusColor(recipientModal.meta.status || 'sent')">
                   {{ recipientModal.meta.status || 'Sent' }}
+                </span>
+                <span v-if="recipientModal.meta.reply_number" class="ms-2 text-white">
+                  · Reply number: <strong>{{ recipientModal.meta.reply_number }}</strong>
                 </span>
               </small>
             </div>
@@ -491,8 +494,8 @@
           <div class="modal-body">
 
             <!-- Summary cards -->
-            <div class="row g-3 mb-3">
-              <div class="col-md-3" v-for="stat in recipientSummaryCards" :key="stat.label">
+            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-3 mb-3">
+              <div class="col" v-for="stat in recipientSummaryCards" :key="stat.label">
                 <div class="card shadow-sm h-100">
                   <div class="card-body py-2">
                     <div class="d-flex align-items-center gap-2">
@@ -1443,6 +1446,7 @@ export default {
           delivered: 0,
           failed: 0,
           pending: 0,
+          replies: 0,
         },
         rows: [],
         agents: [],
@@ -1577,6 +1581,7 @@ export default {
         { label: 'Delivered', value: s.delivered || 0, icon: 'bi bi-check-circle-fill text-success' },
         { label: 'Failed', value: s.failed || 0, icon: 'bi bi-x-circle-fill text-danger' },
         { label: 'Pending', value: s.pending || 0, icon: 'bi bi-hourglass-split text-warning' },
+        { label: 'Replies', value: s.replies || 0, icon: 'bi bi-chat-dots-fill text-info' },
       ];
     },
     filteredRecipients() {
@@ -1780,16 +1785,24 @@ export default {
         subject: sendRow.subject || null,
         status: sendRow.status || 'Sent',
         can_send: !!sendRow.can_send,
+        reply_number: sendRow.whatsapp_from || sendRow.from || this.campaign?.whatsapp_from || null,
       };
 
       axios.get(url).then((res) => {
         if (res.data.summary) {
-          this.recipientModal.summary = res.data.summary;
+          this.recipientModal.summary = Object.assign({ replies: 0 }, res.data.summary);
         }
         this.recipientModal.rows = res.data.recipients || [];
         this.recipientModal.agents = res.data.agents || [];
         if (res.data.meta) {
           this.recipientModal.meta = Object.assign({}, this.recipientModal.meta, res.data.meta);
+        }
+        // Derive replies from rows if not provided
+        const replyCount = (this.recipientModal.rows || []).filter((r) => r.last_response || r.response || r.reply).length;
+        if (!this.recipientModal.summary || typeof this.recipientModal.summary.replies === 'undefined') {
+          this.recipientModal.summary = Object.assign({}, this.recipientModal.summary, { replies: replyCount });
+        } else {
+          this.recipientModal.summary.replies = this.recipientModal.summary.replies || replyCount;
         }
         this.recipientsModal.show();
       });
