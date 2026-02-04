@@ -1,0 +1,45 @@
+{
+  "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff": {
+    "file": "assets/bootstrap-icons-BeopsB42.woff",
+    "src": "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff"
+  },
+  "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2": {
+    "file": "assets/bootstrap-icons-mSm7cUeB.woff2",
+    "src": "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-DxckTotl.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-BkzDz21x.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true,
+    "dynamicImports": [
+      "resources/js/components/layout/MainLayout.vue"
+    ],
+    "css": [
+      "assets/app-BF_Fu-pt.css",
+      "assets/app-DxckTotl.css"
+    ],
+    "assets": [
+      "assets/bootstrap-icons-mSm7cUeB.woff2",
+      "assets/bootstrap-icons-BeopsB42.woff"
+    ]
+  },
+  "resources/js/components/layout/MainLayout.vue": {
+    "file": "assets/MainLayout-CqiSI3g8.js",
+    "name": "MainLayout",
+    "src": "resources/js/components/layout/MainLayout.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.js"
+    ],
+    "css": [
+      "assets/MainLayout-nIzPsixG.css",
+      "assets/app-DxckTotl.css"
+    ]
+  }
+}
