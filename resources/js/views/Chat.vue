@@ -76,7 +76,7 @@
             <div
               v-for="msg in messages"
               :key="msg.id"
-              class="mb-3 d-flex"
+              class="mb-1 d-flex"
               :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
             >
               <div
