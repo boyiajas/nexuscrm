@@ -452,6 +452,9 @@ class CampaignController extends Controller
                 'recipients as no_responses_count' => function ($q) {
                     $q->whereRaw('LOWER(last_response) = ?', ['no']);
                 },
+                'recipients as replies_count' => function ($q) {
+                    $q->whereNotNull('last_response');
+                },
             ])
             ->get([
                 'id',
@@ -505,6 +508,7 @@ class CampaignController extends Controller
                 'enable_live_chat' => (bool) $m->enable_live_chat,
                 'yes_responses_count' => $m->yes_responses_count ?? 0,
                 'no_responses_count' => $m->no_responses_count ?? 0,
+                'replies_count' => $m->replies_count ?? 0,
                 'status'        => $status,
             ];
         });

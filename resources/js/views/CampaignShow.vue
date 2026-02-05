@@ -1776,6 +1776,7 @@ export default {
         delivered: sendRow.delivered || 0,
         failed: sendRow.failed || 0,
         pending: sendRow.pending || 0,
+        replies: sendRow.replies_count || sendRow.replies || 0,
       };
       this.recipientModal.rows = [];
       this.recipientModal.agents = [];
