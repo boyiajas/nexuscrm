@@ -73,16 +73,21 @@
           </div>
 
           <div v-else>
-            <div v-for="msg in messages" :key="msg.id" class="mb-3">
+            <div
+              v-for="msg in messages"
+              :key="msg.id"
+              class="mb-3 d-flex"
+              :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
+            >
               <div
-                class="d-inline-block px-3 py-2 rounded"
-                :class="msg.sender === 'agent' ? 'bg-primary text-white' : 'bg-light border'"
+                class="chat-bubble"
+                :class="msg.sender === 'agent' ? 'bubble-agent' : 'bubble-client'"
               >
                 <div class="small fw-semibold mb-1">
                   {{ msg.sender === 'agent' ? 'You' : (msg.sender === 'system' ? 'System' : activeSession.client_name) }}
                 </div>
                 <div class="small">{{ msg.content }}</div>
-                <div class="small text-muted mt-1" style="font-size: 0.7rem;">
+                <div class="small text-muted mt-1 timestamp">
                   {{ msg.sent_at || msg.created_at }}
                 </div>
               </div>
@@ -112,6 +117,7 @@
 
 <script>
 import axios from '../axios';
+import './Chat.css';
 
 export default {
   name: 'ChatView',
@@ -188,3 +194,10 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+/* Preserve existing multiselect tag color if used elsewhere in the view */
+:deep(.multiselect__tag) {
+  background: #0d6efd;
+}
+</style>
