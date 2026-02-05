@@ -208,10 +208,37 @@ class TwilioController extends Controller
         $normalized = $this->normalizePhone($phone) ?? $phone;
         $digits = preg_replace('/\D+/', '', $normalized);
 
+        if (!$digits) {
+            return null;
+        }
+
+        // Fix: Use backticks for column name and single quotes for string literals
         return Client::query()
             ->where('phone', $normalized)
             ->orWhere('phone', $phone)
-            ->orWhereRaw('REPLACE(REPLACE(REPLACE(phone, \"+\", \"\"), \" \", \"\"), \"-\", \"\") = ?', [$digits])
+            ->orWhereRaw(
+                "REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?",
+                [$digits]
+            )
+            ->first();
+    }
+
+    protected function findClientByPhoneOld(string $phone): ?Client
+    {
+        $normalized = $this->normalizePhone($phone) ?? $phone;
+        $digits = preg_replace('/\D+/', '', $normalized);
+
+        if (!$digits) {
+            return null;
+        }
+
+        return Client::query()
+            ->where('phone', $normalized)
+            ->orWhere('phone', $phone)
+            ->orWhereRaw(
+                "REPLACE(REPLACE(REPLACE(phone, ?, ''), ?, ''), ?, '') = ?",
+                ['+', ' ', '-', $digits]
+            )
             ->first();
     }
 
