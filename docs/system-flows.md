@@ -17,6 +17,7 @@ End-to-end paths to understand how pieces connect.
 2) Attach clients via CampaignShow.vue -> `POST /api/campaigns/{id}/attach-clients` (all or selected).
 3) Add WhatsApp batch (template mode) -> `POST /api/campaigns/{id}/whatsapp-messages` with template_id and recipients. Controller creates `CampaignWhatsappMessage` + recipients; optionally sends immediately via `TwilioWhatsAppService`.
 4) Recipients dashboard pulls `GET /api/campaigns/{id}/whatsapp-messages/{message}/recipients`; batch list uses `GET /api/campaigns/{id}/whatsapp-messages`.
+5) Twilio status/reply webhook posts to `POST /api/twilio/webhook/whatsapp` (public). Delivery statuses update `CampaignWhatsappRecipient.status`/`delivered_at` and recalc batch counts. Inbound replies set `last_response`, feed yes/no metrics, and create chat sessions/messages for live chat.
 
 ## Campaign creation and send (WhatsApp flow)
 1) Build flow in WhatsAppFlows.vue -> `POST /api/whatsapp-flows` with `flow_definition` and template_sid.

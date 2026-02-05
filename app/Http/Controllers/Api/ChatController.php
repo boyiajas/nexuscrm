@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\ChatSession;
 use App\Models\ChatMessage;
+use App\Models\Client;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -62,5 +63,41 @@ class ChatController extends Controller
     {
         // TODO: handle Twilio webhook, find/create ChatSession,
         // create ChatMessage with sender='user', increment unread_count, etc.
+    }
+
+    /**
+     * Ensure a chat session exists for a client and return it with messages.
+     */
+    public function sessionForClient(Request $request)
+    {
+        $data = $request->validate([
+            'client_id' => ['required', 'integer', 'exists:clients,id'],
+            'platform'  => ['sometimes', 'string', 'max:50'],
+        ]);
+
+        $client = Client::findOrFail($data['client_id']);
+        $platform = $data['platform'] ?? 'whatsapp';
+
+        $session = ChatSession::firstOrCreate(
+            [
+                'client_id' => $client->id,
+                'platform'  => $platform,
+            ],
+            [
+                'client_name' => $client->name,
+                'status'      => 'active',
+                'agent_id'    => Auth::id(),
+                'unread_count'=> 0,
+            ]
+        );
+
+        // Load messages ordered and reset unread count when fetched
+        $session->load(['client', 'agent', 'messages' => function ($q) {
+            $q->orderBy('created_at');
+        }]);
+
+        $session->update(['unread_count' => 0]);
+
+        return response()->json($session);
     }
 }

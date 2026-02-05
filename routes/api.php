@@ -28,6 +28,9 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
 
+// Twilio webhooks (public)
+Route::post('/twilio/webhook/whatsapp', [TwilioController::class, 'webhookWhatsapp']);
+
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('clients', ClientController::class);
@@ -70,6 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('chat/sessions', [ChatController::class, 'index']);
     Route::get('chat/sessions/{session}', [ChatController::class, 'show']);
     Route::post('chat/sessions/{session}/messages', [ChatController::class, 'storeMessage']);
+    Route::post('chat/session-for-client', [ChatController::class, 'sessionForClient']);
 
     Route::get('audit-logs', [AuditLogController::class, 'index']);
     Route::get('audit-logs/export', [AuditLogController::class, 'export']);

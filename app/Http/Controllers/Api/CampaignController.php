@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\CampaignClient;
+use App\Models\CampaignWhatsappMessage;
 use App\Models\CampaignEmailRecipient;
 use App\Models\CampaignSmsRecipient;
 use App\Models\CampaignWhatsappRecipient;
@@ -640,13 +641,22 @@ class CampaignController extends Controller
                     $bodyVar = $mode === 'flow'
                         ? ($flowDef[0]['message'] ?? '')
                         : '';
-                    $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
+                    $twResponse = $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
                         $client->phone,
                         $templateSid,
                         $subject,
                         $bodyVar,
                         $campaign->whatsapp_from
                     );
+                    $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');
+
+                    CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
+                        ->where('client_id', $client->id)
+                        ->update([
+                            'message_sid'  => $twResponse['sid'] ?? null,
+                            'status'       => $mappedStatus,
+                            'delivered_at' => $mappedStatus === 'Delivered' ? now() : null,
+                        ]);
                 } catch (\Throwable $e) {
                     \Log::error('Failed to send WhatsApp (update draft)', [
                         'campaign_id' => $campaign->id,
@@ -655,6 +665,8 @@ class CampaignController extends Controller
                     ]);
                 }
             }
+
+            $this->refreshWhatsappMessageCounts($message);
         }
 
         return response()->json([
@@ -725,12 +737,20 @@ class CampaignController extends Controller
                     $bodyVar = $message->mode === 'flow'
                         ? ($message->flow_definition[0]['message'] ?? '')
                         : '';
-                    $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
+                    $twResponse = $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
                         $phone,
                         $message->template_sid,
                         $subject,
                         $bodyVar
                     );
+
+                    $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');
+                    $recipient->message_sid = $twResponse['sid'] ?? $recipient->message_sid;
+                    $recipient->status = $mappedStatus;
+                    if ($mappedStatus === 'Delivered') {
+                        $recipient->delivered_at = $recipient->delivered_at ?? now();
+                    }
+                    $recipient->save();
                 } catch (\Throwable $e) {
                     \Log::error('Failed to send WhatsApp draft', [
                         'campaign_id' => $campaign->id,
@@ -741,6 +761,8 @@ class CampaignController extends Controller
                 }
             }
         }
+
+        $this->refreshWhatsappMessageCounts($message);
 
         return response()->json(['message' => 'Batch sent successfully.']);
     }
@@ -944,6 +966,7 @@ class CampaignController extends Controller
             'delivered' => $delivered,
             'failed'    => $failed,
             'pending'   => $pending,
+            'replies'   => $recipients->filter(fn ($r) => !empty($r['last_response']))->count(),
         ];
 
         // Agents block (for now empty – fill from your own aggregation if you track agents)
@@ -1128,13 +1151,23 @@ class CampaignController extends Controller
                         ? ($flowDef[0]['message'] ?? '')
                         : '';
 
-                    $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
+                    $twResponse = $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
                         $client->phone,
                         $templateSid,
                         $subject,
                         $bodyVar,
                         $campaign->whatsapp_from
                     );
+
+                    $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');
+
+                    CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
+                        ->where('client_id', $client->id)
+                        ->update([
+                            'message_sid'  => $twResponse['sid'] ?? null,
+                            'status'       => $mappedStatus,
+                            'delivered_at' => $mappedStatus === 'Delivered' ? now() : null,
+                        ]);
                 } catch (\Throwable $e) {
                     Log::error('Failed to send WhatsApp for client', [
                         'campaign_id' => $campaign->id,
@@ -1144,6 +1177,8 @@ class CampaignController extends Controller
                     ]);
                 }
             }
+
+            $this->refreshWhatsappMessageCounts($message);
         }
 
        
@@ -1200,6 +1235,32 @@ class CampaignController extends Controller
     {
         $this->authorizeManage();
         $this->authorizeView($campaign);
+    }
+
+    protected function mapTwilioStatus(?string $status): string
+    {
+        return match (strtolower((string) $status)) {
+            'delivered', 'read' => 'Delivered',
+            'failed', 'undelivered' => 'Failed',
+            default => 'Pending',
+        };
+    }
+
+    protected function refreshWhatsappMessageCounts(?CampaignWhatsappMessage $message): void
+    {
+        if (!$message) {
+            return;
+        }
+
+        $delivered = $message->recipients()->whereRaw('LOWER(status) = ?', ['delivered'])->count();
+        $failed    = $message->recipients()->whereRaw('LOWER(status) = ?', ['failed'])->count();
+        $pending   = $message->recipients()->whereNotIn('status', ['Delivered', 'Failed'])->count();
+
+        $message->update([
+            'delivered' => $delivered,
+            'failed'    => $failed,
+            'pending'   => $pending,
+        ]);
     }
 
      /**

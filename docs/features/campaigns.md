@@ -23,6 +23,7 @@ Plan and send multi-channel (WhatsApp/Email/SMS) campaigns scoped to departments
   - `POST /api/campaigns/{campaign}/whatsapp-messages/{message}/send`: send an existing draft.
   - `DELETE /api/campaigns/{campaign}/whatsapp-messages/{message}`: delete batch.
   - `GET /api/campaigns/{campaign}/whatsapp-messages/{messageId}/recipients`: recipient dashboard (status summary + agent placeholder + recipient list with departments).
+  - Status/reply webhook: `POST /api/twilio/webhook/whatsapp` (public) receives Twilio delivery callbacks + inbound replies. Updates `CampaignWhatsappRecipient` status, last_response, and recalculates batch delivery counts.
 - **Email channel**:
   - `GET /api/campaigns/{campaign}/emails`: list batches; `GET /.../emails/{id}/recipients`: recipients + summary.
 - **SMS channel**:
@@ -46,3 +47,4 @@ Plan and send multi-channel (WhatsApp/Email/SMS) campaigns scoped to departments
 - WhatsApp sending relies on valid Twilio ContentSid; flow batches reuse `WhatsAppFlow` template_sid + definition.
 - Recipients tables (`campaign_*_recipients`) hold delivery state; batch tables hold summary counts.
 - Live chat toggle (`enable_live_chat`) is stored on WhatsApp batches for UI/display; chat routing beyond storing flag is not implemented here.
+- Twilio setup: point WhatsApp status callback/webhook to `/api/twilio/webhook/whatsapp` (public) so delivery + replies update batches and chat.

@@ -125,11 +125,13 @@ export default {
     };
   },
   mounted() {
-    this.fetchSessions();
+    this.fetchSessions().then(() => {
+      this.handleQueryClient();
+    });
   },
   methods: {
     fetchSessions() {
-      axios
+      return axios
         .get('/api/chat/sessions', { params: { status: this.filterStatus } })
         .then((res) => {
           this.sessions = res.data.data || res.data;
@@ -141,6 +143,25 @@ export default {
         this.messages = res.data.messages || [];
         this.$nextTick(this.scrollToBottom);
       });
+    },
+    handleQueryClient() {
+      const clientId = this.$route.query.client_id;
+      if (!clientId) return;
+
+      axios
+        .post('/api/chat/session-for-client', {
+          client_id: clientId,
+          platform: 'whatsapp',
+        })
+        .then((res) => {
+          this.activeSession = res.data;
+          this.messages = res.data.messages || [];
+          this.fetchSessions();
+          this.$nextTick(this.scrollToBottom);
+        })
+        .catch((err) => {
+          console.error('Unable to open chat for client', err);
+        });
     },
     sendMessage() {
       const content = this.newMessage.trim();
