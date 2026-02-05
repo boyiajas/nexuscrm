@@ -13,6 +13,7 @@ class ChatSession extends Model
         'client_id',
         'agent_id',
         'client_name',
+        'phone',
         'status',
         'platform',
         'last_message',

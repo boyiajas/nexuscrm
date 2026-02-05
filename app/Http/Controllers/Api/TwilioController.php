@@ -141,6 +141,7 @@ class TwilioController extends Controller
                 ],
                 [
                     'client_name' => $client->name,
+                    'phone'       => $client->phone ?? $from,
                     'status'      => 'active',
                     'unread_count'=> 0,
                 ]
@@ -152,6 +153,7 @@ class TwilioController extends Controller
                     'platform'    => 'whatsapp',
                 ],
                 [
+                    'phone'        => $from,
                     'status'       => 'active',
                     'unread_count' => 0,
                 ]
@@ -219,25 +221,6 @@ class TwilioController extends Controller
             ->orWhereRaw(
                 "REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?",
                 [$digits]
-            )
-            ->first();
-    }
-
-    protected function findClientByPhoneOld(string $phone): ?Client
-    {
-        $normalized = $this->normalizePhone($phone) ?? $phone;
-        $digits = preg_replace('/\D+/', '', $normalized);
-
-        if (!$digits) {
-            return null;
-        }
-
-        return Client::query()
-            ->where('phone', $normalized)
-            ->orWhere('phone', $phone)
-            ->orWhereRaw(
-                "REPLACE(REPLACE(REPLACE(phone, ?, ''), ?, ''), ?, '') = ?",
-                ['+', ' ', '-', $digits]
             )
             ->first();
     }
