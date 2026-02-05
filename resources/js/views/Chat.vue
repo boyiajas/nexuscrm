@@ -87,7 +87,7 @@
                   {{ msg.sender === 'agent' ? 'You' : (msg.sender === 'system' ? 'System' : activeSession.client_name) }}
                 </div>
                 <div class="small">{{ msg.content }}</div>
-                <div class="small text-muted mt-1 timestamp">
+                <div class="text-muted mt-1 timestamp">
                   {{ msg.sent_at || msg.created_at }}
                 </div>
               </div>
