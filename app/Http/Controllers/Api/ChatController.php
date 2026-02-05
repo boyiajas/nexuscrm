@@ -6,11 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Models\ChatSession;
 use App\Models\ChatMessage;
 use App\Models\Client;
+use App\Services\TwilioWhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
+    public function __construct(private TwilioWhatsAppService $twilio)
+    {
+    }
+
     public function index(Request $request)
     {
         $query = ChatSession::with('client', 'agent')
@@ -54,6 +60,11 @@ class ChatController extends Controller
         $session->update([
             'last_message' => $data['content'],
         ]);
+
+        // Try sending outbound WhatsApp for live chat sessions
+        if ($session->platform === 'whatsapp') {
+            $this->sendWhatsappReply($session, $data['content']);
+        }
 
         return response()->json($message, 201);
     }
@@ -99,5 +110,24 @@ class ChatController extends Controller
         $session->update(['unread_count' => 0]);
 
         return response()->json($session);
+    }
+
+    protected function sendWhatsappReply(ChatSession $session, string $body): void
+    {
+        $to = $session->client?->phone ?: $session->phone;
+        if (!$to) {
+            Log::warning('Chat WhatsApp reply skipped: no phone on session', ['session_id' => $session->id]);
+            return;
+        }
+
+        try {
+            $this->twilio->sendPlainWhatsapp($to, $body);
+        } catch (\Throwable $e) {
+            Log::error('Failed to send WhatsApp chat reply', [
+                'session_id' => $session->id,
+                'to'         => $to,
+                'error'      => $e->getMessage(),
+            ]);
+        }
     }
 }

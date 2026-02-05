@@ -322,6 +322,77 @@ class TwilioWhatsAppService
     }
 
     /**
+     * Send a plain WhatsApp text (non-template) message.
+     * Twilio enforces the 24-hour session rule; this should only be used for live chat replies.
+     */
+    public function sendPlainWhatsapp(string $toE164, string $body, ?string $overrideFrom = null, ?string $overrideMsid = null): array
+    {
+        $toE164 = self::normalizeZA($toE164);
+        if (!$toE164) {
+            throw new \InvalidArgumentException('Invalid recipient number provided.');
+        }
+
+        if (empty($body)) {
+            throw new \InvalidArgumentException('Message body cannot be empty.');
+        }
+
+        $url = "https://api.twilio.com/2010-04-01/Accounts/{$this->twilioSid}/Messages.json";
+
+        $data = [
+            'To'   => "whatsapp:" . $toE164,
+            'Body' => $body,
+        ];
+
+        $msid = $overrideMsid ?: $this->msid;
+        $from = $overrideFrom ?: $this->twilioFrom;
+
+        if (!empty($from)) {
+            $data['From'] = 'whatsapp:' . $from;
+        } elseif (!empty($msid)) {
+            $data['MessagingServiceSid'] = $msid;
+        } else {
+            throw new \RuntimeException('No WhatsApp sender configured. Provide from number or Messaging Service SID.');
+        }
+
+        $auth = $this->twilioSid . ':' . $this->twilioToken;
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($data));
+        curl_setopt($ch, CURLOPT_USERPWD, $auth);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+        $response = curl_exec($ch);
+        $error    = curl_error($ch);
+        $status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($error) {
+            Log::error("Twilio WhatsApp chat send cURL error", ['to' => $toE164, 'error' => $error]);
+            throw new \RuntimeException("cURL error: " . $error);
+        }
+
+        $decoded = json_decode($response, true) ?? [];
+        if ($status >= 400) {
+            Log::error("Twilio WhatsApp chat send failed", [
+                'to'       => $toE164,
+                'status'   => $status,
+                'response' => $decoded,
+            ]);
+            $msg = $decoded['message'] ?? $decoded['error_message'] ?? 'Unknown error';
+            throw new \RuntimeException("Twilio API error [{$status}]: {$msg}");
+        }
+
+        Log::info("Twilio WhatsApp chat sent successfully", [
+            'to'     => $toE164,
+            'sid'    => $decoded['sid'] ?? null,
+            'status' => $decoded['status'] ?? null,
+        ]);
+
+        return $decoded;
+    }
+
+    /**
      * Create a new WhatsApp-capable Content template in Twilio.
      */
     public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en', string $category = 'utility', array $mediaUrls = []): array
