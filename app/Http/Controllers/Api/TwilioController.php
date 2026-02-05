@@ -117,17 +117,27 @@ class TwilioController extends Controller
 
         $recipient = $this->findRecipientByPhone($from);
 
+        $client = $this->findClientByPhone($from);
+
+        if (!$recipient && $client) {
+            // Fallback: last recipient for this client
+            $recipient = CampaignWhatsappRecipient::where('client_id', $client->id)
+                ->latest('id')
+                ->first();
+        }
+
         if ($recipient) {
             $recipient->last_response = $normalizedReply ?? $body;
             $recipient->last_response_at = Carbon::now();
             if (!$recipient->message_sid && $messageSid) {
                 $recipient->message_sid = $messageSid;
             }
+            // normalize stored phone for future matches
+            $recipient->phone = $this->normalizePhone($recipient->phone) ?? $recipient->phone;
             $recipient->save();
             $this->refreshWhatsappMessageCounts($recipient->message);
         }
 
-        $client = $this->findClientByPhone($from);
 
         // Create chat session + message for live chat view
         $session = null;
