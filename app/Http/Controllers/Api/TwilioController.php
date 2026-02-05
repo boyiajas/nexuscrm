@@ -115,9 +115,7 @@ class TwilioController extends Controller
 
         $normalizedReply = $this->normalizeReply($body);
 
-        $recipient = CampaignWhatsappRecipient::where('phone', $from)
-            ->latest('id')
-            ->first();
+        $recipient = $this->findRecipientByPhone($from);
 
         if ($recipient) {
             $recipient->last_response = $normalizedReply ?? $body;
@@ -237,5 +235,41 @@ class TwilioController extends Controller
             '2', 'no', 'n'  => 'no',
             default         => $trimmed,
         };
+    }
+
+    protected function findRecipientByPhone(string $phone): ?CampaignWhatsappRecipient
+    {
+        $normalized = $this->normalizePhone($phone) ?? $phone;
+        $digits = preg_replace('/\D+/', '', $normalized);
+
+        if (!$digits) {
+            return null;
+        }
+
+        $recipient = CampaignWhatsappRecipient::where('phone', $normalized)
+            ->orWhere('phone', $phone)
+            ->orWhereRaw(
+                "REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?",
+                [$digits]
+            )
+            ->latest('id')
+            ->first();
+
+        if ($recipient) {
+            return $recipient;
+        }
+
+        // Fallback: match by last 9 digits to handle local vs +27 numbers
+        $last9 = substr($digits, -9);
+        if ($last9) {
+            return CampaignWhatsappRecipient::whereRaw(
+                "RIGHT(REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', ''), 9) = ?",
+                [$last9]
+            )
+            ->latest('id')
+            ->first();
+        }
+
+        return null;
     }
 }

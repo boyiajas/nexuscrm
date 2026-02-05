@@ -115,7 +115,7 @@ class CampaignController extends Controller
                     'id' => $client->id,
                     'name' => $client->name,
                     'email' => $client->email,
-                    'phone' => $client->phone,
+                    'phone' => $this->normalizePhone($client->phone),
                     'departments' => $client->departments->map(function ($dept) {
                         return [
                             'id' => $dept->id,
@@ -234,7 +234,7 @@ class CampaignController extends Controller
                     'id' => $client->id,
                     'name' => $client->name,
                     'email' => $client->email,
-                    'phone' => $client->phone,
+                    'phone' => $this->normalizePhone($client->phone),
                     'departments' => $client->departments->map(function ($dept) {
                         return ['id' => $dept->id, 'name' => $dept->name];
                     }),
@@ -599,7 +599,7 @@ class CampaignController extends Controller
             $rows[] = [
                 'whatsapp_message_id' => $message->id,
                 'client_id'           => $client->id,
-                'phone'               => $client->phone,
+                'phone'               => $this->normalizePhone($client->phone),
                 'status'              => $sendNow ? 'pending' : 'draft',
                 'created_at'          => $now,
                 'updated_at'          => $now,
@@ -1122,7 +1122,7 @@ class CampaignController extends Controller
             $rows[] = [
                 'whatsapp_message_id' => $message->id,
                 'client_id'                    => $client->id,
-                'phone'                        => $client->phone,
+                'phone'                        => $this->normalizePhone($client->phone),
                 'status'                       => $sendNow ? 'pending' : 'draft',
                 'created_at'                   => $now,
                 'updated_at'                   => $now,
@@ -1248,6 +1248,21 @@ class CampaignController extends Controller
             'failed', 'undelivered' => 'Failed',
             default => 'Pending',
         };
+    }
+
+    protected function normalizePhone(?string $raw): ?string
+    {
+        if (!$raw) {
+            return null;
+        }
+
+        $normalized = TwilioWhatsAppService::normalizeZA($raw);
+        if ($normalized) {
+            return $normalized;
+        }
+
+        // fallback: ensure leading + if already looks international
+        return str_starts_with($raw, '+') ? $raw : $raw;
     }
 
     protected function refreshWhatsappMessageCounts(?CampaignWhatsappMessage $message): void
