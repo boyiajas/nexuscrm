@@ -41,8 +41,8 @@ class DashboardController extends Controller
         $activeCampaigns = $campaignQuery->where('status', 'Active')->count();
         $completedCampaigns = $campaignQuery->where('status', 'Completed')->count();
 
-        // Open chats: count unread WhatsApp replies across all campaigns
-        $openChats = \App\Models\CampaignWhatsappRecipient::whereNotNull('last_response')->count();
+        // Open chats: count clients with unread chat messages
+        $openChats = ChatSession::where('unread_count', '>', 0)->distinct('client_id')->count('client_id');
 
         // Get delivery statistics from campaign_clients pivot table
         $deliveryStats = DB::table('campaign_clients')
