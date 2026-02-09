@@ -59,6 +59,7 @@ class ChatController extends Controller
 
         $session->update([
             'last_message' => $data['content'],
+            'updated_at'   => now(),
         ]);
 
         // Try sending outbound WhatsApp for live chat sessions

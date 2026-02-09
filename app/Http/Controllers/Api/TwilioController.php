@@ -187,7 +187,10 @@ class TwilioController extends Controller
         ]);
 
         $session->increment('unread_count');
-        $session->update(['last_message' => $body]);
+        $session->update([
+            'last_message' => $body,
+            'updated_at'   => now(),
+        ]);
     }
 
     protected function mapTwilioStatus(string $status): string
@@ -234,8 +237,8 @@ class TwilioController extends Controller
             return null;
         }
 
-        // Fix: Use backticks for column name and single quotes for string literals
-        return Client::query()
+        // Try exact matches first
+        $client = Client::query()
             ->where('phone', $normalized)
             ->orWhere('phone', $phone)
             ->orWhereRaw(
@@ -243,6 +246,28 @@ class TwilioController extends Controller
                 [$digits]
             )
             ->first();
+
+        if ($client) {
+            return $client;
+        }
+
+        // Fallback: match South African local vs +27
+        $last9 = substr($digits, -9);
+        if ($last9) {
+            $plus27 = '+27' . $last9;
+            $zeroLeading = '0' . substr($last9, -9);
+
+            return Client::query()
+                ->where('phone', $plus27)
+                ->orWhere('phone', $zeroLeading)
+                ->orWhereRaw(
+                    "RIGHT(REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', ''), 9) = ?",
+                    [$last9]
+                )
+                ->first();
+        }
+
+        return null;
     }
 
     protected function normalizeReply(string $body): ?string
