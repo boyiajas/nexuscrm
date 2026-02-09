@@ -190,6 +190,9 @@ class TwilioController extends Controller
         $session->update([
             'last_message' => $body,
             'updated_at'   => now(),
+            'client_id'    => $session->client_id ?: ($client?->id ?? null),
+            'client_name'  => $client?->name ?? $session->client_name ?? $from,
+            'phone'        => $session->phone ?: ($client?->phone ?? $from),
         ]);
     }
 
