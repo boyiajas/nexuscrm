@@ -13,6 +13,7 @@ import Settings from './views/Settings.vue';
 import Departments from './views/Departments.vue';
 import Users from './views/Users.vue';
 import WhatsAppFlows from './views/WhatsAppFlows.vue';
+import WhatsappReplies from './views/WhatsappReplies.vue';
 
 const routes = [
   { path: '/login', name: 'login', component: Login },
@@ -32,6 +33,7 @@ const routes = [
       { path: 'departments', name: 'departments', component: Departments },
       { path: 'users', name: 'users', component: Users },
       { path: 'automation/whatsapp-flows', name: 'whatsapp-flows', component: WhatsAppFlows },
+      { path: 'whatsapp-replies', name: 'whatsapp-replies', component: WhatsappReplies },
       
     ],
 

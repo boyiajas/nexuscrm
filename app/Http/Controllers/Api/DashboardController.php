@@ -41,8 +41,8 @@ class DashboardController extends Controller
         $activeCampaigns = $campaignQuery->where('status', 'Active')->count();
         $completedCampaigns = $campaignQuery->where('status', 'Completed')->count();
 
-        // Open chats
-        $openChats = ChatSession::where('status', 'open')->count();
+        // Open chats: count unread WhatsApp replies across all campaigns
+        $openChats = \App\Models\CampaignWhatsappRecipient::whereNotNull('last_response')->count();
 
         // Get delivery statistics from campaign_clients pivot table
         $deliveryStats = DB::table('campaign_clients')
@@ -158,5 +158,35 @@ class DashboardController extends Controller
             'labels' => $labels,
             'data' => $data,
         ]);
+    }
+
+    /**
+     * List clients who replied to WhatsApp messages (for dashboard "Open Chats" view).
+     */
+    public function whatsappReplies()
+    {
+        $replies = \App\Models\CampaignWhatsappRecipient::with(['client', 'message.campaign'])
+            ->whereNotNull('last_response')
+            ->orderByDesc('last_response_at')
+            ->take(500)
+            ->get()
+            ->map(function ($r) {
+                $campaign = $r->message?->campaign;
+                $departments = $campaign?->departments?->pluck('name')->join(', ') ?: null;
+                return [
+                    'id'               => $r->id,
+                    'client_id'        => $r->client_id,
+                    'client_name'      => $r->client?->name ?? 'Unknown',
+                    'phone'            => $r->phone ?: $r->client?->phone,
+                    'campaign_id'      => $campaign?->id,
+                    'campaign_name'    => $campaign?->name,
+                    'template_name'    => $r->message?->template_name,
+                    'departments'      => $departments,
+                    'last_response'    => $r->last_response,
+                    'last_response_at' => optional($r->last_response_at)->toDateTimeString(),
+                ];
+            });
+
+        return response()->json($replies);
     }
 }

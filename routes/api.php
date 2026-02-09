@@ -47,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('campaigns', CampaignController::class)->only(['index','store','update','destroy','show']);
 
     Route::get('/dashboard/campaign-activity', [DashboardController::class, 'campaignActivity']);
+    Route::get('/dashboard/whatsapp-replies', [DashboardController::class, 'whatsappReplies']);
 
     Route::post('campaigns/{campaign}/send', [CampaignController::class, 'send']);
 

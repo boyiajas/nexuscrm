@@ -24,7 +24,7 @@
       <div class="col-md-3" v-for="card in summaryCards" :key="card.key">
         <div class="card shadow-sm h-100">
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="d-flex justify-content-between align-items-start mb-2">
               <div>
                 <div class="text-muted small text-uppercase">{{ card.label }}</div>
                 <div class="h4 mb-0">{{ card.value }}</div>
@@ -35,7 +35,16 @@
                 <i :class="card.icon"></i>
               </div>
             </div>
-            <small class="text-muted">{{ card.subtitle }}</small>
+            <div class="d-flex justify-content-between align-items-center">
+              <small class="text-muted">{{ card.subtitle }}</small>
+              <button
+                v-if="card.key === 'chats'"
+                class="btn btn-sm btn-outline-primary"
+                @click="$router.push({ name: 'whatsapp-replies' })"
+              >
+                View
+              </button>
+            </div>
           </div>
         </div>
       </div>
