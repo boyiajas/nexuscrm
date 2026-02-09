@@ -14,12 +14,10 @@
             <tr>
               <th>Client</th>
               <th>Phone</th>
-              <th>Template</th>
               <th>Departments</th>
-              <th>Campaign</th>
               <th>Unread</th>
-              <th>Last Reply</th>
-              <th>When</th>
+              <th>Last Message</th>
+              <th>Updated</th>
               <th class="text-end">Action</th>
             </tr>
           </thead>
@@ -27,9 +25,7 @@
             <tr v-for="r in replies" :key="r.id">
               <td>{{ r.client_name }}</td>
               <td>{{ r.phone || '-' }}</td>
-              <td>{{ r.template_name || '-' }}</td>
               <td>{{ r.departments || '-' }}</td>
-              <td>{{ r.campaign_name || '-' }}</td>
               <td>
                 <span
                   class="badge"
@@ -39,9 +35,9 @@
                 </span>
               </td>
               <td class="text-truncate" style="max-width: 260px;">
-                {{ r.last_response || '-' }}
+                {{ r.last_message || '-' }}
               </td>
-              <td>{{ r.last_response_at || '-' }}</td>
+              <td>{{ r.updated_at || '-' }}</td>
               <td class="text-end">
                 <button
                   class="btn btn-sm btn-outline-primary"

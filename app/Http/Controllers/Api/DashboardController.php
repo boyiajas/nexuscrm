@@ -165,37 +165,29 @@ class DashboardController extends Controller
      */
     public function whatsappReplies()
     {
-        $replies = \App\Models\CampaignWhatsappRecipient::with(['client', 'message.campaign'])
-            ->whereNotNull('last_response')
-            ->orderByDesc('last_response_at')
+        $replies = ChatSession::with(['client.departments'])
+            ->where('unread_count', '>', 0)
+            ->where('platform', 'whatsapp')
+            ->orderByDesc('updated_at')
             ->take(500)
             ->get()
-            ->map(function ($r) {
-                $campaign = $r->message?->campaign;
-                $departments = $campaign?->departments?->pluck('name')->join(', ') ?: null;
-                $unread = 0;
-                if ($r->client_id) {
-                    $unread = ChatSession::where('client_id', $r->client_id)
-                        ->where('unread_count', '>', 0)
-                        ->sum('unread_count');
-                }
-
+            ->map(function ($session) {
+                $departments = $session->client?->departments?->pluck('name')->join(', ') ?: null;
                 return [
-                    'id'               => $r->id,
-                    'client_id'        => $r->client_id,
-                    'client_name'      => $r->client?->name ?? 'Unknown',
-                    'phone'            => $r->phone ?: $r->client?->phone,
-                    'campaign_id'      => $campaign?->id,
-                    'campaign_name'    => $campaign?->name,
-                    'template_name'    => $r->message?->template_name,
+                    'id'               => $session->id, // chat session id
+                    'client_id'        => $session->client_id,
+                    'client_name'      => $session->client?->name ?? 'Unknown',
+                    'phone'            => $session->phone ?: $session->client?->phone,
+                    'campaign_id'      => null,
+                    'campaign_name'    => null,
+                    'template_name'    => null,
                     'departments'      => $departments,
-                    'unread_count'     => $unread,
-                    'last_response'    => $r->last_response,
-                    'last_response_at' => optional($r->last_response_at)->toDateTimeString(),
+                    'unread_count'     => $session->unread_count,
+                    'last_response'    => $session->last_message,
+                    'last_response_at' => optional($session->updated_at)->toDateTimeString(),
                 ];
             });
 
         return response()->json($replies);
     }
 }
-use App\Models\ChatSession;
