@@ -17,6 +17,7 @@
               <th>Template</th>
               <th>Departments</th>
               <th>Campaign</th>
+              <th>Unread</th>
               <th>Last Reply</th>
               <th>When</th>
               <th class="text-end">Action</th>
@@ -29,6 +30,14 @@
               <td>{{ r.template_name || '-' }}</td>
               <td>{{ r.departments || '-' }}</td>
               <td>{{ r.campaign_name || '-' }}</td>
+              <td>
+                <span
+                  class="badge"
+                  :class="r.unread_count > 0 ? 'bg-danger' : 'bg-secondary'"
+                >
+                  {{ r.unread_count || 0 }}
+                </span>
+              </td>
               <td class="text-truncate" style="max-width: 260px;">
                 {{ r.last_response || '-' }}
               </td>

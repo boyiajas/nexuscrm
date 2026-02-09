@@ -182,6 +182,7 @@ class DashboardController extends Controller
                     'campaign_name'    => $campaign?->name,
                     'template_name'    => $r->message?->template_name,
                     'departments'      => $departments,
+                    'unread_count'     => $r->client?->chatSessions()->where('unread_count', '>', 0)->count() ?? 0,
                     'last_response'    => $r->last_response,
                     'last_response_at' => optional($r->last_response_at)->toDateTimeString(),
                 ];
