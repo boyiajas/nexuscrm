@@ -173,6 +173,10 @@ class DashboardController extends Controller
             ->get()
             ->map(function ($session) {
                 $departments = $session->client?->departments?->pluck('name')->join(', ') ?: null;
+                $lastMessage = $session->last_message;
+                if (!$lastMessage) {
+                    $lastMessage = $session->messages()->latest('created_at')->value('content');
+                }
                 return [
                     'id'               => $session->id, // chat session id
                     'client_id'        => $session->client_id,
@@ -183,7 +187,7 @@ class DashboardController extends Controller
                     'template_name'    => null,
                     'departments'      => $departments,
                     'unread_count'     => $session->unread_count,
-                    'last_response'    => $session->last_message,
+                    'last_response'    => $lastMessage,
                     'last_response_at' => optional($session->updated_at)->toDateTimeString(),
                 ];
             });

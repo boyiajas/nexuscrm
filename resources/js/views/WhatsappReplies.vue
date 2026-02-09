@@ -35,7 +35,7 @@
                 </span>
               </td>
               <td class="text-truncate" style="max-width: 260px;">
-                {{ r.last_message || '-' }}
+                {{ r.last_response || r.last_message || '-' }}
               </td>
               <td>{{ r.updated_at || '-' }}</td>
               <td class="text-end">
