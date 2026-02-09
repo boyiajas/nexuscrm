@@ -129,6 +129,9 @@ class TwilioController extends Controller
         if ($recipient) {
             $recipient->last_response = $normalizedReply ?? $body;
             $recipient->last_response_at = Carbon::now();
+            if ($client && !$recipient->client_id) {
+                $recipient->client_id = $client->id;
+            }
             if (!$recipient->message_sid && $messageSid) {
                 $recipient->message_sid = $messageSid;
             }
@@ -154,7 +157,16 @@ class TwilioController extends Controller
                     'unread_count'=> 0,
                 ]
             );
+
+            // If a session exists but missing client linkage, fix it
+            if (!$session->client_id) {
+                $session->client_id = $client->id;
+                $session->client_name = $client->name;
+                $session->phone = $client->phone ?? $session->phone ?? $from;
+                $session->save();
+            }
         } else {
+            // No client match; keep anonymous session by phone/name
             $session = ChatSession::firstOrCreate(
                 [
                     'client_name' => $from,
