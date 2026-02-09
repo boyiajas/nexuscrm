@@ -37,7 +37,7 @@
               <td class="text-truncate" style="max-width: 260px;">
                 {{ r.last_response || r.last_message || '-' }}
               </td>
-              <td>{{ r.updated_at || '-' }}</td>
+              <td>{{ r.last_response_at || '-' }}</td>
               <td class="text-end">
                 <button
                   class="btn btn-sm btn-outline-primary"

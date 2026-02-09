@@ -13,7 +13,7 @@
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-CySO-3-R.js",
+    "file": "assets/app-DmMKEIM4.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -30,7 +30,7 @@
     ]
   },
   "resources/js/components/layout/MainLayout.vue": {
-    "file": "assets/MainLayout-DxojKNf3.js",
+    "file": "assets/MainLayout-qmbo9AP0.js",
     "name": "MainLayout",
     "src": "resources/js/components/layout/MainLayout.vue",
     "isDynamicEntry": true,
