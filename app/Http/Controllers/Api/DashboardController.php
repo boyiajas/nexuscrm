@@ -173,6 +173,13 @@ class DashboardController extends Controller
             ->map(function ($r) {
                 $campaign = $r->message?->campaign;
                 $departments = $campaign?->departments?->pluck('name')->join(', ') ?: null;
+                $unread = 0;
+                if ($r->client_id) {
+                    $unread = ChatSession::where('client_id', $r->client_id)
+                        ->where('unread_count', '>', 0)
+                        ->sum('unread_count');
+                }
+
                 return [
                     'id'               => $r->id,
                     'client_id'        => $r->client_id,
@@ -182,7 +189,7 @@ class DashboardController extends Controller
                     'campaign_name'    => $campaign?->name,
                     'template_name'    => $r->message?->template_name,
                     'departments'      => $departments,
-                    'unread_count'     => $r->client?->chatSessions()->where('unread_count', '>', 0)->count() ?? 0,
+                    'unread_count'     => $unread,
                     'last_response'    => $r->last_response,
                     'last_response_at' => optional($r->last_response_at)->toDateTimeString(),
                 ];
@@ -191,3 +198,4 @@ class DashboardController extends Controller
         return response()->json($replies);
     }
 }
+use App\Models\ChatSession;
