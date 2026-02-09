@@ -41,8 +41,8 @@ class DashboardController extends Controller
         $activeCampaigns = $campaignQuery->where('status', 'Active')->count();
         $completedCampaigns = $campaignQuery->where('status', 'Completed')->count();
 
-        // Open chats: count clients with unread chat messages
-        $openChats = ChatSession::where('unread_count', '>', 0)->distinct('client_id')->count('client_id');
+        // Open chats: count chat sessions that have unread messages (works even if client_id is null)
+        $openChats = ChatSession::where('unread_count', '>', 0)->count();
 
         // Get delivery statistics from campaign_clients pivot table
         $deliveryStats = DB::table('campaign_clients')
