@@ -195,7 +195,8 @@ class ClientController extends Controller
             // Audit log for update
             $changes = [
                 'client_id' => $client->id,
-                'changes' => array_diff_assoc($client->fresh()->toArray(), $originalData),
+                // Use Eloquent tracked changes to avoid array diff warnings on array casts
+                'changes' => $client->getChanges(),
             ];
             
             if (isset($data['department_ids'])) {
