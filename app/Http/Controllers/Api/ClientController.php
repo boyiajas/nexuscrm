@@ -112,7 +112,6 @@ class ClientController extends Controller
                 'branch_code' => $data['branch_code'] ?? null,
                 'assigned_to_id' => $data['assigned_to_id'] ?? null,
                 'tags' => $data['tags'] ?? null,
-                'primary_department_id' => $data['department_ids'][0] ?? null,
             ]);
 
             // Sync departments
@@ -189,12 +188,6 @@ class ClientController extends Controller
             // Update departments if provided
             if (isset($data['department_ids'])) {
                 $client->departments()->sync($data['department_ids']);
-                
-                // Update primary department (use first one)
-                if (!empty($data['department_ids'])) {
-                    $client->primary_department_id = $data['department_ids'][0];
-                    $client->save();
-                }
             }
 
             DB::commit();
