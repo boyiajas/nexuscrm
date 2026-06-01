@@ -507,7 +507,7 @@ class TwilioWhatsAppService
             return null;
         }
 
-        return $this->looksLikeMessagingServiceSid($value) ? strtoupper($value) : null;
+        return $this->looksLikeMessagingServiceSid($value) ? $value : null;
     }
 
     protected function looksLikeMessagingServiceSid(string $value): bool
