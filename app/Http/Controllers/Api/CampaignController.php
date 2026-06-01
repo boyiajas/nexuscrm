@@ -730,13 +730,37 @@ class CampaignController extends Controller
 
         // Send via Twilio
         if ($message->template_sid) {
+            Log::info('Campaign draft WhatsApp send started', [
+                'campaign_id' => $campaign->id,
+                'message_id' => $message->id,
+                'template_sid' => $message->template_sid,
+                'mode' => $message->mode,
+                'recipient_count' => $recipients->count(),
+                'campaign_whatsapp_from' => $campaign->whatsapp_from,
+            ]);
+
             foreach ($recipients as $recipient) {
                 $client = $recipient->client;
                 $phone  = $recipient->phone ?: $client?->phone;
                 if (!$phone) {
+                    Log::warning('Campaign draft WhatsApp send skipped: no phone', [
+                        'campaign_id' => $campaign->id,
+                        'message_id' => $message->id,
+                        'client_id' => $client?->id,
+                        'recipient_id' => $recipient->id,
+                    ]);
                     continue;
                 }
                 try {
+                    Log::info('Campaign draft WhatsApp recipient send attempt', [
+                        'campaign_id' => $campaign->id,
+                        'message_id' => $message->id,
+                        'client_id' => $client?->id,
+                        'recipient_id' => $recipient->id,
+                        'phone' => $phone,
+                        'campaign_whatsapp_from' => $campaign->whatsapp_from,
+                    ]);
+
                     $subject = $client?->name ?? '';
                     $bodyVar = $message->mode === 'flow'
                         ? ($message->flow_definition[0]['message'] ?? '')
@@ -1145,12 +1169,34 @@ class CampaignController extends Controller
         
             // 🔹 ONLY send via Twilio if send_now is true
         if ($sendNow && $templateSid) {
+            Log::info('Campaign WhatsApp batch send started', [
+                'campaign_id' => $campaign->id,
+                'message_id' => $message->id,
+                'template_sid' => $templateSid,
+                'mode' => $mode,
+                'client_count' => $clients->count(),
+                'campaign_whatsapp_from' => $campaign->whatsapp_from,
+            ]);
+
             foreach ($clients as $client) {
                 if (!$client->phone) {
+                    Log::warning('Campaign WhatsApp send skipped: no phone', [
+                        'campaign_id' => $campaign->id,
+                        'message_id' => $message->id,
+                        'client_id' => $client->id,
+                    ]);
                     continue;
                 }
 
                 try {
+                    Log::info('Campaign WhatsApp recipient send attempt', [
+                        'campaign_id' => $campaign->id,
+                        'message_id' => $message->id,
+                        'client_id' => $client->id,
+                        'phone' => $client->phone,
+                        'campaign_whatsapp_from' => $campaign->whatsapp_from,
+                    ]);
+
                     $subject = $client->name ?? '';
                     $bodyVar = $mode === 'flow'
                         ? ($flowDef[0]['message'] ?? '')

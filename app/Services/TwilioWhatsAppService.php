@@ -127,6 +127,26 @@ class TwilioWhatsAppService
             $data['From'] = 'whatsapp:' . $from;
         }
 
+        if (empty($from) && empty($msid)) {
+            Log::error('Twilio WhatsApp template send aborted: no sender resolved', [
+                'to' => $toE164,
+                'template' => $templateSid,
+                'override_from' => $overrideFrom,
+                'override_msid' => $overrideMsid,
+                'default_from' => $this->twilioFrom,
+                'default_msid' => $this->msid,
+            ]);
+            throw new \RuntimeException('No WhatsApp sender configured. Provide from number or Messaging Service SID.');
+        }
+
+        Log::info('Twilio WhatsApp template send request', [
+            'to' => $toE164,
+            'from' => $from,
+            'messaging_service_sid' => $msid,
+            'template' => $templateSid,
+            'has_status_callback' => isset($data['StatusCallback']),
+        ]);
+
         $auth = $this->twilioSid . ':' . $this->twilioToken;
 
         $ch = curl_init($url);
@@ -356,8 +376,22 @@ class TwilioWhatsAppService
         }
 
         if (empty($from) && empty($msid)) {
+            Log::error('Twilio WhatsApp chat send aborted: no sender resolved', [
+                'to' => $toE164,
+                'override_from' => $overrideFrom,
+                'override_msid' => $overrideMsid,
+                'default_from' => $this->twilioFrom,
+                'default_msid' => $this->msid,
+            ]);
             throw new \RuntimeException('No WhatsApp sender configured. Provide from number or Messaging Service SID.');
         }
+
+        Log::info('Twilio WhatsApp chat send request', [
+            'to' => $toE164,
+            'from' => $from,
+            'messaging_service_sid' => $msid,
+            'body_length' => mb_strlen($body),
+        ]);
 
         $auth = $this->twilioSid . ':' . $this->twilioToken;
 
@@ -431,9 +465,26 @@ class TwilioWhatsAppService
             $rawFrom = null;
         }
 
+        $from = $this->normalizeWhatsappSender($rawFrom);
+        $msid = $this->normalizeMessagingServiceSid($rawMsid);
+
+        if ($rawFrom && !$from) {
+            Log::warning('Twilio WhatsApp sender number could not be normalized', [
+                'raw_from' => $rawFrom,
+                'override_from' => $overrideFrom,
+            ]);
+        }
+
+        if ($rawMsid && !$msid) {
+            Log::warning('Twilio WhatsApp Messaging Service SID is invalid', [
+                'raw_msid' => $rawMsid,
+                'override_msid' => $overrideMsid,
+            ]);
+        }
+
         return [
-            'from' => $this->normalizeWhatsappSender($rawFrom),
-            'msid' => $this->normalizeMessagingServiceSid($rawMsid),
+            'from' => $from,
+            'msid' => $msid,
         ];
     }
 

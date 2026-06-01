@@ -122,6 +122,12 @@ class ChatController extends Controller
         }
 
         try {
+            Log::info('Chat WhatsApp reply attempt', [
+                'session_id' => $session->id,
+                'client_id' => $session->client_id,
+                'to' => $to,
+                'body_length' => mb_strlen($body),
+            ]);
             $this->twilio->sendPlainWhatsapp($to, $body);
         } catch (\Throwable $e) {
             Log::error('Failed to send WhatsApp chat reply', [
