@@ -63,4 +63,19 @@ class User extends Authenticatable
     {
         return $this->role === 'STAFF';
     }
+
+    public function resolvedDepartmentId(): ?int
+    {
+        if ($this->department_id) {
+            return (int) $this->department_id;
+        }
+
+        if (!empty($this->department)) {
+            return Department::query()
+                ->where('name', $this->department)
+                ->value('id');
+        }
+
+        return null;
+    }
 }

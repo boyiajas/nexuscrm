@@ -17,12 +17,13 @@ class DashboardController extends Controller
     {
         // Get counts with proper department scoping for non-super admins
         $user = auth()->user();
+        $userDeptId = $user?->resolvedDepartmentId();
         
         // Total clients (department-scoped)
         $totalClientsQuery = Client::query();
-        if ($user->role !== 'SUPER_ADMIN' && $user->department_id) {
-            $totalClientsQuery->whereHas('departments', function ($q) use ($user) {
-                $q->where('departments.id', $user->department_id);
+        if ($user->role !== 'SUPER_ADMIN' && $userDeptId) {
+            $totalClientsQuery->whereHas('departments', function ($q) use ($userDeptId) {
+                $q->where('departments.id', $userDeptId);
             });
         }
         $totalClients = $totalClientsQuery->count();
@@ -30,11 +31,15 @@ class DashboardController extends Controller
         // Campaign counts (department-scoped)
         $campaignQuery = Campaign::query();
         if ($user->role !== 'SUPER_ADMIN') {
-            $campaignQuery->where(function ($q) use ($user) {
+            $campaignQuery->where(function ($q) use ($userDeptId) {
                 $q->whereDoesntHave('departments')
-                  ->orWhereHas('departments', function ($qq) use ($user) {
-                      $qq->where('departments.id', $user->department_id);
-                  });
+                  ;
+
+                if ($userDeptId) {
+                    $q->orWhereHas('departments', function ($qq) use ($userDeptId) {
+                        $qq->where('departments.id', $userDeptId);
+                    });
+                }
             });
         }
         

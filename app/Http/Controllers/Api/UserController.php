@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -32,10 +33,12 @@ class UserController extends Controller
             'password'          => ['required', 'string', 'min:6'],
             'role'              => ['required', Rule::in(['SUPER_ADMIN', 'MANAGER', 'STAFF'])],
             'department'        => ['nullable', 'string', 'max:255'],
+            'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
             'status'            => ['required', Rule::in(['Active', 'Inactive'])],
         ]);
 
         $data['password'] = Hash::make($data['password']);
+        $this->syncDepartmentFields($data);
 
         $user = User::create($data);
 
@@ -59,6 +62,7 @@ class UserController extends Controller
             'password'          => ['nullable', 'string', 'min:6'],
             'role'              => ['sometimes', Rule::in(['SUPER_ADMIN', 'MANAGER', 'STAFF'])],
             'department'        => ['nullable', 'string', 'max:255'],
+            'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
             'status'            => ['sometimes', Rule::in(['Active', 'Inactive'])],
         ]);
 
@@ -67,6 +71,8 @@ class UserController extends Controller
         } else {
             unset($data['password']);
         }
+
+        $this->syncDepartmentFields($data);
 
         $user->update($data);
 
@@ -82,5 +88,32 @@ class UserController extends Controller
         $user->delete();
 
         return response()->noContent();
+    }
+
+    protected function syncDepartmentFields(array &$data): void
+    {
+        if (array_key_exists('department_id', $data)) {
+            if (empty($data['department_id'])) {
+                $data['department_id'] = null;
+                $data['department'] = null;
+                return;
+            }
+
+            $department = Department::find($data['department_id']);
+            $data['department'] = $department?->name;
+            return;
+        }
+
+        if (array_key_exists('department', $data)) {
+            if (empty($data['department'])) {
+                $data['department'] = null;
+                $data['department_id'] = null;
+                return;
+            }
+
+            $department = Department::query()->where('name', $data['department'])->first();
+            $data['department'] = $department?->name ?? $data['department'];
+            $data['department_id'] = $department?->id;
+        }
     }
 }

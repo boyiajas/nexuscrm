@@ -31,6 +31,7 @@ class CampaignController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+        $userDeptId = $user?->resolvedDepartmentId();
 
         $query = Campaign::query()
             ->with('departments')
@@ -39,12 +40,12 @@ class CampaignController extends Controller
 
         // Department scoping (same logic as before)
         if ($user && $user->role !== 'SUPER_ADMIN') {
-            $query->where(function ($q) use ($user) {
+            $query->where(function ($q) use ($userDeptId) {
                 $q->whereDoesntHave('departments');
 
-                if ($user->department_id) {
-                    $q->orWhereHas('departments', function ($qq) use ($user) {
-                        $qq->where('departments.id', $user->department_id);
+                if ($userDeptId) {
+                    $q->orWhereHas('departments', function ($qq) use ($userDeptId) {
+                        $qq->where('departments.id', $userDeptId);
                     });
                 }
             });
@@ -1266,6 +1267,7 @@ class CampaignController extends Controller
     protected function authorizeView(Campaign $campaign): void
     {
         $user = Auth::user();
+        $userDeptId = $user?->resolvedDepartmentId();
 
         if (!$user) {
             abort(401);
@@ -1284,7 +1286,7 @@ class CampaignController extends Controller
             return;
         }
 
-        if (!$user->department_id || !in_array($user->department_id, $campaignDeptIds, true)) {
+        if (!$userDeptId || !in_array($userDeptId, $campaignDeptIds, true)) {
             abort(403, 'You are not allowed to view this campaign.');
         }
     }
