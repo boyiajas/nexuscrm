@@ -121,9 +121,7 @@ class TwilioWhatsAppService
 
         if (!empty($msid)) {
             $data['MessagingServiceSid'] = $msid;
-        }
-
-        if (!empty($from)) {
+        } elseif (!empty($from)) {
             $data['From'] = 'whatsapp:' . $from;
         }
 
@@ -145,6 +143,7 @@ class TwilioWhatsAppService
             'messaging_service_sid' => $msid,
             'template' => $templateSid,
             'has_status_callback' => isset($data['StatusCallback']),
+            'using_explicit_from' => isset($data['From']),
         ]);
 
         $auth = $this->twilioSid . ':' . $this->twilioToken;
@@ -369,9 +368,7 @@ class TwilioWhatsAppService
 
         if (!empty($msid)) {
             $data['MessagingServiceSid'] = $msid;
-        }
-
-        if (!empty($from)) {
+        } elseif (!empty($from)) {
             $data['From'] = 'whatsapp:' . $from;
         }
 
@@ -391,6 +388,7 @@ class TwilioWhatsAppService
             'from' => $from,
             'messaging_service_sid' => $msid,
             'body_length' => mb_strlen($body),
+            'using_explicit_from' => isset($data['From']),
         ]);
 
         $auth = $this->twilioSid . ':' . $this->twilioToken;
