@@ -42,6 +42,8 @@ class TwilioController extends Controller
             'status'     => $status,
             'from'       => $from,
             'to'         => $to,
+            'error_code' => $request->input('ErrorCode'),
+            'error_message' => $request->input('ErrorMessage') ?? $request->input('Message'),
         ]);
 
         // If we have a received status or body, treat as inbound client message
