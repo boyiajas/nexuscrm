@@ -745,7 +745,8 @@ class CampaignController extends Controller
                         $phone,
                         $message->template_sid,
                         $subject,
-                        $bodyVar
+                        $bodyVar,
+                        $campaign->whatsapp_from
                     );
 
                     $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');

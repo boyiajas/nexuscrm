@@ -46,20 +46,23 @@ class TwilioWhatsAppService
     {
         $senders = [];
 
-        if (!empty($this->twilioFrom)) {
+        $defaultFrom = $this->normalizeWhatsappSender($this->twilioFrom);
+        $defaultMsid = $this->normalizeMessagingServiceSid($this->msid);
+
+        if (!empty($defaultFrom)) {
             $senders[] = [
-                'number' => $this->twilioFrom,
+                'number' => $defaultFrom,
                 'label'  => 'Default',
                 'default'=> true,
             ];
         }
 
         // Optionally add Messaging Service SID as a "sender" choice
-        if (!empty($this->msid)) {
+        if (!empty($defaultMsid)) {
             $senders[] = [
-                'number' => $this->msid,
+                'number' => $defaultMsid,
                 'label'  => 'Messaging Service SID',
-                'default'=> empty($this->twilioFrom),
+                'default'=> empty($defaultFrom),
             ];
         }
 
@@ -114,8 +117,7 @@ class TwilioWhatsAppService
             $data['StatusCallback'] = $this->statusCallback;
         }
 
-        $msid = $overrideMsid ?: $this->msid;
-        $from = $overrideFrom ?: $this->twilioFrom;
+        ['from' => $from, 'msid' => $msid] = $this->resolveWhatsappSender($overrideFrom, $overrideMsid);
 
         // If an explicit from is provided, prefer it over MessagingServiceSid to avoid 21703
         if (!empty($from)) {
@@ -343,8 +345,7 @@ class TwilioWhatsAppService
             'Body' => $body,
         ];
 
-        $msid = $overrideMsid ?: $this->msid;
-        $from = $overrideFrom ?: $this->twilioFrom;
+        ['from' => $from, 'msid' => $msid] = $this->resolveWhatsappSender($overrideFrom, $overrideMsid);
 
         if (!empty($from)) {
             $data['From'] = 'whatsapp:' . $from;
@@ -413,6 +414,61 @@ class TwilioWhatsAppService
         }
 
         return $this->twilioPost('https://content.twilio.com/v1/Content', $payload);
+    }
+
+    protected function resolveWhatsappSender(?string $overrideFrom = null, ?string $overrideMsid = null): array
+    {
+        $rawFrom = $this->trimSenderValue($overrideFrom) ?? $this->trimSenderValue($this->twilioFrom);
+        $rawMsid = $this->trimSenderValue($overrideMsid) ?? $this->trimSenderValue($this->msid);
+
+        // Recover gracefully when a Messaging Service SID was stored in the "from" field.
+        if ($rawFrom && $this->looksLikeMessagingServiceSid($rawFrom)) {
+            $rawMsid = $rawMsid ?: $rawFrom;
+            $rawFrom = null;
+        }
+
+        return [
+            'from' => $this->normalizeWhatsappSender($rawFrom),
+            'msid' => $this->normalizeMessagingServiceSid($rawMsid),
+        ];
+    }
+
+    protected function normalizeWhatsappSender(?string $raw): ?string
+    {
+        $value = $this->trimSenderValue($raw);
+        if (!$value) {
+            return null;
+        }
+
+        $value = str_ireplace('whatsapp:', '', $value);
+
+        return self::normalizeZA($value);
+    }
+
+    protected function normalizeMessagingServiceSid(?string $raw): ?string
+    {
+        $value = $this->trimSenderValue($raw);
+        if (!$value) {
+            return null;
+        }
+
+        return $this->looksLikeMessagingServiceSid($value) ? strtoupper($value) : null;
+    }
+
+    protected function looksLikeMessagingServiceSid(string $value): bool
+    {
+        return preg_match('/^MG[0-9A-Fa-f]{32}$/', $value) === 1;
+    }
+
+    protected function trimSenderValue(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /**
