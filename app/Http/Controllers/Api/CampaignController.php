@@ -1276,8 +1276,15 @@ class CampaignController extends Controller
             return;
         }
 
-        // Others: only global or same department
-        if (!is_null($campaign->department_id) && $campaign->department_id !== $user->department_id) {
+        $campaign->loadMissing('departments');
+        $campaignDeptIds = $campaign->departments->pluck('id')->all();
+
+        // Global campaigns (no linked departments) remain visible to non-super-admin users.
+        if (empty($campaignDeptIds)) {
+            return;
+        }
+
+        if (!$user->department_id || !in_array($user->department_id, $campaignDeptIds, true)) {
             abort(403, 'You are not allowed to view this campaign.');
         }
     }
