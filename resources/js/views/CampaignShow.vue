@@ -1656,6 +1656,9 @@ export default {
     this.addSmsModal = new Modal(this.$refs.addSmsModalRef);
     this.refreshAll();
   },
+  beforeUnmount() {
+    this.cleanupModalArtifacts();
+  },
   methods: {
     statusBadgeClass(status) {
       switch (status) {
@@ -1835,12 +1838,41 @@ export default {
         this.sendingBatch = false;
       });
     },
+    cleanupModalArtifacts() {
+      document.body.classList.remove('modal-open');
+      document.body.style.removeProperty('padding-right');
+      document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
+    },
+    closeRecipientsModal(next) {
+      const modalEl = this.$refs.recipientsModalRef;
+      if (!modalEl || !this.recipientsModal) {
+        this.cleanupModalArtifacts();
+        next();
+        return;
+      }
+
+      let completed = false;
+      const done = () => {
+        if (completed) return;
+        completed = true;
+        modalEl.removeEventListener('hidden.bs.modal', done);
+        this.cleanupModalArtifacts();
+        next();
+      };
+
+      modalEl.addEventListener('hidden.bs.modal', done, { once: true });
+      this.recipientsModal.hide();
+
+      // Fallback in case Bootstrap does not emit hidden before navigation timing changes.
+      window.setTimeout(done, 250);
+    },
     openClientChat(recipient) {
       if (!recipient.client_id) return;
-      // navigate to chat page with client id as a query param for context
-      this.$router.push({
-        name: 'chat',
-        query: { client_id: recipient.client_id },
+      this.closeRecipientsModal(() => {
+        this.$router.push({
+          name: 'chat',
+          query: { client_id: recipient.client_id },
+        });
       });
     },
 
