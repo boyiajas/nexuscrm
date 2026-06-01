@@ -4,13 +4,19 @@
       <div class="card-body p-4">
         <div class="text-center mb-3">
           <div
-            class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-2"
+            class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-2 login-brand-mark"
             style="width: 48px; height: 48px;"
           >
-            <i class="bi bi-person-plus"></i>
+            <img
+              v-if="branding.app_logo_url"
+              :src="branding.app_logo_url"
+              :alt="branding.app_name"
+              class="login-brand-logo"
+            />
+            <i v-else class="bi bi-person-plus"></i>
           </div>
           <h4 class="mb-0">Create Account</h4>
-          <small class="text-muted">Register to access NexusCRM</small>
+          <small class="text-muted">Register to access {{ branding.app_name }}</small>
         </div>
 
         <div v-if="error" class="alert alert-danger py-2">
@@ -111,6 +117,12 @@ export default {
   name: 'RegisterView',
   data() {
     return {
+      branding: {
+        app_name: 'NexusCRM',
+        app_short_name: 'NC',
+        app_tagline: 'Mini CRM Console',
+        app_logo_url: '',
+      },
       form: {
         name: '',
         email: '',
@@ -123,7 +135,38 @@ export default {
       showPassword: false,
     };
   },
+  created() {
+    this.loadStoredBranding();
+    this.loadBranding();
+  },
   methods: {
+    applyBranding(branding = {}) {
+      this.branding = {
+        app_name: branding.app_name || 'NexusCRM',
+        app_short_name: branding.app_short_name || 'NC',
+        app_tagline: branding.app_tagline || 'Mini CRM Console',
+        app_logo_url: branding.app_logo_url || '',
+      };
+      document.title = this.branding.app_name;
+      localStorage.setItem('nexus_branding', JSON.stringify(this.branding));
+    },
+    loadStoredBranding() {
+      const stored = localStorage.getItem('nexus_branding');
+      if (!stored) return;
+      try {
+        this.applyBranding(JSON.parse(stored));
+      } catch (e) {
+        // ignore malformed cache
+      }
+    },
+    async loadBranding() {
+      try {
+        const res = await axios.get('/api/settings/branding');
+        this.applyBranding(res.data || {});
+      } catch (e) {
+        // keep fallback branding
+      }
+    },
     async submit() {
       this.loading = true;
       this.error = null;
@@ -155,3 +198,15 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.login-brand-mark {
+  overflow: hidden;
+}
+
+.login-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+</style>

@@ -18,12 +18,17 @@
           Preferences
         </button>
       </li>
-      <li class="nav-item" role="presentation">
+      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
+        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
+          System Settings
+        </button>
+      </li>
+      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
         <button class="nav-link" id="twilio-tab" data-bs-toggle="tab" data-bs-target="#twilio" type="button">
           Twilio Config
         </button>
       </li>
-      <li class="nav-item" role="presentation">
+      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
         <button class="nav-link" id="whatsapp-templates-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-templates" type="button">
           WhatsApp Templates
         </button>
@@ -206,8 +211,103 @@
         </div>
       </div>
 
+      <!-- SYSTEM SETTINGS TAB -->
+      <div class="tab-pane fade" id="system" v-if="isSuperAdmin">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h5 class="mb-1">System Settings</h5>
+            <small class="text-muted">Update your CRM name, logo, tagline, and support details.</small>
+          </div>
+          <button class="btn btn-primary btn-sm" @click="saveSystemSettings" :disabled="system.saving">
+            <span v-if="system.saving" class="spinner-border spinner-border-sm me-1"></span>
+            Save
+          </button>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-lg-7">
+            <div class="card shadow-sm h-100">
+              <div class="card-body">
+                <div class="row g-3">
+                  <div class="col-md-8">
+                    <label class="form-label">Application Name</label>
+                    <input v-model="system.form.app_name" type="text" class="form-control" placeholder="NexusCRM" />
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Short Name</label>
+                    <input v-model="system.form.app_short_name" type="text" class="form-control" placeholder="NC" maxlength="8" />
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Tagline</label>
+                    <input v-model="system.form.app_tagline" type="text" class="form-control" placeholder="Mini CRM Console" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Company Name</label>
+                    <input v-model="system.form.company_name" type="text" class="form-control" placeholder="Iconis" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Support Email</label>
+                    <input v-model="system.form.support_email" type="email" class="form-control" placeholder="support@example.com" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Support Phone</label>
+                    <input v-model="system.form.support_phone" type="text" class="form-control" placeholder="+1 555 000 0000" />
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Logo</label>
+                    <input type="file" class="form-control" accept="image/*" @change="onSystemLogoChange" />
+                    <small class="text-muted">PNG, JPG, WEBP, or SVG image up to 2 MB.</small>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-5">
+            <div class="card shadow-sm h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <h6 class="mb-0">Brand Preview</h6>
+                  <button
+                    v-if="systemLogoPreview"
+                    type="button"
+                    class="btn btn-sm btn-outline-danger"
+                    @click="removeSystemLogo"
+                  >
+                    Remove Logo
+                  </button>
+                </div>
+
+                <div class="border rounded p-3 bg-light">
+                  <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="brand-preview-mark">
+                      <img
+                        v-if="systemLogoPreview"
+                        :src="systemLogoPreview"
+                        alt="Application logo preview"
+                        class="brand-preview-logo"
+                      />
+                      <span v-else>{{ systemBrandInitials }}</span>
+                    </div>
+                    <div>
+                      <div class="fw-bold fs-5">{{ system.form.app_name || 'NexusCRM' }}</div>
+                      <div class="text-muted small">{{ system.form.app_tagline || 'Mini CRM Console' }}</div>
+                    </div>
+                  </div>
+                  <div class="small text-muted">
+                    <div>{{ system.form.company_name || 'Company name not set' }}</div>
+                    <div>{{ system.form.support_email || 'Support email not set' }}</div>
+                    <div>{{ system.form.support_phone || 'Support phone not set' }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- TWILIO CONFIG TAB -->
-      <div class="tab-pane fade" id="twilio">
+      <div class="tab-pane fade" id="twilio" v-if="isSuperAdmin">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">Twilio Configuration</h5>
@@ -252,7 +352,7 @@
       </div>
 
       <!-- WHATSAPP TEMPLATES TAB -->
-      <div class="tab-pane fade" id="whatsapp-templates">
+      <div class="tab-pane fade" id="whatsapp-templates" v-if="isSuperAdmin">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">WhatsApp Templates</h5>
@@ -412,6 +512,22 @@ export default {
         darkMode: false,
         notifications: true,
       },
+      system: {
+        saving: false,
+        logoFile: null,
+        logoPreviewUrl: null,
+        removeLogo: false,
+        form: {
+          app_name: 'NexusCRM',
+          app_short_name: 'NC',
+          app_tagline: 'Mini CRM Console',
+          company_name: '',
+          support_email: '',
+          support_phone: '',
+          app_logo_path: '',
+          app_logo_url: '',
+        },
+      },
       twilio: {
         saving: false,
         form: {
@@ -442,17 +558,41 @@ export default {
     mounted() {
       this.loadUser();
       this.loadMFA();
-      this.loadWhatsappTemplates();
       this.templateModal = new Modal(this.$refs.templateModalRef);
-      this.loadTwilioSettings();
+      if (this.isSuperAdmin) {
+        this.loadAdminSettings();
+        this.loadWhatsappTemplates();
+      }
     },
   computed: {
+    isSuperAdmin() {
+      const stored = localStorage.getItem('nexus_user');
+      if (!stored) return false;
+      try {
+        return JSON.parse(stored)?.role === 'SUPER_ADMIN';
+      } catch {
+        return false;
+      }
+    },
     firstMediaUrl() {
       const urls = (this.wa.form.media_urls || '')
         .split(',')
         .map((u) => u.trim())
         .filter(Boolean);
       return urls.length ? urls[0] : null;
+    },
+    systemLogoPreview() {
+      if (this.system.removeLogo) return null;
+      return this.system.logoPreviewUrl || this.system.form.app_logo_url || null;
+    },
+    systemBrandInitials() {
+      const raw = (this.system.form.app_short_name || this.system.form.app_name || 'NC').trim();
+      if (!raw) return 'NC';
+      const parts = raw.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) {
+        return parts[0].slice(0, 2).toUpperCase();
+      }
+      return parts.slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase();
     },
   },
   methods: {
@@ -502,6 +642,98 @@ export default {
 
     savePrefs() {
       alert('Preferences saved (setup backend later)');
+    },
+
+    applyBranding(settings) {
+      const branding = {
+        app_name: settings.app_name || 'NexusCRM',
+        app_short_name: settings.app_short_name || 'NC',
+        app_tagline: settings.app_tagline || 'Mini CRM Console',
+        company_name: settings.company_name || '',
+        support_email: settings.support_email || '',
+        support_phone: settings.support_phone || '',
+        app_logo_url: settings.app_logo_url || '',
+      };
+
+      localStorage.setItem('nexus_branding', JSON.stringify(branding));
+      window.dispatchEvent(new CustomEvent('branding-updated', { detail: branding }));
+      document.title = branding.app_name;
+    },
+    applyAdminSettings(settings) {
+      this.system.form = {
+        app_name: settings.app_name || 'NexusCRM',
+        app_short_name: settings.app_short_name || 'NC',
+        app_tagline: settings.app_tagline || 'Mini CRM Console',
+        company_name: settings.company_name || '',
+        support_email: settings.support_email || '',
+        support_phone: settings.support_phone || '',
+        app_logo_path: settings.app_logo_path || '',
+        app_logo_url: settings.app_logo_url || '',
+      };
+      this.system.logoFile = null;
+      this.system.logoPreviewUrl = null;
+      this.system.removeLogo = false;
+
+      this.twilio.form = {
+        twilio_sid: settings.twilio_sid || '',
+        twilio_auth_token: settings.twilio_auth_token || '',
+        twilio_msg_sid: settings.twilio_msg_sid || '',
+        twilio_template_sid: settings.twilio_template_sid || '',
+        twilio_whatsapp_from: settings.twilio_whatsapp_from || '',
+        twilio_status_callback: settings.twilio_status_callback || '',
+      };
+
+      this.applyBranding(settings);
+    },
+    loadAdminSettings() {
+      axios
+        .get('/api/settings')
+        .then((res) => {
+          if (res.data) {
+            this.applyAdminSettings(res.data);
+          }
+        })
+        .catch(() => {
+          // Ignore load errors until settings are created.
+        });
+    },
+    onSystemLogoChange(event) {
+      const file = event.target.files?.[0] || null;
+      this.system.logoFile = file;
+      this.system.removeLogo = false;
+      this.system.logoPreviewUrl = file ? URL.createObjectURL(file) : null;
+    },
+    removeSystemLogo() {
+      this.system.logoFile = null;
+      this.system.logoPreviewUrl = null;
+      this.system.removeLogo = true;
+    },
+    saveSystemSettings() {
+      this.system.saving = true;
+      const payload = new FormData();
+      payload.append('app_name', this.system.form.app_name || '');
+      payload.append('app_short_name', this.system.form.app_short_name || '');
+      payload.append('app_tagline', this.system.form.app_tagline || '');
+      payload.append('company_name', this.system.form.company_name || '');
+      payload.append('support_email', this.system.form.support_email || '');
+      payload.append('support_phone', this.system.form.support_phone || '');
+      payload.append('remove_app_logo', this.system.removeLogo ? '1' : '0');
+      if (this.system.logoFile) {
+        payload.append('app_logo', this.system.logoFile);
+      }
+
+      axios
+        .post('/api/settings', payload)
+        .then((res) => {
+          this.applyAdminSettings(res.data || {});
+          alert('System settings saved.');
+        })
+        .catch((err) => {
+          alert('Failed to save system settings: ' + (err.response?.data?.message || err.message));
+        })
+        .finally(() => {
+          this.system.saving = false;
+        });
     },
 
     // WhatsApp templates
@@ -615,26 +847,6 @@ export default {
       if (s === 'rejected') return 'badge bg-danger';
       return 'badge bg-secondary';
     },
-    // Twilio settings
-    loadTwilioSettings() {
-      axios
-        .get('/api/settings')
-        .then((res) => {
-          if (res.data) {
-            this.twilio.form = {
-              twilio_sid: res.data.twilio_sid || '',
-              twilio_auth_token: res.data.twilio_auth_token || '',
-              twilio_msg_sid: res.data.twilio_msg_sid || '',
-              twilio_template_sid: res.data.twilio_template_sid || '',
-              twilio_whatsapp_from: res.data.twilio_whatsapp_from || '',
-              twilio_status_callback: res.data.twilio_status_callback || '',
-            };
-          }
-        })
-        .catch(() => {
-          // Ignore load errors; likely missing settings until saved once
-        });
-    },
     saveTwilio() {
       if (!this.twilio.form.twilio_sid || !this.twilio.form.twilio_auth_token) {
         alert('Account SID and Auth Token are required.');
@@ -643,7 +855,8 @@ export default {
       this.twilio.saving = true;
       axios
         .post('/api/settings', this.twilio.form)
-        .then(() => {
+        .then((res) => {
+          this.applyAdminSettings(res.data || {});
           alert('Twilio settings saved.');
         })
         .catch((err) => {
@@ -678,5 +891,23 @@ export default {
   align-items: center;
   justify-content: center;
   flex-direction: column;
+}
+.brand-preview-mark {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: #e9f2ff;
+  color: #0d3b8f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+  overflow: hidden;
+}
+.brand-preview-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 </style>

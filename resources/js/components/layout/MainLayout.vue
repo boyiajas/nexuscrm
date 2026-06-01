@@ -8,11 +8,17 @@
     >
       <div class="p-3 border-bottom d-flex align-items-center gap-2">
         <div class="brand-mark fw-bold text-white text-center flex-shrink-0">
-          {{ isSidebarCollapsed ? 'N' : 'NC' }}
+          <img
+            v-if="branding.app_logo_url"
+            :src="branding.app_logo_url"
+            :alt="branding.app_name"
+            class="brand-logo"
+          />
+          <span v-else>{{ collapsedBrandInitials }}</span>
         </div>
         <div v-if="!isSidebarCollapsed">
-          <div class="fw-bold text-white">NexusCRM</div>
-          <small class="text-white">Mini CRM Console</small>
+          <div class="fw-bold text-white">{{ branding.app_name }}</div>
+          <small class="text-white">{{ branding.app_tagline }}</small>
         </div>
       </div>
 
@@ -173,6 +179,12 @@ export default {
     return {
       user: null,
       isSidebarCollapsed: false,
+      branding: {
+        app_name: 'NexusCRM',
+        app_short_name: 'NC',
+        app_tagline: 'Mini CRM Console',
+        app_logo_url: '',
+      },
     };
   },
   created() {
@@ -185,6 +197,23 @@ export default {
         this.user = null;
       }
     }
+    this.loadStoredBranding();
+    this.loadBranding();
+    window.addEventListener('branding-updated', this.handleBrandingUpdated);
+  },
+  beforeUnmount() {
+    window.removeEventListener('branding-updated', this.handleBrandingUpdated);
+  },
+  computed: {
+    collapsedBrandInitials() {
+      const raw = (this.branding.app_short_name || this.branding.app_name || 'NC').trim();
+      if (!raw) return 'NC';
+      const parts = raw.split(/\s+/).filter(Boolean);
+      if (parts.length === 1) {
+        return parts[0].slice(0, 2).toUpperCase();
+      }
+      return parts.slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase();
+    },
   },
   methods: {
     isActive(name) {
@@ -192,6 +221,36 @@ export default {
     },
     toggleSidebar() {
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
+    },
+    applyBranding(branding = {}) {
+      this.branding = {
+        app_name: branding.app_name || 'NexusCRM',
+        app_short_name: branding.app_short_name || 'NC',
+        app_tagline: branding.app_tagline || 'Mini CRM Console',
+        app_logo_url: branding.app_logo_url || '',
+      };
+      document.title = this.branding.app_name;
+      localStorage.setItem('nexus_branding', JSON.stringify(this.branding));
+    },
+    loadStoredBranding() {
+      const stored = localStorage.getItem('nexus_branding');
+      if (!stored) return;
+      try {
+        this.applyBranding(JSON.parse(stored));
+      } catch (e) {
+        // ignore malformed cache
+      }
+    },
+    async loadBranding() {
+      try {
+        const res = await axios.get('/api/settings/branding');
+        this.applyBranding(res.data || {});
+      } catch (e) {
+        // keep fallback branding
+      }
+    },
+    handleBrandingUpdated(event) {
+      this.applyBranding(event.detail || {});
     },
     async logout() {
       try {
@@ -234,6 +293,12 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
 }
 .sidebar-collapsed {
   width: 72px;

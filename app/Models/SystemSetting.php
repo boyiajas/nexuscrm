@@ -10,6 +10,13 @@ class SystemSetting extends Model
     use HasFactory;
 
     protected $fillable = [
+        'app_name',
+        'app_short_name',
+        'app_tagline',
+        'company_name',
+        'support_email',
+        'support_phone',
+        'app_logo_path',
         'twilio_api_key',
         'twilio_sid',
         'twilio_auth_token',
