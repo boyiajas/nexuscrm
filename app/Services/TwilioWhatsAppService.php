@@ -119,12 +119,12 @@ class TwilioWhatsAppService
 
         ['from' => $from, 'msid' => $msid] = $this->resolveWhatsappSender($overrideFrom, $overrideMsid);
 
-        // If an explicit from is provided, prefer it over MessagingServiceSid to avoid 21703
+        if (!empty($msid)) {
+            $data['MessagingServiceSid'] = $msid;
+        }
+
         if (!empty($from)) {
             $data['From'] = 'whatsapp:' . $from;
-            unset($data['MessagingServiceSid']);
-        } elseif (!empty($msid)) {
-            $data['MessagingServiceSid'] = $msid;
         }
 
         $auth = $this->twilioSid . ':' . $this->twilioToken;
@@ -347,11 +347,15 @@ class TwilioWhatsAppService
 
         ['from' => $from, 'msid' => $msid] = $this->resolveWhatsappSender($overrideFrom, $overrideMsid);
 
+        if (!empty($msid)) {
+            $data['MessagingServiceSid'] = $msid;
+        }
+
         if (!empty($from)) {
             $data['From'] = 'whatsapp:' . $from;
-        } elseif (!empty($msid)) {
-            $data['MessagingServiceSid'] = $msid;
-        } else {
+        }
+
+        if (empty($from) && empty($msid)) {
             throw new \RuntimeException('No WhatsApp sender configured. Provide from number or Messaging Service SID.');
         }
 
