@@ -29,12 +29,15 @@ class WhatsAppWebhookController extends Controller
     public function verify(Request $request)
     {
         $verifyToken = method_exists($this->whatsApp, 'verifyToken') ? $this->whatsApp->verifyToken() : null;
+        $mode = $request->query('hub_mode') ?? $request->query('hub.mode');
+        $token = $request->query('hub_verify_token') ?? $request->query('hub.verify_token');
+        $challenge = $request->query('hub_challenge') ?? $request->query('hub.challenge');
 
         if (
-            $request->query('hub.mode') === 'subscribe' &&
-            hash_equals((string) $verifyToken, (string) $request->query('hub.verify_token'))
+            $mode === 'subscribe' &&
+            hash_equals((string) $verifyToken, (string) $token)
         ) {
-            return response($request->query('hub.challenge'), 200);
+            return response($challenge, 200);
         }
 
         abort(403, 'Invalid webhook verification token.');
