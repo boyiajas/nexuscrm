@@ -65,20 +65,41 @@
           </p>
 
           <div
-                v-if="selectedTemplate.media_urls && selectedTemplate.media_urls.length"
-                class="mb-3"
+            v-if="selectedTemplate.media_urls && selectedTemplate.media_urls.length"
+            class="mb-3"
+          >
+            <h6 class="mb-1">Header Media</h6>
+            <img
+              v-if="selectedTemplate.header_format === 'IMAGE'"
+              :src="selectedTemplate.media_urls[0]"
+              alt="WhatsApp template media"
+              class="img-fluid rounded border"
+              style="max-height: 260px; object-fit: contain;"
+            />
+            <video
+              v-else-if="selectedTemplate.header_format === 'VIDEO'"
+              :src="selectedTemplate.media_urls[0]"
+              class="img-fluid rounded border"
+              style="max-height: 260px; object-fit: contain;"
+              controls
+              preload="metadata"
+            ></video>
+            <div
+              v-else-if="selectedTemplate.header_format === 'DOCUMENT'"
+              class="border rounded p-3 bg-light"
             >
-                <h6 class="mb-1">Header Image</h6>
-                <img
-                :src="selectedTemplate.media_urls[0]"
-                alt="WhatsApp template media"
-                class="img-fluid rounded border"
-                style="max-height: 260px; object-fit: contain;"
-                />
-                <small class="text-muted d-block mt-1">
-                Source: {{ selectedTemplate.media_urls[0] }}
-                </small>
+              <a :href="selectedTemplate.media_urls[0]" target="_blank" rel="noopener noreferrer">
+                Open template document
+              </a>
             </div>
+            <small class="text-muted d-block mt-1">
+              Source: {{ selectedTemplate.media_urls[0] }}
+            </small>
+          </div>
+
+          <div v-if="selectedTemplate.header_text" class="small fw-semibold mb-2">
+            {{ selectedTemplate.header_text }}
+          </div>
 
           <div class="card mb-3">
             <div class="card-header py-2">
@@ -86,6 +107,23 @@
             </div>
             <div class="card-body py-2">
               <pre class="mb-0 small">{{ selectedTemplate.body_preview }}</pre>
+            </div>
+          </div>
+
+          <div v-if="selectedTemplate.footer_text" class="small text-muted mb-3">
+            {{ selectedTemplate.footer_text }}
+          </div>
+
+          <div v-if="selectedTemplate.buttons && selectedTemplate.buttons.length" class="mb-3">
+            <h6 class="mb-1">Buttons</h6>
+            <div class="d-flex gap-2 flex-wrap">
+              <span
+                v-for="(button, idx) in selectedTemplate.buttons"
+                :key="idx"
+                class="badge bg-light text-dark border"
+              >
+                {{ button.text || button.type || 'Button' }}
+              </span>
             </div>
           </div>
 

@@ -126,13 +126,35 @@
                     <i class="bi bi-image"></i> Template media preview
                   </label>
                   <div class="d-flex gap-2 flex-wrap">
-                    <div v-for="(url, idx) in imageMedia" :key="idx" class="border rounded p-2 bg-light" style="max-width: 200px;">
+                    <div v-for="(url, idx) in imageMedia" :key="idx" class="border rounded p-2 bg-light" style="max-width: 240px;">
                       <div class="small text-muted text-truncate" :title="url">Asset {{ idx + 1 }}</div>
                       <div class="template-media">
-                        <img :src="url" class="img-fluid rounded" />
+                        <img v-if="templatePreview.header_format === 'IMAGE'" :src="url" class="img-fluid rounded" />
+                        <video
+                          v-else-if="templatePreview.header_format === 'VIDEO'"
+                          :src="url"
+                          class="img-fluid rounded"
+                          controls
+                          preload="metadata"
+                        ></video>
+                        <a
+                          v-else-if="templatePreview.header_format === 'DOCUMENT'"
+                          :href="url"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="btn btn-outline-secondary btn-sm mt-2"
+                        >
+                          Open document
+                        </a>
                       </div>
                     </div>
                   </div>
+                </div>
+                <div class="col-12" v-if="templatePreview.header_text">
+                  <div class="small fw-semibold">{{ templatePreview.header_text }}</div>
+                </div>
+                <div class="col-12" v-if="templatePreview.footer_text">
+                  <div class="small text-muted">{{ templatePreview.footer_text }}</div>
                 </div>
               </div>
 
@@ -448,6 +470,9 @@ export default {
       },
       templatePreview: {
         media: [],
+        header_format: null,
+        header_text: null,
+        footer_text: null,
       },
     };
   },
@@ -546,10 +571,15 @@ export default {
         this.flowForm.template_language = tpl.language;
         // Try to use lightweight media from the list response, then fetch full template for richer preview
         const listMedia = tpl.media_urls || tpl.media || [];
-        this.templatePreview = { media: listMedia };
+        this.templatePreview = {
+          media: listMedia,
+          header_format: tpl.header_format || null,
+          header_text: tpl.header_text || null,
+          footer_text: tpl.footer_text || null,
+        };
         this.fetchTemplatePreview(tpl.sid);
       } else {
-        this.templatePreview = { media: [] };
+        this.templatePreview = { media: [], header_format: null, header_text: null, footer_text: null };
       }
     },
     async fetchTemplatePreview(templateSid) {
@@ -557,14 +587,12 @@ export default {
       try {
         const res = await axios.get(`/api/whatsapp-templates/${templateSid}`);
         const template = res.data?.template || {};
-        const types = template.types || {};
-        let media = [];
-        if (Array.isArray(types['twilio/media']?.media)) {
-          media = types['twilio/media'].media;
-        } else if (Array.isArray(types['twilio/card']?.media)) {
-          media = types['twilio/card'].media;
-        }
-        this.templatePreview = { media };
+        this.templatePreview = {
+          media: template.media_urls || [],
+          header_format: template.header_format || null,
+          header_text: template.header_text || null,
+          footer_text: template.footer_text || null,
+        };
       } catch (e) {
         console.error('Failed to load template preview', e);
       }
@@ -588,7 +616,7 @@ export default {
         status: 'active',
         steps: defaultSteps(),
       };
-      this.templatePreview = { media: [] };
+      this.templatePreview = { media: [], header_format: null, header_text: null, footer_text: null };
       this.editingFlowId = null;
     },
     addStep() {
@@ -628,7 +656,12 @@ export default {
             }))
           : defaultSteps(),
       };
-      this.templatePreview = { media: flow.media || [] };
+      this.templatePreview = {
+        media: flow.media || [],
+        header_format: flow.header_format || null,
+        header_text: flow.header_text || null,
+        footer_text: flow.footer_text || null,
+      };
       this.showModal = true;
       this.syncTemplateMeta();
     },

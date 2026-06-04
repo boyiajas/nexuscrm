@@ -8,12 +8,12 @@
     "src": "node_modules/bootstrap-icons/font/fonts/bootstrap-icons.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-DxckTotl.css",
+    "file": "assets/app-BN5v-dER.css",
     "src": "resources/css/app.css",
     "isEntry": true
   },
   "resources/js/app.js": {
-    "file": "assets/app-D61aykVw.js",
+    "file": "assets/app-e8HtHdKB.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
@@ -21,8 +21,8 @@
       "resources/js/components/layout/MainLayout.vue"
     ],
     "css": [
-      "assets/app-CEzZYt_W.css",
-      "assets/app-DxckTotl.css"
+      "assets/app-BE44iQeM.css",
+      "assets/app-BN5v-dER.css"
     ],
     "assets": [
       "assets/bootstrap-icons-mSm7cUeB.woff2",
@@ -30,7 +30,7 @@
     ]
   },
   "resources/js/components/layout/MainLayout.vue": {
-    "file": "assets/MainLayout-wzzxaxV-.js",
+    "file": "assets/MainLayout-Bmcqnixb.js",
     "name": "MainLayout",
     "src": "resources/js/components/layout/MainLayout.vue",
     "isDynamicEntry": true,
@@ -39,7 +39,7 @@
     ],
     "css": [
       "assets/MainLayout-CazXWHr6.css",
-      "assets/app-DxckTotl.css"
+      "assets/app-BN5v-dER.css"
     ]
   }
 }

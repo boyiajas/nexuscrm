@@ -830,7 +830,7 @@
             </div>
             <div class="modal-body">
                 <p class="text-muted small">
-                  Choose whether to send a Twilio template or a saved WhatsApp Flow. Leave recipients empty to target all campaign clients.
+                  Choose whether to send a WhatsApp template or a saved WhatsApp Flow. Leave recipients empty to target all campaign clients.
                 </p>
 
                 <!-- Mode toggle -->
@@ -899,14 +899,57 @@
                         class="mb-2 text-center"
                       >
                         <img
+                          v-if="currentWhatsappTemplate.header_format === 'IMAGE'"
                           :src="currentWhatsappTemplate.media_urls[0]"
                           alt="WhatsApp template media"
                           class="img-fluid rounded border"
                           style="max-height: 200px; object-fit: contain;"
                         />
+                        <video
+                          v-else-if="currentWhatsappTemplate.header_format === 'VIDEO'"
+                          :src="currentWhatsappTemplate.media_urls[0]"
+                          class="img-fluid rounded border"
+                          style="max-height: 220px; object-fit: contain;"
+                          controls
+                          preload="metadata"
+                        ></video>
+                        <div
+                          v-else-if="currentWhatsappTemplate.header_format === 'DOCUMENT'"
+                          class="border rounded p-3 bg-light"
+                        >
+                          <i class="bi bi-file-earmark-arrow-down fs-4 d-block mb-2"></i>
+                          <a
+                            :href="currentWhatsappTemplate.media_urls[0]"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Open template document
+                          </a>
+                        </div>
+                      </div>
+
+                      <div v-if="currentWhatsappTemplate.header_text" class="small fw-semibold mb-2">
+                        {{ currentWhatsappTemplate.header_text }}
                       </div>
 
                       <pre class="mb-0 small">{{ currentWhatsappTemplate.body_preview }}</pre>
+
+                      <div v-if="currentWhatsappTemplate.footer_text" class="small text-muted mt-2">
+                        {{ currentWhatsappTemplate.footer_text }}
+                      </div>
+
+                      <div
+                        v-if="currentWhatsappTemplate.buttons && currentWhatsappTemplate.buttons.length"
+                        class="mt-3 d-flex gap-2 flex-wrap"
+                      >
+                        <span
+                          v-for="(button, idx) in currentWhatsappTemplate.buttons"
+                          :key="idx"
+                          class="badge bg-light text-dark border"
+                        >
+                          {{ button.text || button.type || 'Button' }}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

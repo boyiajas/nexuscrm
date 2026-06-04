@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Contracts\WhatsAppServiceInterface;
 use App\Models\SystemSetting;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -191,38 +190,28 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function getWhatsAppTemplates(bool $onlyApproved = true, int $pageSize = 50): array
     {
-        $response = $this->get("{$this->businessAccountId}/message_templates", [
-            'limit' => $pageSize,
-            'fields' => 'name,status,language,category,components',
-        ]);
-
         $templates = [];
-        foreach (($response['data'] ?? []) as $template) {
-            $status = strtolower((string) ($template['status'] ?? ''));
-            if ($onlyApproved && $status !== 'approved') {
-                continue;
+        $nextPath = "{$this->businessAccountId}/message_templates";
+        $query = [
+            'limit' => min(max($pageSize, 1), 100),
+            'fields' => 'name,status,language,category,components',
+        ];
+
+        while ($nextPath) {
+            $response = $this->get($nextPath, $query);
+            $query = [];
+
+            foreach (($response['data'] ?? []) as $template) {
+                $mapped = $this->mapTemplate($template);
+                $status = strtolower((string) ($mapped['whatsapp']['status'] ?? ''));
+                if ($onlyApproved && $status !== 'approved') {
+                    continue;
+                }
+
+                $templates[] = $mapped;
             }
 
-            $body = $this->bodyComponent($template['components'] ?? []);
-            preg_match_all('/{{(\d+)}}/', (string) ($body['text'] ?? ''), $matches);
-            $variables = [];
-            foreach ($matches[1] ?? [] as $index) {
-                $variables[(string) $index] = 'Variable ' . $index;
-            }
-
-            $templates[] = [
-                'sid' => $template['name'],
-                'friendly_name' => $template['name'],
-                'language' => $template['language'] ?? null,
-                'preview' => $body['text'] ?? null,
-                'variables' => $variables,
-                'whatsapp' => [
-                    'status' => $template['status'] ?? null,
-                    'category' => strtolower((string) ($template['category'] ?? '')),
-                ],
-                'media' => [],
-                'components' => $template['components'] ?? [],
-            ];
+            $nextPath = $response['paging']['next'] ?? null;
         }
 
         return $templates;
@@ -239,6 +228,13 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                     'language' => $template['language'],
                     'status' => $template['whatsapp']['status'] ?? null,
                     'category' => $template['whatsapp']['category'] ?? null,
+                    'preview' => $template['preview'] ?? null,
+                    'variables' => $template['variables'] ?? [],
+                    'media_urls' => $template['media'] ?? [],
+                    'header_format' => $template['header_format'] ?? null,
+                    'header_text' => $template['header_text'] ?? null,
+                    'footer_text' => $template['footer_text'] ?? null,
+                    'buttons' => $template['buttons'] ?? [],
                     'components' => $template['components'] ?? [],
                 ];
             }
@@ -286,9 +282,70 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             ?? [];
     }
 
+    protected function headerComponent(array $components): array
+    {
+        return collect($components)
+            ->first(fn (array $component) => strtoupper((string) ($component['type'] ?? '')) === 'HEADER')
+            ?? [];
+    }
+
+    protected function footerComponent(array $components): array
+    {
+        return collect($components)
+            ->first(fn (array $component) => strtoupper((string) ($component['type'] ?? '')) === 'FOOTER')
+            ?? [];
+    }
+
+    protected function buttonsComponent(array $components): array
+    {
+        return collect($components)
+            ->first(fn (array $component) => strtoupper((string) ($component['type'] ?? '')) === 'BUTTONS')
+            ?? [];
+    }
+
+    protected function mapTemplate(array $template): array
+    {
+        $components = $template['components'] ?? [];
+        $body = $this->bodyComponent($components);
+        $header = $this->headerComponent($components);
+        $footer = $this->footerComponent($components);
+        $buttons = $this->buttonsComponent($components);
+
+        preg_match_all('/{{(\d+)}}/', (string) ($body['text'] ?? ''), $matches);
+        $variables = [];
+        foreach ($matches[1] ?? [] as $index) {
+            $variables[(string) $index] = 'Variable ' . $index;
+        }
+
+        $headerFormat = strtoupper((string) ($header['format'] ?? ''));
+        $mediaUrls = [];
+        if (!empty($header['example']['header_handle']) && is_array($header['example']['header_handle'])) {
+            $mediaUrls = array_values(array_filter($header['example']['header_handle'], 'is_string'));
+        }
+
+        return [
+            'sid' => $template['name'],
+            'friendly_name' => $template['name'],
+            'language' => $template['language'] ?? null,
+            'preview' => $body['text'] ?? null,
+            'variables' => $variables,
+            'whatsapp' => [
+                'status' => $template['status'] ?? null,
+                'category' => strtolower((string) ($template['category'] ?? '')),
+            ],
+            'media' => $mediaUrls,
+            'header_format' => $headerFormat ?: null,
+            'header_text' => $header['text'] ?? null,
+            'footer_text' => $footer['text'] ?? null,
+            'buttons' => $buttons['buttons'] ?? [],
+            'components' => $components,
+        ];
+    }
+
     protected function get(string $path, array $query = []): array
     {
-        $response = Http::withToken($this->accessToken)->get("{$this->baseUrl}/{$path}", $query);
+        $url = str_starts_with($path, 'http') ? $path : "{$this->baseUrl}/{$path}";
+        $response = Http::withToken($this->accessToken)->get($url, $query);
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
     }
 

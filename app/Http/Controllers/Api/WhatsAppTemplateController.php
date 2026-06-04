@@ -32,6 +32,10 @@ class WhatsAppTemplateController extends Controller
                 'variables'    => $t['variables'] ?? [],
                 'whatsapp'     => $whatsapp,
                 'media_urls'   => $t['media'] ?? [],
+                'header_format'=> $t['header_format'] ?? null,
+                'header_text'  => $t['header_text'] ?? null,
+                'footer_text'  => $t['footer_text'] ?? null,
+                'buttons'      => $t['buttons'] ?? [],
             ];
         }, $templates);
 
