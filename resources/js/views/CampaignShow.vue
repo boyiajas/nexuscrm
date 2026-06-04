@@ -2057,7 +2057,7 @@ export default {
       const preSelected = this.$route.query.whatsapp_template;
 
       Promise.all([
-        axios.get('/api/whatsapp-templates').catch(() => ({ data: [] })),
+        axios.get('/api/whatsapp-templates'),
         axios.get('/api/whatsapp-flows').catch(() => ({ data: [] })),
       ]).then(([tplRes, flowRes]) => {
         this.whatsappTemplates = tplRes.data.data || tplRes.data || [];
@@ -2066,6 +2066,12 @@ export default {
         if (preSelected && this.whatsappTemplates.some((t) => t.id === preSelected)) {
           this.whatsappForm.templateId = preSelected;
         }
+        if (!this.whatsappTemplates.length) {
+          alert('No approved WhatsApp templates were returned from Meta for the configured WhatsApp Business Account.');
+        }
+      }).catch((error) => {
+        console.error('Failed to load WhatsApp templates from Meta', error);
+        alert('Failed to load WhatsApp templates: ' + (error.response?.data?.message || error.message));
       }).finally(() => {
         this.addWhatsappModal.show();
         this.whatsappModalLoading = false;

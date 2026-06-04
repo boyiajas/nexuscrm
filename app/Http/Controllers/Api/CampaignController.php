@@ -355,7 +355,7 @@ class CampaignController extends Controller
     }
 
     /**
-     * Trigger sending of campaign (enqueue Twilio / Email / ZoomConnect jobs).
+     * Trigger sending of campaign (enqueue WhatsApp / Email / ZoomConnect jobs).
      * Here we just stub the flow - you plug your jobs + logic in.
      */
     public function send(Campaign $campaign)
@@ -371,7 +371,7 @@ class CampaignController extends Controller
         //
         // Inside the job you would:
         //  - Resolve campaign clients (department-scoped)
-        //  - For WhatsApp: call Twilio WhatsApp API with approved template
+        //  - For WhatsApp: call the configured WhatsApp provider with an approved template
         //  - For Email: push to your mailer
         //  - For SMS: call ZoomConnect API
         //  - Store each send result into campaign_* tables for reporting
@@ -379,7 +379,7 @@ class CampaignController extends Controller
 
         // For now we just return a simple JSON stub
         return response()->json([
-            'message'  => 'Send job queued (stub). Implement SendCampaignJob with Twilio/Email/ZoomConnect.',
+            'message'  => 'Send job queued (stub). Implement SendCampaignJob with WhatsApp/Email/ZoomConnect.',
             'campaign' => $campaign->id,
         ]);
     }
@@ -731,7 +731,7 @@ class CampaignController extends Controller
                 'updated_at'       => $now,
             ]);
 
-        // Send via Twilio
+        // Send via the configured WhatsApp provider
         if ($message->template_sid) {
             Log::info('Campaign draft WhatsApp send started', [
                 'campaign_id' => $campaign->id,
@@ -1042,7 +1042,7 @@ class CampaignController extends Controller
      * POST /api/campaigns/{campaign}/whatsapp-messages
      *
      * Payload:
-     *  - template_id: string (Twilio ContentSid)
+     *  - template_id: string (Meta template name)
      *  - clients_mode: 'all' | 'selected'
      *  - client_ids: [] (required when clients_mode = 'selected')
      *  - track_responses: bool (optional)
@@ -1169,7 +1169,7 @@ class CampaignController extends Controller
                 ]);
         }
         
-            // 🔹 ONLY send via Twilio if send_now is true
+            // Only send immediately when requested
         if ($sendNow && $templateSid) {
             Log::info('Campaign WhatsApp batch send started', [
                 'campaign_id' => $campaign->id,

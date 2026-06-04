@@ -70,10 +70,10 @@ class ChatController extends Controller
         return response()->json($message, 201);
     }
 
-    // For future webhook/Twilio inbound messages:
+    // Reserved for future manual webhook entry points if needed:
     public function receiveFromClient(Request $request)
     {
-        // TODO: handle Twilio webhook, find/create ChatSession,
+        // TODO: handle inbound webhook payloads, find/create ChatSession,
         // create ChatMessage with sender='user', increment unread_count, etc.
     }
 

@@ -24,7 +24,7 @@
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link" id="twilio-tab" data-bs-toggle="tab" data-bs-target="#twilio" type="button">
+        <button class="nav-link" id="meta-tab" data-bs-toggle="tab" data-bs-target="#meta" type="button">
           Meta WhatsApp
         </button>
       </li>
@@ -307,7 +307,7 @@
       </div>
 
       <!-- META CONFIG TAB -->
-      <div class="tab-pane fade" id="twilio" v-if="isSuperAdmin">
+      <div class="tab-pane fade" id="meta" v-if="isSuperAdmin">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">Meta WhatsApp Configuration</h5>
@@ -411,13 +411,13 @@
                   </td>
                   <td class="text-end">
                     <div class="btn-group btn-group-sm" role="group">
-                      <button class="btn btn-outline-primary" title="Edit in Meta WhatsApp Manager" disabled>
-                        <i class="bi bi-pencil-square"></i>
+                      <button type="button" class="btn btn-outline-primary" title="View template details" @click="viewTemplate(t)">
+                        <i class="bi bi-eye"></i>
                       </button>
-                      <button class="btn btn-outline-success" title="Submit in Meta WhatsApp Manager" disabled>
+                      <button type="button" class="btn btn-outline-success" title="Submit in Meta WhatsApp Manager" disabled>
                         <i class="bi bi-upload"></i>
                       </button>
-                      <button class="btn btn-outline-danger" title="Delete in Meta WhatsApp Manager" disabled>
+                      <button type="button" class="btn btn-outline-danger" title="Delete in Meta WhatsApp Manager" disabled>
                         <i class="bi bi-trash"></i>
                       </button>
                     </div>
@@ -441,22 +441,24 @@
       <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">{{ wa.form.sid ? 'Edit WhatsApp Template' : 'Create WhatsApp Template' }}</h5>
+            <h5 class="modal-title">
+              {{ wa.viewOnly ? 'WhatsApp Template Details' : (wa.form.sid ? 'Edit WhatsApp Template' : 'Create WhatsApp Template') }}
+            </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label">Friendly Name</label>
-                <input v-model="wa.form.friendly_name" type="text" class="form-control" placeholder="Appointment Reminder" />
+                <input v-model="wa.form.friendly_name" type="text" class="form-control" placeholder="Appointment Reminder" :readonly="wa.viewOnly" />
               </div>
               <div class="col-md-3">
                 <label class="form-label">Language</label>
-                <input v-model="wa.form.language" type="text" class="form-control" placeholder="en" />
+                <input v-model="wa.form.language" type="text" class="form-control" placeholder="en" :readonly="wa.viewOnly" />
               </div>
               <div class="col-md-3">
                 <label class="form-label">Category</label>
-                <select v-model="wa.form.category" class="form-select">
+                <select v-model="wa.form.category" class="form-select" :disabled="wa.viewOnly">
                   <option value="utility">Utility</option>
                   <option value="marketing">Marketing</option>
                   <option value="authentication">Authentication</option>
@@ -464,23 +466,66 @@
               </div>
               <div class="col-12">
                 <label class="form-label">Body</label>
-                <textarea v-model="wa.form.body" class="form-control" rows="4" placeholder="Hi {{1}}, your order {{2}} is ready for pickup."></textarea>
+                <textarea v-model="wa.form.body" class="form-control" rows="6" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
               </div>
               <div class="col-12">
-                <label class="form-label">Media URLs (optional, comma separated)</label>
-                <input v-model="wa.form.media_urls" type="text" class="form-control" placeholder="https://example.com/image.jpg" />
+                <label class="form-label">Media URLs</label>
+                <input v-model="wa.form.media_urls" type="text" class="form-control" placeholder="https://example.com/image.jpg" :readonly="wa.viewOnly" />
+              </div>
+              <div class="col-md-4" v-if="wa.form.header_format">
+                <label class="form-label">Header Format</label>
+                <input :value="wa.form.header_format" type="text" class="form-control" readonly />
+              </div>
+              <div class="col-12" v-if="wa.form.header_text">
+                <label class="form-label">Header Text</label>
+                <input :value="wa.form.header_text" type="text" class="form-control" readonly />
+              </div>
+              <div class="col-12" v-if="wa.form.footer_text">
+                <label class="form-label">Footer Text</label>
+                <input :value="wa.form.footer_text" type="text" class="form-control" readonly />
               </div>
               <div class="col-12" v-if="firstMediaUrl">
-                <label class="form-label">Preview</label>
+                <label class="form-label">Header Preview</label>
                 <div class="border rounded p-2 text-center bg-light">
-                  <img :src="firstMediaUrl" alt="WhatsApp media preview" class="img-fluid" style="max-height: 220px; object-fit: contain;" />
+                  <img
+                    v-if="wa.form.header_format === 'IMAGE' || !wa.form.header_format"
+                    :src="firstMediaUrl"
+                    alt="WhatsApp media preview"
+                    class="img-fluid"
+                    style="max-height: 220px; object-fit: contain;"
+                  />
+                  <video
+                    v-else-if="wa.form.header_format === 'VIDEO'"
+                    :src="firstMediaUrl"
+                    class="img-fluid"
+                    style="max-height: 220px; object-fit: contain;"
+                    controls
+                    preload="metadata"
+                  ></video>
+                  <a
+                    v-else-if="wa.form.header_format === 'DOCUMENT'"
+                    :href="firstMediaUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="btn btn-outline-secondary"
+                  >
+                    Open document
+                  </a>
+                </div>
+              </div>
+              <div class="col-12" v-if="wa.form.buttons.length">
+                <label class="form-label">Buttons</label>
+                <div class="d-flex gap-2 flex-wrap">
+                  <span v-for="(button, idx) in wa.form.buttons" :key="idx" class="badge bg-light text-dark border">
+                    {{ button.text || button.type || 'Button' }}
+                  </span>
                 </div>
               </div>
             </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wa.saving">Close</button>
-            <button class="btn btn-primary" @click="saveTemplate" :disabled="wa.saving">
+            <button v-if="!wa.viewOnly" class="btn btn-primary" @click="saveTemplate" :disabled="wa.saving">
               <span v-if="wa.saving" class="spinner-border spinner-border-sm me-1"></span>
               {{ wa.form.sid ? 'Update Template' : 'Create Template' }}
             </button>
@@ -558,6 +603,7 @@ export default {
         templates: [],
         loading: false,
         saving: false,
+        viewOnly: false,
         form: {
           sid: null,
           friendly_name: '',
@@ -565,6 +611,10 @@ export default {
           language: 'en',
           category: 'utility',
           media_urls: '',
+          header_format: '',
+          header_text: '',
+          footer_text: '',
+          buttons: [],
         },
       },
       templateModal: null,
@@ -773,11 +823,47 @@ export default {
     },
     startCreate() {
       this.resetForm();
+      this.wa.viewOnly = false;
       if (this.templateModal) {
         this.templateModal.show();
       }
     },
+    viewTemplate(t) {
+      this.wa.viewOnly = true;
+      this.wa.saving = true;
+      axios
+        .get(`/api/whatsapp-templates/${encodeURIComponent(t.sid)}`)
+        .then((res) => {
+          const template = res.data?.template || {};
+          this.wa.form = {
+            sid: template.id || t.sid,
+            friendly_name: template.name || t.name,
+            body: template.preview || t.body_preview || '',
+            language: template.language || t.language || 'en',
+            category: (template.category || t.category || 'utility').toLowerCase(),
+            media_urls: Array.isArray(template.media_urls)
+              ? template.media_urls.join(',')
+              : Array.isArray(t.media_urls)
+                ? t.media_urls.join(',')
+                : '',
+            header_format: template.header_format || t.header_format || '',
+            header_text: template.header_text || t.header_text || '',
+            footer_text: template.footer_text || t.footer_text || '',
+            buttons: Array.isArray(template.buttons)
+              ? template.buttons
+              : (Array.isArray(t.buttons) ? t.buttons : []),
+          };
+          this.templateModal?.show();
+        })
+        .catch((err) => {
+          alert('Failed to load template details: ' + (err.response?.data?.message || err.message));
+        })
+        .finally(() => {
+          this.wa.saving = false;
+        });
+    },
     editTemplate(t) {
+      this.wa.viewOnly = false;
       this.wa.form = {
         sid: t.sid,
         friendly_name: t.name,
@@ -785,6 +871,10 @@ export default {
         language: t.language || 'en',
         category: (t.category || 'utility').toLowerCase(),
         media_urls: (t.media_urls || []).join(','),
+        header_format: t.header_format || '',
+        header_text: t.header_text || '',
+        footer_text: t.footer_text || '',
+        buttons: Array.isArray(t.buttons) ? t.buttons : [],
       };
       if (this.templateModal) {
         this.templateModal.show();
@@ -798,6 +888,10 @@ export default {
         language: 'en',
         category: 'utility',
         media_urls: '',
+        header_format: '',
+        header_text: '',
+        footer_text: '',
+        buttons: [],
       };
     },
     saveTemplate() {

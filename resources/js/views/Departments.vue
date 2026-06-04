@@ -120,7 +120,7 @@
                     Add
                   </button>
                 </div>
-                <small class="text-muted">Pick one or more Twilio WhatsApp numbers for this department. If none are set, the system default will be used.</small>
+                <small class="text-muted">Pick one or more WhatsApp numbers for this department. If none are set, the system default will be used.</small>
                 <div class="mt-2">
                   <span
                     v-for="num in form.whatsapp_numbers"
