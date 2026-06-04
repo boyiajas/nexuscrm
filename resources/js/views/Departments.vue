@@ -213,7 +213,7 @@ export default {
       });
     },
     fetchSenders() {
-      axios.get('/api/twilio/whatsapp-senders').then((res) => {
+      axios.get('/api/whatsapp/senders').then((res) => {
         this.senders = res.data || [];
       }).catch(() => {
         this.senders = [];

@@ -12,11 +12,15 @@ return new class extends Migration
         Schema::table('chat_sessions', function (Blueprint $table) {
             $table->unsignedBigInteger('client_id')->nullable()->change();
             $table->string('platform', 50)->default('whatsapp')->change();
-            $table->string('phone', 32)->nullable()->after('client_name');
+            if (!Schema::hasColumn('chat_sessions', 'phone')) {
+                $table->string('phone', 32)->nullable()->after('client_name');
+            }
         });
 
-        // Allow sender 'client' in chat_messages
-        DB::statement("ALTER TABLE chat_messages MODIFY COLUMN sender ENUM('user','agent','system','client')");
+        // SQLite does not support MODIFY COLUMN for enum-like columns.
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE chat_messages MODIFY COLUMN sender ENUM('user','agent','system','client')");
+        }
     }
 
     public function down(): void
@@ -24,9 +28,13 @@ return new class extends Migration
         Schema::table('chat_sessions', function (Blueprint $table) {
             $table->unsignedBigInteger('client_id')->nullable(false)->change();
             $table->string('platform', 191)->default('Twilio WhatsApp')->change();
-            $table->dropColumn('phone');
+            if (Schema::hasColumn('chat_sessions', 'phone')) {
+                $table->dropColumn('phone');
+            }
         });
 
-        DB::statement("ALTER TABLE chat_messages MODIFY COLUMN sender ENUM('user','agent','system')");
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE chat_messages MODIFY COLUMN sender ENUM('user','agent','system')");
+        }
     }
 };

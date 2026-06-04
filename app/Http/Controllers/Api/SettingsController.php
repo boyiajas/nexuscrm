@@ -41,6 +41,14 @@ class SettingsController extends Controller
             'twilio_template_sid'    => ['sometimes', 'nullable', 'string'],
             'twilio_whatsapp_from'   => ['sometimes', 'nullable', 'string'],
             'twilio_status_callback' => ['sometimes', 'nullable', 'string'],
+            'whatsapp_provider'      => ['sometimes', 'nullable', 'string', 'max:50'],
+            'meta_app_id'            => ['sometimes', 'nullable', 'string'],
+            'meta_app_secret'        => ['sometimes', 'nullable', 'string'],
+            'meta_access_token'      => ['sometimes', 'nullable', 'string'],
+            'meta_whatsapp_business_account_id' => ['sometimes', 'nullable', 'string'],
+            'meta_whatsapp_phone_number_id' => ['sometimes', 'nullable', 'string'],
+            'meta_whatsapp_display_phone_number' => ['sometimes', 'nullable', 'string'],
+            'meta_webhook_verify_token' => ['sometimes', 'nullable', 'string'],
         ]);
 
         $settings = SystemSetting::firstOrCreate([]);
@@ -85,6 +93,14 @@ class SettingsController extends Controller
                 'twilio_template_sid' => null,
                 'twilio_whatsapp_from' => null,
                 'twilio_status_callback' => null,
+                'whatsapp_provider' => 'meta',
+                'meta_app_id' => config('services.meta_whatsapp.app_id'),
+                'meta_app_secret' => config('services.meta_whatsapp.app_secret'),
+                'meta_access_token' => config('services.meta_whatsapp.access_token'),
+                'meta_whatsapp_business_account_id' => config('services.meta_whatsapp.business_account_id'),
+                'meta_whatsapp_phone_number_id' => config('services.meta_whatsapp.phone_number_id'),
+                'meta_whatsapp_display_phone_number' => config('services.meta_whatsapp.display_phone_number'),
+                'meta_webhook_verify_token' => config('services.meta_whatsapp.verify_token'),
             ];
         }
 
@@ -103,6 +119,14 @@ class SettingsController extends Controller
             'twilio_template_sid' => $settings->twilio_template_sid,
             'twilio_whatsapp_from' => $settings->twilio_whatsapp_from,
             'twilio_status_callback' => $settings->twilio_status_callback,
+            'whatsapp_provider' => $settings->whatsapp_provider ?: 'meta',
+            'meta_app_id' => $settings->meta_app_id ?: config('services.meta_whatsapp.app_id'),
+            'meta_app_secret' => $settings->meta_app_secret ?: config('services.meta_whatsapp.app_secret'),
+            'meta_access_token' => $settings->meta_access_token ?: config('services.meta_whatsapp.access_token'),
+            'meta_whatsapp_business_account_id' => $settings->meta_whatsapp_business_account_id ?: config('services.meta_whatsapp.business_account_id'),
+            'meta_whatsapp_phone_number_id' => $settings->meta_whatsapp_phone_number_id ?: config('services.meta_whatsapp.phone_number_id'),
+            'meta_whatsapp_display_phone_number' => $settings->meta_whatsapp_display_phone_number ?: config('services.meta_whatsapp.display_phone_number'),
+            'meta_webhook_verify_token' => $settings->meta_webhook_verify_token ?: config('services.meta_whatsapp.verify_token'),
         ];
     }
 

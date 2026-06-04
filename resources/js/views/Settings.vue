@@ -25,7 +25,7 @@
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
         <button class="nav-link" id="twilio-tab" data-bs-toggle="tab" data-bs-target="#twilio" type="button">
-          Twilio Config
+          Meta WhatsApp
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
@@ -306,15 +306,15 @@
         </div>
       </div>
 
-      <!-- TWILIO CONFIG TAB -->
+      <!-- META CONFIG TAB -->
       <div class="tab-pane fade" id="twilio" v-if="isSuperAdmin">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
-            <h5 class="mb-1">Twilio Configuration</h5>
-            <small class="text-muted">Stored securely in the database instead of .env.</small>
+            <h5 class="mb-1">Meta WhatsApp Configuration</h5>
+            <small class="text-muted">Store the Cloud API credentials in the database and use the webhook values below in Meta.</small>
           </div>
-          <button class="btn btn-primary btn-sm" @click="saveTwilio" :disabled="twilio.saving">
-            <span v-if="twilio.saving" class="spinner-border spinner-border-sm me-1"></span>
+          <button class="btn btn-primary btn-sm" @click="saveMeta" :disabled="meta.saving">
+            <span v-if="meta.saving" class="spinner-border spinner-border-sm me-1"></span>
             Save
           </button>
         </div>
@@ -323,28 +323,41 @@
           <div class="card-body">
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label">Account SID</label>
-                <input v-model="twilio.form.twilio_sid" type="text" class="form-control" placeholder="ACxxxx" />
+                <label class="form-label">App ID</label>
+                <input v-model="meta.form.meta_app_id" type="text" class="form-control" placeholder="347591848299284" />
               </div>
               <div class="col-md-6">
-                <label class="form-label">Auth Token</label>
-                <input v-model="twilio.form.twilio_auth_token" type="password" class="form-control" placeholder="••••••" />
+                <label class="form-label">App Secret</label>
+                <input v-model="meta.form.meta_app_secret" type="password" class="form-control" placeholder="••••••" />
               </div>
               <div class="col-md-6">
-                <label class="form-label">Messaging Service SID (MSID)</label>
-                <input v-model="twilio.form.twilio_msg_sid" type="text" class="form-control" placeholder="MGxxxx" />
+                <label class="form-label">Access Token</label>
+                <input v-model="meta.form.meta_access_token" type="password" class="form-control" placeholder="EA..." />
               </div>
               <div class="col-md-6">
-                <label class="form-label">Default Template SID</label>
-                <input v-model="twilio.form.twilio_template_sid" type="text" class="form-control" placeholder="HXxxxx" />
+                <label class="form-label">WhatsApp Business Account ID</label>
+                <input v-model="meta.form.meta_whatsapp_business_account_id" type="text" class="form-control" placeholder="158344407357891" />
               </div>
               <div class="col-md-6">
-                <label class="form-label">WhatsApp From</label>
-                <input v-model="twilio.form.twilio_whatsapp_from" type="text" class="form-control" placeholder="+1234567890" />
+                <label class="form-label">Phone Number ID</label>
+                <input v-model="meta.form.meta_whatsapp_phone_number_id" type="text" class="form-control" placeholder="108317352375882" />
               </div>
               <div class="col-md-6">
-                <label class="form-label">Status Callback URL</label>
-                <input v-model="twilio.form.twilio_status_callback" type="text" class="form-control" placeholder="https://your-app.example.com/api/twilio/status" />
+                <label class="form-label">Display Phone Number</label>
+                <input v-model="meta.form.meta_whatsapp_display_phone_number" type="text" class="form-control" placeholder="+1 555 003 2209" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Webhook Verify Token</label>
+                <input v-model="meta.form.meta_webhook_verify_token" type="text" class="form-control" placeholder="Generated verify token" />
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Provider</label>
+                <input v-model="meta.form.whatsapp_provider" type="text" class="form-control" readonly />
+              </div>
+              <div class="col-12">
+                <label class="form-label">Webhook Callback URL</label>
+                <input :value="webhookCallbackUrl" type="text" class="form-control" readonly />
+                <small class="text-muted">Use this exact callback URL when configuring the Meta webhook.</small>
               </div>
             </div>
           </div>
@@ -356,11 +369,11 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">WhatsApp Templates</h5>
-            <small class="text-muted">Manage Twilio Content templates and approvals.</small>
+            <small class="text-muted">View the templates synced from Meta. Creation and approval stay in WhatsApp Manager for now.</small>
           </div>
-          <button class="btn btn-primary btn-sm" @click="startCreate">
+          <button class="btn btn-primary btn-sm" @click="startCreate" disabled title="Create templates in Meta WhatsApp Manager">
             <i class="bi bi-plus-circle me-1"></i>
-            New Template
+            Managed In Meta
           </button>
         </div>
 
@@ -398,13 +411,13 @@
                   </td>
                   <td class="text-end">
                     <div class="btn-group btn-group-sm" role="group">
-                      <button class="btn btn-outline-primary" title="Edit" @click="editTemplate(t)">
+                      <button class="btn btn-outline-primary" title="Edit in Meta WhatsApp Manager" disabled>
                         <i class="bi bi-pencil-square"></i>
                       </button>
-                      <button class="btn btn-outline-success" title="Submit" @click="submitTemplate(t)">
+                      <button class="btn btn-outline-success" title="Submit in Meta WhatsApp Manager" disabled>
                         <i class="bi bi-upload"></i>
                       </button>
-                      <button class="btn btn-outline-danger" title="Delete" @click="deleteTemplate(t)">
+                      <button class="btn btn-outline-danger" title="Delete in Meta WhatsApp Manager" disabled>
                         <i class="bi bi-trash"></i>
                       </button>
                     </div>
@@ -528,15 +541,17 @@ export default {
           app_logo_url: '',
         },
       },
-      twilio: {
+      meta: {
         saving: false,
         form: {
-          twilio_sid: '',
-          twilio_auth_token: '',
-          twilio_msg_sid: '',
-          twilio_template_sid: '',
-          twilio_whatsapp_from: '',
-          twilio_status_callback: '',
+          whatsapp_provider: 'meta',
+          meta_app_id: '',
+          meta_app_secret: '',
+          meta_access_token: '',
+          meta_whatsapp_business_account_id: '',
+          meta_whatsapp_phone_number_id: '',
+          meta_whatsapp_display_phone_number: '',
+          meta_webhook_verify_token: '',
         },
       },
       wa: {
@@ -593,6 +608,9 @@ export default {
         return parts[0].slice(0, 2).toUpperCase();
       }
       return parts.slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase();
+    },
+    webhookCallbackUrl() {
+      return `${window.location.origin}/api/whatsapp/webhook`;
     },
   },
   methods: {
@@ -674,13 +692,15 @@ export default {
       this.system.logoPreviewUrl = null;
       this.system.removeLogo = false;
 
-      this.twilio.form = {
-        twilio_sid: settings.twilio_sid || '',
-        twilio_auth_token: settings.twilio_auth_token || '',
-        twilio_msg_sid: settings.twilio_msg_sid || '',
-        twilio_template_sid: settings.twilio_template_sid || '',
-        twilio_whatsapp_from: settings.twilio_whatsapp_from || '',
-        twilio_status_callback: settings.twilio_status_callback || '',
+      this.meta.form = {
+        whatsapp_provider: settings.whatsapp_provider || 'meta',
+        meta_app_id: settings.meta_app_id || '',
+        meta_app_secret: settings.meta_app_secret || '',
+        meta_access_token: settings.meta_access_token || '',
+        meta_whatsapp_business_account_id: settings.meta_whatsapp_business_account_id || '',
+        meta_whatsapp_phone_number_id: settings.meta_whatsapp_phone_number_id || '',
+        meta_whatsapp_display_phone_number: settings.meta_whatsapp_display_phone_number || '',
+        meta_webhook_verify_token: settings.meta_webhook_verify_token || '',
       };
 
       this.applyBranding(settings);
@@ -847,23 +867,23 @@ export default {
       if (s === 'rejected') return 'badge bg-danger';
       return 'badge bg-secondary';
     },
-    saveTwilio() {
-      if (!this.twilio.form.twilio_sid || !this.twilio.form.twilio_auth_token) {
-        alert('Account SID and Auth Token are required.');
+    saveMeta() {
+      if (!this.meta.form.meta_access_token || !this.meta.form.meta_whatsapp_phone_number_id || !this.meta.form.meta_whatsapp_business_account_id) {
+        alert('Access token, business account ID, and phone number ID are required.');
         return;
       }
-      this.twilio.saving = true;
+      this.meta.saving = true;
       axios
-        .post('/api/settings', this.twilio.form)
+        .post('/api/settings', this.meta.form)
         .then((res) => {
           this.applyAdminSettings(res.data || {});
-          alert('Twilio settings saved.');
+          alert('Meta WhatsApp settings saved.');
         })
         .catch((err) => {
-          alert('Failed to save Twilio settings: ' + (err.response?.data?.message || err.message));
+          alert('Failed to save Meta WhatsApp settings: ' + (err.response?.data?.message || err.message));
         })
         .finally(() => {
-          this.twilio.saving = false;
+          this.meta.saving = false;
         });
     },
   },

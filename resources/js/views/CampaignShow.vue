@@ -223,7 +223,7 @@
                     </div>
                     <small class="text-muted">
                       <span v-if="isFlowSend(w)">Flow definition</span>
-                      <span v-else>Twilio / Meta template</span>
+                      <span v-else>WhatsApp template</span>
                     </small>
                   </td>
                   <td>
@@ -875,7 +875,7 @@
                     </option>
                   </select>
                   <small class="text-muted">
-                    Templates are synced from your Twilio / Meta WhatsApp account.
+                    Templates are synced from your connected WhatsApp account.
                   </small>
                 </div>
                 <!-- Template preview -->
@@ -1548,7 +1548,7 @@ export default {
             {
             label: 'WhatsApp',
             value: this.stats.whatsapp_sent || 0,
-            subtitle: 'Messages sent via Twilio/Meta',
+            subtitle: 'Messages sent via WhatsApp',
             icon: 'bi bi-whatsapp text-success',
             show: this.channels.whatsapp,
             },

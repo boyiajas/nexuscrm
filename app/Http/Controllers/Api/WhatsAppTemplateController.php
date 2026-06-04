@@ -2,22 +2,22 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
-use App\Services\TwilioWhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class WhatsAppTemplateController extends Controller
 {
-    public function __construct(private TwilioWhatsAppService $twilioWhatsApp)
+    public function __construct(private WhatsAppServiceInterface $whatsApp)
     {
     }
 
     public function index(Request $request): JsonResponse
     {
         $onlyApproved = filter_var($request->query('approved', '1'), FILTER_VALIDATE_BOOLEAN);
-        $templates    = $this->twilioWhatsApp->getWhatsAppTemplates($onlyApproved);
+        $templates    = $this->whatsApp->getWhatsAppTemplates($onlyApproved);
 
         $data = array_map(function (array $t) {
             $whatsapp = $t['whatsapp'] ?? [];
@@ -40,8 +40,8 @@ class WhatsAppTemplateController extends Controller
 
     public function show(string $id): JsonResponse
     {
-        $details   = $this->twilioWhatsApp->getTemplateDetails($id);
-        $approvals = $this->twilioWhatsApp->getTemplateApprovalStatus($id);
+        $details   = $this->whatsApp->getTemplateDetails($id);
+        $approvals = $this->whatsApp->getTemplateApprovalStatus($id);
 
         return response()->json([
             'template'  => $details,
@@ -62,7 +62,7 @@ class WhatsAppTemplateController extends Controller
             'media_urls.*'  => ['string'],
         ]);
 
-        $created = $this->twilioWhatsApp->createWhatsAppTemplate(
+        $created = $this->whatsApp->createWhatsAppTemplate(
             $data['friendly_name'],
             $data['body'],
             $data['language'],
@@ -94,7 +94,7 @@ class WhatsAppTemplateController extends Controller
             'media'         => $data['media_urls'] ?? null,
         ];
 
-        $updated = $this->twilioWhatsApp->updateWhatsAppTemplate($id, $payload);
+        $updated = $this->whatsApp->updateWhatsAppTemplate($id, $payload);
 
         return response()->json($updated);
     }
@@ -103,7 +103,7 @@ class WhatsAppTemplateController extends Controller
     {
         $this->authorizeAdmin();
 
-        $this->twilioWhatsApp->deleteWhatsAppTemplate($id);
+        $this->whatsApp->deleteWhatsAppTemplate($id);
 
         return response()->json([], 204);
     }
@@ -116,7 +116,7 @@ class WhatsAppTemplateController extends Controller
             'category' => ['required', 'string', 'max:50'],
         ]);
 
-        $result = $this->twilioWhatsApp->submitTemplateForApproval($id, $data['category']);
+        $result = $this->whatsApp->submitTemplateForApproval($id, $data['category']);
 
         return response()->json($result);
     }

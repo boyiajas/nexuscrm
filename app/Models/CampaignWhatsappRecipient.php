@@ -11,10 +11,12 @@ class CampaignWhatsappRecipient extends Model
         'client_id',
         'phone',
         'message_sid',
+        'provider_message_id',
         'status',
         'error_code',
         'error_message',
         'status_payload',
+        'provider_status_payload',
         'delivered_at',
         'last_response',
         'last_response_at',
@@ -24,6 +26,7 @@ class CampaignWhatsappRecipient extends Model
         'delivered_at'     => 'datetime',
         'last_response_at' => 'datetime',
         'status_payload'   => 'array',
+        'provider_status_payload' => 'array',
     ];
 
     public function message()

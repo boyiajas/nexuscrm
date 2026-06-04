@@ -14,7 +14,7 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\WhatsAppTemplateController;
-use App\Http\Controllers\Api\TwilioController;
+use App\Http\Controllers\Api\WhatsAppWebhookController;
 use App\Http\Controllers\Api\WhatsAppFlowController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,8 +29,9 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
 Route::get('/settings/branding', [SettingsController::class, 'branding']);
 
-// Twilio webhooks (public)
-Route::post('/twilio/webhook/whatsapp', [TwilioController::class, 'webhookWhatsapp']);
+Route::get('/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/whatsapp/webhook', [WhatsAppWebhookController::class, 'webhook']);
+Route::post('/twilio/webhook/whatsapp', [WhatsAppWebhookController::class, 'webhook']);
 
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -87,7 +88,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index']);
 
     Route::apiResource('departments', DepartmentController::class);
-    Route::get('/twilio/whatsapp-senders', [TwilioController::class, 'whatsappSenders']);
+    Route::get('/whatsapp/senders', [WhatsAppWebhookController::class, 'whatsappSenders']);
+    Route::get('/twilio/whatsapp-senders', [WhatsAppWebhookController::class, 'whatsappSenders']);
 
     Route::apiResource('users', UserController::class)->except(['show']);
 

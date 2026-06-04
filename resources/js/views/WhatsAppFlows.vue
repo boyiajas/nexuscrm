@@ -4,7 +4,7 @@
       <div>
         <h2 class="h4 mb-1"><i class="bi bi-diagram-3 me-2"></i>WhatsApp Flows</h2>
         <p class="text-muted mb-0">
-          Automate common WhatsApp journeys with approved Twilio templates.
+          Automate common WhatsApp journeys with approved Meta templates.
         </p>
       </div>
       <button class="btn btn-primary btn-sm" @click="openModal">
@@ -110,7 +110,7 @@
                   ></textarea>
                 </div>
                 <div class="col-12">
-                  <label class="form-label">Twilio approved template</label>
+                  <label class="form-label">Approved WhatsApp template</label>
                   <select class="form-select" v-model="flowForm.template_sid" @change="syncTemplateMeta" required>
                     <option value="" disabled>Select an approved template</option>
                     <option v-for="tpl in templates" :key="tpl.sid" :value="tpl.sid">

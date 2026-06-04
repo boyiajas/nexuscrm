@@ -2,18 +2,18 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\ChatSession;
 use App\Models\ChatMessage;
 use App\Models\Client;
-use App\Services\TwilioWhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
-    public function __construct(private TwilioWhatsAppService $twilio)
+    public function __construct(private WhatsAppServiceInterface $whatsApp)
     {
     }
 
@@ -128,7 +128,7 @@ class ChatController extends Controller
                 'to' => $to,
                 'body_length' => mb_strlen($body),
             ]);
-            $this->twilio->sendPlainWhatsapp($to, $body);
+            $this->whatsApp->sendPlainWhatsapp($to, $body);
         } catch (\Throwable $e) {
             Log::error('Failed to send WhatsApp chat reply', [
                 'session_id' => $session->id,

@@ -23,7 +23,8 @@ class DepartmentController extends Controller
         ]);
 
         if (empty($data['whatsapp_numbers'])) {
-            $default = optional(\App\Models\SystemSetting::first())->twilio_whatsapp_from;
+            $settings = \App\Models\SystemSetting::first();
+            $default = $settings?->meta_whatsapp_display_phone_number ?: $settings?->twilio_whatsapp_from;
             $data['whatsapp_numbers'] = $default ? [$default] : [];
         }
 
@@ -40,7 +41,8 @@ class DepartmentController extends Controller
         ]);
 
         if (array_key_exists('whatsapp_numbers', $data) && empty($data['whatsapp_numbers'])) {
-            $default = optional(\App\Models\SystemSetting::first())->twilio_whatsapp_from;
+            $settings = \App\Models\SystemSetting::first();
+            $default = $settings?->meta_whatsapp_display_phone_number ?: $settings?->twilio_whatsapp_from;
             $data['whatsapp_numbers'] = $default ? [$default] : [];
         }
 

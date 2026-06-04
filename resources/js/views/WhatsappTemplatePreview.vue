@@ -161,9 +161,7 @@ export default {
         });
     },
     onTemplateChange() {
-      // You could call /api/whatsapp-templates/{id} here
-      // if you want additional deep details per template.
-      // For now we just rely on the basic list data.
+      // For now we rely on the list data returned by the API.
     },
     goBack() {
       this.$router.push({

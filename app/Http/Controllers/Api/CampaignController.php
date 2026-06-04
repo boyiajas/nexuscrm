@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
 use App\Models\CampaignClient;
@@ -11,7 +12,7 @@ use App\Models\CampaignSmsRecipient;
 use App\Models\CampaignWhatsappRecipient;
 use App\Models\WhatsAppFlow;
 use App\Models\Client;
-use App\Services\TwilioWhatsAppService;
+use App\Services\MetaWhatsAppService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -19,11 +20,11 @@ use Illuminate\Support\Facades\Log;
 
 class CampaignController extends Controller
 {
-    protected TwilioWhatsAppService $twilioWhatsApp;
+    protected WhatsAppServiceInterface $whatsApp;
 
-    public function __construct(TwilioWhatsAppService $twilioWhatsApp)
+    public function __construct(WhatsAppServiceInterface $whatsApp)
     {
-        $this->twilioWhatsApp = $twilioWhatsApp;
+        $this->whatsApp = $whatsApp;
     }
     /**
      * List campaigns (department + role scoped).
@@ -281,7 +282,8 @@ class CampaignController extends Controller
                 }
             }
             if (empty($data['whatsapp_from'])) {
-                $data['whatsapp_from'] = optional(\App\Models\SystemSetting::first())->twilio_whatsapp_from;
+                $settings = \App\Models\SystemSetting::first();
+                $data['whatsapp_from'] = $settings?->meta_whatsapp_display_phone_number ?: $settings?->twilio_whatsapp_from;
             }
         }
 
@@ -325,7 +327,8 @@ class CampaignController extends Controller
                 }
             }
             if (empty($data['whatsapp_from'])) {
-                $data['whatsapp_from'] = optional(\App\Models\SystemSetting::first())->twilio_whatsapp_from;
+                $settings = \App\Models\SystemSetting::first();
+                $data['whatsapp_from'] = $settings?->meta_whatsapp_display_phone_number ?: $settings?->twilio_whatsapp_from;
             }
         }
 
@@ -573,12 +576,10 @@ class CampaignController extends Controller
 
         if ($mode === 'template') {
             $templateSid  = $data['template_id'];
-            $template     = $this->twilioWhatsApp->getTemplateDetails($templateSid);
-            $friendlyName = $template['friendly_name'] ?? $templateSid;
-            $types        = $template['types'] ?? [];
-            $previewBody  = $types['twilio/text']['body']
-                            ?? $types['twilio/quick-reply']['body']
-                            ?? null;
+            $template     = $this->whatsApp->getTemplateDetails($templateSid);
+            $friendlyName = $template['name'] ?? $templateSid;
+            $previewBody  = collect($template['components'] ?? [])
+                ->firstWhere('type', 'BODY')['text'] ?? null;
         } else {
             $flow        = WhatsAppFlow::findOrFail($data['flow_id']);
             $flowId      = $flow->id;
@@ -646,7 +647,7 @@ class CampaignController extends Controller
                     $bodyVar = $mode === 'flow'
                         ? ($flowDef[0]['message'] ?? '')
                         : '';
-                    $twResponse = $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
+                    $twResponse = $this->whatsApp->sendTemplateFromSubjectMessage(
                         $client->phone,
                         $templateSid,
                         $subject,
@@ -659,6 +660,7 @@ class CampaignController extends Controller
                         ->where('client_id', $client->id)
                         ->update([
                             'message_sid'  => $twResponse['sid'] ?? null,
+                            'provider_message_id' => $twResponse['message_id'] ?? ($twResponse['sid'] ?? null),
                             'status'       => $mappedStatus,
                             'delivered_at' => $mappedStatus === 'Delivered' ? now() : null,
                         ]);
@@ -766,7 +768,7 @@ class CampaignController extends Controller
                     $bodyVar = $message->mode === 'flow'
                         ? ($message->flow_definition[0]['message'] ?? '')
                         : '';
-                    $twResponse = $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
+                    $twResponse = $this->whatsApp->sendTemplateFromSubjectMessage(
                         $phone,
                         $message->template_sid,
                         $subject,
@@ -776,6 +778,7 @@ class CampaignController extends Controller
 
                     $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');
                     $recipient->message_sid = $twResponse['sid'] ?? $recipient->message_sid;
+                    $recipient->provider_message_id = $twResponse['message_id'] ?? ($twResponse['sid'] ?? $recipient->provider_message_id);
                     $recipient->status = $mappedStatus;
                     if ($mappedStatus === 'Delivered') {
                         $recipient->delivered_at = $recipient->delivered_at ?? now();
@@ -1103,12 +1106,10 @@ class CampaignController extends Controller
 
         if ($mode === 'template') {
             $templateSid   = $data['template_id'];
-            $template      = $this->twilioWhatsApp->getTemplateDetails($templateSid);
-            $friendlyName  = $template['friendly_name'] ?? $templateSid;
-            $types         = $template['types'] ?? [];
-            $previewBody   = $types['twilio/text']['body']
-                            ?? $types['twilio/quick-reply']['body']
-                            ?? null;
+            $template      = $this->whatsApp->getTemplateDetails($templateSid);
+            $friendlyName  = $template['name'] ?? $templateSid;
+            $previewBody   = collect($template['components'] ?? [])
+                ->firstWhere('type', 'BODY')['text'] ?? null;
         } else {
             $flow = WhatsAppFlow::findOrFail($data['flow_id']);
             $flowId   = $flow->id;
@@ -1203,7 +1204,7 @@ class CampaignController extends Controller
                         ? ($flowDef[0]['message'] ?? '')
                         : '';
 
-                    $twResponse = $this->twilioWhatsApp->sendTemplateFromSubjectMessage(
+                    $twResponse = $this->whatsApp->sendTemplateFromSubjectMessage(
                         $client->phone,
                         $templateSid,
                         $subject,
@@ -1217,6 +1218,7 @@ class CampaignController extends Controller
                         ->where('client_id', $client->id)
                         ->update([
                             'message_sid'  => $twResponse['sid'] ?? null,
+                            'provider_message_id' => $twResponse['message_id'] ?? ($twResponse['sid'] ?? null),
                             'status'       => $mappedStatus,
                             'delivered_at' => $mappedStatus === 'Delivered' ? now() : null,
                         ]);
@@ -1312,7 +1314,7 @@ class CampaignController extends Controller
             return null;
         }
 
-        $normalized = TwilioWhatsAppService::normalizeZA($raw);
+        $normalized = MetaWhatsAppService::normalizePhoneNumber($raw);
         if ($normalized) {
             return $normalized;
         }
@@ -1339,7 +1341,7 @@ class CampaignController extends Controller
     }
 
      /**
-     * List WhatsApp templates from Twilio for dropdowns.
+     * List WhatsApp templates for dropdowns.
      *
      * GET /api/whatsapp-templates?approved=1
      */
@@ -1347,7 +1349,7 @@ class CampaignController extends Controller
     {
         $onlyApproved = filter_var($request->query('approved', '1'), FILTER_VALIDATE_BOOLEAN);
 
-        $templates = $this->twilioWhatsApp->getWhatsAppTemplates($onlyApproved);
+        $templates = $this->whatsApp->getWhatsAppTemplates($onlyApproved);
 
         // Map to the shape used in CampaignShow.vue:
         // id, name, language, category, body_preview, variables, whatsapp
@@ -1375,8 +1377,8 @@ class CampaignController extends Controller
      */
     public function showWhatsappTemplate(string $id): JsonResponse
     {
-        $details   = $this->twilioWhatsApp->getTemplateDetails($id);
-        $approvals = $this->twilioWhatsApp->getTemplateApprovalStatus($id);
+        $details   = $this->whatsApp->getTemplateDetails($id);
+        $approvals = $this->whatsApp->getTemplateApprovalStatus($id);
 
         return response()->json([
             'template'  => $details,
