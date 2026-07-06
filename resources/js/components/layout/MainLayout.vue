@@ -23,7 +23,7 @@
       </div>
 
       <ul class="nav nav-pills flex-column p-2">
-        <li class="nav-item">
+        <li class="nav-item" v-if="canViewClients">
           <router-link
             :to="{ name: 'dashboard' }"
             class="nav-link"
@@ -34,7 +34,7 @@
           </router-link>
         </li>
 
-        <li class="nav-item">
+        <li class="nav-item" v-if="canViewCampaigns">
           <router-link
             :to="{ name: 'clients' }"
             class="nav-link"
@@ -45,7 +45,7 @@
           </router-link>
         </li>
 
-        <li class="nav-item">
+        <li class="nav-item" v-if="canViewChat">
           <router-link
             :to="{ name: 'campaigns' }"
             class="nav-link"
@@ -56,7 +56,7 @@
           </router-link>
         </li>
 
-        <li class="nav-item">
+        <li class="nav-item" v-if="canViewAuditLog">
           <router-link
             :to="{ name: 'chat' }"
             class="nav-link"
@@ -64,6 +64,17 @@
           >
             <i class="bi bi-chat-dots me-2"></i>
             <span class="nav-label">Live Chat</span>
+          </router-link>
+        </li>
+
+        <li class="nav-item" v-if="canViewImportUploads">
+          <router-link
+            :to="{ name: 'import-uploads' }"
+            class="nav-link"
+            :class="{ active: isActive('import-uploads') }"
+          >
+            <i class="bi bi-file-earmark-medical me-2"></i>
+            <span class="nav-label">Import Uploads</span>
           </router-link>
         </li>
 
@@ -78,12 +89,46 @@
           </router-link>
         </li>
 
-        <li class="nav-item mt-2">
+        <li class="nav-item">
+          <router-link
+            :to="{ name: 'security-incidents' }"
+            class="nav-link"
+            :class="{ active: isActive('security-incidents') }"
+            v-if="canViewSecurityIncidents"
+          >
+            <i class="bi bi-shield-exclamation me-2"></i>
+            <span class="nav-label">Security Incidents</span>
+          </router-link>
+        </li>
+
+        <li class="nav-item" v-if="canViewComplianceConsole">
+          <router-link
+            :to="{ name: 'compliance-console' }"
+            class="nav-link"
+            :class="{ active: isActive('compliance-console') }"
+          >
+            <i class="bi bi-journal-check me-2"></i>
+            <span class="nav-label">Compliance Console</span>
+          </router-link>
+        </li>
+
+        <li class="nav-item">
+          <router-link
+            :to="{ name: 'export-requests' }"
+            class="nav-link"
+            :class="{ active: isActive('export-requests') }"
+          >
+            <i class="bi bi-shield-lock me-2"></i>
+            <span class="nav-label">Export Requests</span>
+          </router-link>
+        </li>
+
+        <li class="nav-item mt-2" v-if="canViewAutomation">
           <div class="small text-uppercase text-white px-3 mb-1 sidebar-section-title">
             Automation
           </div>
         </li>
-        <li class="nav-item nav-item-sub">
+        <li class="nav-item nav-item-sub" v-if="canViewAutomation">
           <router-link
             :to="{ name: 'whatsapp-flows' }"
             class="nav-link"
@@ -94,13 +139,24 @@
           </router-link>
         </li>
 
-        <li class="nav-item mt-2">
+        <li class="nav-item mt-2" v-if="canViewAdminSection">
           <div class="small text-uppercase text-white px-3 mb-1 sidebar-section-title">
             Admin
           </div>
         </li>
 
-        <li class="nav-item">
+        <li class="nav-item" v-if="canManageBanks">
+          <router-link
+            :to="{ name: 'banks' }"
+            class="nav-link"
+            :class="{ active: isActive('banks') }"
+          >
+            <i class="bi bi-bank me-2"></i>
+            <span class="nav-label">Banks</span>
+          </router-link>
+        </li>
+
+        <li class="nav-item" v-if="canManageDepartments">
           <router-link
             :to="{ name: 'departments' }"
             class="nav-link"
@@ -111,7 +167,7 @@
           </router-link>
         </li>
 
-        <li class="nav-item">
+        <li class="nav-item" v-if="canManageUsers">
           <router-link
             :to="{ name: 'users' }"
             class="nav-link"
@@ -122,7 +178,7 @@
           </router-link>
         </li>
 
-        <li class="nav-item">
+        <li class="nav-item" v-if="canManageSettings">
           <router-link
             :to="{ name: 'settings' }"
             class="nav-link"
@@ -152,7 +208,7 @@
 
         <div class="d-flex align-items-center gap-3">
           <small class="text-muted d-none d-sm-inline">
-            Role: {{ user?.role || 'STAFF' }}
+            Role: {{ user?.role || 'AGENT' }}
           </small>
           <button class="btn btn-sm btn-outline-danger" @click="logout">
             <i class="bi bi-box-arrow-right me-1"></i> Logout
@@ -161,15 +217,61 @@
       </header>
 
       <!-- PAGE CONTENT -->
-      <main class="flex-grow-1 p-3" style="background-color:#0087ff0f">
-        <router-view />
+      <main
+        class="flex-grow-1 p-3 position-relative"
+        :class="{ 'sensitive-surface': showSensitiveWatermark }"
+        style="background-color:#0087ff0f"
+        @contextmenu="handleSensitiveContextMenu"
+      >
+        <div
+          v-if="showSensitiveWatermark"
+          class="sensitive-watermark-layer"
+          aria-hidden="true"
+        >
+          <div
+            v-for="tile in watermarkTiles"
+            :key="tile"
+            class="sensitive-watermark-tile"
+          >
+            {{ watermarkText }}
+          </div>
+        </div>
+        <div v-if="showSensitiveWatermark" class="print-security-notice">
+          Confidential debtor data. Printing and uncontrolled capture are restricted and attributable to the current user.
+        </div>
+        <div class="page-content-shell">
+          <router-view />
+        </div>
       </main>
+    </div>
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+      <div
+        v-for="toast in toasts"
+        :key="toast.id"
+        class="toast align-items-center border-0 mb-2"
+        :class="toastClass(toast.variant)"
+        role="alert"
+        aria-live="assertive"
+        aria-atomic="true"
+        :ref="setToastRef"
+        :data-toast-id="toast.id"
+      >
+        <div class="d-flex">
+          <div class="toast-body">
+            <div v-if="toast.title" class="fw-semibold mb-1">{{ toast.title }}</div>
+            <div>{{ toast.message }}</div>
+          </div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script>
-import axios from '../../axios';
+import axios, { syncAuthenticatedUser } from '../../axios';
+import { Toast } from 'bootstrap';
 // Icon CSS
 import 'bootstrap-icons/font/bootstrap-icons.css';  
 
@@ -185,6 +287,10 @@ export default {
         app_tagline: 'Mini CRM Console',
         app_logo_url: '',
       },
+      watermarkTimestamp: '',
+      watermarkTimer: null,
+      toasts: [],
+      toastRefs: {},
     };
   },
   created() {
@@ -199,12 +305,86 @@ export default {
     }
     this.loadStoredBranding();
     this.loadBranding();
+    this.refreshWatermarkTimestamp();
+    this.watermarkTimer = window.setInterval(this.refreshWatermarkTimestamp, 60 * 1000);
     window.addEventListener('branding-updated', this.handleBrandingUpdated);
+    window.addEventListener('app-toast', this.handleToastEvent);
+    window.addEventListener('auth-user-updated', this.handleAuthUserUpdated);
+  },
+  async mounted() {
+    try {
+      const user = await syncAuthenticatedUser();
+      if (user) {
+        this.user = user;
+      }
+    } catch (e) {
+      // Let the normal 401 interceptor handle invalid sessions/tokens.
+    }
   },
   beforeUnmount() {
     window.removeEventListener('branding-updated', this.handleBrandingUpdated);
+    window.removeEventListener('app-toast', this.handleToastEvent);
+    window.removeEventListener('auth-user-updated', this.handleAuthUserUpdated);
+    if (this.watermarkTimer) {
+      window.clearInterval(this.watermarkTimer);
+    }
   },
   computed: {
+    currentRole() {
+      return this.user?.role || 'AGENT';
+    },
+    canViewClients() {
+      return !['AUDITOR', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+    },
+    canViewCampaigns() {
+      return !['AUDITOR', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+    },
+    canViewChat() {
+      return !['AUDITOR', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+    },
+    canViewAuditLog() {
+      return ['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+    },
+    canViewImportUploads() {
+      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(this.currentRole);
+    },
+    canViewSecurityIncidents() {
+      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+    },
+    canViewComplianceConsole() {
+      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+    },
+    canViewAutomation() {
+      return !['AUDITOR', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+    },
+    canManageBanks() {
+      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentRole);
+    },
+    canManageDepartments() {
+      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentRole);
+    },
+    canManageUsers() {
+      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentRole);
+    },
+    canManageSettings() {
+      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentRole);
+    },
+    canViewAdminSection() {
+      return this.canManageBanks || this.canManageDepartments || this.canManageUsers || this.canManageSettings;
+    },
+    showSensitiveWatermark() {
+      return !!this.user && !!this.$route?.meta?.sensitiveView;
+    },
+    watermarkText() {
+      const name = this.user?.name || 'Unknown User';
+      const role = this.user?.role || 'UNKNOWN_ROLE';
+      const email = this.user?.email || 'no-email';
+      const routeName = this.$route?.name || 'unknown-route';
+      return `${name} • ${email} • ${role} • ${routeName} • ${this.watermarkTimestamp}`;
+    },
+    watermarkTiles() {
+      return Array.from({ length: 18 }, (_, index) => index);
+    },
     collapsedBrandInitials() {
       const raw = (this.branding.app_short_name || this.branding.app_name || 'NC').trim();
       if (!raw) return 'NC';
@@ -221,6 +401,50 @@ export default {
     },
     toggleSidebar() {
       this.isSidebarCollapsed = !this.isSidebarCollapsed;
+    },
+    refreshWatermarkTimestamp() {
+      this.watermarkTimestamp = new Intl.DateTimeFormat('en-ZA', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date());
+    },
+    toastClass(variant) {
+      return {
+        success: 'text-bg-success',
+        danger: 'text-bg-danger',
+        warning: 'text-bg-warning',
+        info: 'text-bg-primary',
+      }[variant] || 'text-bg-primary';
+    },
+    setToastRef(el) {
+      if (!el) return;
+      const id = el.dataset.toastId;
+      if (id) {
+        this.toastRefs[id] = el;
+      }
+    },
+    handleToastEvent(event) {
+      const detail = event.detail || {};
+      const toast = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        title: detail.title || '',
+        message: detail.message || '',
+        variant: detail.variant || 'info',
+      };
+
+      this.toasts.push(toast);
+
+      this.$nextTick(() => {
+        const el = this.toastRefs[toast.id];
+        if (!el) return;
+
+        const instance = new Toast(el, { delay: 4500 });
+        el.addEventListener('hidden.bs.toast', () => {
+          this.toasts = this.toasts.filter((item) => item.id !== toast.id);
+          delete this.toastRefs[toast.id];
+        }, { once: true });
+        instance.show();
+      });
     },
     applyBranding(branding = {}) {
       this.branding = {
@@ -251,6 +475,20 @@ export default {
     },
     handleBrandingUpdated(event) {
       this.applyBranding(event.detail || {});
+    },
+    handleAuthUserUpdated(event) {
+      this.user = event.detail || null;
+    },
+    handleSensitiveContextMenu(event) {
+      if (!this.showSensitiveWatermark) {
+        return;
+      }
+
+      if (event.target?.closest?.('input, textarea, select, button, [contenteditable="true"]')) {
+        return;
+      }
+
+      event.preventDefault();
     },
     async logout() {
       try {
@@ -320,5 +558,64 @@ export default {
 }
 .sidebar-collapsed .nav-link i {
   margin-right: 0;
+}
+
+.sensitive-surface {
+  position: relative;
+  overflow-x: hidden;
+}
+
+.sensitive-watermark-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 2rem;
+  padding: 1.5rem;
+  opacity: 0.12;
+  z-index: 1030;
+}
+
+.sensitive-watermark-tile {
+  align-self: center;
+  justify-self: center;
+  transform: rotate(-24deg);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #12294f;
+  font-weight: 700;
+  text-align: center;
+  white-space: normal;
+  max-width: 320px;
+}
+
+.print-security-notice {
+  display: none;
+}
+
+.page-content-shell {
+  position: relative;
+}
+
+@media print {
+  .sensitive-watermark-layer {
+    opacity: 0.18;
+  }
+
+  .print-security-notice {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    margin-bottom: 1rem;
+    padding: 0.75rem 1rem;
+    border: 2px solid #8b0000;
+    color: #8b0000;
+    background: #fff5f5;
+    font-weight: 700;
+  }
 }
 </style>

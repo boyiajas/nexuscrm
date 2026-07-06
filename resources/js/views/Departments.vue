@@ -146,15 +146,21 @@
       </div>
     </div>
 
+    <ConfirmationModal ref="confirmModal" />
   </div>
 </template>
 
 <script>
 import axios from '../axios';
-import { Modal } from 'bootstrap';
+import ConfirmationModal from '../components/ConfirmationModal.vue';
+import { createManagedModal, disposeManagedModal } from '../utils/modal';
+import { notify } from '../utils/notify';
 
 export default {
   name: "DepartmentsView",
+  components: {
+    ConfirmationModal,
+  },
 
   data() {
     return {
@@ -185,9 +191,12 @@ export default {
   },
 
   mounted() {
-    this.modal = new Modal(this.$refs.modalRef);
+    this.modal = createManagedModal(this.$refs.modalRef);
     this.fetchDepartments();
     this.fetchSenders();
+  },
+  beforeUnmount() {
+    disposeManagedModal(this.modal);
   },
 
   methods: {
@@ -259,20 +268,28 @@ export default {
         axios.put(`/api/departments/${this.form.id}`, this.form).then(() => {
           this.modal.hide();
           this.fetchDepartments();
+          notify.success('Department updated successfully.', 'Departments');
         });
       } else {
         axios.post("/api/departments", this.form).then(() => {
           this.modal.hide();
           this.fetchDepartments();
+          notify.success('Department created successfully.', 'Departments');
         });
       }
     },
 
     remove(dep) {
-      if (!confirm(`Delete department "${dep.name}"?`)) return;
-
-      axios.delete(`/api/departments/${dep.id}`).then(() => {
-        this.fetchDepartments();
+      this.$refs.confirmModal.open({
+        title: 'Delete Department',
+        message: `Delete department "${dep.name}"? This action cannot be undone.`,
+        confirmLabel: 'Delete Department',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          await axios.delete(`/api/departments/${dep.id}`);
+          this.fetchDepartments();
+          notify.success(`Department "${dep.name}" deleted.`, 'Departments');
+        },
       });
     },
   },

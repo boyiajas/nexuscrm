@@ -52,6 +52,7 @@ class AuditTrailMiddleware
 
             AuditLog::create([
                 'user_id'    => Auth::id(),
+                'bank_id'    => Auth::user()?->resolvedBankId(),
                 'action'     => sprintf(
                     '[%s] %s (%s) -> HTTP %s',
                     $request->method(),

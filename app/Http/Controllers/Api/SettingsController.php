@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
+use App\Services\MetaWhatsAppService;
+use App\Models\User;
 use App\Models\SystemSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -10,6 +13,8 @@ use Illuminate\Support\Facades\Storage;
 
 class SettingsController extends Controller
 {
+    use HasAuditLogging;
+
     public function branding()
     {
         return response()->json($this->transformBranding(SystemSetting::first()));
@@ -20,6 +25,54 @@ class SettingsController extends Controller
         $this->authorizeAdmin();
 
         return response()->json($this->transformSettings(SystemSetting::first()));
+    }
+
+    public function validateMetaPermissions()
+    {
+        $this->authorizeAdmin();
+
+        $settings = SystemSetting::firstOrCreate([]);
+
+        try {
+            $service = app(MetaWhatsAppService::class);
+            $snapshot = $service->validateConfiguredTokenPermissions();
+
+            $settings->forceFill([
+                'meta_permissions_last_checked_at' => now(),
+                'meta_permissions_status' => $snapshot['status'],
+                'meta_permissions_snapshot' => $snapshot,
+            ])->save();
+
+            $this->audit(
+                action: 'Validated Meta token permissions',
+                module: 'Settings',
+                meta: [
+                    'status' => $snapshot['status'],
+                    'missing_required_scopes' => $snapshot['missing_required_scopes'] ?? [],
+                    'missing_recommended_scopes' => $snapshot['missing_recommended_scopes'] ?? [],
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Meta token permissions validated.',
+                'permissions' => $snapshot,
+                'settings' => $this->transformSettings($settings),
+            ]);
+        } catch (\Throwable $e) {
+            $settings->forceFill([
+                'meta_permissions_last_checked_at' => now(),
+                'meta_permissions_status' => 'error',
+                'meta_permissions_snapshot' => [
+                    'status' => 'error',
+                    'message' => $e->getMessage(),
+                ],
+            ])->save();
+
+            return response()->json([
+                'message' => 'Meta permission validation failed: ' . $e->getMessage(),
+                'settings' => $this->transformSettings($settings),
+            ], 422);
+        }
     }
 
     public function update(Request $request)
@@ -33,6 +86,13 @@ class SettingsController extends Controller
             'company_name'           => ['sometimes', 'nullable', 'string', 'max:255'],
             'support_email'          => ['sometimes', 'nullable', 'email', 'max:255'],
             'support_phone'          => ['sometimes', 'nullable', 'string', 'max:255'],
+            'admin_ip_allowlist'     => ['sometimes', 'nullable', 'string'],
+            'password_max_age_days'  => ['sometimes', 'nullable', 'integer', 'min:0', 'max:3650'],
+            'enable_import_malware_scanning' => ['sometimes', 'boolean'],
+            'malware_scanner_socket_path' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'malware_scanner_host' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'malware_scanner_port' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:65535'],
+            'malware_scanner_timeout_seconds' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:120'],
             'app_logo'               => ['sometimes', 'nullable', 'file', 'mimes:jpg,jpeg,png,webp,svg', 'max:2048'],
             'remove_app_logo'        => ['sometimes', 'boolean'],
             'twilio_sid'             => ['sometimes', 'nullable', 'string'],
@@ -49,13 +109,37 @@ class SettingsController extends Controller
             'meta_whatsapp_phone_number_id' => ['sometimes', 'nullable', 'string'],
             'meta_whatsapp_display_phone_number' => ['sometimes', 'nullable', 'string'],
             'meta_webhook_verify_token' => ['sometimes', 'nullable', 'string'],
+            'meta_environment'       => ['sometimes', 'nullable', 'string', 'in:development,staging,production'],
+            'meta_token_last_rotated_at' => ['sometimes', 'nullable', 'date'],
+            'meta_token_expires_at'  => ['sometimes', 'nullable', 'date'],
+            'meta_token_rotation_notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
         ]);
 
+        $metaEnvironment = $data['meta_environment'] ?? SystemSetting::query()->first()?->meta_environment ?? env('META_ENVIRONMENT', 'production');
+        if (
+            $metaEnvironment === 'production'
+            && (
+                empty($data['meta_access_token'] ?? null)
+                || empty($data['meta_whatsapp_business_account_id'] ?? null)
+                || empty($data['meta_whatsapp_phone_number_id'] ?? null)
+                || empty($data['meta_token_expires_at'] ?? null)
+                || empty(trim((string) ($data['meta_token_rotation_notes'] ?? '')))
+            )
+        ) {
+            return response()->json([
+                'message' => 'Production Meta configuration requires an access token, business account ID, phone number ID, token expiry date, and rotation notes.',
+            ], 422);
+        }
+
         $settings = SystemSetting::firstOrCreate([]);
+        $previousMetaToken = $settings->meta_access_token;
+        $logoRemoved = false;
+        $logoUploaded = false;
 
         if (($data['remove_app_logo'] ?? false) && $settings->app_logo_path) {
             Storage::disk('public')->delete($settings->app_logo_path);
             $data['app_logo_path'] = null;
+            $logoRemoved = true;
         }
 
         unset($data['remove_app_logo']);
@@ -65,12 +149,47 @@ class SettingsController extends Controller
                 Storage::disk('public')->delete($settings->app_logo_path);
             }
             $data['app_logo_path'] = $request->file('app_logo')->store('branding', 'public');
+            $logoUploaded = true;
         }
 
         unset($data['app_logo']);
 
+        if (array_key_exists('meta_access_token', $data) && !empty($data['meta_access_token']) && $data['meta_access_token'] !== $previousMetaToken) {
+            $data['meta_token_last_rotated_at'] = $data['meta_token_last_rotated_at'] ?? now();
+        }
+
         $settings->fill($data);
         $settings->save();
+
+        if ($logoUploaded) {
+            $this->audit(
+                action: 'Uploaded application branding logo',
+                module: 'Settings',
+                meta: [
+                    'path' => $settings->app_logo_path,
+                    'filename' => $request->file('app_logo')?->getClientOriginalName(),
+                ]
+            );
+        }
+
+        if ($logoRemoved) {
+            $this->audit(
+                action: 'Removed application branding logo',
+                module: 'Settings'
+            );
+        }
+
+        if (array_key_exists('meta_access_token', $data) && !empty($data['meta_access_token']) && $data['meta_access_token'] !== $previousMetaToken) {
+            $this->audit(
+                action: 'Updated Meta access token',
+                module: 'Settings',
+                meta: [
+                    'meta_environment' => $settings->meta_environment,
+                    'token_last_rotated_at' => optional($settings->meta_token_last_rotated_at)->toDateTimeString(),
+                    'token_expires_at' => optional($settings->meta_token_expires_at)->toDateTimeString(),
+                ]
+            );
+        }
 
         return response()->json($this->transformSettings($settings));
     }
@@ -85,6 +204,13 @@ class SettingsController extends Controller
                 'company_name' => null,
                 'support_email' => null,
                 'support_phone' => null,
+                'admin_ip_allowlist' => env('ADMIN_IP_ALLOWLIST'),
+                'password_max_age_days' => (int) env('PASSWORD_MAX_AGE_DAYS', 90),
+                'enable_import_malware_scanning' => filter_var(env('ENABLE_IMPORT_MALWARE_SCANNING', false), FILTER_VALIDATE_BOOL),
+                'malware_scanner_socket_path' => env('MALWARE_SCANNER_SOCKET_PATH'),
+                'malware_scanner_host' => env('MALWARE_SCANNER_HOST', '127.0.0.1'),
+                'malware_scanner_port' => (int) env('MALWARE_SCANNER_PORT', 3310),
+                'malware_scanner_timeout_seconds' => (int) env('MALWARE_SCANNER_TIMEOUT_SECONDS', 15),
                 'app_logo_path' => null,
                 'app_logo_url' => null,
                 'twilio_sid' => null,
@@ -101,6 +227,13 @@ class SettingsController extends Controller
                 'meta_whatsapp_phone_number_id' => config('services.meta_whatsapp.phone_number_id'),
                 'meta_whatsapp_display_phone_number' => config('services.meta_whatsapp.display_phone_number'),
                 'meta_webhook_verify_token' => config('services.meta_whatsapp.verify_token'),
+                'meta_environment' => env('META_ENVIRONMENT', 'production'),
+                'meta_token_last_rotated_at' => null,
+                'meta_token_expires_at' => null,
+                'meta_token_rotation_notes' => null,
+                'meta_permissions_last_checked_at' => null,
+                'meta_permissions_status' => null,
+                'meta_permissions_snapshot' => null,
             ];
         }
 
@@ -111,6 +244,13 @@ class SettingsController extends Controller
             'company_name' => $settings->company_name,
             'support_email' => $settings->support_email,
             'support_phone' => $settings->support_phone,
+            'admin_ip_allowlist' => $settings->admin_ip_allowlist ?: env('ADMIN_IP_ALLOWLIST'),
+            'password_max_age_days' => $settings->password_max_age_days ?: (int) env('PASSWORD_MAX_AGE_DAYS', 90),
+            'enable_import_malware_scanning' => (bool) $settings->enable_import_malware_scanning,
+            'malware_scanner_socket_path' => $settings->malware_scanner_socket_path ?: env('MALWARE_SCANNER_SOCKET_PATH'),
+            'malware_scanner_host' => $settings->malware_scanner_host ?: env('MALWARE_SCANNER_HOST', '127.0.0.1'),
+            'malware_scanner_port' => $settings->malware_scanner_port ?: (int) env('MALWARE_SCANNER_PORT', 3310),
+            'malware_scanner_timeout_seconds' => $settings->malware_scanner_timeout_seconds ?: (int) env('MALWARE_SCANNER_TIMEOUT_SECONDS', 15),
             'app_logo_path' => $settings->app_logo_path,
             'app_logo_url' => $settings->app_logo_path ? Storage::disk('public')->url($settings->app_logo_path) : null,
             'twilio_sid' => $settings->twilio_sid,
@@ -127,6 +267,13 @@ class SettingsController extends Controller
             'meta_whatsapp_phone_number_id' => $settings->meta_whatsapp_phone_number_id ?: config('services.meta_whatsapp.phone_number_id'),
             'meta_whatsapp_display_phone_number' => $settings->meta_whatsapp_display_phone_number ?: config('services.meta_whatsapp.display_phone_number'),
             'meta_webhook_verify_token' => $settings->meta_webhook_verify_token ?: config('services.meta_whatsapp.verify_token'),
+            'meta_environment' => $settings->meta_environment ?: env('META_ENVIRONMENT', 'production'),
+            'meta_token_last_rotated_at' => optional($settings->meta_token_last_rotated_at)->toDateTimeString(),
+            'meta_token_expires_at' => optional($settings->meta_token_expires_at)->toDateTimeString(),
+            'meta_token_rotation_notes' => $settings->meta_token_rotation_notes,
+            'meta_permissions_last_checked_at' => optional($settings->meta_permissions_last_checked_at)->toDateTimeString(),
+            'meta_permissions_status' => $settings->meta_permissions_status,
+            'meta_permissions_snapshot' => $settings->meta_permissions_snapshot,
         ];
     }
 
@@ -148,8 +295,8 @@ class SettingsController extends Controller
     private function authorizeAdmin(): void
     {
         $user = Auth::user();
-        if (!$user || $user->role !== 'SUPER_ADMIN') {
-            abort(403, 'Only SUPER_ADMIN can manage system settings.');
+        if (!$user || !$user->canManageSystemSettings()) {
+            abort(403, 'Only SUPER_ADMIN or ADMIN can manage system settings.');
         }
     }
 }

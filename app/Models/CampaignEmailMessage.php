@@ -34,6 +34,6 @@ class CampaignEmailMessage extends Model
 
     public function recipients()
     {
-        return $this->hasMany(CampaignEmailRecipient::class, 'email_message_id');
+        return $this->hasMany(CampaignEmailRecipient::class, 'campaign_email_message_id');
     }
 }

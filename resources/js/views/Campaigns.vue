@@ -19,6 +19,7 @@
           <thead class="table-light">
             <tr>
               <th>Name</th>
+              <th>Bank</th>
               <th>Department</th>
               <th>Channels</th>
               <th>Status</th>
@@ -37,6 +38,7 @@
                   {{ c.name }}
                 </router-link>
               </td>
+              <td>{{ c.bank?.name || '-' }}</td>
               <td>
                 <template v-if="c.departments && c.departments.length">
                     <span
@@ -102,7 +104,7 @@
             </tr>
 
             <tr v-if="campaigns.length === 0">
-              <td colspan="7" class="text-center py-4 text-muted">
+              <td colspan="8" class="text-center py-4 text-muted">
                 No campaigns.
               </td>
             </tr>
@@ -174,6 +176,16 @@
                     class="form-control"
                     required
                   />
+                </div>
+
+                <div class="col-md-6">
+                  <label class="form-label">Bank</label>
+                  <select v-model="form.bank_id" class="form-select" :disabled="!canChooseBank">
+                    <option value="">Select bank</option>
+                    <option v-for="bank in banks" :key="bank.id" :value="bank.id">
+                      {{ bank.name }}
+                    </option>
+                  </select>
                 </div>
 
                 <div class="col-md-6">
@@ -310,25 +322,29 @@
       </div>
     </div>
 
+    <ConfirmationModal ref="confirmModal" />
   </div>
 </template>
 
 <script>
-import axios from '../axios';
-import { Modal } from 'bootstrap';
+import axios, { syncAuthenticatedUser } from '../axios';
 import VueMultiselect from "vue-multiselect";
-import { useToast } from 'vue-toastification';
+import ConfirmationModal from '../components/ConfirmationModal.vue';
+import { createManagedModal, disposeManagedModal } from '../utils/modal';
+import { notify } from '../utils/notify';
 import 'vue-multiselect/dist/vue-multiselect.min.css'; // Import styles
 
 export default {
   name: 'CampaignsView',
   components: {
     VueMultiselect,
+    ConfirmationModal,
   },
   data() {
     return {
       department_ids: [], 
       campaigns: [],
+      banks: [],
       departments: [],
       availableWhatsappNumbers: [],
       formErrors: [],
@@ -348,15 +364,20 @@ export default {
     };
   },
   computed: {
-    canManage() {
+    currentUser() {
       const stored = localStorage.getItem('nexus_user');
-      if (!stored) return false;
+      if (!stored) return null;
       try {
-        const user = JSON.parse(stored);
-        return ['SUPER_ADMIN', 'MANAGER'].includes(user.role);
+        return JSON.parse(stored);
       } catch {
-        return false;
+        return null;
       }
+    },
+    canManage() {
+      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER'].includes(this.currentUser?.role);
+    },
+    canChooseBank() {
+      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
     },
 
     selectedDepartments: {
@@ -372,16 +393,38 @@ export default {
         },
     },
   },
-  mounted() {
-    this.modal = new Modal(this.$refs.modalRef);
+  async mounted() {
+    this.modal = createManagedModal(this.$refs.modalRef);
+    await this.syncCurrentUser();
     this.fetchCampaigns();
+    this.fetchBanks();
     this.fetchDepartments();
   },
+  beforeUnmount() {
+    disposeManagedModal(this.modal);
+  },
   methods: {
+    async syncCurrentUser() {
+      try {
+        await syncAuthenticatedUser();
+      } catch (error) {
+        console.error('Failed to sync current user before loading campaigns:', error);
+      }
+    },
     emptyForm() {
+      let storedUser = null;
+      try {
+        storedUser = JSON.parse(localStorage.getItem('nexus_user') || 'null');
+      } catch {
+        storedUser = null;
+      }
+
+      const canChooseBank = ['SUPER_ADMIN', 'ADMIN'].includes(storedUser?.role);
+
       return {
         id: null,
         name: '',
+        bank_id: canChooseBank ? '' : (storedUser?.bank_id || ''),
         department_ids: [], 
         status: 'Draft',
         scheduled_at: '',
@@ -450,6 +493,14 @@ export default {
             pages: [1],
           };
         }
+      }).catch((error) => {
+        console.error('Failed to fetch campaigns:', error);
+        notify.error(error.response?.data?.message || 'Failed to load campaigns.', 'Campaigns');
+      });
+    },
+    fetchBanks() {
+      axios.get('/api/banks', { params: { per_page: 200 } }).then((res) => {
+        this.banks = res.data.data || res.data;
       });
     },
     fetchDepartments() {
@@ -493,6 +544,7 @@ export default {
       this.form = {
         id: c.id,
         name: c.name,
+        bank_id: c.bank_id || '',
         department_ids: deptIds,
         status: c.status || 'Draft',
         scheduled_at: c.scheduled_at || '',
@@ -540,24 +592,38 @@ export default {
       if (!this.form.name || !this.form.name.trim()) {
         errors.push('Name is required.');
       }
+      if (this.canChooseBank && !this.form.bank_id) {
+        errors.push('Bank is required.');
+      }
       if (!Array.isArray(this.form.channels) || this.form.channels.length === 0) {
         errors.push('Select at least one channel (WhatsApp, Email, or SMS).');
       }
       return errors;
     },
     sendCampaign(c) {
-      if (!confirm(`Send campaign "${c.name}" now?`)) return;
-
-      axios.post(`/api/campaigns/${c.id}/send`).then(() => {
-        alert('Send job queued. WhatsApp / Email / SMS will be processed in background.');
-        this.fetchCampaigns(this.pagination.currentPage);
+      this.$refs.confirmModal.open({
+        title: 'Send Campaign Now',
+        message: `Send campaign "${c.name}" now? This will queue WhatsApp, email, and SMS processing in the background.`,
+        confirmLabel: 'Queue Send',
+        confirmVariant: 'primary',
+        onConfirm: async () => {
+          await axios.post(`/api/campaigns/${c.id}/send`);
+          notify.success('Send job queued. WhatsApp, email, and SMS will be processed in the background.', 'Campaigns');
+          this.fetchCampaigns(this.pagination.currentPage);
+        },
       });
     },
     deleteCampaign(c) {
-      if (!confirm(`Delete campaign "${c.name}"?`)) return;
-
-      axios.delete(`/api/campaigns/${c.id}`).then(() => {
-        this.fetchCampaigns(this.pagination.currentPage);
+      this.$refs.confirmModal.open({
+        title: 'Delete Campaign',
+        message: `Delete campaign "${c.name}"? This action cannot be undone.`,
+        confirmLabel: 'Delete Campaign',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          await axios.delete(`/api/campaigns/${c.id}`);
+          this.fetchCampaigns(this.pagination.currentPage);
+          notify.success(`Campaign "${c.name}" deleted.`, 'Campaigns');
+        },
       });
     },
   },

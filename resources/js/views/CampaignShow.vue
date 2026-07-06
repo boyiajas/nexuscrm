@@ -14,6 +14,12 @@
           <span class="badge" :class="statusBadgeClass(campaign?.status)">
             {{ campaign?.status }}
           </span>
+          <span v-if="campaign?.bank?.name">
+            ·
+            <span class="badge bg-primary-subtle text-primary border ms-1">
+              {{ campaign.bank.name }}
+            </span>
+          </span>
           <span v-if="campaign && campaign.departments && campaign.departments.length">
             ·
             <span
@@ -100,7 +106,7 @@
                   <i class="bi bi-filetype-csv me-1"></i>
                   Export CSV
                 </button>
-                <button class="btn btn-sm btn-primary" @click="openAddClientsModal">
+                <button class="btn btn-sm btn-primary" @click="openAddClientsModal" :disabled="!canManageCampaign">
                   <i class="bi bi-person-plus me-1"></i>
                   Add Clients to Campaign
                 </button>
@@ -113,6 +119,8 @@
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
+                  <th>Bank</th>
+                  <th>Assigned Owner</th>
                   <th>Departments</th>
                   <th>WhatsApp</th>
                   <th>Email</th>
@@ -124,6 +132,8 @@
                   <td>{{ cl.name }}</td>
                   <td>{{ cl.email || '-' }}</td>
                   <td>{{ cl.phone || '-' }}</td>
+                  <td>{{ cl.bank_name || campaign?.bank?.name || '-' }}</td>
+                  <td>{{ cl.assigned_to_name || '-' }}</td>
                   <td>
                     <template v-if="cl.departments && cl.departments.length">
                       <span
@@ -153,7 +163,7 @@
                   </td>
                 </tr>
                 <tr v-if="clients.length === 0">
-                  <td colspan="7" class="text-center text-muted py-3">
+                  <td colspan="9" class="text-center text-muted py-3">
                     No clients added to this campaign yet.
                   </td>
                 </tr>
@@ -176,7 +186,7 @@
                 <button
                   class="btn btn-sm btn-outline-primary"
                   @click="openAddWhatsappTemplateModal"
-                  :disabled="whatsappModalLoading"
+                  :disabled="whatsappModalLoading || !canManageCampaign"
                 >
                   <span
                     v-if="whatsappModalLoading"
@@ -302,7 +312,7 @@
                 Emails
               </h5>
               <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-primary" @click="openAddEmailTemplateModal">
+                <button class="btn btn-sm btn-outline-primary" @click="openAddEmailTemplateModal" :disabled="!canManageCampaign">
                   <i class="bi bi-plus-circle me-1"></i>
                   Add Email Template
                 </button>
@@ -375,7 +385,7 @@
                 SMS Messages
               </h5>
               <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-outline-primary" @click="openAddSmsTemplateModal">
+                <button class="btn btn-sm btn-outline-primary" @click="openAddSmsTemplateModal" :disabled="!canManageCampaign">
                   <i class="bi bi-plus-circle me-1"></i>
                   Add SMS Template
                 </button>
@@ -576,18 +586,22 @@
                     <tr>
                       <th>Client</th>
                       <th>Email</th>
-                  <th>Phone</th>
-                  <th>Departments</th>
-                  <th>Status</th>
-                  <th>Delivered At</th>
-                  <th v-if="recipientModal.channel === 'WhatsApp'">Action</th>
-                </tr>
-              </thead>
+                      <th>Phone</th>
+                      <th>Bank</th>
+                      <th>Assigned Owner</th>
+                      <th>Departments</th>
+                      <th>Status</th>
+                      <th>Delivered At</th>
+                      <th v-if="recipientModal.channel === 'WhatsApp'">Action</th>
+                    </tr>
+                  </thead>
                   <tbody>
                     <tr v-for="r in filteredRecipients" :key="r.id">
                       <td>{{ r.client_name }}</td>
                       <td>{{ r.email || '-' }}</td>
                       <td>{{ r.phone || '-' }}</td>
+                      <td>{{ r.bank_name || campaign?.bank?.name || '-' }}</td>
+                      <td>{{ r.assigned_to_name || '-' }}</td>
                       <td>
                         <span class="badge bg-light text-dark border me-1">
                           {{ r.department_names || '-' }}
@@ -610,7 +624,7 @@
                     </td>
                   </tr>
                     <tr v-if="filteredRecipients.length === 0">
-                      <td colspan="7" class="text-center text-muted py-3">
+                      <td colspan="9" class="text-center text-muted py-3">
                         No recipients found for this send.
                       </td>
                     </tr>
@@ -1442,19 +1456,27 @@
       </div>
     </div>
 
+    <ExportRequestModal ref="exportRequestModal" />
+    <ConfirmationModal ref="confirmModal" />
+
   </div>
 </template>
 
 <script>
 import axios from '../axios';
-import { Modal } from 'bootstrap';
 import VueMultiselect from 'vue-multiselect';
+import ExportRequestModal from '../components/ExportRequestModal.vue';
+import ConfirmationModal from '../components/ConfirmationModal.vue';
+import { cleanupModalArtifacts as cleanupManagedModalArtifacts, createManagedModal, disposeManagedModal } from '../utils/modal';
+import { notify } from '../utils/notify';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
 
 export default {
   name: 'CampaignShowView',
   components: {
     VueMultiselect,
+    ExportRequestModal,
+    ConfirmationModal,
   },
   data() {
     return {
@@ -1556,9 +1578,16 @@ export default {
     };
   },
   computed: {
+    canManageCampaign() {
+      const stored = localStorage.getItem('nexus_user');
+      if (!stored) return false;
+
+      const role = JSON.parse(stored)?.role;
+      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
+    },
     goToWhatsappTemplatePreview() {
         if (!this.whatsappForm.templateId) {
-            alert('Please select a WhatsApp template first.');
+            notify.warning('Please select a WhatsApp template first.', 'Campaigns');
             return;
         }
 
@@ -1614,7 +1643,7 @@ export default {
     },
 
     canSend() {
-      if (!this.campaign) return false;
+      if (!this.canManageCampaign || !this.campaign) return false;
       return ['Draft', 'Scheduled', 'Active'].includes(this.campaign.status);
     },
     recipientSummaryCards() {
@@ -1654,6 +1683,8 @@ export default {
       return this.whatsappFlows.find((f) => f.id === this.whatsappForm.flowId) || null;
     },
     canSubmitWhatsapp() {
+      if (!this.canManageCampaign) return false;
+
       if (this.whatsappForm.mode === 'template') {
         return !!this.whatsappForm.templateId;
       }
@@ -1692,15 +1723,20 @@ export default {
     },
   },
   mounted() {
-    this.recipientsModal = new Modal(this.$refs.recipientsModalRef);
-    this.addClientsModal = new Modal(this.$refs.addClientsModalRef);
-    this.addWhatsappModal = new Modal(this.$refs.addWhatsappModalRef);
-    this.addEmailModal = new Modal(this.$refs.addEmailModalRef);
-    this.addSmsModal = new Modal(this.$refs.addSmsModalRef);
+    this.recipientsModal = createManagedModal(this.$refs.recipientsModalRef);
+    this.addClientsModal = createManagedModal(this.$refs.addClientsModalRef);
+    this.addWhatsappModal = createManagedModal(this.$refs.addWhatsappModalRef);
+    this.addEmailModal = createManagedModal(this.$refs.addEmailModalRef);
+    this.addSmsModal = createManagedModal(this.$refs.addSmsModalRef);
     this.refreshAll();
   },
   beforeUnmount() {
-    this.cleanupModalArtifacts();
+    disposeManagedModal(this.recipientsModal);
+    disposeManagedModal(this.addClientsModal);
+    disposeManagedModal(this.addWhatsappModal);
+    disposeManagedModal(this.addEmailModal);
+    disposeManagedModal(this.addSmsModal);
+    cleanupManagedModalArtifacts(true);
   },
   methods: {
     statusBadgeClass(status) {
@@ -1737,7 +1773,7 @@ export default {
       return !!(message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow);
     },
     canSendWhatsapp(message) {
-      if (!message) return false;
+      if (!this.canManageCampaign || !message) return false;
       return !message.sent_at;
     },
     whatsappStatus(message) {
@@ -1795,10 +1831,16 @@ export default {
     },
     sendNow() {
       if (!this.campaign) return;
-      if (!confirm(`Send campaign "${this.campaign.name}" now?`)) return;
-      axios.post(`/api/campaigns/${this.campaign.id}/send`).then(() => {
-        alert('Send job queued.');
-        this.refreshAll();
+      this.$refs.confirmModal.open({
+        title: 'Send Campaign Now',
+        message: `Send campaign "${this.campaign.name}" now? This will queue all eligible channel batches.`,
+        confirmLabel: 'Queue Send',
+        confirmVariant: 'primary',
+        onConfirm: async () => {
+          await axios.post(`/api/campaigns/${this.campaign.id}/send`);
+          notify.success('Send job queued.', 'Campaigns');
+          this.refreshAll();
+        },
       });
     },
 
@@ -1875,16 +1917,14 @@ export default {
 
       this.sendingBatch = true;
       axios.post(url).then(() => {
-        alert('Send job queued for this batch.');
+        notify.success('Send job queued for this batch.', 'Campaigns');
         this.fetchStats();
       }).finally(() => {
         this.sendingBatch = false;
       });
     },
     cleanupModalArtifacts() {
-      document.body.classList.remove('modal-open');
-      document.body.style.removeProperty('padding-right');
-      document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
+      cleanupManagedModalArtifacts(true);
     },
     closeRecipientsModal(next) {
       const modalEl = this.$refs.recipientsModalRef;
@@ -1922,19 +1962,42 @@ export default {
     // Export helpers
     exportClients() {
       const id = this.$route.params.id;
-      window.open(`/api/campaigns/${id}/clients/export`, '_blank');
+      this.requestCampaignExport('campaign_clients', id);
     },
     exportWhatsApp() {
       const id = this.$route.params.id;
-      window.open(`/api/campaigns/${id}/whatsapp-messages/export`, '_blank');
+      this.requestCampaignExport('campaign_whatsapp_messages', id);
     },
     exportEmails() {
       const id = this.$route.params.id;
-      window.open(`/api/campaigns/${id}/emails/export`, '_blank');
+      this.requestCampaignExport('campaign_emails', id);
     },
     exportSms() {
       const id = this.$route.params.id;
-      window.open(`/api/campaigns/${id}/sms-messages/export`, '_blank');
+      this.requestCampaignExport('campaign_sms_messages', id);
+    },
+    requestCampaignExport(dataset, campaignId) {
+      const labels = {
+        campaign_clients: 'Campaign Clients',
+        campaign_whatsapp_messages: 'Campaign WhatsApp Recipients',
+        campaign_emails: 'Campaign Email Recipients',
+        campaign_sms_messages: 'Campaign SMS Recipients',
+      };
+
+      this.$refs.exportRequestModal.open({
+        dataset,
+        datasetLabel: labels[dataset] || dataset,
+        targetType: 'campaign',
+        targetId: Number(campaignId),
+        filters: {},
+        summaryRows: [
+          { label: 'Campaign', value: this.campaign?.name || `#${campaignId}` },
+          { label: 'Bank Scope', value: this.campaign?.bank?.name || 'Campaign bank' },
+          { label: 'Status', value: this.campaign?.status || '-' },
+          { label: 'Current Totals', value: `${this.stats.total_clients || 0} clients` },
+        ],
+        fallbackName: `${dataset}.csv`,
+      });
     },
 
     // Add Clients
@@ -2012,7 +2075,7 @@ export default {
     },
     saveClientsToCampaign() {
       if (this.selectedClients.length === 0) {
-        alert('Please select at least one client.');
+        notify.warning('Please select at least one client.', 'Campaigns');
         return;
       }
 
@@ -2025,14 +2088,14 @@ export default {
           client_ids: this.selectedClients.map(c => c.id),
         })
         .then((response) => {
-          alert(`Successfully added ${response.data.attached_count || this.selectedClients.length} client(s) to the campaign.`);
+          notify.success(`Successfully added ${response.data.attached_count || this.selectedClients.length} client(s) to the campaign.`, 'Campaigns');
           this.addClientsModal.hide();
           this.fetchClients();
           this.fetchStats();
         })
         .catch((error) => {
           console.error('Failed to add clients:', error);
-          alert('Failed to add clients: ' + (error.response?.data?.message || error.message));
+          notify.error('Failed to add clients: ' + (error.response?.data?.message || error.message), 'Campaigns');
         })
         .finally(() => {
           this.addClientsForm.saving = false;
@@ -2067,11 +2130,11 @@ export default {
           this.whatsappForm.templateId = preSelected;
         }
         if (!this.whatsappTemplates.length) {
-          alert('No approved WhatsApp templates were returned from Meta for the configured WhatsApp Business Account.');
+          notify.warning('No approved WhatsApp templates were returned from Meta for the configured WhatsApp Business Account.', 'Campaigns');
         }
       }).catch((error) => {
         console.error('Failed to load WhatsApp templates from Meta', error);
-        alert('Failed to load WhatsApp templates: ' + (error.response?.data?.message || error.message));
+        notify.error('Failed to load WhatsApp templates: ' + (error.response?.data?.message || error.message), 'Campaigns');
       }).finally(() => {
         this.addWhatsappModal.show();
         this.whatsappModalLoading = false;
@@ -2107,7 +2170,7 @@ export default {
           const msg = sendNow
             ? 'WhatsApp batch queued successfully.'
             : 'WhatsApp batch saved successfully (not yet sent).';
-          alert(msg);
+          notify.success(msg, 'Campaigns');
 
           this.addWhatsappModal.hide();
           this.fetchWhatsApp();
@@ -2116,7 +2179,7 @@ export default {
         })
         .catch((error) => {
           console.error('Failed to queue WhatsApp batch:', error);
-          alert('Failed to queue WhatsApp batch: ' + (error.response?.data?.message || error.message));
+          notify.error('Failed to queue WhatsApp batch: ' + (error.response?.data?.message || error.message), 'Campaigns');
         })
         .finally(() => {
           this.whatsappForm.sending = false;
@@ -2168,20 +2231,26 @@ export default {
       });
     },
     deleteWhatsappTemplate(message) {
-      if (!confirm(`Delete this WhatsApp batch "${message.template_name || ''}"?`)) return;
-
       const campaignId = this.$route.params.id;
-      axios
-        .delete(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}`)
-        .then(() => {
-          this.fetchWhatsApp();
-          if (this.editingWhatsappMessageId === message.id) {
-            this.editingWhatsappMessageId = null;
+      this.$refs.confirmModal.open({
+        title: 'Delete WhatsApp Batch',
+        message: `Delete this WhatsApp batch "${message.template_name || ''}"? This action cannot be undone.`,
+        confirmLabel: 'Delete Batch',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            await axios.delete(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}`);
+            this.fetchWhatsApp();
+            if (this.editingWhatsappMessageId === message.id) {
+              this.editingWhatsappMessageId = null;
+            }
+            notify.success('WhatsApp batch deleted.', 'Campaigns');
+          } catch (err) {
+            notify.error('Failed to delete batch: ' + (err.response?.data?.message || err.message), 'Campaigns');
+            throw err;
           }
-        })
-        .catch((err) => {
-          alert('Failed to delete batch: ' + (err.response?.data?.message || err.message));
-        });
+        },
+      });
     },
     sendDraftWhatsapp(message) {
       if (!this.canSendWhatsapp(message)) return;
@@ -2189,12 +2258,12 @@ export default {
       axios
         .post(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/send`)
         .then(() => {
-          alert('Batch sent successfully.');
+          notify.success('Batch sent successfully.', 'Campaigns');
           this.fetchWhatsApp();
           this.fetchStats();
         })
         .catch((err) => {
-          alert('Failed to send batch: ' + (err.response?.data?.message || err.message));
+          notify.error('Failed to send batch: ' + (err.response?.data?.message || err.message), 'Campaigns');
         });
     },
 
@@ -2237,13 +2306,13 @@ export default {
             ? this.emailForm.selectedClients.map((c) => c.id)
             : [],
         }).then(() => {
-            alert('Email batch queued successfully.');
+            notify.success('Email batch queued successfully.', 'Campaigns');
             this.addEmailModal.hide();
             this.fetchEmails();
             this.fetchStats();
         }).catch((error) => {
             console.error('Failed to queue email batch:', error);
-            alert('Failed to queue email batch: ' + (error.response?.data?.message || error.message));
+            notify.error('Failed to queue email batch: ' + (error.response?.data?.message || error.message), 'Campaigns');
         }).finally(() => {
             this.emailForm.sending = false;
         });
@@ -2276,13 +2345,13 @@ export default {
             ? this.smsForm.selectedClients.map((c) => c.id)
             : [],
         }).then(() => {
-            alert('SMS batch queued successfully.');
+            notify.success('SMS batch queued successfully.', 'Campaigns');
             this.addSmsModal.hide();
             this.fetchSms();
             this.fetchStats();
         }).catch((error) => {
             console.error('Failed to queue SMS batch:', error);
-            alert('Failed to queue SMS batch: ' + (error.response?.data?.message || error.message));
+            notify.error('Failed to queue SMS batch: ' + (error.response?.data?.message || error.message), 'Campaigns');
         }).finally(() => {
             this.smsForm.sending = false;
         });

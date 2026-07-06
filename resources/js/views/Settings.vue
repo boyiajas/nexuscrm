@@ -104,8 +104,30 @@
                       <h6 class="mb-3">Working Information</h6>
                       <div class="row g-3">
                         <div class="col-md-12">
-                          <label class="form-label">Department</label>
-                          <input v-model="form.department" type="text" class="form-control" />
+                          <label class="form-label">Departments</label>
+                          <vue-multiselect
+                            v-model="selectedDepartments"
+                            :options="departmentOptions"
+                            :multiple="true"
+                            :close-on-select="false"
+                            :clear-on-select="false"
+                            :searchable="true"
+                            :allow-empty="true"
+                            :disabled="isStaffRole"
+                            placeholder="Select one or more departments"
+                            label="name"
+                            track-by="id"
+                            class="mb-2"
+                          >
+                            <template #noResult>No departments found</template>
+                            <template #noOptions>No departments available</template>
+                          </vue-multiselect>
+                          <small class="text-muted d-block mt-1" v-if="isStaffRole">
+                            Users with the STAFF role cannot change their department assignment.
+                          </small>
+                          <small class="text-muted d-block mt-1" v-else>
+                            Hold Ctrl or Cmd to select multiple departments. The first selected department remains the primary department for legacy scoping.
+                          </small>
                         </div>
                         <div class="col-md-6">
                           <label class="form-label">Role</label>
@@ -190,6 +212,65 @@
             </div>
           </form>
         </div>
+
+        <div class="card mt-4">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <h6 class="mb-1">Recent Sessions</h6>
+                <small class="text-muted">Track current and recent device access to this account.</small>
+              </div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click="loadSessions">
+                Refresh
+              </button>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Last Login</div>
+                <div class="fw-semibold">{{ form.last_login_at || '-' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Last Login IP</div>
+                <div class="fw-semibold">{{ form.last_login_ip || '-' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Password Updated</div>
+                <div class="fw-semibold">{{ form.password_changed_at || '-' }}</div>
+              </div>
+            </div>
+
+            <div v-if="sessions.length" class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th>Device / Browser</th>
+                    <th>IP</th>
+                    <th>Auth</th>
+                    <th>Authenticated</th>
+                    <th>Last Activity</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="session in sessions" :key="session.id">
+                    <td class="small">{{ session.user_agent || '-' }}</td>
+                    <td>{{ session.ip_address || '-' }}</td>
+                    <td>{{ session.authentication_method || '-' }}</td>
+                    <td>{{ session.authenticated_at || '-' }}</td>
+                    <td>{{ session.last_activity_at || '-' }}</td>
+                    <td>
+                      <span v-if="session.is_current" class="badge bg-primary">Current</span>
+                      <span v-else-if="session.logged_out_at" class="badge bg-secondary">{{ session.logout_reason || 'Closed' }}</span>
+                      <span v-else class="badge bg-success">Active</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else class="text-muted small">No tracked sessions yet.</div>
+          </div>
+        </div>
       </div>
 
       <!-- PREFERENCES TAB -->
@@ -254,6 +335,49 @@
                     <input v-model="system.form.support_phone" type="text" class="form-control" placeholder="+1 555 000 0000" />
                   </div>
                   <div class="col-md-6">
+                    <label class="form-label">Password Max Age (days)</label>
+                    <input v-model="system.form.password_max_age_days" type="number" min="0" max="3650" class="form-control" placeholder="90" />
+                    <small class="text-muted">Set to 0 to disable forced password expiry.</small>
+                  </div>
+                  <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center border rounded p-3 bg-light">
+                      <div>
+                        <div class="fw-semibold">Malware scanning on bank imports</div>
+                        <div class="small text-muted">When enabled, uploaded debtor CSV files are scanned through the configured ClamAV daemon before import starts.</div>
+                      </div>
+                      <div class="form-check form-switch m-0">
+                        <input class="form-check-input" type="checkbox" v-model="system.form.enable_import_malware_scanning">
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label">Scanner Socket Path</label>
+                    <input v-model="system.form.malware_scanner_socket_path" type="text" class="form-control" placeholder="/var/run/clamav/clamd.ctl" />
+                    <small class="text-muted">Preferred for a local daemon. Leave blank to use TCP host/port.</small>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Scanner Host</label>
+                    <input v-model="system.form.malware_scanner_host" type="text" class="form-control" placeholder="127.0.0.1" :disabled="!!system.form.malware_scanner_socket_path" />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Scanner Port</label>
+                    <input v-model="system.form.malware_scanner_port" type="number" min="1" max="65535" class="form-control" placeholder="3310" :disabled="!!system.form.malware_scanner_socket_path" />
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label">Scanner Timeout (seconds)</label>
+                    <input v-model="system.form.malware_scanner_timeout_seconds" type="number" min="1" max="120" class="form-control" placeholder="15" />
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Admin IP Allowlist</label>
+                    <textarea
+                      v-model="system.form.admin_ip_allowlist"
+                      class="form-control"
+                      rows="3"
+                      placeholder="One IP or CIDR per line, e.g.&#10;196.12.10.0/24&#10;105.23.14.9"
+                    ></textarea>
+                    <small class="text-muted">Applies to SUPER_ADMIN and ADMIN access when populated.</small>
+                  </div>
+                  <div class="col-md-6">
                     <label class="form-label">Logo</label>
                     <input type="file" class="form-control" accept="image/*" @change="onSystemLogoChange" />
                     <small class="text-muted">PNG, JPG, WEBP, or SVG image up to 2 MB.</small>
@@ -313,10 +437,16 @@
             <h5 class="mb-1">Meta WhatsApp Configuration</h5>
             <small class="text-muted">Store the Cloud API credentials in the database and use the webhook values below in Meta.</small>
           </div>
-          <button class="btn btn-primary btn-sm" @click="saveMeta" :disabled="meta.saving">
-            <span v-if="meta.saving" class="spinner-border spinner-border-sm me-1"></span>
-            Save
-          </button>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" @click="validateMetaPermissions" :disabled="meta.validating || meta.saving">
+              <span v-if="meta.validating" class="spinner-border spinner-border-sm me-1"></span>
+              Validate Permissions
+            </button>
+            <button class="btn btn-primary btn-sm" @click="saveMeta" :disabled="meta.saving || meta.validating">
+              <span v-if="meta.saving" class="spinner-border spinner-border-sm me-1"></span>
+              Save
+            </button>
+          </div>
         </div>
 
         <div class="card shadow-sm">
@@ -328,11 +458,43 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label">App Secret</label>
-                <input v-model="meta.form.meta_app_secret" type="password" class="form-control" placeholder="••••••" />
+                <input
+                  v-model="meta.form.meta_app_secret"
+                  type="password"
+                  class="form-control"
+                  placeholder="••••••"
+                  @copy.prevent
+                  @cut.prevent
+                  @paste.prevent
+                  @drop.prevent
+                  autocomplete="off"
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label">Access Token</label>
-                <input v-model="meta.form.meta_access_token" type="password" class="form-control" placeholder="EA..." />
+                <input
+                  v-model="meta.form.meta_access_token"
+                  type="password"
+                  class="form-control"
+                  placeholder="EA..."
+                  @copy.prevent
+                  @cut.prevent
+                  @paste.prevent
+                  @drop.prevent
+                  autocomplete="off"
+                />
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Meta Environment</label>
+                <select v-model="meta.form.meta_environment" class="form-select">
+                  <option value="development">Development</option>
+                  <option value="staging">Staging</option>
+                  <option value="production">Production</option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Token Last Rotated</label>
+                <input v-model="meta.form.meta_token_last_rotated_at" type="datetime-local" class="form-control" />
               </div>
               <div class="col-md-6">
                 <label class="form-label">WhatsApp Business Account ID</label>
@@ -348,7 +510,17 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label">Webhook Verify Token</label>
-                <input v-model="meta.form.meta_webhook_verify_token" type="text" class="form-control" placeholder="Generated verify token" />
+                <input
+                  v-model="meta.form.meta_webhook_verify_token"
+                  type="text"
+                  class="form-control"
+                  placeholder="Generated verify token"
+                  @copy.prevent
+                  @cut.prevent
+                  @paste.prevent
+                  @drop.prevent
+                  autocomplete="off"
+                />
               </div>
               <div class="col-md-6">
                 <label class="form-label">Provider</label>
@@ -358,6 +530,82 @@
                 <label class="form-label">Webhook Callback URL</label>
                 <input :value="webhookCallbackUrl" type="text" class="form-control" readonly />
                 <small class="text-muted">Use this exact callback URL when configuring the Meta webhook.</small>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Token Expires At</label>
+                <input v-model="meta.form.meta_token_expires_at" type="datetime-local" class="form-control" />
+              </div>
+              <div class="col-12">
+                <label class="form-label">Token Rotation Notes</label>
+                <textarea v-model="meta.form.meta_token_rotation_notes" class="form-control" rows="2" placeholder="Document who rotated the token, source system, approval ref, or change ticket."></textarea>
+              </div>
+              <div class="col-12" v-if="metaTokenWarning">
+                <div class="alert alert-warning mb-0">
+                  {{ metaTokenWarning }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h6 class="mb-1">Permission Governance</h6>
+                <small class="text-muted">Validate the configured Meta token against the minimum WhatsApp scopes required by this CRM.</small>
+              </div>
+              <span v-if="meta.permissions_status" class="badge" :class="permissionStatusBadge(meta.permissions_status)">
+                {{ meta.permissions_status }}
+              </span>
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Last Checked</div>
+                <div class="fw-semibold">{{ meta.permissions_last_checked_at || '-' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Token Valid</div>
+                <div class="fw-semibold">{{ meta.permissions_snapshot?.is_valid === false ? 'No' : (meta.permissions_snapshot?.is_valid === true ? 'Yes' : '-') }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">App Match</div>
+                <div class="fw-semibold">{{ meta.permissions_snapshot?.app_id_matches === false ? 'No' : (meta.permissions_snapshot?.app_id_matches === true ? 'Yes' : '-') }}</div>
+              </div>
+            </div>
+
+            <div class="row g-3" v-if="meta.permissions_snapshot">
+              <div class="col-md-6">
+                <label class="form-label">Granted Scopes</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <span v-for="scope in meta.permissions_snapshot.granted_scopes || []" :key="scope" class="badge bg-success-subtle text-success-emphasis border">
+                    {{ scope }}
+                  </span>
+                  <span v-if="!(meta.permissions_snapshot.granted_scopes || []).length" class="text-muted small">No granted scopes returned.</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Missing Required Scopes</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <span v-for="scope in meta.permissions_snapshot.missing_required_scopes || []" :key="scope" class="badge bg-danger-subtle text-danger-emphasis border">
+                    {{ scope }}
+                  </span>
+                  <span v-if="!(meta.permissions_snapshot.missing_required_scopes || []).length" class="text-muted small">None.</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Missing Recommended Scopes</label>
+                <div class="d-flex flex-wrap gap-2">
+                  <span v-for="scope in meta.permissions_snapshot.missing_recommended_scopes || []" :key="scope" class="badge bg-warning-subtle text-warning-emphasis border">
+                    {{ scope }}
+                  </span>
+                  <span v-if="!(meta.permissions_snapshot.missing_recommended_scopes || []).length" class="text-muted small">None.</span>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Token Expiry From Meta</label>
+                <div class="fw-semibold">{{ meta.permissions_snapshot.expires_at || '-' }}</div>
               </div>
             </div>
           </div>
@@ -369,15 +617,67 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">WhatsApp Templates</h5>
-            <small class="text-muted">View the templates synced from Meta. Creation and approval stay in WhatsApp Manager for now.</small>
+            <small class="text-muted">View, search, and create WhatsApp templates synced with Meta.</small>
           </div>
-          <button class="btn btn-primary btn-sm" @click="startCreate" disabled title="Create templates in Meta WhatsApp Manager">
-            <i class="bi bi-plus-circle me-1"></i>
-            Managed In Meta
-          </button>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-primary btn-sm" @click="loadWhatsappTemplates" :disabled="wa.loading">
+              <span v-if="wa.loading" class="spinner-border spinner-border-sm me-1"></span>
+              Refresh
+            </button>
+            <button type="button" class="btn btn-primary btn-sm" @click="startCreate">
+              <i class="bi bi-plus-circle me-1"></i>
+              Create Template
+            </button>
+          </div>
         </div>
 
         <div class="card shadow-sm mb-3">
+          <div class="card-body border-bottom">
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Search</label>
+                <input v-model.trim="wa.filters.search" type="text" class="form-control form-control-sm" placeholder="Search name, preview, language..." />
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Status</label>
+                <select v-model="wa.filters.status" class="form-select form-select-sm">
+                  <option value="">All statuses</option>
+                  <option v-for="status in wa.availableStatuses" :key="status" :value="status">
+                    {{ status }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Category</label>
+                <select v-model="wa.filters.category" class="form-select form-select-sm">
+                  <option value="">All categories</option>
+                  <option v-for="category in wa.availableCategories" :key="category" :value="category">
+                    {{ category }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Language</label>
+                <select v-model="wa.filters.language" class="form-select form-select-sm">
+                  <option value="">All languages</option>
+                  <option v-for="language in wa.availableLanguages" :key="language" :value="language">
+                    {{ language }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-12 d-flex justify-content-between align-items-center pt-1">
+                <small class="text-muted">{{ filteredWhatsappTemplates.length }} of {{ wa.templates.length }} templates</small>
+                <button
+                  v-if="wa.filters.search || wa.filters.status || wa.filters.category || wa.filters.language"
+                  type="button"
+                  class="btn btn-link btn-sm p-0"
+                  @click="resetWhatsappTemplateFilters"
+                >
+                  Clear filters
+                </button>
+              </div>
+            </div>
+          </div>
           <div class="card-body p-0">
             <div v-if="wa.loading" class="p-3 text-center text-muted">
               <span class="spinner-border spinner-border-sm me-2"></span>
@@ -391,11 +691,11 @@
                   <th>Category</th>
                   <th>Status</th>
                   <th>Preview</th>
-                  <th style="width: 180px;" class="text-end">Actions</th>
+                  <th style="width: 120px;" class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="t in wa.templates" :key="t.sid">
+                <tr v-for="t in filteredWhatsappTemplates" :key="t.sid">
                   <td class="fw-semibold">{{ t.name }}</td>
                   <td>{{ t.language || '-' }}</td>
                   <td>{{ t.category || '-' }}</td>
@@ -411,21 +711,22 @@
                   </td>
                   <td class="text-end">
                     <div class="btn-group btn-group-sm" role="group">
-                      <button type="button" class="btn btn-outline-primary" title="View template details" @click="viewTemplate(t)">
-                        <i class="bi bi-eye"></i>
-                      </button>
-                      <button type="button" class="btn btn-outline-success" title="Submit in Meta WhatsApp Manager" disabled>
-                        <i class="bi bi-upload"></i>
-                      </button>
-                      <button type="button" class="btn btn-outline-danger" title="Delete in Meta WhatsApp Manager" disabled>
-                        <i class="bi bi-trash"></i>
+                      <button
+                        type="button"
+                        class="btn btn-outline-primary"
+                        title="View template details"
+                        @click="viewTemplate(t)"
+                        :disabled="wa.viewingSid === t.sid"
+                      >
+                        <span v-if="wa.viewingSid === t.sid" class="spinner-border spinner-border-sm"></span>
+                        <i v-else class="bi bi-eye"></i>
                       </button>
                     </div>
                   </td>
                 </tr>
-                <tr v-if="wa.templates.length === 0">
+                <tr v-if="filteredWhatsappTemplates.length === 0">
                   <td colspan="6" class="text-center text-muted py-3">
-                    No templates found.
+                    No templates match the current filters.
                   </td>
                 </tr>
               </tbody>
@@ -450,11 +751,12 @@
             <div class="row g-3">
               <div class="col-md-6">
                 <label class="form-label">Friendly Name</label>
-                <input v-model="wa.form.friendly_name" type="text" class="form-control" placeholder="Appointment Reminder" :readonly="wa.viewOnly" />
+                <input v-model="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" :readonly="wa.viewOnly" />
+                <small v-if="!wa.viewOnly" class="text-muted">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
               </div>
               <div class="col-md-3">
                 <label class="form-label">Language</label>
-                <input v-model="wa.form.language" type="text" class="form-control" placeholder="en" :readonly="wa.viewOnly" />
+                <input v-model="wa.form.language" type="text" class="form-control" placeholder="en_US" :readonly="wa.viewOnly" />
               </div>
               <div class="col-md-3">
                 <label class="form-label">Category</label>
@@ -527,27 +829,38 @@
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wa.saving">Close</button>
             <button v-if="!wa.viewOnly" class="btn btn-primary" @click="saveTemplate" :disabled="wa.saving">
               <span v-if="wa.saving" class="spinner-border spinner-border-sm me-1"></span>
-              {{ wa.form.sid ? 'Update Template' : 'Create Template' }}
+              {{ wa.form.sid ? 'Update Template' : 'Create & Submit To Meta' }}
             </button>
           </div>
         </div>
       </div>
     </div>
+
+    <ConfirmationModal ref="confirmModal" />
   </div>
 </template>
 
 <script>
 import axios from '../axios';
-import { Modal } from 'bootstrap';
+import VueMultiselect from 'vue-multiselect';
+import ConfirmationModal from '../components/ConfirmationModal.vue';
+import { createManagedModal, disposeManagedModal } from '../utils/modal';
+import { notify } from '../utils/notify';
+import 'vue-multiselect/dist/vue-multiselect.min.css';
 
 export default {
   name: 'SettingsView',
+  components: {
+    VueMultiselect,
+    ConfirmationModal,
+  },
   data() {
     return {
       form: {
         name: '',
         email: '',
         department: '',
+        department_ids: [],
         role: '',
         first_name: '',
         middle_initial: '',
@@ -559,6 +872,9 @@ export default {
         is_provider: false,
         is_time_clock_user: false,
         active: true,
+        last_login_at: null,
+        last_login_ip: null,
+        password_changed_at: null,
       },
       mfa: {
         enabled: false,
@@ -570,6 +886,9 @@ export default {
         darkMode: false,
         notifications: true,
       },
+      sessions: [],
+      departmentOptions: [],
+      selectedDepartments: [],
       system: {
         saving: false,
         logoFile: null,
@@ -582,33 +901,58 @@ export default {
           company_name: '',
           support_email: '',
           support_phone: '',
+          admin_ip_allowlist: '',
+          password_max_age_days: 90,
+          enable_import_malware_scanning: false,
+          malware_scanner_socket_path: '',
+          malware_scanner_host: '127.0.0.1',
+          malware_scanner_port: 3310,
+          malware_scanner_timeout_seconds: 15,
           app_logo_path: '',
           app_logo_url: '',
         },
       },
       meta: {
         saving: false,
+        validating: false,
         form: {
           whatsapp_provider: 'meta',
           meta_app_id: '',
           meta_app_secret: '',
           meta_access_token: '',
+          meta_environment: 'production',
+          meta_token_last_rotated_at: '',
+          meta_token_expires_at: '',
+          meta_token_rotation_notes: '',
           meta_whatsapp_business_account_id: '',
           meta_whatsapp_phone_number_id: '',
           meta_whatsapp_display_phone_number: '',
           meta_webhook_verify_token: '',
         },
+        permissions_last_checked_at: null,
+        permissions_status: null,
+        permissions_snapshot: null,
       },
       wa: {
         templates: [],
         loading: false,
         saving: false,
         viewOnly: false,
+        viewingSid: null,
+        filters: {
+          search: '',
+          status: '',
+          category: '',
+          language: '',
+        },
+        availableStatuses: [],
+        availableCategories: [],
+        availableLanguages: [],
         form: {
           sid: null,
           friendly_name: '',
           body: '',
-          language: 'en',
+          language: 'en_US',
           category: 'utility',
           media_urls: '',
           header_format: '',
@@ -620,24 +964,42 @@ export default {
       templateModal: null,
     };
   },
-    mounted() {
+  mounted() {
       this.loadUser();
       this.loadMFA();
-      this.templateModal = new Modal(this.$refs.templateModalRef);
+      this.loadSessions();
+      this.templateModal = createManagedModal(this.$refs.templateModalRef);
       if (this.isSuperAdmin) {
         this.loadAdminSettings();
         this.loadWhatsappTemplates();
       }
+      this.loadDepartmentOptions();
     },
+  beforeUnmount() {
+    disposeManagedModal(this.templateModal);
+  },
+  watch: {
+    selectedDepartments: {
+      handler(newValue) {
+        this.form.department_ids = Array.isArray(newValue)
+          ? newValue.map((department) => department.id)
+          : [];
+      },
+      deep: true,
+    },
+  },
   computed: {
     isSuperAdmin() {
       const stored = localStorage.getItem('nexus_user');
       if (!stored) return false;
       try {
-        return JSON.parse(stored)?.role === 'SUPER_ADMIN';
+        return ['SUPER_ADMIN', 'ADMIN'].includes(JSON.parse(stored)?.role);
       } catch {
         return false;
       }
+    },
+    isStaffRole() {
+      return this.form.role === 'STAFF';
     },
     firstMediaUrl() {
       const urls = (this.wa.form.media_urls || '')
@@ -662,18 +1024,125 @@ export default {
     webhookCallbackUrl() {
       return `${window.location.origin}/api/whatsapp/webhook`;
     },
+    metaTokenWarning() {
+      const expiresAt = this.meta.form.meta_token_expires_at;
+      if (!expiresAt) {
+        return this.meta.form.meta_environment === 'production'
+          ? 'Production Meta credentials should include a tracked token expiry date and rotation record.'
+          : '';
+      }
+
+      const expiryDate = new Date(expiresAt);
+      if (Number.isNaN(expiryDate.getTime())) {
+        return '';
+      }
+
+      const diffMs = expiryDate.getTime() - Date.now();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 0) {
+        return 'The configured Meta access token is past its tracked expiry date and should be rotated immediately.';
+      }
+
+      if (diffDays <= 14) {
+        return `The configured Meta access token expires in ${diffDays} day(s). Plan token rotation before bulk messaging is affected.`;
+      }
+
+      return '';
+    },
+    filteredWhatsappTemplates() {
+      const search = (this.wa.filters.search || '').trim().toLowerCase();
+      return this.wa.templates.filter((template) => {
+        const matchesSearch = !search || [
+          template.name,
+          template.body_preview,
+          template.language,
+          template.category,
+          template.status,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(search));
+
+        const matchesStatus = !this.wa.filters.status || (template.status || '').toLowerCase() === this.wa.filters.status.toLowerCase();
+        const matchesCategory = !this.wa.filters.category || (template.category || '').toLowerCase() === this.wa.filters.category.toLowerCase();
+        const matchesLanguage = !this.wa.filters.language || (template.language || '').toLowerCase() === this.wa.filters.language.toLowerCase();
+
+        return matchesSearch && matchesStatus && matchesCategory && matchesLanguage;
+      });
+    },
   },
   methods: {
     // Load profile
     loadUser() {
       axios.get('/api/user').then((res) => {
         const fallback = { ...this.form };
-        this.form = Object.assign(fallback, res.data || {});
+        const user = res.data || {};
+        this.form = Object.assign(fallback, user, {
+          department_ids: Array.isArray(user.departments) ? user.departments.map((department) => department.id) : [],
+          active: user.status ? user.status === 'Active' : fallback.active,
+        });
+        this.syncSelectedDepartments();
+      });
+    },
+    loadDepartmentOptions() {
+      axios.get('/api/user/department-options').then((res) => {
+        this.departmentOptions = res.data || [];
+        this.syncSelectedDepartments();
+      }).catch(() => {
+        this.departmentOptions = [];
+        this.selectedDepartments = [];
+      });
+    },
+    syncSelectedDepartments() {
+      if (!Array.isArray(this.departmentOptions) || !this.departmentOptions.length) {
+        return;
+      }
+
+      const selectedIds = Array.isArray(this.form.department_ids) ? this.form.department_ids.map(Number) : [];
+      this.selectedDepartments = this.departmentOptions.filter((department) => selectedIds.includes(Number(department.id)));
+    },
+    loadSessions() {
+      axios.get('/api/user/sessions').then((res) => {
+        this.sessions = res.data || [];
+      }).catch(() => {
+        this.sessions = [];
       });
     },
     updateAccount() {
-      axios.put('/api/user', this.form).then(() => {
-        alert('Account updated successfully');
+      const payload = {
+        name: this.form.name,
+        email: this.form.email,
+        username: this.form.username,
+        first_name: this.form.first_name,
+        middle_initial: this.form.middle_initial,
+        last_name: this.form.last_name,
+        primary_phone: this.form.primary_phone,
+        secondary_phone: this.form.secondary_phone,
+        inactivity_timeout: this.form.inactivity_timeout,
+        is_provider: this.form.is_provider,
+        is_time_clock_user: this.form.is_time_clock_user,
+        department_ids: this.form.department_ids,
+      };
+
+      axios.put('/api/user', payload).then((res) => {
+        const updatedUser = res.data || {};
+        const stored = localStorage.getItem('nexus_user');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            parsed.name = updatedUser.name ?? parsed.name;
+            parsed.email = updatedUser.email ?? parsed.email;
+            localStorage.setItem('nexus_user', JSON.stringify(parsed));
+          } catch {
+            // Ignore local storage sync issues
+          }
+        }
+        this.form = Object.assign({}, this.form, updatedUser, {
+          department_ids: Array.isArray(updatedUser.departments) ? updatedUser.departments.map((department) => department.id) : this.form.department_ids,
+          active: updatedUser.status ? updatedUser.status === 'Active' : this.form.active,
+        });
+        this.syncSelectedDepartments();
+        notify.success('Account updated successfully.', 'Settings');
       });
     },
 
@@ -688,28 +1157,33 @@ export default {
     enableEmailMFA() {
       axios.post('/api/mfa/setup-email').then(() => {
         this.showOtpForm = true;
-        alert('OTP sent to your email');
+        notify.success('OTP sent to your email.', 'Settings');
       });
     },
     verifyOtp() {
       axios.post('/api/mfa/verify-email', { code: this.otpCode }).then(() => {
-        alert('MFA enabled successfully');
+        notify.success('MFA enabled successfully.', 'Settings');
         this.showOtpForm = false;
         this.loadMFA();
       });
     },
 
     disableMFA() {
-      if (!confirm('Disable MFA?')) return;
-
-      axios.post('/api/mfa/disable').then(() => {
-        alert('MFA disabled');
-        this.loadMFA();
+      this.$refs.confirmModal.open({
+        title: 'Disable MFA',
+        message: 'Disable MFA for this account? This reduces login protection until MFA is enabled again.',
+        confirmLabel: 'Disable MFA',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          await axios.post('/api/mfa/disable');
+          notify.success('MFA disabled.', 'Settings');
+          this.loadMFA();
+        },
       });
     },
 
     savePrefs() {
-      alert('Preferences saved (setup backend later)');
+      notify.info('Preferences saved (setup backend later).', 'Settings');
     },
 
     applyBranding(settings) {
@@ -735,6 +1209,13 @@ export default {
         company_name: settings.company_name || '',
         support_email: settings.support_email || '',
         support_phone: settings.support_phone || '',
+        admin_ip_allowlist: settings.admin_ip_allowlist || '',
+        password_max_age_days: settings.password_max_age_days ?? 90,
+        enable_import_malware_scanning: !!settings.enable_import_malware_scanning,
+        malware_scanner_socket_path: settings.malware_scanner_socket_path || '',
+        malware_scanner_host: settings.malware_scanner_host || '127.0.0.1',
+        malware_scanner_port: settings.malware_scanner_port ?? 3310,
+        malware_scanner_timeout_seconds: settings.malware_scanner_timeout_seconds ?? 15,
         app_logo_path: settings.app_logo_path || '',
         app_logo_url: settings.app_logo_url || '',
       };
@@ -747,11 +1228,18 @@ export default {
         meta_app_id: settings.meta_app_id || '',
         meta_app_secret: settings.meta_app_secret || '',
         meta_access_token: settings.meta_access_token || '',
+        meta_environment: settings.meta_environment || 'production',
+        meta_token_last_rotated_at: this.toDateTimeLocal(settings.meta_token_last_rotated_at),
+        meta_token_expires_at: this.toDateTimeLocal(settings.meta_token_expires_at),
+        meta_token_rotation_notes: settings.meta_token_rotation_notes || '',
         meta_whatsapp_business_account_id: settings.meta_whatsapp_business_account_id || '',
         meta_whatsapp_phone_number_id: settings.meta_whatsapp_phone_number_id || '',
         meta_whatsapp_display_phone_number: settings.meta_whatsapp_display_phone_number || '',
         meta_webhook_verify_token: settings.meta_webhook_verify_token || '',
       };
+      this.meta.permissions_last_checked_at = settings.meta_permissions_last_checked_at || null;
+      this.meta.permissions_status = settings.meta_permissions_status || null;
+      this.meta.permissions_snapshot = settings.meta_permissions_snapshot || null;
 
       this.applyBranding(settings);
     },
@@ -787,6 +1275,13 @@ export default {
       payload.append('company_name', this.system.form.company_name || '');
       payload.append('support_email', this.system.form.support_email || '');
       payload.append('support_phone', this.system.form.support_phone || '');
+      payload.append('admin_ip_allowlist', this.system.form.admin_ip_allowlist || '');
+      payload.append('password_max_age_days', this.system.form.password_max_age_days ?? '');
+      payload.append('enable_import_malware_scanning', this.system.form.enable_import_malware_scanning ? '1' : '0');
+      payload.append('malware_scanner_socket_path', this.system.form.malware_scanner_socket_path || '');
+      payload.append('malware_scanner_host', this.system.form.malware_scanner_host || '');
+      payload.append('malware_scanner_port', this.system.form.malware_scanner_port ?? '');
+      payload.append('malware_scanner_timeout_seconds', this.system.form.malware_scanner_timeout_seconds ?? '');
       payload.append('remove_app_logo', this.system.removeLogo ? '1' : '0');
       if (this.system.logoFile) {
         payload.append('app_logo', this.system.logoFile);
@@ -796,10 +1291,10 @@ export default {
         .post('/api/settings', payload)
         .then((res) => {
           this.applyAdminSettings(res.data || {});
-          alert('System settings saved.');
+          notify.success('System settings saved.', 'Settings');
         })
         .catch((err) => {
-          alert('Failed to save system settings: ' + (err.response?.data?.message || err.message));
+          notify.error('Failed to save system settings: ' + (err.response?.data?.message || err.message), 'Settings');
         })
         .finally(() => {
           this.system.saving = false;
@@ -813,13 +1308,27 @@ export default {
         .get('/api/whatsapp-templates', { params: { approved: false } })
         .then((res) => {
           this.wa.templates = res.data || [];
+          this.wa.availableStatuses = [...new Set(this.wa.templates.map((t) => t.status).filter(Boolean))].sort();
+          this.wa.availableCategories = [...new Set(this.wa.templates.map((t) => t.category).filter(Boolean))].sort();
+          this.wa.availableLanguages = [...new Set(this.wa.templates.map((t) => t.language).filter(Boolean))].sort();
         })
         .catch(() => {
           this.wa.templates = [];
+          this.wa.availableStatuses = [];
+          this.wa.availableCategories = [];
+          this.wa.availableLanguages = [];
         })
         .finally(() => {
           this.wa.loading = false;
         });
+    },
+    resetWhatsappTemplateFilters() {
+      this.wa.filters = {
+        search: '',
+        status: '',
+        category: '',
+        language: '',
+      };
     },
     startCreate() {
       this.resetForm();
@@ -830,6 +1339,7 @@ export default {
     },
     viewTemplate(t) {
       this.wa.viewOnly = true;
+      this.wa.viewingSid = t.sid;
       this.wa.saving = true;
       axios
         .get(`/api/whatsapp-templates/${encodeURIComponent(t.sid)}`)
@@ -856,10 +1366,11 @@ export default {
           this.templateModal?.show();
         })
         .catch((err) => {
-          alert('Failed to load template details: ' + (err.response?.data?.message || err.message));
+          notify.error('Failed to load template details: ' + (err.response?.data?.message || err.message), 'Settings');
         })
         .finally(() => {
           this.wa.saving = false;
+          this.wa.viewingSid = null;
         });
     },
     editTemplate(t) {
@@ -885,7 +1396,7 @@ export default {
         sid: null,
         friendly_name: '',
         body: '',
-        language: 'en',
+        language: 'en_US',
         category: 'utility',
         media_urls: '',
         header_format: '',
@@ -896,7 +1407,7 @@ export default {
     },
     saveTemplate() {
       if (!this.wa.form.friendly_name || !this.wa.form.body) {
-        alert('Please provide a friendly name and body.');
+        notify.warning('Please provide a friendly name and body.', 'Settings');
         return;
       }
 
@@ -917,42 +1428,53 @@ export default {
 
       request
         .then(() => {
-          alert(this.wa.form.sid ? 'Template updated' : 'Template created');
+          notify.success(this.wa.form.sid ? 'Template updated.' : 'Template created and submitted to Meta.', 'Settings');
           this.resetForm();
           this.loadWhatsappTemplates();
           this.templateModal?.hide();
         })
         .catch((err) => {
-          alert('Failed to save template: ' + (err.response?.data?.message || err.message));
+          notify.error('Failed to save template: ' + (err.response?.data?.message || err.message), 'Settings');
         })
         .finally(() => {
           this.wa.saving = false;
         });
     },
     submitTemplate(t) {
-      if (!confirm(`Submit "${t.name}" for WhatsApp approval?`)) return;
-
-      axios
-        .post(`/api/whatsapp-templates/${t.sid}/submit`, { category: t.category || 'utility' })
-        .then(() => {
-          alert('Template submitted for approval.');
-          this.loadWhatsappTemplates();
-        })
-        .catch((err) => {
-          alert('Failed to submit template: ' + (err.response?.data?.message || err.message));
-        });
+      this.$refs.confirmModal.open({
+        title: 'Submit Template',
+        message: `Submit "${t.name}" to Meta for WhatsApp approval?`,
+        confirmLabel: 'Submit to Meta',
+        confirmVariant: 'primary',
+        onConfirm: async () => {
+          try {
+            await axios.post(`/api/whatsapp-templates/${t.sid}/submit`, { category: t.category || 'utility' });
+            notify.success('Template submitted for approval.', 'Settings');
+            this.loadWhatsappTemplates();
+          } catch (err) {
+            notify.error('Failed to submit template: ' + (err.response?.data?.message || err.message), 'Settings');
+            throw err;
+          }
+        },
+      });
     },
     deleteTemplate(t) {
-      if (!confirm(`Delete template "${t.name}"?`)) return;
-
-      axios
-        .delete(`/api/whatsapp-templates/${t.sid}`)
-        .then(() => {
-          this.loadWhatsappTemplates();
-        })
-        .catch((err) => {
-          alert('Failed to delete template: ' + (err.response?.data?.message || err.message));
-        });
+      this.$refs.confirmModal.open({
+        title: 'Delete Template',
+        message: `Delete template "${t.name}"? This action cannot be undone.`,
+        confirmLabel: 'Delete Template',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            await axios.delete(`/api/whatsapp-templates/${t.sid}`);
+            this.loadWhatsappTemplates();
+            notify.success(`Template "${t.name}" deleted.`, 'Settings');
+          } catch (err) {
+            notify.error('Failed to delete template: ' + (err.response?.data?.message || err.message), 'Settings');
+            throw err;
+          }
+        },
+      });
     },
     statusBadge(status) {
       const s = (status || '').toLowerCase();
@@ -963,7 +1485,7 @@ export default {
     },
     saveMeta() {
       if (!this.meta.form.meta_access_token || !this.meta.form.meta_whatsapp_phone_number_id || !this.meta.form.meta_whatsapp_business_account_id) {
-        alert('Access token, business account ID, and phone number ID are required.');
+        notify.warning('Access token, business account ID, and phone number ID are required.', 'Settings');
         return;
       }
       this.meta.saving = true;
@@ -971,14 +1493,44 @@ export default {
         .post('/api/settings', this.meta.form)
         .then((res) => {
           this.applyAdminSettings(res.data || {});
-          alert('Meta WhatsApp settings saved.');
+          notify.success('Meta WhatsApp settings saved.', 'Settings');
         })
         .catch((err) => {
-          alert('Failed to save Meta WhatsApp settings: ' + (err.response?.data?.message || err.message));
+        notify.error('Failed to save Meta WhatsApp settings: ' + (err.response?.data?.message || err.message), 'Settings');
         })
         .finally(() => {
           this.meta.saving = false;
         });
+    },
+    validateMetaPermissions() {
+      this.meta.validating = true;
+      axios
+        .post('/api/settings/meta/validate')
+        .then((res) => {
+          if (res.data?.settings) {
+            this.applyAdminSettings(res.data.settings);
+          }
+          notify.success(res.data?.message || 'Meta permissions validated.', 'Settings');
+        })
+        .catch((err) => {
+          if (err.response?.data?.settings) {
+            this.applyAdminSettings(err.response.data.settings);
+          }
+          notify.error(err.response?.data?.message || err.message, 'Settings');
+        })
+        .finally(() => {
+          this.meta.validating = false;
+        });
+    },
+    permissionStatusBadge(status) {
+      if (status === 'healthy') return 'bg-success';
+      if (status === 'warning') return 'bg-warning text-dark';
+      if (status === 'error') return 'bg-danger';
+      return 'bg-secondary';
+    },
+    toDateTimeLocal(value) {
+      if (!value) return '';
+      return String(value).replace(' ', 'T').slice(0, 16);
     },
   },
 };

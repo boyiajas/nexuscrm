@@ -61,8 +61,9 @@
               :type="showPassword ? 'text' : 'password'"
               class="form-control"
               required
-              minlength="6"
+              minlength="12"
             />
+            <small class="text-muted">Use at least 12 characters with upper/lowercase letters, a number, and a symbol.</small>
           </div>
 
           <div class="mb-3">
@@ -72,7 +73,7 @@
               :type="showPassword ? 'text' : 'password'"
               class="form-control"
               required
-              minlength="6"
+              minlength="12"
             />
           </div>
 
@@ -176,9 +177,11 @@ export default {
         await axios.get('/sanctum/csrf-cookie');
 
         const res = await axios.post('/api/register', this.form);
+        const { token, user } = res.data;
 
-        // Store user in localStorage like login
-        localStorage.setItem('nexus_user', JSON.stringify(res.data));
+        localStorage.setItem('nexus_token', token);
+        localStorage.setItem('nexus_user', JSON.stringify(user));
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
         // redirect to dashboard
         this.$router.push({ name: 'dashboard' });

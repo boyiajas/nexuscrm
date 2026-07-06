@@ -15,6 +15,7 @@
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
+              <th>Bank</th>
               <th>Department</th>
               <th>Status</th>
               <th style="width: 120px;" class="text-end">Actions</th>
@@ -28,6 +29,7 @@
               <td>
                 <span class="badge bg-secondary">{{ u.role }}</span>
               </td>
+              <td>{{ u.bank?.name || '-' }}</td>
               <td>{{ u.department || '-' }}</td>
               <td>
                 <span
@@ -52,7 +54,7 @@
             </tr>
 
             <tr v-if="users.length === 0">
-              <td colspan="6" class="text-center text-muted py-3">
+              <td colspan="7" class="text-center text-muted py-3">
                 No users found.
               </td>
             </tr>
@@ -156,6 +158,10 @@
                     <h6 class="mb-3">Working Information</h6>
                     <div class="row g-3">
                       <div class="col-md-12">
+                        <label class="form-label small text-muted">Bank</label>
+                        <div class="fw-semibold">{{ profile.bank_name || '-' }}</div>
+                      </div>
+                      <div class="col-md-12">
                         <label class="form-label small text-muted">Department</label>
                         <div class="fw-semibold">{{ profile.department || '-' }}</div>
                       </div>
@@ -238,7 +244,8 @@
               <!-- Password only required when creating -->
               <div class="mb-3" v-if="!isEdit">
                 <label class="form-label">Password</label>
-                <input v-model="form.password" type="password" class="form-control" required minlength="6" />
+                <input v-model="form.password" type="password" class="form-control" required minlength="12" />
+                <small class="text-muted">At least 12 characters with upper/lowercase letters, a number, and a symbol.</small>
               </div>
 
               <div class="mb-3">
@@ -250,8 +257,25 @@
                 <label class="form-label">Role</label>
                 <select v-model="form.role" class="form-select" required>
                   <option value="SUPER_ADMIN">SUPER_ADMIN</option>
+                  <option value="ADMIN">ADMIN</option>
                   <option value="MANAGER">MANAGER</option>
-                  <option value="STAFF">STAFF</option>
+                  <option value="CALL_CENTRE_MANAGER">CALL_CENTRE_MANAGER</option>
+                  <option value="TEAM_LEADER">TEAM_LEADER</option>
+                  <option value="AGENT">AGENT</option>
+                  <option value="AUDITOR">AUDITOR</option>
+                  <option value="COMPLIANCE_OFFICER">COMPLIANCE_OFFICER</option>
+                  <option value="READ_ONLY_REVIEWER">READ_ONLY_REVIEWER</option>
+                  <option value="STAFF">STAFF (Legacy)</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Bank</label>
+                <select v-model="form.bank_id" class="form-select" :disabled="!canChooseBankForForm">
+                  <option value="">None</option>
+                  <option v-for="bank in banks" :key="bank.id" :value="bank.id">
+                    {{ bank.name }}
+                  </option>
                 </select>
               </div>
 
@@ -313,28 +337,35 @@
         </div>
       </div>
     </div>
-
+    <ConfirmationModal ref="confirmModal" />
   </div>
 </template>
 
 <script>
 import axios from '../axios';
-import { Modal } from 'bootstrap';
+import ConfirmationModal from '../components/ConfirmationModal.vue';
+import { createManagedModal, disposeManagedModal } from '../utils/modal';
+import { notify } from '../utils/notify';
 
 export default {
   name: "UsersView",
+  components: {
+    ConfirmationModal,
+  },
 
   data() {
     return {
       users: [],
       departments: [],
+      banks: [],
       isEdit: false,
       form: {
         id: null,
         name: "",
         email: "",
         password: "",
-        role: "STAFF",
+        role: "AGENT",
+        bank_id: "",
         department: "",
         status: "Active",
         first_name: "",
@@ -370,6 +401,7 @@ export default {
         last_name: "",
         primary_phone: "",
         secondary_phone: "",
+        bank_name: "",
         department: "",
         role: "",
         inactivity_timeout: "",
@@ -381,10 +413,30 @@ export default {
   },
 
   mounted() {
-    this.modal = new Modal(this.$refs.modalRef);
-    this.profileModal = new Modal(this.$refs.profileModalRef);
+    this.modal = createManagedModal(this.$refs.modalRef);
+    this.profileModal = createManagedModal(this.$refs.profileModalRef);
     this.fetchUsers();
     this.fetchDepartments();
+    this.fetchBanks();
+  },
+  beforeUnmount() {
+    disposeManagedModal(this.modal);
+    disposeManagedModal(this.profileModal);
+  },
+
+  computed: {
+    currentUser() {
+      const stored = localStorage.getItem('nexus_user');
+      if (!stored) return null;
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    },
+    canChooseBankForForm() {
+      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
+    },
   },
 
   methods: {
@@ -426,6 +478,11 @@ export default {
         this.departments = res.data.data || res.data;
       });
     },
+    fetchBanks() {
+      axios.get("/api/banks", { params: { per_page: 200 } }).then((res) => {
+        this.banks = res.data.data || res.data;
+      });
+    },
 
     // -------------------------
     // CRUD Operations
@@ -437,7 +494,8 @@ export default {
         name: "",
         email: "",
         password: "",
-        role: "STAFF",
+        role: "AGENT",
+        bank_id: "",
         department: "",
         status: "Active",
         first_name: "",
@@ -460,7 +518,8 @@ export default {
         name: u.name || "",
         email: u.email || "",
         password: "",
-        role: u.role || "STAFF",
+        role: u.role || "AGENT",
+        bank_id: u.bank_id || "",
         department: u.department || "",
         status: u.status || "Active",
         first_name: u.first_name || "",
@@ -477,24 +536,41 @@ export default {
     },
 
     save() {
+      if (!['SUPER_ADMIN', 'ADMIN'].includes(this.form.role) && !this.form.bank_id) {
+        notify.warning('Please assign a bank to this user.', 'Users');
+        return;
+      }
+
       if (this.isEdit) {
         axios.put(`/api/users/${this.form.id}`, this.form).then(() => {
           this.modal.hide();
           this.fetchUsers();
+          notify.success('User updated successfully.', 'Users');
+        }).catch((error) => {
+          notify.error(error.response?.data?.message || 'Failed to update user.', 'Users');
         });
       } else {
         axios.post("/api/users", this.form).then(() => {
           this.modal.hide();
           this.fetchUsers();
+          notify.success('User created successfully.', 'Users');
+        }).catch((error) => {
+          notify.error(error.response?.data?.message || 'Failed to create user.', 'Users');
         });
       }
     },
 
     remove(u) {
-      if (!confirm(`Delete user "${u.name}"?`)) return;
-
-      axios.delete(`/api/users/${u.id}`).then(() => {
-        this.fetchUsers();
+      this.$refs.confirmModal.open({
+        title: 'Delete User',
+        message: `Delete user "${u.name}"? This will remove their access to the CRM.`,
+        confirmLabel: 'Delete User',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          await axios.delete(`/api/users/${u.id}`);
+          this.fetchUsers();
+          notify.success(`User "${u.name}" deleted.`, 'Users');
+        },
       });
     },
     openProfileModal(user) {
@@ -508,6 +584,7 @@ export default {
         primary_phone: user.primary_phone || "",
         secondary_phone: user.secondary_phone || "",
         department: user.department || "",
+        bank_name: user.bank?.name || "",
         role: user.role || "",
         inactivity_timeout: user.inactivity_timeout || "",
         is_provider: !!user.is_provider,
@@ -515,7 +592,7 @@ export default {
         status: user.status || "Active",
       };
       if (!this.profileModal) {
-        this.profileModal = new Modal(this.$refs.profileModalRef);
+        this.profileModal = createManagedModal(this.$refs.profileModalRef);
       }
       this.profileModal.show();
     },

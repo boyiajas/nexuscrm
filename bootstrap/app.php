@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Middleware\AuditTrailMiddleware;
+use App\Http\Middleware\EnforceAdminIpAllowlist;
+use App\Http\Middleware\EnforceApiPayloadLimits;
+use App\Http\Middleware\EnforceApiSessionTimeout;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -26,6 +29,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 EnsureFrontendRequestsAreStateful::class,
             ],
             append: [
+                EnforceApiPayloadLimits::class,
+                EnforceAdminIpAllowlist::class,
+                EnforceApiSessionTimeout::class,
                 AuditTrailMiddleware::class, // 👈 our audit trail
             ],
         );

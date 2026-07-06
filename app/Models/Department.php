@@ -20,4 +20,10 @@ class Department extends Model
     protected $casts = [
         'whatsapp_numbers' => 'array',
     ];
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'department_user')
+            ->withTimestamps();
+    }
 }

@@ -1,39 +1,90 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
-import Login from './views/auth/Login.vue';
-import Register from './views/auth/Register.vue';
-import Dashboard from './views/Dashboard.vue';
-import Clients from './views/Clients.vue';
-import Campaigns from './views/Campaigns.vue';
-import CampaignShow from './views/CampaignShow.vue';
-import WhatsappTemplatePreview from './views/WhatsappTemplatePreview.vue';
-import Chat from './views/Chat.vue';
-import AuditLog from './views/AuditLog.vue';
-import Settings from './views/Settings.vue';
-import Departments from './views/Departments.vue';
-import Users from './views/Users.vue';
-import WhatsAppFlows from './views/WhatsAppFlows.vue';
-import WhatsappReplies from './views/WhatsappReplies.vue';
+const Login = () => import('./views/auth/Login.vue');
+const Register = () => import('./views/auth/Register.vue');
+const Dashboard = () => import('./views/Dashboard.vue');
+const Clients = () => import('./views/Clients.vue');
+const Campaigns = () => import('./views/Campaigns.vue');
+const CampaignShow = () => import('./views/CampaignShow.vue');
+const WhatsappTemplatePreview = () => import('./views/WhatsappTemplatePreview.vue');
+const Chat = () => import('./views/Chat.vue');
+const ImportUploads = () => import('./views/ImportUploads.vue');
+const AuditLog = () => import('./views/AuditLog.vue');
+const SecurityIncidents = () => import('./views/SecurityIncidents.vue');
+const ComplianceConsole = () => import('./views/ComplianceConsole.vue');
+const ExportRequests = () => import('./views/ExportRequests.vue');
+const Settings = () => import('./views/Settings.vue');
+const Departments = () => import('./views/Departments.vue');
+const Banks = () => import('./views/Banks.vue');
+const Users = () => import('./views/Users.vue');
+const WhatsAppFlows = () => import('./views/WhatsAppFlows.vue');
+const WhatsappReplies = () => import('./views/WhatsappReplies.vue');
+const MainLayout = () => import('./components/layout/MainLayout.vue');
 
 const routes = [
   { path: '/login', name: 'login', component: Login },
   { path: '/register', name: 'register', component: Register },
   {
     path: '/',
-    component: () => import('./components/layout/MainLayout.vue'),
+    component: MainLayout,
     children: [
-      { path: '', name: 'dashboard', component: Dashboard },
-      { path: 'clients', name: 'clients', component: Clients },
-      { path: 'campaigns', name: 'campaigns', component: Campaigns },
-      { path: 'campaigns/:id', name: 'campaign.show', component: CampaignShow },
-      { path: '/campaigns/:id/whatsapp-template/:templateSid?', name: 'WhatsappTemplatePreview', component: WhatsappTemplatePreview },
-      { path: 'chat', name: 'chat', component: Chat },
-      { path: 'audit-log', name: 'audit-log', component: AuditLog },
-      { path: 'settings', name: 'settings', component: Settings },
-      { path: 'departments', name: 'departments', component: Departments },
-      { path: 'users', name: 'users', component: Users },
-      { path: 'automation/whatsapp-flows', name: 'whatsapp-flows', component: WhatsAppFlows },
-      { path: 'whatsapp-replies', name: 'whatsapp-replies', component: WhatsappReplies },
+      { path: '', name: 'dashboard', component: Dashboard, meta: { sensitiveView: true } },
+      { path: 'clients', name: 'clients', component: Clients, meta: { sensitiveView: true } },
+      { path: 'campaigns', name: 'campaigns', component: Campaigns, meta: { sensitiveView: true } },
+      { path: 'campaigns/:id', name: 'campaign.show', component: CampaignShow, meta: { sensitiveView: true } },
+      { path: '/campaigns/:id/whatsapp-template/:templateSid?', name: 'WhatsappTemplatePreview', component: WhatsappTemplatePreview, meta: { sensitiveView: true } },
+      { path: 'chat', name: 'chat', component: Chat, meta: { sensitiveView: true } },
+      { path: 'import-uploads', name: 'import-uploads', component: ImportUploads, meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'], sensitiveView: true } },
+      {
+        path: 'audit-log',
+        name: 'audit-log',
+        component: AuditLog,
+        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'], sensitiveView: true },
+      },
+      {
+        path: 'security-incidents',
+        name: 'security-incidents',
+        component: SecurityIncidents,
+        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'], sensitiveView: true },
+      },
+      {
+        path: 'compliance-console',
+        name: 'compliance-console',
+        component: ComplianceConsole,
+        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'], sensitiveView: true },
+      },
+      {
+        path: 'export-requests',
+        name: 'export-requests',
+        component: ExportRequests,
+        meta: { sensitiveView: true },
+      },
+      {
+        path: 'settings',
+        name: 'settings',
+        component: Settings,
+        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'], sensitiveView: true },
+      },
+      {
+        path: 'banks',
+        name: 'banks',
+        component: Banks,
+        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'] },
+      },
+      {
+        path: 'departments',
+        name: 'departments',
+        component: Departments,
+        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'] },
+      },
+      {
+        path: 'users',
+        name: 'users',
+        component: Users,
+        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'] },
+      },
+      { path: 'automation/whatsapp-flows', name: 'whatsapp-flows', component: WhatsAppFlows, meta: { sensitiveView: true } },
+      { path: 'whatsapp-replies', name: 'whatsapp-replies', component: WhatsappReplies, meta: { sensitiveView: true } },
       
     ],
 
@@ -60,6 +111,15 @@ router.beforeEach(async (to, from, next) => {
 
   if ((to.name === 'login' || to.name === 'register') && isLoggedIn) {
     return next({ name: 'dashboard' });
+  }
+
+  if (authRequired && isLoggedIn) {
+    const user = JSON.parse(storedUser || '{}');
+    const allowedRoles = to.meta?.allowedRoles;
+
+    if (Array.isArray(allowedRoles) && allowedRoles.length && !allowedRoles.includes(user.role)) {
+      return next({ name: 'dashboard' });
+    }
   }
 
   next();

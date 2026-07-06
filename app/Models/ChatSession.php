@@ -10,6 +10,7 @@ class ChatSession extends Model
     use HasFactory;
 
     protected $fillable = [
+        'bank_id',
         'client_id',
         'agent_id',
         'client_name',
@@ -23,6 +24,11 @@ class ChatSession extends Model
     public function client()
     {
         return $this->belongsTo(Client::class);
+    }
+
+    public function bank()
+    {
+        return $this->belongsTo(Bank::class);
     }
 
     public function agent()

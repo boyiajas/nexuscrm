@@ -7,10 +7,21 @@ use App\Models\SystemSetting;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class MetaWhatsAppService implements WhatsAppServiceInterface
 {
+    public const REQUIRED_TOKEN_SCOPES = [
+        'whatsapp_business_management',
+        'whatsapp_business_messaging',
+    ];
+
+    public const RECOMMENDED_TOKEN_SCOPES = [
+        'business_management',
+    ];
+
     private string $baseUrl = 'https://graph.facebook.com/v25.0';
+    private ?string $appId = null;
     private ?string $accessToken = null;
     private ?string $businessAccountId = null;
     private ?string $phoneNumberId = null;
@@ -22,6 +33,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     {
         $settings = SystemSetting::first();
 
+        $this->appId = $settings?->meta_app_id ?: Config::get('services.meta_whatsapp.app_id');
         $this->accessToken = $settings?->meta_access_token ?: Config::get('services.meta_whatsapp.access_token');
         $this->businessAccountId = $settings?->meta_whatsapp_business_account_id ?: Config::get('services.meta_whatsapp.business_account_id');
         $this->phoneNumberId = $settings?->meta_whatsapp_phone_number_id ?: Config::get('services.meta_whatsapp.phone_number_id');
@@ -74,6 +86,56 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         return $this->appSecret;
     }
 
+    public function validateConfiguredTokenPermissions(): array
+    {
+        if (empty($this->appId) || empty($this->appSecret) || empty($this->accessToken)) {
+            throw new \RuntimeException('Meta app ID, app secret, and access token are required to validate token permissions.');
+        }
+
+        $response = Http::get("{$this->baseUrl}/debug_token", [
+            'input_token' => $this->accessToken,
+            'access_token' => "{$this->appId}|{$this->appSecret}",
+        ]);
+
+        $payload = $this->decodeResponse($response->status(), $response->json() ?? [], 'debug_token');
+        $tokenData = $payload['data'] ?? [];
+
+        $grantedScopes = collect($tokenData['scopes'] ?? [])
+            ->filter(fn ($scope) => is_string($scope) && trim($scope) !== '')
+            ->values()
+            ->all();
+
+        $missingRequired = array_values(array_diff(self::REQUIRED_TOKEN_SCOPES, $grantedScopes));
+        $missingRecommended = array_values(array_diff(self::RECOMMENDED_TOKEN_SCOPES, $grantedScopes));
+
+        $isValid = (bool) ($tokenData['is_valid'] ?? false);
+        $appIdMatches = (string) ($tokenData['app_id'] ?? '') === (string) $this->appId;
+        $expiresAt = !empty($tokenData['expires_at']) ? now()->setTimestamp((int) $tokenData['expires_at'])->toDateTimeString() : null;
+
+        $status = 'healthy';
+        if (!$isValid || !$appIdMatches || !empty($missingRequired)) {
+            $status = 'error';
+        } elseif (!empty($missingRecommended)) {
+            $status = 'warning';
+        }
+
+        return [
+            'status' => $status,
+            'is_valid' => $isValid,
+            'app_id_matches' => $appIdMatches,
+            'configured_app_id' => $this->appId,
+            'token_app_id' => $tokenData['app_id'] ?? null,
+            'token_type' => $tokenData['type'] ?? null,
+            'expires_at' => $expiresAt,
+            'granted_scopes' => $grantedScopes,
+            'required_scopes' => self::REQUIRED_TOKEN_SCOPES,
+            'recommended_scopes' => self::RECOMMENDED_TOKEN_SCOPES,
+            'missing_required_scopes' => $missingRequired,
+            'missing_recommended_scopes' => $missingRecommended,
+            'granular_scopes' => $tokenData['granular_scopes'] ?? [],
+        ];
+    }
+
     public function listWhatsappSenders(): array
     {
         return [[
@@ -82,6 +144,16 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'default' => true,
             'phone_number_id' => $this->phoneNumberId,
         ]];
+    }
+
+    public function resolveSenderContext(?string $overrideFrom = null): array
+    {
+        $selectedNumber = $overrideFrom ?: ($this->displayPhoneNumber ?: $this->phoneNumberId);
+
+        return [
+            'phone_number_id' => $this->phoneNumberId,
+            'display_phone_number' => $selectedNumber,
+        ];
     }
 
     public function sendTemplateFromSubjectMessage(
@@ -139,6 +211,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             ]];
         }
 
+        $senderContext = $this->resolveSenderContext($overrideFrom);
         $response = $this->post("{$this->phoneNumberId}/messages", $payload);
         $messageId = $response['messages'][0]['id'] ?? null;
 
@@ -152,6 +225,8 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'sid' => $messageId,
             'message_id' => $messageId,
             'status' => 'accepted',
+            'phone_number_id' => $senderContext['phone_number_id'],
+            'display_phone_number' => $senderContext['display_phone_number'],
             'raw' => $response,
         ];
     }
@@ -167,6 +242,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             throw new \InvalidArgumentException('Message body cannot be empty.');
         }
 
+        $senderContext = $this->resolveSenderContext($overrideFrom);
         $response = $this->post("{$this->phoneNumberId}/messages", [
             'messaging_product' => 'whatsapp',
             'recipient_type' => 'individual',
@@ -184,6 +260,8 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'sid' => $messageId,
             'message_id' => $messageId,
             'status' => 'accepted',
+            'phone_number_id' => $senderContext['phone_number_id'],
+            'display_phone_number' => $senderContext['display_phone_number'],
             'raw' => $response,
         ];
     }
@@ -257,7 +335,52 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en_US', string $category = 'UTILITY', array $mediaUrls = []): array
     {
-        throw new \RuntimeException('Creating Meta templates from the app is not implemented yet. Create approved templates in Meta WhatsApp Manager first.');
+        if (!empty($mediaUrls)) {
+            throw new \RuntimeException('Creating media-header templates from the CRM is not implemented yet. Create text templates here, or use Meta WhatsApp Manager for media templates.');
+        }
+
+        $templateName = Str::of($friendlyName)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9_]+/', '_')
+            ->trim('_')
+            ->value();
+
+        if ($templateName === '') {
+            throw new \RuntimeException('Template name is required.');
+        }
+
+        $normalizedLanguage = trim($language) !== '' ? trim($language) : 'en_US';
+        $normalizedCategory = strtoupper(trim($category) !== '' ? trim($category) : 'UTILITY');
+
+        $response = $this->post("{$this->businessAccountId}/message_templates", [
+            'name' => $templateName,
+            'language' => $normalizedLanguage,
+            'category' => $normalizedCategory,
+            'components' => [
+                [
+                    'type' => 'BODY',
+                    'text' => $body,
+                ],
+            ],
+        ]);
+
+        return [
+            'sid' => $templateName,
+            'friendly_name' => $templateName,
+            'language' => $normalizedLanguage,
+            'preview' => $body,
+            'variables' => [],
+            'whatsapp' => [
+                'status' => $response['status'] ?? 'PENDING',
+                'category' => strtolower($normalizedCategory),
+            ],
+            'media' => [],
+            'header_format' => null,
+            'header_text' => null,
+            'footer_text' => null,
+            'buttons' => [],
+            'raw' => $response,
+        ];
     }
 
     public function updateWhatsAppTemplate(string $templateId, array $data): array
@@ -272,7 +395,16 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function submitTemplateForApproval(string $templateId, string $category = 'UTILITY'): array
     {
-        throw new \RuntimeException('Meta template submission is handled in WhatsApp Manager. The app only consumes approved templates for now.');
+        $template = $this->getTemplateDetails($templateId);
+
+        return [
+            'ok' => true,
+            'message' => 'Meta handles review as part of template creation. Check WhatsApp Manager for the latest review status.',
+            'whatsapp' => [
+                'status' => strtolower((string) ($template['status'] ?? 'unknown')),
+                'category' => strtolower((string) ($template['category'] ?? $category)),
+            ],
+        ];
     }
 
     protected function bodyComponent(array $components): array

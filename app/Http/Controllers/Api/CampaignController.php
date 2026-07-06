@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\EnforcesMetaPermissionHealth;
+use App\Concerns\GuardsSensitiveExports;
+use App\Concerns\HasAuditLogging;
 use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
@@ -10,6 +13,7 @@ use App\Models\CampaignWhatsappMessage;
 use App\Models\CampaignEmailRecipient;
 use App\Models\CampaignSmsRecipient;
 use App\Models\CampaignWhatsappRecipient;
+use App\Models\ExportRequest;
 use App\Models\WhatsAppFlow;
 use App\Models\Client;
 use App\Services\MetaWhatsAppService;
@@ -17,9 +21,12 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CampaignController extends Controller
 {
+    use HasAuditLogging, GuardsSensitiveExports, EnforcesMetaPermissionHealth;
+
     protected WhatsAppServiceInterface $whatsApp;
 
     public function __construct(WhatsAppServiceInterface $whatsApp)
@@ -32,21 +39,25 @@ class CampaignController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        $userDeptId = $user?->resolvedDepartmentId();
+        $userDeptIds = $user?->resolvedDepartmentIds() ?? [];
 
         $query = Campaign::query()
-            ->with('departments')
+            ->with(['departments', 'bank'])
             ->withCount('clients as total_recipients')
             ->orderByDesc('created_at');
 
+        if ($user && !$user->canAccessAllBanks() && $user->resolvedBankId()) {
+            $query->where('bank_id', $user->resolvedBankId());
+        }
+
         // Department scoping (same logic as before)
-        if ($user && $user->role !== 'SUPER_ADMIN') {
-            $query->where(function ($q) use ($userDeptId) {
+        if ($user && !$user->canManageSystemSettings()) {
+            $query->where(function ($q) use ($userDeptIds) {
                 $q->whereDoesntHave('departments');
 
-                if ($userDeptId) {
-                    $q->orWhereHas('departments', function ($qq) use ($userDeptId) {
-                        $qq->where('departments.id', $userDeptId);
+                if (!empty($userDeptIds)) {
+                    $q->orWhereHas('departments', function ($qq) use ($userDeptIds) {
+                        $qq->whereIn('departments.id', $userDeptIds);
                     });
                 }
             });
@@ -72,7 +83,7 @@ class CampaignController extends Controller
     {
         $this->authorizeView($campaign);
 
-        return $campaign->load('departments');
+        return $campaign->load(['departments', 'bank']);
     }
 
       /**
@@ -94,6 +105,16 @@ class CampaignController extends Controller
         $query = Client::query()
             ->with('departments')
             ->select('clients.*');
+
+        if ($campaign->bank_id) {
+            $query->where('clients.bank_id', $campaign->bank_id);
+        }
+
+        if ($user = Auth::user()) {
+            if ($user->isPortfolioScoped()) {
+                $query->where('clients.assigned_to_id', $user->id);
+            }
+        }
 
         if (!empty($deptIds)) {
             $query->whereHas('departments', function ($q) use ($deptIds) {
@@ -158,6 +179,16 @@ class CampaignController extends Controller
 
         // Build base allowed clients query (department-scoped)
         $allowedClientsQuery = Client::query();
+
+        if ($campaign->bank_id) {
+            $allowedClientsQuery->where('bank_id', $campaign->bank_id);
+        }
+
+        if ($user = Auth::user()) {
+            if ($user->isPortfolioScoped()) {
+                $allowedClientsQuery->where('assigned_to_id', $user->id);
+            }
+        }
 
         if (!empty($deptIds)) {
             $allowedClientsQuery->whereHas('departments', function ($q) use ($deptIds) {
@@ -225,7 +256,10 @@ class CampaignController extends Controller
         $this->authorizeView($campaign);
 
         return $campaign->clients()
-            ->with('departments')
+            ->with(['departments', 'assignedTo:id,name'])
+            ->when(Auth::user()?->isPortfolioScoped(), function ($q) {
+                $q->where('clients.assigned_to_id', Auth::id());
+            })
             ->paginate(50)
             ->through(function ($client) use ($campaign) {
                 $pivot = CampaignClient::where('campaign_id', $campaign->id)
@@ -237,6 +271,8 @@ class CampaignController extends Controller
                     'name' => $client->name,
                     'email' => $client->email,
                     'phone' => $this->normalizePhone($client->phone),
+                    'bank_name' => $client->bank_name,
+                    'assigned_to_name' => $client->assignedTo?->name,
                     'departments' => $client->departments->map(function ($dept) {
                         return ['id' => $dept->id, 'name' => $dept->name];
                     }),
@@ -251,6 +287,68 @@ class CampaignController extends Controller
             });
     }
 
+    public function exportClients(Request $request, Campaign $campaign): StreamedResponse
+    {
+        $this->authorizeView($campaign);
+        $user = Auth::user();
+        $exportRequest = $this->authorizeSensitiveExport($request, ExportRequest::DATASET_CAMPAIGN_CLIENTS, 'campaign', $campaign->id);
+
+        $query = $campaign->clients()->with(['departments', 'assignedTo:id,name']);
+        if ($user?->isPortfolioScoped()) {
+            $query->where('clients.assigned_to_id', $user->id);
+        }
+
+        $fileName = 'campaign_clients_' . $campaign->id . '_' . now()->format('Ymd_His') . '.csv';
+        $bankScope = $campaign->bank?->name ?? optional($user->bank)->name ?? 'Campaign Bank';
+
+        $this->audit(
+            action: "Exported campaign clients for campaign #{$campaign->id}",
+            module: 'Campaigns',
+            meta: [
+                'campaign_id' => $campaign->id,
+                'campaign_name' => $campaign->name,
+                'dataset' => 'clients',
+                'filename' => $fileName,
+                'bank_scope' => $bankScope,
+                'portfolio_scoped' => (bool) $user?->isPortfolioScoped(),
+                'export_request_id' => $exportRequest?->id,
+            ]
+        );
+
+        $this->markSensitiveExportCompleted($exportRequest, $fileName);
+
+        return response()->stream(function () use ($query, $user, $campaign, $bankScope) {
+            $handle = fopen('php://output', 'w');
+            $this->writeExportMetadataRows($handle, 'Campaign Clients', $user, $bankScope, $campaign);
+            fputcsv($handle, ['Client Name', 'Email', 'Phone', 'Bank', 'Assigned Owner', 'Departments', 'WhatsApp Status', 'Email Status', 'SMS Status']);
+
+            $query->chunk(200, function ($clients) use ($handle, $campaign) {
+                foreach ($clients as $client) {
+                    $pivot = CampaignClient::where('campaign_id', $campaign->id)
+                        ->where('client_id', $client->id)
+                        ->first();
+
+                    fputcsv($handle, [
+                        $client->name,
+                        $client->email,
+                        $this->normalizePhone($client->phone),
+                        $client->bank_name,
+                        $client->assignedTo?->name,
+                        $client->departments->pluck('name')->join(', '),
+                        $pivot->whatsapp_status ?? 'Pending',
+                        $pivot->email_status ?? 'Pending',
+                        $pivot->sms_status ?? 'Pending',
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+        ]);
+    }
+
 
 
     public function store(Request $request)
@@ -259,6 +357,7 @@ class CampaignController extends Controller
 
         $data = $request->validate([
             'name'              => ['required', 'string', 'max:255'],
+            'bank_id'           => ['nullable', 'integer', 'exists:banks,id'],
             'department_ids'    => ['nullable', 'array'],
             'department_ids.*'  => ['integer', 'exists:departments,id'],
             'channels'          => ['required', 'array', 'min:1'],
@@ -271,6 +370,8 @@ class CampaignController extends Controller
 
         $deptIds = $data['department_ids'] ?? [];
         unset($data['department_ids']);
+
+        $data['bank_id'] = $this->resolveCampaignBankId(Auth::user(), $data['bank_id'] ?? null);
 
         // Default WhatsApp from based on department or system
         if (empty($data['whatsapp_from'])) {
@@ -293,7 +394,7 @@ class CampaignController extends Controller
             $campaign->departments()->sync($deptIds);
         }
 
-        return response()->json($campaign->load('departments'), 201);
+        return response()->json($campaign->load(['departments', 'bank']), 201);
     }
 
     public function update(Request $request, Campaign $campaign)
@@ -302,6 +403,7 @@ class CampaignController extends Controller
 
         $data = $request->validate([
             'name'              => ['sometimes', 'string', 'max:255'],
+            'bank_id'           => ['sometimes', 'nullable', 'integer', 'exists:banks,id'],
             'department_ids'    => ['sometimes', 'nullable', 'array'],
             'department_ids.*'  => ['integer', 'exists:departments,id'],
             'channels'          => ['sometimes', 'array'],
@@ -332,13 +434,17 @@ class CampaignController extends Controller
             }
         }
 
+        if (array_key_exists('bank_id', $data) || !$campaign->bank_id) {
+            $data['bank_id'] = $this->resolveCampaignBankId(Auth::user(), $data['bank_id'] ?? $campaign->bank_id);
+        }
+
         $campaign->update($data);
 
         if (!is_null($deptIds)) {
             $campaign->departments()->sync($deptIds);
         }
 
-        return $campaign->load('departments');
+        return $campaign->load(['departments', 'bank']);
     }
 
 
@@ -392,40 +498,81 @@ class CampaignController extends Controller
     {
         $this->authorizeView($campaign);
 
-        $campaign->load([
-            'clients:id',                // just count them
-            'whatsappMessages:id,campaign_id,total,delivered,failed,pending',
-            'emailMessages:id,campaign_id,total,delivered,bounced,opened,clicked',
-            'smsMessages:id,campaign_id,total,delivered,failed,pending',
-        ]);
+        $user = Auth::user();
+        $portfolioScoped = $user?->isPortfolioScoped();
 
-        // total clients attached via pivot
-        $totalClients = $campaign->clients->count();
+        if ($portfolioScoped) {
+            $assignedClientIds = $campaign->clients()
+                ->where('clients.assigned_to_id', $user->id)
+                ->pluck('clients.id');
 
-        // WhatsApp aggregate (sum from batches)
-        $whatsTotals = [
-            'total'     => $campaign->whatsappMessages->sum('total'),
-            'delivered' => $campaign->whatsappMessages->sum('delivered'),
-            'failed'    => $campaign->whatsappMessages->sum('failed'),
-            'pending'   => $campaign->whatsappMessages->sum('pending'),
-        ];
+            $totalClients = $assignedClientIds->count();
 
-        // Email aggregate
-        $emailTotals = [
-            'total'     => $campaign->emailMessages->sum('total'),
-            'delivered' => $campaign->emailMessages->sum('delivered'),
-            'bounced'   => $campaign->emailMessages->sum('bounced'),
-            'opened'    => $campaign->emailMessages->sum('opened'),
-            'clicked'   => $campaign->emailMessages->sum('clicked'),
-        ];
+            $whatsRecipientQuery = CampaignWhatsappRecipient::query()
+                ->whereIn('whatsapp_message_id', $campaign->whatsappMessages()->select('id'))
+                ->whereIn('client_id', $assignedClientIds);
 
-        // SMS aggregate
-        $smsTotals = [
-            'total'     => $campaign->smsMessages->sum('total'),
-            'delivered' => $campaign->smsMessages->sum('delivered'),
-            'failed'    => $campaign->smsMessages->sum('failed'),
-            'pending'   => $campaign->smsMessages->sum('pending'),
-        ];
+            $whatsTotals = [
+                'total'     => (clone $whatsRecipientQuery)->count(),
+                'delivered' => (clone $whatsRecipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count(),
+                'failed'    => (clone $whatsRecipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])->count(),
+                'pending'   => (clone $whatsRecipientQuery)->whereIn(\DB::raw('LOWER(status)'), ['pending', 'queued', 'scheduled'])->count(),
+            ];
+
+            $emailRecipientQuery = CampaignEmailRecipient::query()
+                ->whereIn('campaign_email_message_id', $campaign->emailMessages()->select('id'))
+                ->whereIn('client_id', $assignedClientIds);
+
+            $emailTotals = [
+                'total'     => (clone $emailRecipientQuery)->count(),
+                'delivered' => (clone $emailRecipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count(),
+                'bounced'   => (clone $emailRecipientQuery)->whereRaw('LOWER(status) = ?', ['bounced'])->count(),
+                'opened'    => (clone $emailRecipientQuery)->whereNotNull('opened_at')->count(),
+                'clicked'   => (clone $emailRecipientQuery)->whereNotNull('clicked_at')->count(),
+            ];
+
+            $smsRecipientQuery = CampaignSmsRecipient::query()
+                ->whereIn('campaign_sms_message_id', $campaign->smsMessages()->select('id'))
+                ->whereIn('client_id', $assignedClientIds);
+
+            $smsTotals = [
+                'total'     => (clone $smsRecipientQuery)->count(),
+                'delivered' => (clone $smsRecipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count(),
+                'failed'    => (clone $smsRecipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])->count(),
+                'pending'   => (clone $smsRecipientQuery)->whereIn(\DB::raw('LOWER(status)'), ['pending', 'queued', 'scheduled'])->count(),
+            ];
+        } else {
+            $campaign->load([
+                'clients:id',
+                'whatsappMessages:id,campaign_id,total,delivered,failed,pending',
+                'emailMessages:id,campaign_id,total,delivered,bounced,opened,clicked',
+                'smsMessages:id,campaign_id,total,delivered,failed,pending',
+            ]);
+
+            $totalClients = $campaign->clients->count();
+
+            $whatsTotals = [
+                'total'     => $campaign->whatsappMessages->sum('total'),
+                'delivered' => $campaign->whatsappMessages->sum('delivered'),
+                'failed'    => $campaign->whatsappMessages->sum('failed'),
+                'pending'   => $campaign->whatsappMessages->sum('pending'),
+            ];
+
+            $emailTotals = [
+                'total'     => $campaign->emailMessages->sum('total'),
+                'delivered' => $campaign->emailMessages->sum('delivered'),
+                'bounced'   => $campaign->emailMessages->sum('bounced'),
+                'opened'    => $campaign->emailMessages->sum('opened'),
+                'clicked'   => $campaign->emailMessages->sum('clicked'),
+            ];
+
+            $smsTotals = [
+                'total'     => $campaign->smsMessages->sum('total'),
+                'delivered' => $campaign->smsMessages->sum('delivered'),
+                'failed'    => $campaign->smsMessages->sum('failed'),
+                'pending'   => $campaign->smsMessages->sum('pending'),
+            ];
+        }
 
         return response()->json([
             'total_clients'  => $totalClients,
@@ -446,6 +593,8 @@ class CampaignController extends Controller
     public function whatsappMessages(Campaign $campaign)
     {
         $this->authorizeView($campaign);
+
+        $user = Auth::user();
 
         $messages = $campaign->whatsappMessages()
             ->orderByDesc('created_at')
@@ -479,14 +628,43 @@ class CampaignController extends Controller
                 'created_at',
             ]);
 
-        $mapped = $messages->map(function ($m) {
+        $assignedClientIds = null;
+        if ($user?->isPortfolioScoped()) {
+            $assignedClientIds = $campaign->clients()
+                ->where('clients.assigned_to_id', $user->id)
+                ->pluck('clients.id');
+        }
+
+        $mapped = $messages->map(function ($m) use ($assignedClientIds) {
+            $total = $m->total;
+            $delivered = $m->delivered;
+            $failed = $m->failed;
+            $pending = $m->pending;
+            $repliesCount = $m->replies_count ?? 0;
+            $yesResponsesCount = $m->yes_responses_count ?? 0;
+            $noResponsesCount = $m->no_responses_count ?? 0;
+
+            if ($assignedClientIds !== null) {
+                $recipientQuery = CampaignWhatsappRecipient::query()
+                    ->where('whatsapp_message_id', $m->id)
+                    ->whereIn('client_id', $assignedClientIds);
+
+                $total = (clone $recipientQuery)->count();
+                $delivered = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
+                $failed = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])->count();
+                $pending = (clone $recipientQuery)->whereRaw("LOWER(status) in ('pending','queued','scheduled')")->count();
+                $repliesCount = (clone $recipientQuery)->whereNotNull('last_response')->count();
+                $yesResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['yes'])->count();
+                $noResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['no'])->count();
+            }
+
             $status = 'Draft';
             if ($m->sent_at) {
-                if ($m->pending > 0) {
+                if ($pending > 0) {
                     $status = 'Pending';
-                } elseif ($m->failed > 0 && $m->delivered === 0) {
+                } elseif ($failed > 0 && $delivered === 0) {
                     $status = 'Failed';
-                } elseif ($m->delivered > 0 && $m->pending === 0) {
+                } elseif ($delivered > 0 && $pending === 0) {
                     $status = 'Delivered';
                 } else {
                     $status = 'Sent';
@@ -504,20 +682,80 @@ class CampaignController extends Controller
                 'name'          => $m->name,
                 'preview_body'  => $m->preview_body,
                 'sent_at'       => optional($m->sent_at)->toDateTimeString(),
-                'total'         => $m->total,
-                'delivered'     => $m->delivered,
-                'failed'        => $m->failed,
-                'pending'       => $m->pending,
+                'total'         => $total,
+                'delivered'     => $delivered,
+                'failed'        => $failed,
+                'pending'       => $pending,
                 'created_at'    => optional($m->created_at)->toDateTimeString(),
                 'enable_live_chat' => (bool) $m->enable_live_chat,
-                'yes_responses_count' => $m->yes_responses_count ?? 0,
-                'no_responses_count' => $m->no_responses_count ?? 0,
-                'replies_count' => $m->replies_count ?? 0,
+                'yes_responses_count' => $yesResponsesCount,
+                'no_responses_count' => $noResponsesCount,
+                'replies_count' => $repliesCount,
                 'status'        => $status,
             ];
         });
 
         return response()->json($mapped);
+    }
+
+    public function exportWhatsappMessages(Request $request, Campaign $campaign): StreamedResponse
+    {
+        $this->authorizeView($campaign);
+        $user = Auth::user();
+        $exportRequest = $this->authorizeSensitiveExport($request, ExportRequest::DATASET_CAMPAIGN_WHATSAPP_MESSAGES, 'campaign', $campaign->id);
+        $bankScope = $campaign->bank?->name ?? optional($user->bank)->name ?? 'Campaign Bank';
+        $fileName = 'campaign_whatsapp_' . $campaign->id . '_' . now()->format('Ymd_His') . '.csv';
+
+        $this->audit(
+            action: "Exported campaign WhatsApp recipients for campaign #{$campaign->id}",
+            module: 'Campaigns',
+            meta: [
+                'campaign_id' => $campaign->id,
+                'campaign_name' => $campaign->name,
+                'dataset' => 'whatsapp',
+                'filename' => $fileName,
+                'bank_scope' => $bankScope,
+                'portfolio_scoped' => (bool) $user?->isPortfolioScoped(),
+                'export_request_id' => $exportRequest?->id,
+            ]
+        );
+
+        $this->markSensitiveExportCompleted($exportRequest, $fileName);
+
+        return response()->stream(function () use ($campaign, $user, $bankScope) {
+            $handle = fopen('php://output', 'w');
+            $this->writeExportMetadataRows($handle, 'Campaign WhatsApp Recipients', $user, $bankScope, $campaign);
+            fputcsv($handle, ['Batch ID', 'Template', 'Client Name', 'Phone', 'Bank', 'Assigned Owner', 'Status', 'Delivered At', 'Last Response', 'Last Response At']);
+
+            $query = CampaignWhatsappRecipient::with(['client.assignedTo:id,name', 'message'])
+                ->whereIn('whatsapp_message_id', $campaign->whatsappMessages()->select('id'));
+
+            if ($user?->isPortfolioScoped()) {
+                $query->whereHas('client', fn ($q) => $q->where('assigned_to_id', $user->id));
+            }
+
+            $query->orderByDesc('id')->chunk(200, function ($rows) use ($handle) {
+                foreach ($rows as $row) {
+                    fputcsv($handle, [
+                        $row->whatsapp_message_id,
+                        $row->message?->template_name ?? $row->message?->name,
+                        $row->client?->name,
+                        $row->phone ?: $row->client?->phone,
+                        $row->client?->bank_name,
+                        $row->client?->assignedTo?->name,
+                        $row->status,
+                        optional($row->delivered_at)->toDateTimeString(),
+                        $row->last_response,
+                        optional($row->last_response_at)->toDateTimeString(),
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+        ]);
     }
 
     /**
@@ -542,6 +780,9 @@ class CampaignController extends Controller
         ]);
 
         $sendNow = $data['send_now'] ?? false;
+        if ($sendNow) {
+            $this->enforceMetaPermissionHealthForProduction('WhatsApp batch sending');
+        }
 
         if ($data['clients_mode'] === 'selected' && empty($data['client_ids'])) {
             return response()->json(['message' => 'client_ids is required when clients_mode = selected'], 422);
@@ -561,9 +802,22 @@ class CampaignController extends Controller
             $clientsQuery->whereIn('clients.id', $data['client_ids']);
         }
 
-        $clients = $clientsQuery->get(['clients.id', 'clients.name', 'clients.phone']);
+        $clients = $clientsQuery->get([
+            'clients.id',
+            'clients.name',
+            'clients.phone',
+            'clients.whatsapp_opted_out_at',
+            'clients.whatsapp_opt_out_reason',
+            'clients.whatsapp_contact_basis',
+            'clients.whatsapp_opted_in_at',
+        ]);
         if ($clients->isEmpty()) {
             return response()->json(['message' => 'No clients found for this batch.'], 422);
+        }
+
+        $clients = $clients->filter(fn ($client) => $this->canSendWhatsappToClient($client))->values();
+        if ($clients->isEmpty()) {
+            return response()->json(['message' => 'All selected clients are blocked by WhatsApp compliance controls (opt-out or missing lawful basis).'], 422);
         }
 
         // Refresh template/flow info
@@ -590,6 +844,8 @@ class CampaignController extends Controller
             $previewBody = $flowDef && isset($flowDef[0]['message']) ? $flowDef[0]['message'] : 'Flow start';
         }
 
+        $senderContext = $this->resolveWhatsappSenderContext($campaign->whatsapp_from);
+
         $total = $clients->count();
         $now   = now();
 
@@ -602,6 +858,8 @@ class CampaignController extends Controller
                 'whatsapp_message_id' => $message->id,
                 'client_id'           => $client->id,
                 'phone'               => $this->normalizePhone($client->phone),
+                'provider_phone_number_id' => $senderContext['phone_number_id'],
+                'provider_display_phone_number' => $senderContext['display_phone_number'],
                 'status'              => $sendNow ? 'pending' : 'draft',
                 'created_at'          => $now,
                 'updated_at'          => $now,
@@ -614,6 +872,8 @@ class CampaignController extends Controller
             'mode'             => $mode,
             'template_sid'     => $templateSid,
             'template_name'    => $friendlyName,
+            'provider_phone_number_id' => $senderContext['phone_number_id'],
+            'provider_display_phone_number' => $senderContext['display_phone_number'],
             'name'             => $friendlyName,
             'preview_body'     => $previewBody,
             'whatsapp_flow_id' => $flowId,
@@ -642,6 +902,12 @@ class CampaignController extends Controller
                 if (!$client->phone) {
                     continue;
                 }
+                if (!$this->canSendWhatsappToClient($client)) {
+                    CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
+                        ->where('client_id', $client->id)
+                        ->update(['status' => $this->whatsappComplianceBlockedStatus($client)]);
+                    continue;
+                }
                 try {
                     $subject = $client->name ?? '';
                     $bodyVar = $mode === 'flow'
@@ -661,6 +927,8 @@ class CampaignController extends Controller
                         ->update([
                             'message_sid'  => $twResponse['sid'] ?? null,
                             'provider_message_id' => $twResponse['message_id'] ?? ($twResponse['sid'] ?? null),
+                            'provider_phone_number_id' => $twResponse['phone_number_id'] ?? $senderContext['phone_number_id'],
+                            'provider_display_phone_number' => $twResponse['display_phone_number'] ?? $senderContext['display_phone_number'],
                             'status'       => $mappedStatus,
                             'delivered_at' => $mappedStatus === 'Delivered' ? now() : null,
                         ]);
@@ -688,6 +956,7 @@ class CampaignController extends Controller
     public function sendDraftWhatsappMessage(Request $request, Campaign $campaign, $messageId)
     {
         $this->authorizeManageCampaign($campaign);
+        $this->enforceMetaPermissionHealthForProduction('WhatsApp draft sending');
 
         /** @var \App\Models\CampaignWhatsappMessage $message */
         $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
@@ -704,6 +973,10 @@ class CampaignController extends Controller
             ->where('whatsapp_message_id', $message->id)
             ->get();
 
+        $senderContext = $this->resolveWhatsappSenderContext(
+            $message->provider_display_phone_number ?: $campaign->whatsapp_from
+        );
+
         if ($recipients->isEmpty()) {
             return response()->json(['message' => 'No recipients found for this batch.'], 422);
         }
@@ -712,7 +985,12 @@ class CampaignController extends Controller
 
         // Update recipient statuses to pending
         CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
-            ->update(['status' => 'pending', 'updated_at' => $now]);
+            ->update([
+                'status' => 'pending',
+                'provider_phone_number_id' => $senderContext['phone_number_id'],
+                'provider_display_phone_number' => $senderContext['display_phone_number'],
+                'updated_at' => $now,
+            ]);
 
         // Update message meta
         $message->update([
@@ -720,6 +998,8 @@ class CampaignController extends Controller
             'pending'   => $recipients->count(),
             'delivered' => 0,
             'failed'    => 0,
+            'provider_phone_number_id' => $senderContext['phone_number_id'],
+            'provider_display_phone_number' => $senderContext['display_phone_number'],
         ]);
 
         // Update campaign client pivots
@@ -754,6 +1034,18 @@ class CampaignController extends Controller
                     ]);
                     continue;
                 }
+                if ($client && !$this->canSendWhatsappToClient($client)) {
+                    Log::info('Campaign draft WhatsApp send skipped: compliance blocked client', [
+                        'campaign_id' => $campaign->id,
+                        'message_id' => $message->id,
+                        'client_id' => $client->id,
+                        'recipient_id' => $recipient->id,
+                        'block_status' => $this->whatsappComplianceBlockedStatus($client),
+                    ]);
+                    $recipient->status = $this->whatsappComplianceBlockedStatus($client);
+                    $recipient->save();
+                    continue;
+                }
                 try {
                     Log::info('Campaign draft WhatsApp recipient send attempt', [
                         'campaign_id' => $campaign->id,
@@ -779,6 +1071,8 @@ class CampaignController extends Controller
                     $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');
                     $recipient->message_sid = $twResponse['sid'] ?? $recipient->message_sid;
                     $recipient->provider_message_id = $twResponse['message_id'] ?? ($twResponse['sid'] ?? $recipient->provider_message_id);
+                    $recipient->provider_phone_number_id = $twResponse['phone_number_id'] ?? $senderContext['phone_number_id'];
+                    $recipient->provider_display_phone_number = $twResponse['display_phone_number'] ?? $senderContext['display_phone_number'];
                     $recipient->status = $mappedStatus;
                     if ($mappedStatus === 'Delivered') {
                         $recipient->delivered_at = $recipient->delivered_at ?? now();
@@ -821,6 +1115,8 @@ class CampaignController extends Controller
     {
         $this->authorizeView($campaign);
 
+        $user = Auth::user();
+
         $messages = $campaign->emailMessages()
             ->orderByDesc('sent_at')
             ->get([
@@ -835,19 +1131,110 @@ class CampaignController extends Controller
                 'clicked',
             ]);
 
+        if ($user?->isPortfolioScoped()) {
+            $assignedClientIds = $campaign->clients()
+                ->where('clients.assigned_to_id', $user->id)
+                ->pluck('clients.id');
+
+            $messages = $messages->map(function ($message) use ($assignedClientIds) {
+                $recipientQuery = CampaignEmailRecipient::query()
+                    ->where('campaign_email_message_id', $message->id)
+                    ->whereIn('client_id', $assignedClientIds);
+
+                $message->total = (clone $recipientQuery)->count();
+                $message->delivered = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
+                $message->bounced = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['bounced'])->count();
+                $message->opened = (clone $recipientQuery)->whereNotNull('opened_at')->count();
+                $message->clicked = (clone $recipientQuery)->whereNotNull('clicked_at')->count();
+
+                return $message;
+            });
+        }
+
         return response()->json($messages);
+    }
+
+    public function exportEmails(Request $request, Campaign $campaign): StreamedResponse
+    {
+        $this->authorizeView($campaign);
+        $user = Auth::user();
+        $exportRequest = $this->authorizeSensitiveExport($request, ExportRequest::DATASET_CAMPAIGN_EMAILS, 'campaign', $campaign->id);
+        $bankScope = $campaign->bank?->name ?? optional($user->bank)->name ?? 'Campaign Bank';
+        $fileName = 'campaign_emails_' . $campaign->id . '_' . now()->format('Ymd_His') . '.csv';
+
+        $this->audit(
+            action: "Exported campaign email recipients for campaign #{$campaign->id}",
+            module: 'Campaigns',
+            meta: [
+                'campaign_id' => $campaign->id,
+                'campaign_name' => $campaign->name,
+                'dataset' => 'email',
+                'filename' => $fileName,
+                'bank_scope' => $bankScope,
+                'portfolio_scoped' => (bool) $user?->isPortfolioScoped(),
+                'export_request_id' => $exportRequest?->id,
+            ]
+        );
+
+        $this->markSensitiveExportCompleted($exportRequest, $fileName);
+
+        return response()->stream(function () use ($campaign, $user, $bankScope) {
+            $handle = fopen('php://output', 'w');
+            $this->writeExportMetadataRows($handle, 'Campaign Email Recipients', $user, $bankScope, $campaign);
+            fputcsv($handle, ['Batch ID', 'Subject', 'Client Name', 'Email', 'Phone', 'Bank', 'Assigned Owner', 'Status', 'Delivered At', 'Opened At', 'Clicked At']);
+
+            $query = CampaignEmailRecipient::with(['client.assignedTo:id,name', 'message'])
+                ->whereIn('campaign_email_message_id', $campaign->emailMessages()->select('id'));
+
+            if ($user?->isPortfolioScoped()) {
+                $query->whereHas('client', fn ($q) => $q->where('assigned_to_id', $user->id));
+            }
+
+            $query->orderByDesc('id')->chunk(200, function ($rows) use ($handle) {
+                foreach ($rows as $row) {
+                    fputcsv($handle, [
+                        $row->campaign_email_message_id,
+                        $row->message?->subject,
+                        $row->client?->name,
+                        $row->email ?: $row->client?->email,
+                        $row->client?->phone,
+                        $row->client?->bank_name,
+                        $row->client?->assignedTo?->name,
+                        $row->status,
+                        optional($row->delivered_at)->toDateTimeString(),
+                        optional($row->opened_at)->toDateTimeString(),
+                        optional($row->clicked_at)->toDateTimeString(),
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+        ]);
     }
 
     public function emailRecipients(Campaign $campaign, $emailId)
     {
         $this->authorizeView($campaign);
 
+        $user = Auth::user();
+
         $message = $campaign->emailMessages()
             ->where('id', $emailId)
             ->firstOrFail();
 
-        $recipients = CampaignEmailRecipient::with('client')
-            ->where('campaign_email_message_id', $message->id)
+        $recipientsQuery = CampaignEmailRecipient::with('client.assignedTo:id,name')
+            ->where('campaign_email_message_id', $message->id);
+
+        if ($user?->isPortfolioScoped()) {
+            $recipientsQuery->whereHas('client', function ($q) use ($user) {
+                $q->where('assigned_to_id', $user->id);
+            });
+        }
+
+        $recipients = $recipientsQuery
             ->get()
             ->map(function ($r) {
                 return [
@@ -855,6 +1242,8 @@ class CampaignController extends Controller
                     'client_name'  => $r->client?->name,
                     'email'        => $r->email ?: $r->client?->email,
                     'phone'        => $r->client?->phone,
+                    'bank_name'    => $r->client?->bank_name,
+                    'assigned_to_name' => $r->client?->assignedTo?->name,
                     'status'       => $r->status,
                     'delivered_at' => optional($r->delivered_at)->toDateTimeString(),
                 ];
@@ -887,6 +1276,8 @@ class CampaignController extends Controller
     {
         $this->authorizeView($campaign);
 
+        $user = Auth::user();
+
         $messages = $campaign->smsMessages()
             ->orderByDesc('sent_at')
             ->get([
@@ -899,19 +1290,118 @@ class CampaignController extends Controller
                 'pending',
             ]);
 
+        if ($user?->isPortfolioScoped()) {
+            $assignedClientIds = $campaign->clients()
+                ->where('clients.assigned_to_id', $user->id)
+                ->pluck('clients.id');
+
+            $messages = $messages->map(function ($message) use ($assignedClientIds) {
+                $recipientQuery = CampaignSmsRecipient::query()
+                    ->where('campaign_sms_message_id', $message->id)
+                    ->whereIn('client_id', $assignedClientIds);
+
+                $message->total = (clone $recipientQuery)->count();
+                $message->delivered = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
+                $message->failed = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])->count();
+                $message->pending = (clone $recipientQuery)->whereRaw("LOWER(status) in ('pending','queued','scheduled')")->count();
+
+                return $message;
+            });
+        }
+
         return response()->json($messages);
+    }
+
+    public function exportSmsMessages(Request $request, Campaign $campaign): StreamedResponse
+    {
+        $this->authorizeView($campaign);
+        $user = Auth::user();
+        $exportRequest = $this->authorizeSensitiveExport($request, ExportRequest::DATASET_CAMPAIGN_SMS_MESSAGES, 'campaign', $campaign->id);
+        $bankScope = $campaign->bank?->name ?? optional($user->bank)->name ?? 'Campaign Bank';
+        $fileName = 'campaign_sms_' . $campaign->id . '_' . now()->format('Ymd_His') . '.csv';
+
+        $this->audit(
+            action: "Exported campaign SMS recipients for campaign #{$campaign->id}",
+            module: 'Campaigns',
+            meta: [
+                'campaign_id' => $campaign->id,
+                'campaign_name' => $campaign->name,
+                'dataset' => 'sms',
+                'filename' => $fileName,
+                'bank_scope' => $bankScope,
+                'portfolio_scoped' => (bool) $user?->isPortfolioScoped(),
+                'export_request_id' => $exportRequest?->id,
+            ]
+        );
+
+        $this->markSensitiveExportCompleted($exportRequest, $fileName);
+
+        return response()->stream(function () use ($campaign, $user, $bankScope) {
+            $handle = fopen('php://output', 'w');
+            $this->writeExportMetadataRows($handle, 'Campaign SMS Recipients', $user, $bankScope, $campaign);
+            fputcsv($handle, ['Batch ID', 'Client Name', 'Phone', 'Bank', 'Assigned Owner', 'Status', 'Delivered At']);
+
+            $query = CampaignSmsRecipient::with(['client.assignedTo:id,name', 'message'])
+                ->whereIn('campaign_sms_message_id', $campaign->smsMessages()->select('id'));
+
+            if ($user?->isPortfolioScoped()) {
+                $query->whereHas('client', fn ($q) => $q->where('assigned_to_id', $user->id));
+            }
+
+            $query->orderByDesc('id')->chunk(200, function ($rows) use ($handle) {
+                foreach ($rows as $row) {
+                    fputcsv($handle, [
+                        $row->campaign_sms_message_id,
+                        $row->client?->name,
+                        $row->phone ?: $row->client?->phone,
+                        $row->client?->bank_name,
+                        $row->client?->assignedTo?->name,
+                        $row->status,
+                        optional($row->delivered_at)->toDateTimeString(),
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        }, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+        ]);
+    }
+
+    protected function writeExportMetadataRows($handle, string $dataset, $user, string $bankScope, Campaign $campaign): void
+    {
+        fputcsv($handle, ['Export Type', $dataset]);
+        fputcsv($handle, ['Campaign ID', $campaign->id]);
+        fputcsv($handle, ['Campaign Name', $campaign->name]);
+        fputcsv($handle, ['Exported By', $user?->name]);
+        fputcsv($handle, ['Exported At', now()->toDateTimeString()]);
+        fputcsv($handle, ['Bank Scope', $bankScope]);
+        fputcsv($handle, ['User Role', $user?->role]);
+        fputcsv($handle, ['Portfolio Scoped', $user?->isPortfolioScoped() ? 'Yes' : 'No']);
+        fputcsv($handle, []);
     }
 
     public function smsRecipients(Campaign $campaign, $smsId)
     {
         $this->authorizeView($campaign);
 
+        $user = Auth::user();
+
         $message = $campaign->smsMessages()
             ->where('id', $smsId)
             ->firstOrFail();
 
-        $recipients = CampaignSmsRecipient::with('client')
-            ->where('campaign_sms_message_id', $message->id)
+        $recipientsQuery = CampaignSmsRecipient::with('client.assignedTo:id,name')
+            ->where('campaign_sms_message_id', $message->id);
+
+        if ($user?->isPortfolioScoped()) {
+            $recipientsQuery->whereHas('client', function ($q) use ($user) {
+                $q->where('assigned_to_id', $user->id);
+            });
+        }
+
+        $recipients = $recipientsQuery
             ->get()
             ->map(function ($r) {
                 return [
@@ -919,6 +1409,8 @@ class CampaignController extends Controller
                     'client_name'  => $r->client?->name,
                     'email'        => $r->client?->email,
                     'phone'        => $r->phone ?: $r->client?->phone,
+                    'bank_name'    => $r->client?->bank_name,
+                    'assigned_to_name' => $r->client?->assignedTo?->name,
                     'status'       => $r->status,
                     'delivered_at' => optional($r->delivered_at)->toDateTimeString(),
                 ];
@@ -948,15 +1440,24 @@ class CampaignController extends Controller
     {
         $this->authorizeView($campaign);
 
+        $user = Auth::user();
+
         /** @var \App\Models\CampaignWhatsappMessage $message */
         $message = $campaign->whatsappMessages()
             ->where('id', $messageId)
             ->firstOrFail();
 
         // Load recipients + client + client departments
-        $recipientModels = CampaignWhatsappRecipient::with(['client.departments'])
-            ->where('whatsapp_message_id', $message->id)
-            ->get();
+        $recipientModelsQuery = CampaignWhatsappRecipient::with(['client.departments', 'client.assignedTo:id,name'])
+            ->where('whatsapp_message_id', $message->id);
+
+        if ($user?->isPortfolioScoped()) {
+            $recipientModelsQuery->whereHas('client', function ($q) use ($user) {
+                $q->where('assigned_to_id', $user->id);
+            });
+        }
+
+        $recipientModels = $recipientModelsQuery->get();
 
         // Map to shape expected by the Vue modal
         $recipients = $recipientModels->map(function ($r) {
@@ -971,6 +1472,8 @@ class CampaignController extends Controller
                 'client_name'      => $client?->name,
                 'email'            => $client?->email,
                 'phone'            => $r->phone ?: ($client?->phone ?? null),
+                'bank_name'        => $client?->bank_name,
+                'assigned_to_name' => $client?->assignedTo?->name,
                 'department_names' => $departments->pluck('name')->join(', ') ?: null,
                 'status'           => $r->status,
                 'delivered_at'     => optional($r->delivered_at)->toDateTimeString(),
@@ -1013,11 +1516,12 @@ class CampaignController extends Controller
             'id'            => $message->id,
             'mode'          => $message->mode ?? 'template',
             'flow_name'     => $message->flow_name,
-            'template_name' => $message->template_name ?? $message->name,
-            'subject'       => null, // WhatsApp has no subject, keep for consistency with Email
-            'status'        => $status,
-            'can_send'      => !$message->sent_at, // enable "Send Now" if not yet sent
-        ];
+                'template_name' => $message->template_name ?? $message->name,
+                'subject'       => null, // WhatsApp has no subject, keep for consistency with Email
+                'status'        => $status,
+                'can_send'      => !$message->sent_at, // enable "Send Now" if not yet sent
+                'reply_number'  => $message->provider_display_phone_number,
+            ];
 
         return response()->json([
             // kept for backward compatibility if you still use it somewhere
@@ -1065,6 +1569,9 @@ class CampaignController extends Controller
         ]);
 
         $sendNow = $data['send_now'] ?? true;
+        if ($sendNow) {
+            $this->enforceMetaPermissionHealthForProduction('WhatsApp batch sending');
+        }
 
         if ($data['clients_mode'] === 'selected' && empty($data['client_ids'])) {
             return response()->json([
@@ -1088,11 +1595,27 @@ class CampaignController extends Controller
             $clientsQuery->whereIn('clients.id', $ids);
         }
 
-        $clients = $clientsQuery->get(['clients.id', 'clients.name', 'clients.phone']);
+        $clients = $clientsQuery->get([
+            'clients.id',
+            'clients.name',
+            'clients.phone',
+            'clients.whatsapp_opted_out_at',
+            'clients.whatsapp_opt_out_reason',
+            'clients.whatsapp_contact_basis',
+            'clients.whatsapp_opted_in_at',
+        ]);
 
         if ($clients->isEmpty()) {
             return response()->json([
                 'message' => 'No clients found for this batch.',
+            ], 422);
+        }
+
+        $clients = $clients->filter(fn ($client) => $this->canSendWhatsappToClient($client))->values();
+
+        if ($clients->isEmpty()) {
+            return response()->json([
+                'message' => 'All selected clients are blocked by WhatsApp compliance controls (opt-out or missing lawful basis).',
             ], 422);
         }
 
@@ -1121,6 +1644,8 @@ class CampaignController extends Controller
             $previewBody  = $flowDef && isset($flowDef[0]['message']) ? $flowDef[0]['message'] : 'Flow start';
         }
 
+        $senderContext = $this->resolveWhatsappSenderContext($campaign->whatsapp_from);
+
         // Create parent WhatsApp "batch" row via relationship
         $total = $clients->count();
         $now   = now();
@@ -1129,6 +1654,8 @@ class CampaignController extends Controller
             'mode'              => $mode,
             'template_sid'      => $templateSid,
             'template_name'     => $friendlyName,
+            'provider_phone_number_id' => $senderContext['phone_number_id'],
+            'provider_display_phone_number' => $senderContext['display_phone_number'],
             'name'              => $friendlyName,
             'preview_body'      => $previewBody,
             'whatsapp_flow_id'  => $flowId,
@@ -1150,6 +1677,8 @@ class CampaignController extends Controller
                 'whatsapp_message_id' => $message->id,
                 'client_id'                    => $client->id,
                 'phone'                        => $this->normalizePhone($client->phone),
+                'provider_phone_number_id'     => $senderContext['phone_number_id'],
+                'provider_display_phone_number'=> $senderContext['display_phone_number'],
                 'status'                       => $sendNow ? 'pending' : 'draft',
                 'created_at'                   => $now,
                 'updated_at'                   => $now,
@@ -1189,6 +1718,18 @@ class CampaignController extends Controller
                     ]);
                     continue;
                 }
+                if (!$this->canSendWhatsappToClient($client)) {
+                    Log::info('Campaign WhatsApp send skipped: compliance blocked client', [
+                        'campaign_id' => $campaign->id,
+                        'message_id' => $message->id,
+                        'client_id' => $client->id,
+                        'block_status' => $this->whatsappComplianceBlockedStatus($client),
+                    ]);
+                    CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
+                        ->where('client_id', $client->id)
+                        ->update(['status' => $this->whatsappComplianceBlockedStatus($client)]);
+                    continue;
+                }
 
                 try {
                     Log::info('Campaign WhatsApp recipient send attempt', [
@@ -1219,6 +1760,8 @@ class CampaignController extends Controller
                         ->update([
                             'message_sid'  => $twResponse['sid'] ?? null,
                             'provider_message_id' => $twResponse['message_id'] ?? ($twResponse['sid'] ?? null),
+                            'provider_phone_number_id' => $twResponse['phone_number_id'] ?? $senderContext['phone_number_id'],
+                            'provider_display_phone_number' => $twResponse['display_phone_number'] ?? $senderContext['display_phone_number'],
                             'status'       => $mappedStatus,
                             'delivered_at' => $mappedStatus === 'Delivered' ? now() : null,
                         ]);
@@ -1261,7 +1804,7 @@ class CampaignController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user || !in_array($user->role, ['SUPER_ADMIN', 'MANAGER'])) {
+        if (!$user || !$user->canManageOperationalData()) {
             abort(403, 'You are not allowed to manage campaigns.');
         }
     }
@@ -1269,15 +1812,19 @@ class CampaignController extends Controller
     protected function authorizeView(Campaign $campaign): void
     {
         $user = Auth::user();
-        $userDeptId = $user?->resolvedDepartmentId();
+        $userDeptIds = $user?->resolvedDepartmentIds() ?? [];
 
         if (!$user) {
             abort(401);
         }
 
-        // SUPER_ADMIN can view all
-        if ($user->role === 'SUPER_ADMIN') {
+        // System admins can view all
+        if ($user->canAccessAllBanks()) {
             return;
+        }
+
+        if ($user->resolvedBankId() && (int) $campaign->bank_id !== $user->resolvedBankId()) {
+            abort(403, 'You are not allowed to view this campaign.');
         }
 
         $campaign->loadMissing('departments');
@@ -1288,15 +1835,52 @@ class CampaignController extends Controller
             return;
         }
 
-        if (!$userDeptId || !in_array($userDeptId, $campaignDeptIds, true)) {
+        if (empty(array_intersect($userDeptIds, $campaignDeptIds))) {
             abort(403, 'You are not allowed to view this campaign.');
         }
+
     }
 
     protected function authorizeManageCampaign(Campaign $campaign): void
     {
         $this->authorizeManage();
         $this->authorizeView($campaign);
+    }
+
+    protected function resolveCampaignBankId($user, $requestedBankId): int
+    {
+        if (!$user) {
+            abort(401);
+        }
+
+        if ($user->canAccessAllBanks()) {
+            if (!$requestedBankId) {
+                abort(422, 'A bank is required for this campaign.');
+            }
+
+            return (int) $requestedBankId;
+        }
+
+        if (!$user->resolvedBankId()) {
+            abort(422, 'Your user account is not assigned to a bank.');
+        }
+
+        return $user->resolvedBankId();
+    }
+
+    protected function resolveWhatsappSenderContext(?string $overrideFrom = null): array
+    {
+        if (method_exists($this->whatsApp, 'resolveSenderContext')) {
+            return $this->whatsApp->resolveSenderContext($overrideFrom);
+        }
+
+        $senders = $this->whatsApp->listWhatsappSenders();
+        $sender = collect($senders)->firstWhere('number', $overrideFrom) ?? collect($senders)->firstWhere('default', true) ?? ($senders[0] ?? []);
+
+        return [
+            'phone_number_id' => $sender['phone_number_id'] ?? null,
+            'display_phone_number' => $sender['number'] ?? $overrideFrom,
+        ];
     }
 
     protected function mapTwilioStatus(?string $status): string
@@ -1323,6 +1907,46 @@ class CampaignController extends Controller
         return str_starts_with($raw, '+') ? $raw : $raw;
     }
 
+    protected function isWhatsappSuppressedClient($client): bool
+    {
+        if (!$client) {
+            return false;
+        }
+
+        if ($client instanceof Client) {
+            return $client->isWhatsappSuppressed();
+        }
+
+        return !empty($client->whatsapp_opted_out_at);
+    }
+
+    protected function clientHasWhatsappLawfulBasis($client): bool
+    {
+        if (!$client) {
+            return false;
+        }
+
+        if ($client instanceof Client) {
+            return $client->hasWhatsappLawfulBasis();
+        }
+
+        return !empty($client->whatsapp_contact_basis) || !empty($client->whatsapp_opted_in_at);
+    }
+
+    protected function canSendWhatsappToClient($client): bool
+    {
+        return !$this->isWhatsappSuppressedClient($client) && $this->clientHasWhatsappLawfulBasis($client);
+    }
+
+    protected function whatsappComplianceBlockedStatus($client): string
+    {
+        if ($this->isWhatsappSuppressedClient($client)) {
+            return 'Suppressed';
+        }
+
+        return 'No Lawful Basis';
+    }
+
     protected function refreshWhatsappMessageCounts(?CampaignWhatsappMessage $message): void
     {
         if (!$message) {
@@ -1331,7 +1955,7 @@ class CampaignController extends Controller
 
         $delivered = $message->recipients()->whereRaw('LOWER(status) = ?', ['delivered'])->count();
         $failed    = $message->recipients()->whereRaw('LOWER(status) = ?', ['failed'])->count();
-        $pending   = $message->recipients()->whereNotIn('status', ['Delivered', 'Failed'])->count();
+        $pending   = $message->recipients()->whereNotIn('status', ['Delivered', 'Failed', 'Suppressed'])->count();
 
         $message->update([
             'delivered' => $delivered,

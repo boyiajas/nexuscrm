@@ -103,9 +103,9 @@
               type="text"
               class="form-control"
               placeholder="Type a message or choose a template..."
-              :disabled="!activeSession"
+              :disabled="!activeSession || !canManageChat"
             />
-            <button class="btn btn-primary" type="submit" :disabled="!activeSession || !newMessage.trim()">
+            <button class="btn btn-primary" type="submit" :disabled="!activeSession || !newMessage.trim() || !canManageChat">
               Send
             </button>
           </form>
@@ -130,6 +130,15 @@ export default {
       filterStatus: 'active',
     };
   },
+  computed: {
+    canManageChat() {
+      const stored = localStorage.getItem('nexus_user');
+      if (!stored) return false;
+
+      const role = JSON.parse(stored)?.role;
+      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
+    },
+  },
   mounted() {
     this.fetchSessions().then(() => {
       this.handleQueryClient();
@@ -152,7 +161,7 @@ export default {
     },
     handleQueryClient() {
       const clientId = this.$route.query.client_id;
-      if (!clientId) return;
+      if (!clientId || !this.canManageChat) return;
 
       axios
         .post('/api/chat/session-for-client', {
@@ -170,6 +179,8 @@ export default {
         });
     },
     sendMessage() {
+      if (!this.canManageChat) return;
+
       const content = this.newMessage.trim();
       if (!content || !this.activeSession) return;
 

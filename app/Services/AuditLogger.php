@@ -20,6 +20,7 @@ class AuditLogger
 
         AuditLog::create([
             'user_id'    => $user?->id,
+            'bank_id'    => $user?->resolvedBankId(),
             'action'     => $action,
             'module'     => $module,
             'ip_address' => request()?->ip(),

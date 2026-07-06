@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Use of WhatsApp for Customer Communication and Data Collection - Response</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.45; color: #111; margin: 32px; }
+    h1, h2 { color: #0b3d91; margin-bottom: 8px; }
+    h1 { font-size: 18pt; }
+    h2 { font-size: 13pt; margin-top: 24px; }
+    p { margin: 6px 0; }
+    .meta { margin-bottom: 18px; }
+    .meta div { margin: 4px 0; }
+    .note { background: #f5f8ff; border-left: 4px solid #0b3d91; padding: 10px 12px; margin: 14px 0; }
+    .q { margin-top: 14px; font-weight: bold; }
+    .a { margin-top: 4px; }
+    .muted { color: #555; }
+    ul { margin: 6px 0 6px 22px; }
+    li { margin: 3px 0; }
+    .tick { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Supplier Questionnaire Response</h1>
+  <p><strong>Use of WhatsApp for Customer Communication and Data Collection</strong></p>
+
+  <div class="meta">
+    <div><strong>Supplier Name:</strong> Strauss Recovery Solutions / NexusCRM WhatsApp Collections Platform</div>
+    <div><strong>Service Description:</strong> WhatsApp-enabled CRM and collections communication platform for debtor/customer engagement, live chat, and campaign-based messaging</div>
+    <div><strong>Business Unit / Product:</strong> Customer collections / debtor engagement / live chat / WhatsApp campaign management</div>
+    <div><strong>Date Completed:</strong> 2026-06-25</div>
+    <div><strong>Completed By (Name &amp; Role):</strong> OpenAI Codex - repository-based implementation response draft</div>
+  </div>
+
+  <div class="note">
+    This response is based on the application repository, configuration flows, database schema, and feature documentation available in <code>/var/www/Laravel_Projects/nexuscrm</code> as at 2026-06-25. Where the repository does not prove an operational or contractual fact, the answer is marked <strong>To be confirmed operationally</strong>.
+  </div>
+
+  <h2>Overview &amp; Purpose</h2>
+
+  <div class="q">1. Please describe the business purpose for using WhatsApp to communicate with customers.</div>
+  <div class="a">WhatsApp is used as a controlled customer communication channel for collections and account follow-up workflows. The platform supports outbound campaign messaging, approved WhatsApp templates, inbound customer replies, and optional live-chat escalation so authorised staff can contact debtors/customers regarding collections, reminders, and service follow-up in an auditable system rather than unmanaged personal messaging.</div>
+
+  <div class="q">2. Is WhatsApp used as:</div>
+  <div class="a">
+    <div><span class="tick">☐</span> One-way communication only (notifications / reminders)</div>
+    <div><span class="tick">☑</span> Two-way communication</div>
+    <div><span class="tick">☑</span> Automated chatbot interaction</div>
+    <div><span class="tick">☑</span> Other (please specify): campaign-based template messaging with optional live-agent follow-up</div>
+  </div>
+
+  <div class="q">3. Is WhatsApp the primary customer interaction channel or a supporting channel to another platform?</div>
+  <div class="a">Supporting channel. The platform is a CRM with multi-channel capability (WhatsApp, email, SMS), and WhatsApp is one supported engagement path rather than the only customer interaction platform.</div>
+
+  <div class="q">4. Which customer journey stages involve WhatsApp (e.g. application, collections, service queries)?</div>
+  <div class="a">
+    <ul>
+      <li>Collections and debt follow-up campaigns</li>
+      <li>Reminder and notification messaging</li>
+      <li>Customer reply capture and response tracking</li>
+      <li>Service queries / live chat once a customer replies</li>
+      <li>Escalation from automated flow/template messaging to agent-assisted conversation</li>
+    </ul>
+  </div>
+
+  <h2>Data Collection via WhatsApp</h2>
+
+  <div class="q">5. What types of customer data are collected, transmitted, or referenced via WhatsApp? (Please select all that apply)</div>
+  <div class="a">
+    <div><span class="tick">☑</span> Name and surname</div>
+    <div><span class="tick">☑</span> Contact details</div>
+    <div><span class="tick">☐</span> ID / passport numbers</div>
+    <div><span class="tick">☑</span> Account or reference numbers</div>
+    <div><span class="tick">☑</span> Financial information</div>
+    <div><span class="tick">☐</span> Documents or images (e.g. ID, proofs) <span class="muted">not evidenced in current WhatsApp workflow implementation</span></div>
+    <div><span class="tick">☑</span> Other: conversation content, delivery status, consent / lawful-basis metadata, reply history, assigned department / bank context</div>
+  </div>
+
+  <div class="q">6. Do customers enter personal information directly into WhatsApp messages?</div>
+  <div class="a"><span class="tick">☑</span> Yes. The system supports inbound free-text customer replies, which may contain personal information entered by the customer.</div>
+
+  <div class="q">7. Are customers redirected via WhatsApp links to another system or platform to submit information?</div>
+  <div class="a"><span class="tick">☐</span> Yes<br><span class="tick">☑</span> No, based on the repository and current documented flows. If links are added in template content in future, that should be reassessed.</div>
+
+  <h2>Message Content &amp; Customer Interaction</h2>
+
+  <div class="q">8. Please provide all WhatsApp message templates, including initial messages, automated responses, follow-ups, and error or escalation messages.</div>
+  <div class="a">
+    <p>The application uses provider-managed approved WhatsApp templates and stored WhatsApp flow definitions. Template content is managed through the WhatsApp template manager and provider API rather than being hard-coded in the repository.</p>
+    <p><strong>Named templates observed in the current system/repository context include:</strong></p>
+    <ul>
+      <li><code>iconis_promo</code></li>
+      <li><code>sampletwo</code></li>
+      <li><code>sample_param_work</code></li>
+      <li><code>copy_sample_param_work</code></li>
+      <li><code>staussdaly</code></li>
+      <li>Auto-generated WhatsApp tryout templates for marketing, commerce, and support</li>
+    </ul>
+    <p><strong>Message categories supported by the platform:</strong></p>
+    <ul>
+      <li>Initial outbound campaign/template messages</li>
+      <li>Automated WhatsApp flow messages with yes/no branching</li>
+      <li>Follow-up messages through additional campaign batches or flow steps</li>
+      <li>Agent-authored manual chat replies in live chat</li>
+      <li>Error handling is operationally logged; user-facing error/escalation templates are not explicitly enumerated in the repository</li>
+    </ul>
+    <p><strong>Important note:</strong> A complete, point-in-time list of live production template bodies should be exported from the WhatsApp template administration screen or provider console before external submission, because the exact content is maintained in the provider layer and may change over time.</p>
+  </div>
+
+  <div class="q">9. Are messages:</div>
+  <div class="a">
+    <div><span class="tick">☑</span> Manual</div>
+    <div><span class="tick">☑</span> Automated</div>
+    <div><span class="tick">☑</span> Hybrid</div>
+  </div>
+
+  <div class="q">10. Do any messages include clickable links?</div>
+  <div class="a"><span class="tick">☐</span> Yes<br><span class="tick">☑</span> No evidence of clickable links is present in the current repository-based WhatsApp implementation. If links are added in future template content, the redirect destination and captured data must be documented separately.</div>
+
+  <h2>Data Storage, Processing &amp; Retention</h2>
+
+  <div class="q">11. Is any customer data stored within WhatsApp or WhatsApp Business tools?</div>
+  <div class="a"><span class="tick">☑</span> Yes. Message content and message-routing metadata necessarily transit through and are processed by the WhatsApp provider stack (Twilio and Meta/WhatsApp) as part of API-based messaging.</div>
+
+  <div class="q">12. What customer data is stored on your systems as a result of WhatsApp interactions?</div>
+  <div class="a">
+    <ul>
+      <li>Customer name, phone, and where available email address</li>
+      <li>Bank/account context and masked account/ID display fields in the client record</li>
+      <li>WhatsApp lawful basis / consent-related fields such as contact basis, opt-in source, opt-in timestamp, opt-out timestamp, and opt-out reason</li>
+      <li>Campaign WhatsApp batch records and recipient records</li>
+      <li>Delivery status, provider message SID, error code, error message, delivery timestamp</li>
+      <li>Inbound reply content and reply timestamps</li>
+      <li>Live chat session and chat message content where live chat is used</li>
+      <li>Audit trail entries for relevant actions</li>
+    </ul>
+  </div>
+
+  <div class="q">13. Where is this data hosted (country / region)?</div>
+  <div class="a">Application-hosting region is <strong>to be confirmed operationally</strong> from the production infrastructure owner. The repository does not itself prove the deployment country/region. Provider-side WhatsApp message handling is performed through Twilio/Meta infrastructure subject to the configured account region and provider routing.</div>
+
+  <div class="q">14. What is the retention period for WhatsApp-related customer data?</div>
+  <div class="a">The repository includes a compliance console with configurable retention policies and retention actions, including retention days, archive-after days, and delete-after days. A fixed production retention period for WhatsApp-related data is <strong>not hard-coded in the repository</strong> and should be confirmed from the active compliance policy approved for the relevant bank/business unit.</div>
+
+  <div class="q">15. How is data securely deleted once the retention period expires?</div>
+  <div class="a">The platform includes a controlled retention workflow for archive/delete actions, with approval and completion tracking in the compliance module and audit logging of these actions. The exact operational secure-deletion method (e.g. database purge schedule, backup lifecycle, storage destruction standards) should be confirmed from the production retention and infrastructure procedures.</div>
+
+  <h2>Technology &amp; Third Parties</h2>
+
+  <div class="q">16. Do you use a WhatsApp Business API provider?</div>
+  <div class="a"><span class="tick">☑</span> Yes - Twilio is used as the WhatsApp Business API provider, with Meta/WhatsApp as the underlying messaging platform.</div>
+
+  <div class="q">17. Do any third parties or sub-processors have access to WhatsApp conversations or data?</div>
+  <div class="a"><span class="tick">☑</span> Yes. Twilio and Meta/WhatsApp necessarily process WhatsApp message traffic. Infrastructure/hosting providers may also have platform-level access depending on deployment architecture; that portion should be confirmed operationally.</div>
+
+  <div class="q">18. Who within your organisation has access rights to WhatsApp conversations?</div>
+  <div class="a">Access is restricted to authenticated application users with operational access to the CRM, including authorised staff/agents, supervisors/managers, and administrators, subject to role and data-scope controls. The repository also supports audit/compliance roles with broader review access to oversight data. Access is not public and is mediated through authenticated API and application roles.</div>
+
+  <h2>Customer Consent &amp; Transparency</h2>
+
+  <div class="q">19. How is customer consent obtained for WhatsApp communication?</div>
+  <div class="a">
+    <div><span class="tick">☐</span> Explicit opt-in</div>
+    <div><span class="tick">☐</span> Embedded in general consent</div>
+    <div><span class="tick">☑</span> Other (please specify): the platform records a lawful-contact basis per client, including values such as <code>opt_in</code>, <code>contract</code>, <code>legitimate_interest</code>, <code>bank_instruction</code>, and <code>consent_refresh</code>. In the current collections workflow, the implementation strongly indicates reliance on bank-provided instruction / lawful basis metadata rather than WhatsApp-only opt-in as the sole model.</div>
+  </div>
+
+  <div class="q">20. Is consent channel-specific (i.e. WhatsApp-only)?</div>
+  <div class="a"><span class="tick">☐</span> Yes<br><span class="tick">☑</span> No. The implementation stores WhatsApp-specific contact-basis controls, but the lawful basis may originate from broader bank/customer collections instructions rather than a separate WhatsApp-only consent in every case.</div>
+
+  <div class="q">21. How can customers opt out of WhatsApp communication?</div>
+  <div class="a">The client record supports WhatsApp suppression/opt-out fields. Customers can be marked opted out, with an opt-out timestamp and reason recorded, after which the platform can suppress further WhatsApp communication for that client.</div>
+
+  <div class="q">22. How are customers informed about data being collected, purpose of processing, retention period, and their privacy rights?</div>
+  <div class="a">The repository supports compliance operations such as data subject rights, complaints, and retention workflows, but the exact customer-facing privacy notice wording is <strong>not contained in the codebase</strong>. This should be answered operationally by reference to the supplier’s privacy notice, collections disclosures, and client/bank onboarding notices.</div>
+
+  <h2>Authentication &amp; Fraud Controls</h2>
+
+  <div class="q">23. How do you verify the identity of the customer on WhatsApp before sharing information?</div>
+  <div class="a">The repository does not implement a dedicated in-chat identity verification workflow before sharing account-specific details. Operationally, this should be treated as a controlled communications channel with minimal disclosure until the customer is verified through approved business procedures. This point should be confirmed and documented by the operations/compliance owner before external submission.</div>
+
+  <div class="q">24. Is WhatsApp used for:</div>
+  <div class="a">
+    <div><span class="tick">☐</span> Identity verification</div>
+    <div><span class="tick">☑</span> Account-specific discussions</div>
+    <div><span class="tick">☐</span> Transactional actions</div>
+  </div>
+
+  <div class="q">25. What controls are in place to mitigate impersonation, SIM-swap risk, and incorrect recipient communication?</div>
+  <div class="a">
+    <ul>
+      <li>Outbound messaging uses structured campaign recipient records rather than ad hoc manual messaging</li>
+      <li>WhatsApp recipient phone numbers are normalised before send</li>
+      <li>Per-client suppression and lawful-basis controls reduce inappropriate contact</li>
+      <li>Role-based access, authenticated users, audit logging, and campaign traceability support post-event investigation</li>
+      <li>Provider delivery statuses and error logging support detection of messaging issues</li>
+      <li>However, explicit SIM-swap detection or strong in-channel identity-verification logic is not evidenced in the repository and should be described as an external/operational control if it exists</li>
+    </ul>
+  </div>
+
+  <h2>Security &amp; Incident Management</h2>
+
+  <div class="q">26. Please describe the security controls applied to WhatsApp-related data (e.g. access controls, encryption).</div>
+  <div class="a">
+    <ul>
+      <li>Authenticated API access using Sanctum</li>
+      <li>Password hashing and login throttling</li>
+      <li>MFA support for higher-privilege users</li>
+      <li>Role-based access controls and department/bank scoping across operational data</li>
+      <li>Audit logging of authentication and mutating actions</li>
+      <li>Provider-mediated WhatsApp message transport through Twilio/Meta</li>
+      <li>Message status tracking, error logging, and webhook traceability</li>
+      <li>Consent/lawful-basis and suppression fields on client records</li>
+      <li>Controlled export and compliance workflows in the broader platform</li>
+    </ul>
+  </div>
+
+  <div class="q">27. Do you have incident response procedures covering WhatsApp-related data?</div>
+  <div class="a"><span class="tick">☑</span> Yes. The repository contains a security incident workflow and a compliance framework intended to support incident handling, escalation, evidence preservation, and review. Formal attached procedures should be supplied from operational governance documents.</div>
+
+  <div class="q">28. Have you experienced any WhatsApp-related data incidents in the past 24 months?</div>
+  <div class="a"><span class="tick">☐</span> Yes<br><span class="tick">☑</span> No evidence is present in the repository. Actual incident history must be confirmed from production incident records.</div>
+
+  <h2>Governance, Compliance &amp; Oversight</h2>
+
+  <div class="q">29. Do you have a policy governing WhatsApp usage?</div>
+  <div class="a"><span class="tick">☑</span> Yes, repository evidence indicates a broader compliance/security governance framework, but the formal policy document itself is not contained here and should be attached from the supplier’s policy set.</div>
+
+  <div class="q">30. How is WhatsApp usage monitored and reviewed on an ongoing basis?</div>
+  <div class="a">Usage is monitored through campaign batch dashboards, recipient-level delivery status records, inbound reply tracking, live chat history, webhook processing, Twilio provider logs, and application audit trails. Compliance, audit, and incident-management features also support review and oversight workflows.</div>
+
+  <div class="q">31. Can WhatsApp usage be restricted, modified, or terminated at the bank’s request?</div>
+  <div class="a">Yes, functionally the platform can restrict or modify WhatsApp usage by changing campaign scope, department/bank access, lawful-basis/suppression status, sender/template configuration, and retention/compliance settings. Contractual termination rights should be confirmed in the supplier-bank agreement.</div>
+
+  <h2>Exit &amp; Termination</h2>
+
+  <div class="q">33. What happens to WhatsApp-related customer data upon contract termination?</div>
+  <div class="a">The repository supports retention and deletion workflows, auditability, and controlled records management, but the exact exit procedure on contract termination is an operational/contractual matter. The expected outcome is controlled retention for any legally required period followed by approved archive/delete actions in line with the applicable bank and legal requirements.</div>
+
+  <div class="q">34. How is data returned or destroyed?</div>
+  <div class="a">The platform supports structured data access, export controls, and retention-action workflows. Data return or destruction should occur under an approved offboarding process, including controlled export where required, documented deletion/retention actions, and audit evidence of completion. Exact technical steps and timelines should be confirmed from the supplier’s operational exit procedure.</div>
+
+</body>
+</html>

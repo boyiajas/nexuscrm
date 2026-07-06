@@ -203,15 +203,20 @@
       </div>
     </div>
 
+    <ExportRequestModal ref="exportRequestModal" />
   </div>
 </template>
 
 <script>
 import axios from '../axios';
-import { Modal } from 'bootstrap';
+import ExportRequestModal from '../components/ExportRequestModal.vue';
+import { createManagedModal, disposeManagedModal } from '../utils/modal';
 
 export default {
   name: 'AuditLogView',
+  components: {
+    ExportRequestModal,
+  },
   data() {
     return {
       logs: [],
@@ -250,11 +255,30 @@ export default {
         return String(this.detail.meta);
       }
     },
+    selectedUserName() {
+      if (!this.filters.user_id || this.filters.user_id === 'all') return '';
+      return this.userOptions.find((user) => Number(user.id) === Number(this.filters.user_id))?.name || '';
+    },
+    dateRangeLabel() {
+      if (this.filters.date_from && this.filters.date_to) {
+        return `${this.filters.date_from} to ${this.filters.date_to}`;
+      }
+      if (this.filters.date_from) {
+        return `From ${this.filters.date_from}`;
+      }
+      if (this.filters.date_to) {
+        return `Up to ${this.filters.date_to}`;
+      }
+      return 'All dates';
+    },
   },
   mounted() {
-    this.detailModal = new Modal(this.$refs.detailModalRef);
+    this.detailModal = createManagedModal(this.$refs.detailModalRef);
     this.fetchLogs();
     this.fetchUsersForFilter();
+  },
+  beforeUnmount() {
+    disposeManagedModal(this.detailModal);
   },
   methods: {
     buildQueryParams(extra = {}) {
@@ -340,8 +364,21 @@ export default {
     },
     exportCsv() {
       const params = this.buildQueryParams();
-      const query = new URLSearchParams(params).toString();
-      window.open('/api/audit-logs/export?' + query, '_blank');
+      delete params.page;
+      delete params.per_page;
+
+      this.$refs.exportRequestModal.open({
+        dataset: 'audit_logs',
+        datasetLabel: 'Audit Logs',
+        filters: params,
+        summaryRows: [
+          { label: 'Module', value: this.filters.module || 'All' },
+          { label: 'User', value: this.selectedUserName || 'All users' },
+          { label: 'Date Range', value: this.dateRangeLabel },
+          { label: 'Search', value: this.filters.q || 'No search filter' },
+        ],
+        fallbackName: 'audit_logs.csv',
+      });
     },
     openDetail(item) {
       axios.get(`/api/audit-logs/${item.id}`).then((res) => {

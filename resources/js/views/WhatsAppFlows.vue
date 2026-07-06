@@ -7,7 +7,7 @@
           Automate common WhatsApp journeys with approved Meta templates.
         </p>
       </div>
-      <button class="btn btn-primary btn-sm" @click="openModal">
+      <button class="btn btn-primary btn-sm" @click="openModal" :disabled="!canManageFlows">
         <i class="bi bi-plus-circle me-1"></i> New Flow
       </button>
     </div>
@@ -53,10 +53,10 @@
                       <button class="btn btn-outline-secondary" @click="openDiagram(flow)" title="View diagram">
                         <i class="bi bi-diagram-3"></i>
                       </button>
-                      <button class="btn btn-outline-primary" @click="startEdit(flow)" title="Edit">
+                      <button class="btn btn-outline-primary" @click="startEdit(flow)" title="Edit" :disabled="!canManageFlows">
                         <i class="bi bi-pencil"></i>
                       </button>
-                      <button class="btn btn-outline-danger" @click="deleteFlow(flow)" title="Delete">
+                      <button class="btn btn-outline-danger" @click="deleteFlow(flow)" title="Delete" :disabled="!canManageFlows">
                         <i class="bi bi-trash"></i>
                       </button>
                     </div>
@@ -265,7 +265,7 @@
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-secondary" @click="closeModal">Cancel</button>
-              <button type="submit" class="btn btn-success" :disabled="saving">
+              <button type="submit" class="btn btn-success" :disabled="saving || !canManageFlows">
                 <span v-if="saving" class="spinner-border spinner-border-sm me-2"></span>
                 Save Flow
               </button>
@@ -309,12 +309,15 @@
       </div>
     </div>
     <div v-if="diagramFlow" class="modal-backdrop fade show"></div>
+    <ConfirmationModal ref="confirmModal" />
   </div>
 </template>
 
 <script>
 import { h } from 'vue';
 import axios from '../axios';
+import ConfirmationModal from '../components/ConfirmationModal.vue';
+import { notify } from '../utils/notify';
 
 const defaultSteps = () => ([
   {
@@ -449,6 +452,7 @@ const TreeNode = {
 export default {
   name: 'WhatsAppFlows',
   components: {
+    ConfirmationModal,
     TreeNode,
   },
   data() {
@@ -477,6 +481,13 @@ export default {
     };
   },
   computed: {
+    canManageFlows() {
+      const stored = localStorage.getItem('nexus_user');
+      if (!stored) return false;
+
+      const role = JSON.parse(stored)?.role;
+      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
+    },
     imageMedia() {
       return this.templatePreview?.media || [];
     },
@@ -598,6 +609,8 @@ export default {
       }
     },
     openModal() {
+      if (!this.canManageFlows) return;
+
       this.resetForm();
       this.showModal = true;
     },
@@ -637,6 +650,8 @@ export default {
       this.flowForm.steps.splice(idx, 1);
     },
     startEdit(flow) {
+      if (!this.canManageFlows) return;
+
       this.editingFlowId = flow.id;
       this.flowForm = {
         name: flow.name,
@@ -666,14 +681,25 @@ export default {
       this.syncTemplateMeta();
     },
     async deleteFlow(flow) {
-      const ok = confirm(`Delete flow "${flow.name}"? This cannot be undone.`);
-      if (!ok) return;
-      try {
-        await axios.delete(`/api/whatsapp-flows/${flow.id}`);
-        await this.fetchFlows();
-      } catch (e) {
-        console.error('Failed to delete flow', e);
-      }
+      if (!this.canManageFlows) return;
+
+      this.$refs.confirmModal.open({
+        title: 'Delete WhatsApp Flow',
+        message: `Delete flow "${flow.name}"? This action cannot be undone.`,
+        confirmLabel: 'Delete Flow',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            await axios.delete(`/api/whatsapp-flows/${flow.id}`);
+            await this.fetchFlows();
+            notify.success(`Flow "${flow.name}" deleted.`, 'WhatsApp Flows');
+          } catch (e) {
+            console.error('Failed to delete flow', e);
+            notify.error('Failed to delete flow.', 'WhatsApp Flows');
+            throw e;
+          }
+        },
+      });
     },
     async openDiagram(flow) {
       this.diagramFlow = null;
@@ -686,6 +712,8 @@ export default {
       }
     },
     async saveFlow() {
+      if (!this.canManageFlows) return;
+
       this.saving = true;
       try {
         const payload = {

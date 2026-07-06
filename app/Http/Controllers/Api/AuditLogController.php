@@ -2,17 +2,29 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\GuardsSensitiveExports;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\ExportRequest;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AuditLogController extends Controller
 {
+    use GuardsSensitiveExports;
+
     public function index(Request $request)
     {
+        $this->authorizeAuditAccess();
+        $user = Auth::user();
+
         $query = AuditLog::with('user');
+
+        if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
+            $query->where('bank_id', $user->resolvedBankId());
+        }
 
         // Filters
         if ($module = $request->get('module')) {
@@ -65,6 +77,9 @@ class AuditLogController extends Controller
 
     public function show(AuditLog $auditLog)
     {
+        $this->authorizeAuditAccess();
+        $this->authorizeAuditBank($auditLog);
+
         $auditLog->load('user');
 
         return [
@@ -82,20 +97,35 @@ class AuditLogController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
+        $this->authorizeAuditAccess();
+        $user = Auth::user();
+        $exportRequest = $this->authorizeSensitiveExport($request, ExportRequest::DATASET_AUDIT_LOGS);
+
         $fileName = 'audit_logs_' . now()->format('Ymd_His') . '.csv';
+        $bankScope = $user->canAccessAllBanks()
+            ? 'All Banks'
+            : (optional($user->bank)->name ?? 'Assigned Bank');
 
         $headers = [
             'Content-Type'        => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"$fileName\"",
         ];
 
-        $callback = function () use ($request) {
+        $callback = function () use ($request, $user, $bankScope) {
             $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, ['Export Type', 'Audit Logs']);
+            fputcsv($handle, ['Exported By', $user->name]);
+            fputcsv($handle, ['Exported At', now()->toDateTimeString()]);
+            fputcsv($handle, ['Bank Scope', $bankScope]);
+            fputcsv($handle, ['User Role', $user->role]);
+            fputcsv($handle, []);
 
             // Header row
             fputcsv($handle, [
                 'ID',
                 'User',
+                'Bank ID',
                 'Module',
                 'Action',
                 'IP Address',
@@ -103,6 +133,10 @@ class AuditLogController extends Controller
             ]);
 
             $query = AuditLog::with('user');
+
+            if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
+                $query->where('bank_id', $user->resolvedBankId());
+            }
 
             // same filters as index()
             if ($module = $request->get('module')) {
@@ -139,6 +173,7 @@ class AuditLogController extends Controller
                     fputcsv($handle, [
                         $log->id,
                         optional($log->user)->name,
+                        $log->bank_id,
                         $log->module,
                         $log->action,
                         $log->ip_address,
@@ -150,6 +185,26 @@ class AuditLogController extends Controller
             fclose($handle);
         };
 
+        $this->markSensitiveExportCompleted($exportRequest, $fileName);
+
         return response()->stream($callback, 200, $headers);
+    }
+
+    protected function authorizeAuditAccess(): void
+    {
+        $user = Auth::user();
+
+        if (!$user || !$user->canReviewAuditData()) {
+            abort(403, 'You are not allowed to access audit logs.');
+        }
+    }
+
+    protected function authorizeAuditBank(AuditLog $auditLog): void
+    {
+        $user = Auth::user();
+
+        if ($user && !$user->canAccessAllBanks() && $user->resolvedBankId() && (int) $auditLog->bank_id !== $user->resolvedBankId()) {
+            abort(403, 'You are not allowed to access this audit log.');
+        }
     }
 }

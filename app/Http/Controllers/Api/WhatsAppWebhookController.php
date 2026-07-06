@@ -13,6 +13,7 @@ use App\Services\MetaWhatsAppService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class WhatsAppWebhookController extends Controller
@@ -45,6 +46,8 @@ class WhatsAppWebhookController extends Controller
 
     public function webhook(Request $request): JsonResponse
     {
+        $this->validateWebhookSignature($request);
+
         $payload = $request->all();
 
         foreach (($payload['entry'] ?? []) as $entry) {
@@ -52,10 +55,16 @@ class WhatsAppWebhookController extends Controller
                 $value = $change['value'] ?? [];
 
                 foreach (($value['statuses'] ?? []) as $status) {
+                    if ($this->isDuplicateStatusEvent($status)) {
+                        continue;
+                    }
                     $this->handleStatusUpdate($status, $value);
                 }
 
                 foreach (($value['messages'] ?? []) as $message) {
+                    if ($this->isDuplicateInboundMessage($message)) {
+                        continue;
+                    }
                     $this->handleInboundMessage($message, $value);
                 }
             }
@@ -70,6 +79,7 @@ class WhatsAppWebhookController extends Controller
         $statusName = strtolower((string) ($status['status'] ?? ''));
         $recipientPhone = MetaWhatsAppService::normalizePhoneNumber((string) ($status['recipient_id'] ?? ''));
 
+        $phoneNumberId = $payload['metadata']['phone_number_id'] ?? null;
         $recipient = null;
         if ($messageId) {
             $recipient = CampaignWhatsappRecipient::where('provider_message_id', $messageId)
@@ -78,7 +88,7 @@ class WhatsAppWebhookController extends Controller
         }
 
         if (!$recipient && $recipientPhone) {
-            $recipient = CampaignWhatsappRecipient::where('phone', $recipientPhone)->latest('id')->first();
+            $recipient = $this->findRecipientByPhone($recipientPhone, $phoneNumberId);
         }
 
         if (!$recipient) {
@@ -131,11 +141,15 @@ class WhatsAppWebhookController extends Controller
         }
 
         $normalizedReply = $this->normalizeReply($body);
-        $recipient = $this->findRecipientByPhone($from);
-        $client = $this->findClientByPhone($from);
+        $recipient = $this->findRecipientByPhone($from, $phoneNumberId);
+        $client = $this->findClientByPhone($from, $phoneNumberId);
 
         if (!$recipient && $client) {
             $recipient = CampaignWhatsappRecipient::where('client_id', $client->id)->latest('id')->first();
+        }
+
+        if (!$client && $recipient?->client) {
+            $client = $recipient->client;
         }
 
         if ($recipient) {
@@ -152,12 +166,17 @@ class WhatsAppWebhookController extends Controller
             $this->refreshWhatsappMessageCounts($recipient->message);
         }
 
+        if ($client && $this->isOptOutMessage($body)) {
+            $client->markWhatsappOptOut($this->normalizeReply($body) ?? strtolower(trim($body)));
+        }
+
         if ($client) {
             $session = ChatSession::firstOrCreate(
                 ['client_id' => $client->id, 'platform' => 'whatsapp'],
                 [
                     'client_name' => $client->name,
                     'phone' => $client->phone ?? $from,
+                    'bank_id' => $client->bank_id,
                     'status' => 'active',
                     'unread_count' => 0,
                 ]
@@ -186,6 +205,7 @@ class WhatsAppWebhookController extends Controller
             'client_id' => $session->client_id ?: ($client?->id ?? null),
             'client_name' => $client?->name ?? $session->client_name ?? $from,
             'phone' => $session->phone ?: ($client?->phone ?? $from),
+            'bank_id' => $session->bank_id ?: ($client?->bank_id ?? null),
         ]);
     }
 
@@ -206,7 +226,7 @@ class WhatsAppWebhookController extends Controller
 
         $delivered = $message->recipients()->whereRaw('LOWER(status) = ?', ['delivered'])->count();
         $failed = $message->recipients()->whereRaw('LOWER(status) = ?', ['failed'])->count();
-        $pending = $message->recipients()->whereNotIn('status', ['Delivered', 'Failed'])->count();
+        $pending = $message->recipients()->whereNotIn('status', ['Delivered', 'Failed', 'Suppressed'])->count();
 
         $message->update([
             'delivered' => $delivered,
@@ -217,33 +237,119 @@ class WhatsAppWebhookController extends Controller
         ]);
     }
 
-    protected function findClientByPhone(string $phone): ?Client
+    protected function findClientByPhone(string $phone, ?string $phoneNumberId = null): ?Client
+    {
+        $clients = $this->candidateClientsForPhone($phone);
+        if ($clients->isEmpty()) {
+            return null;
+        }
+
+        if ($clients->count() === 1) {
+            return $clients->first();
+        }
+
+        $recipient = $this->findRecipientByPhone($phone, $phoneNumberId);
+        if ($recipient?->client) {
+            return $recipient->client;
+        }
+
+        Log::warning('Ambiguous inbound client match by phone; client was not auto-linked.', [
+            'phone' => $phone,
+            'phone_number_id' => $phoneNumberId,
+            'candidate_client_ids' => $clients->pluck('id')->all(),
+            'candidate_bank_ids' => $clients->pluck('bank_id')->unique()->values()->all(),
+        ]);
+
+        return null;
+    }
+
+    protected function findRecipientByPhone(string $phone, ?string $phoneNumberId = null): ?CampaignWhatsappRecipient
+    {
+        $recipients = $this->candidateRecipientsForPhone($phone);
+        if ($recipients->isEmpty()) {
+            return null;
+        }
+
+        if ($recipients->count() === 1) {
+            return $recipients->first();
+        }
+
+        if ($phoneNumberId) {
+            $scopedByPhoneNumberId = $recipients
+                ->filter(fn ($recipient) => (string) $recipient->provider_phone_number_id === (string) $phoneNumberId)
+                ->values();
+
+            if ($scopedByPhoneNumberId->count() === 1) {
+                return $scopedByPhoneNumberId->first();
+            }
+
+            if ($scopedByPhoneNumberId->isNotEmpty()) {
+                $recipients = $scopedByPhoneNumberId;
+            }
+        }
+
+        $clientIds = $recipients->pluck('client_id')->filter()->unique()->values();
+        if ($clientIds->count() === 1) {
+            return $recipients->sortByDesc('id')->first();
+        }
+
+        $recentSingle = $recipients
+            ->filter(fn ($recipient) => optional($recipient->created_at)->gte(now()->subDays(30)))
+            ->pluck('client_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($recentSingle->count() === 1) {
+            return $recipients
+                ->where('client_id', $recentSingle->first())
+                ->sortByDesc('id')
+                ->first();
+        }
+
+        Log::warning('Ambiguous inbound WhatsApp recipient match by phone; recipient was not auto-linked.', [
+            'phone' => $phone,
+            'phone_number_id' => $phoneNumberId,
+            'candidate_recipient_ids' => $recipients->pluck('id')->all(),
+            'candidate_client_ids' => $clientIds->all(),
+        ]);
+
+        return null;
+    }
+
+    protected function candidateClientsForPhone(string $phone)
     {
         $digits = preg_replace('/\D+/', '', $phone);
         if (!$digits) {
-            return null;
+            return collect();
         }
 
         return Client::query()
-            ->where('phone', $phone)
-            ->orWhereRaw("REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?", [$digits])
-            ->orWhereRaw("RIGHT(REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', ''), 9) = ?", [substr($digits, -9)])
-            ->first();
+            ->where(function ($query) use ($phone, $digits) {
+                $query->where('phone', $phone)
+                    ->orWhereRaw("REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?", [$digits])
+                    ->orWhereRaw("RIGHT(REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', ''), 9) = ?", [substr($digits, -9)]);
+            })
+            ->orderByDesc('id')
+            ->get();
     }
 
-    protected function findRecipientByPhone(string $phone): ?CampaignWhatsappRecipient
+    protected function candidateRecipientsForPhone(string $phone)
     {
         $digits = preg_replace('/\D+/', '', $phone);
         if (!$digits) {
-            return null;
+            return collect();
         }
 
         return CampaignWhatsappRecipient::query()
-            ->where('phone', $phone)
-            ->orWhereRaw("REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?", [$digits])
-            ->orWhereRaw("RIGHT(REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', ''), 9) = ?", [substr($digits, -9)])
-            ->latest('id')
-            ->first();
+            ->with('client')
+            ->where(function ($query) use ($phone, $digits) {
+                $query->where('phone', $phone)
+                    ->orWhereRaw("REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?", [$digits])
+                    ->orWhereRaw("RIGHT(REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', ''), 9) = ?", [substr($digits, -9)]);
+            })
+            ->orderByDesc('id')
+            ->get();
     }
 
     protected function normalizeReply(string $body): ?string
@@ -258,5 +364,71 @@ class WhatsAppWebhookController extends Controller
             '2', 'no', 'n' => 'no',
             default => $trimmed,
         };
+    }
+
+    protected function isOptOutMessage(string $body): bool
+    {
+        return in_array(strtolower(trim($body)), [
+            'stop',
+            'unsubscribe',
+            'opt out',
+            'optout',
+            'cancel',
+            'end',
+            'quit',
+        ], true);
+    }
+
+    protected function validateWebhookSignature(Request $request): void
+    {
+        $secret = method_exists($this->whatsApp, 'appSecret') ? $this->whatsApp->appSecret() : null;
+        if (!$secret) {
+            Log::warning('Meta webhook signature validation skipped because no app secret is configured.');
+            return;
+        }
+
+        $signature = (string) $request->header('X-Hub-Signature-256', '');
+        if (!str_starts_with($signature, 'sha256=')) {
+            abort(403, 'Missing Meta webhook signature.');
+        }
+
+        $computed = 'sha256=' . hash_hmac('sha256', $request->getContent(), $secret);
+        if (!hash_equals($computed, $signature)) {
+            Log::warning('Rejected Meta webhook with invalid signature.');
+            abort(403, 'Invalid Meta webhook signature.');
+        }
+    }
+
+    protected function isDuplicateInboundMessage(array $message): bool
+    {
+        $messageId = $message['id'] ?? null;
+        if (!$messageId) {
+            return false;
+        }
+
+        $key = 'meta_webhook_message:' . $messageId;
+        if (Cache::has($key)) {
+            return true;
+        }
+
+        Cache::put($key, true, now()->addDay());
+
+        return false;
+    }
+
+    protected function isDuplicateStatusEvent(array $status): bool
+    {
+        $messageId = $status['id'] ?? 'unknown';
+        $statusName = $status['status'] ?? 'unknown';
+        $timestamp = $status['timestamp'] ?? 'unknown';
+        $key = 'meta_webhook_status:' . sha1($messageId . '|' . $statusName . '|' . $timestamp);
+
+        if (Cache::has($key)) {
+            return true;
+        }
+
+        Cache::put($key, true, now()->addDay());
+
+        return false;
     }
 }

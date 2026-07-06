@@ -11,6 +11,7 @@ class Client extends Model
 
     protected $fillable = [
         'name',
+        'bank_id',
         'phone',
         'email',
         'assigned_to_id',
@@ -20,12 +21,20 @@ class Client extends Model
         'bank_name',
         'account_number',
         'branch_code',
+        'whatsapp_opted_out_at',
+        'whatsapp_opt_out_reason',
+        'whatsapp_contact_basis',
+        'whatsapp_contact_basis_details',
+        'whatsapp_opted_in_at',
+        'whatsapp_opt_in_source',
         // Note: removed 'department' column since we're using many-to-many
     ];
 
     protected $casts = [
         'tags' => 'array',
         'last_contacted_at' => 'datetime',
+        'whatsapp_opted_out_at' => 'datetime',
+        'whatsapp_opted_in_at' => 'datetime',
     ];
 
     // Many-to-many departments (NEW)
@@ -33,6 +42,11 @@ class Client extends Model
     {
         return $this->belongsToMany(Department::class, 'client_department')
             ->withTimestamps();
+    }
+
+    public function bank()
+    {
+        return $this->belongsTo(Bank::class);
     }
 
     public function assignedTo()
@@ -73,5 +87,60 @@ class Client extends Model
     public function getDepartmentIdsAttribute()
     {
         return $this->departments->pluck('id')->toArray();
+    }
+
+    public function maskedIdNumber(): ?string
+    {
+        return self::maskSensitiveValue($this->id_number, 4);
+    }
+
+    public function maskedAccountNumber(): ?string
+    {
+        return self::maskSensitiveValue($this->account_number, 4);
+    }
+
+    public static function maskSensitiveValue(?string $value, int $visibleTail = 4): ?string
+    {
+        if (!$value) {
+            return null;
+        }
+
+        $length = mb_strlen($value);
+        if ($length <= $visibleTail) {
+            return str_repeat('*', $length);
+        }
+
+        return str_repeat('*', max($length - $visibleTail, 4)) . mb_substr($value, -$visibleTail);
+    }
+
+    public function isWhatsappSuppressed(): bool
+    {
+        return !is_null($this->whatsapp_opted_out_at);
+    }
+
+    public function hasWhatsappLawfulBasis(): bool
+    {
+        return !empty($this->whatsapp_contact_basis) || !is_null($this->whatsapp_opted_in_at);
+    }
+
+    public function canReceiveWhatsapp(): bool
+    {
+        return !$this->isWhatsappSuppressed() && $this->hasWhatsappLawfulBasis();
+    }
+
+    public function markWhatsappOptOut(string $reason = 'stop'): void
+    {
+        $this->forceFill([
+            'whatsapp_opted_out_at' => now(),
+            'whatsapp_opt_out_reason' => $reason,
+        ])->save();
+    }
+
+    public function clearWhatsappOptOut(): void
+    {
+        $this->forceFill([
+            'whatsapp_opted_out_at' => null,
+            'whatsapp_opt_out_reason' => null,
+        ])->save();
     }
 }

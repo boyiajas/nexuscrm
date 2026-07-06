@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -128,8 +129,8 @@ class WhatsAppTemplateController extends Controller
     private function authorizeAdmin(): void
     {
         $user = Auth::user();
-        if (!$user || $user->role !== 'SUPER_ADMIN') {
-            abort(403, 'Only SUPER_ADMIN can manage WhatsApp templates.');
+        if (!$user || !$user->canManageSystemSettings()) {
+            abort(403, 'Only SUPER_ADMIN or ADMIN can manage WhatsApp templates.');
         }
     }
 }

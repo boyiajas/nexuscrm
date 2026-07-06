@@ -12,7 +12,7 @@ class CampaignSmsRecipient extends Model
     protected $table = 'campaign_sms_recipients';
 
     protected $fillable = [
-        'sms_message_id',
+        'campaign_sms_message_id',
         'client_id',
         'phone',
         'status',
@@ -25,7 +25,7 @@ class CampaignSmsRecipient extends Model
 
     public function message()
     {
-        return $this->belongsTo(CampaignSmsMessage::class, 'sms_message_id');
+        return $this->belongsTo(CampaignSmsMessage::class, 'campaign_sms_message_id');
     }
 
     public function client()

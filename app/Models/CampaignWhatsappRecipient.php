@@ -12,6 +12,8 @@ class CampaignWhatsappRecipient extends Model
         'phone',
         'message_sid',
         'provider_message_id',
+        'provider_phone_number_id',
+        'provider_display_phone_number',
         'status',
         'error_code',
         'error_message',

@@ -12,6 +12,8 @@ class WhatsAppFlowController extends Controller
 {
     public function index(): JsonResponse
     {
+        $this->authorizeView();
+
         $flows = WhatsAppFlow::query()
             ->latest()
             ->get()
@@ -24,6 +26,8 @@ class WhatsAppFlowController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        $this->authorizeManage();
+
         $data = $request->validate([
             'name'              => ['required', 'string', 'max:150'],
             'description'       => ['nullable', 'string'],
@@ -45,11 +49,15 @@ class WhatsAppFlowController extends Controller
 
     public function show(WhatsAppFlow $whatsappFlow): JsonResponse
     {
+        $this->authorizeView();
+
         return response()->json($this->transform($whatsappFlow));
     }
 
     public function update(Request $request, WhatsAppFlow $whatsappFlow): JsonResponse
     {
+        $this->authorizeManage();
+
         $data = $request->validate([
             'name'              => ['sometimes', 'string', 'max:150'],
             'description'       => ['nullable', 'string'],
@@ -68,6 +76,8 @@ class WhatsAppFlowController extends Controller
 
     public function destroy(WhatsAppFlow $whatsappFlow): JsonResponse
     {
+        $this->authorizeManage();
+
         $whatsappFlow->delete();
 
         return response()->json([], 204);
@@ -87,5 +97,23 @@ class WhatsAppFlowController extends Controller
             'created_by'        => $flow->created_by,
             'created_at'        => $flow->created_at,
         ];
+    }
+
+    private function authorizeView(): void
+    {
+        $user = Auth::user();
+
+        if (!$user || !$user->canViewOperationalData()) {
+            abort(403, 'You are not allowed to access WhatsApp flows.');
+        }
+    }
+
+    private function authorizeManage(): void
+    {
+        $user = Auth::user();
+
+        if (!$user || !$user->canManageOperationalData()) {
+            abort(403, 'You are not allowed to manage WhatsApp flows.');
+        }
     }
 }

@@ -17,29 +17,44 @@ class DashboardController extends Controller
     {
         // Get counts with proper department scoping for non-super admins
         $user = auth()->user();
-        $userDeptId = $user?->resolvedDepartmentId();
+        $userDeptIds = $user?->resolvedDepartmentIds() ?? [];
+        $userBankId = $user?->resolvedBankId();
         
         // Total clients (department-scoped)
         $totalClientsQuery = Client::query();
-        if ($user->role !== 'SUPER_ADMIN' && $userDeptId) {
-            $totalClientsQuery->whereHas('departments', function ($q) use ($userDeptId) {
-                $q->where('departments.id', $userDeptId);
+        if (!$user->canAccessAllBanks() && $userBankId) {
+            $totalClientsQuery->where('bank_id', $userBankId);
+        }
+        if (!$user->canManageSystemSettings() && !empty($userDeptIds)) {
+            $totalClientsQuery->whereHas('departments', function ($q) use ($userDeptIds) {
+                $q->whereIn('departments.id', $userDeptIds);
             });
+        }
+        if ($user->isPortfolioScoped()) {
+            $totalClientsQuery->where('assigned_to_id', $user->id);
         }
         $totalClients = $totalClientsQuery->count();
 
         // Campaign counts (department-scoped)
         $campaignQuery = Campaign::query();
-        if ($user->role !== 'SUPER_ADMIN') {
-            $campaignQuery->where(function ($q) use ($userDeptId) {
+        if (!$user->canAccessAllBanks() && $userBankId) {
+            $campaignQuery->where('bank_id', $userBankId);
+        }
+        if (!$user->canManageSystemSettings()) {
+            $campaignQuery->where(function ($q) use ($userDeptIds) {
                 $q->whereDoesntHave('departments')
                   ;
 
-                if ($userDeptId) {
-                    $q->orWhereHas('departments', function ($qq) use ($userDeptId) {
-                        $qq->where('departments.id', $userDeptId);
+                if (!empty($userDeptIds)) {
+                    $q->orWhereHas('departments', function ($qq) use ($userDeptIds) {
+                        $qq->whereIn('departments.id', $userDeptIds);
                     });
                 }
+            });
+        }
+        if ($user->isPortfolioScoped()) {
+            $campaignQuery->whereHas('clients', function ($q) use ($user) {
+                $q->where('clients.assigned_to_id', $user->id);
             });
         }
         
@@ -47,16 +62,33 @@ class DashboardController extends Controller
         $completedCampaigns = $campaignQuery->where('status', 'Completed')->count();
 
         // Open chats: count chat sessions that have unread messages (works even if client_id is null)
-        $openChats = ChatSession::where('unread_count', '>', 0)->count();
+        $openChatsQuery = ChatSession::where('unread_count', '>', 0);
+        if (!$user->canAccessAllBanks() && $userBankId) {
+            $openChatsQuery->where('bank_id', $userBankId);
+        }
+        if ($user->isPortfolioScoped()) {
+            $openChatsQuery->whereHas('client', function ($q) use ($user) {
+                $q->where('assigned_to_id', $user->id);
+            });
+        }
+        $openChats = $openChatsQuery->count();
 
         // Get delivery statistics from campaign_clients pivot table
         $deliveryStats = DB::table('campaign_clients')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_clients.campaign_id')
+            ->join('clients', 'clients.id', '=', 'campaign_clients.client_id')
             ->selectRaw('
                 COUNT(*) as total_sends,
                 SUM(CASE WHEN whatsapp_status = "Delivered" OR email_status = "Delivered" OR sms_status = "Delivered" THEN 1 ELSE 0 END) as delivered,
                 SUM(CASE WHEN whatsapp_status = "Failed" OR email_status = "Failed" OR sms_status = "Failed" THEN 1 ELSE 0 END) as failed,
                 SUM(CASE WHEN whatsapp_status = "Pending" OR email_status = "Pending" OR sms_status = "Pending" THEN 1 ELSE 0 END) as pending
             ')
+            ->when(!$user->canAccessAllBanks() && $userBankId, function ($q) use ($userBankId) {
+                $q->where('campaigns.bank_id', $userBankId);
+            })
+            ->when($user->isPortfolioScoped(), function ($q) use ($user) {
+                $q->where('clients.assigned_to_id', $user->id);
+            })
             ->first();
 
         $totalSends = $deliveryStats->total_sends ?? 0;
@@ -74,14 +106,26 @@ class DashboardController extends Controller
                 SUM(JSON_CONTAINS(channels, \'"Email"\')) as email_count,
                 SUM(JSON_CONTAINS(channels, \'"SMS"\')) as sms_count
             ')
+            ->when(!$user->canAccessAllBanks() && $userBankId, function ($q) use ($userBankId) {
+                $q->where('bank_id', $userBankId);
+            })
+            ->when($user->isPortfolioScoped(), function ($q) use ($user) {
+                $q->whereHas('clients', function ($qq) use ($user) {
+                    $qq->where('clients.assigned_to_id', $user->id);
+                });
+            })
             ->first();
 
         // Recent audit logs (limit to user's department for non-super admins)
         $auditQuery = AuditLog::with('user')
             ->orderBy('created_at', 'desc')
             ->limit(20);
+
+        if (!$user->canAccessAllBanks() && $userBankId) {
+            $auditQuery->where('bank_id', $userBankId);
+        }
             
-        if ($user->role !== 'SUPER_ADMIN') {
+        if (!$user->canReviewAuditData() && !$user->canManageSystemSettings()) {
             $auditQuery->where('user_id', $user->id);
         }
         
@@ -100,6 +144,14 @@ class DashboardController extends Controller
         $dailyCampaigns = Campaign::query()
             ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
             ->where('created_at', '>=', Carbon::now()->subDays(7))
+            ->when(!$user->canAccessAllBanks() && $userBankId, function ($q) use ($userBankId) {
+                $q->where('bank_id', $userBankId);
+            })
+            ->when($user->isPortfolioScoped(), function ($q) use ($user) {
+                $q->whereHas('clients', function ($qq) use ($user) {
+                    $qq->where('clients.assigned_to_id', $user->id);
+                });
+            })
             ->groupBy('date')
             ->orderBy('date')
             ->get();
@@ -147,6 +199,14 @@ class DashboardController extends Controller
         $dailyCampaigns = Campaign::query()
             ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
             ->where('created_at', '>=', Carbon::now()->subDays(30))
+            ->when(!auth()->user()?->canAccessAllBanks() && auth()->user()?->resolvedBankId(), function ($q) {
+                $q->where('bank_id', auth()->user()->resolvedBankId());
+            })
+            ->when(auth()->user()?->isPortfolioScoped(), function ($q) {
+                $q->whereHas('clients', function ($qq) {
+                    $qq->where('clients.assigned_to_id', auth()->id());
+                });
+            })
             ->groupBy('date')
             ->orderBy('date')
             ->get();
@@ -173,6 +233,14 @@ class DashboardController extends Controller
         $replies = ChatSession::with(['client.departments'])
             ->where('unread_count', '>', 0)
             ->where('platform', 'whatsapp')
+            ->when(!auth()->user()?->canAccessAllBanks() && auth()->user()?->resolvedBankId(), function ($q) {
+                $q->where('bank_id', auth()->user()->resolvedBankId());
+            })
+            ->when(auth()->user()?->isPortfolioScoped(), function ($q) {
+                $q->whereHas('client', function ($qq) {
+                    $qq->where('assigned_to_id', auth()->id());
+                });
+            })
             ->orderByDesc('updated_at')
             ->take(500)
             ->get()

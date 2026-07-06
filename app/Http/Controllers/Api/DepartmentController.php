@@ -4,17 +4,31 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Department;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
 
 class DepartmentController extends Controller
 {
     public function index()
     {
-        return Department::orderBy('name')->paginate(20);
+        $user = Auth::user();
+        if (!$user) {
+            abort(401);
+        }
+
+        $query = Department::query()->orderBy('name');
+        $userDepartmentIds = $user->resolvedDepartmentIds();
+        if (!$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+            $query->whereIn('id', $userDepartmentIds);
+        }
+
+        $perPage = (int) request()->get('per_page', 20);
+        return $query->paginate($perPage);
     }
 
     public function store(Request $request)
     {
+        $this->authorizeManageDepartments();
         $data = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -33,6 +47,7 @@ class DepartmentController extends Controller
 
     public function update(Request $request, Department $department)
     {
+        $this->authorizeManageDepartments();
         $data = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -53,7 +68,16 @@ class DepartmentController extends Controller
 
     public function destroy(Department $department)
     {
+        $this->authorizeManageDepartments();
         $department->delete();
         return response()->noContent();
+    }
+
+    protected function authorizeManageDepartments(): void
+    {
+        $user = Auth::user();
+        if (!$user || !$user->canManageUsersAndDepartments()) {
+            abort(403, 'You are not allowed to manage departments.');
+        }
     }
 }

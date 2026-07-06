@@ -12,7 +12,7 @@ class CampaignEmailRecipient extends Model
     protected $table = 'campaign_email_recipients';
 
     protected $fillable = [
-        'email_message_id',
+        'campaign_email_message_id',
         'client_id',
         'email',
         'status',
@@ -29,7 +29,7 @@ class CampaignEmailRecipient extends Model
 
     public function message()
     {
-        return $this->belongsTo(CampaignEmailMessage::class, 'email_message_id');
+        return $this->belongsTo(CampaignEmailMessage::class, 'campaign_email_message_id');
     }
 
     public function client()

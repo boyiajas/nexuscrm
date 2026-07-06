@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\EnforcesMetaPermissionHealth;
 use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\ChatSession;
@@ -13,14 +14,28 @@ use Illuminate\Support\Facades\Log;
 
 class ChatController extends Controller
 {
+    use EnforcesMetaPermissionHealth;
+
     public function __construct(private WhatsAppServiceInterface $whatsApp)
     {
     }
 
     public function index(Request $request)
     {
+        $user = $this->authorizeView();
+
         $query = ChatSession::with('client', 'agent')
             ->orderByDesc('updated_at');
+
+        if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
+            $query->where('bank_id', $user->resolvedBankId());
+        }
+
+        if ($user->isPortfolioScoped()) {
+            $query->whereHas('client', function ($q) use ($user) {
+                $q->where('assigned_to_id', $user->id);
+            });
+        }
 
         if ($status = $request->get('status')) {
             if ($status !== 'all') {
@@ -33,22 +48,33 @@ class ChatController extends Controller
 
     public function show(ChatSession $session)
     {
+        $user = $this->authorizeView();
+        $this->authorizeSessionScope($user, $session);
+
         $session->load(['client', 'agent', 'messages' => function ($q) {
             $q->orderBy('created_at');
         }]);
 
-        // Reset unread count when agent opens session
-        $session->update(['unread_count' => 0]);
+        // Keep review-only roles read-only by skipping unread-count mutation.
+        if (!$user->isReadOnlyRole()) {
+            $session->update(['unread_count' => 0]);
+        }
 
         return $session;
     }
 
     public function storeMessage(Request $request, ChatSession $session)
     {
+        $this->authorizeManage();
+
         $data = $request->validate([
             'content'     => ['required', 'string'],
             'is_template' => ['sometimes', 'boolean'],
         ]);
+
+        if ($session->platform === 'whatsapp') {
+            $this->enforceMetaPermissionHealthForProduction('Live chat WhatsApp sending');
+        }
 
         $message = $session->messages()->create([
             'sender'      => 'agent', // future: use 'system' or 'user' as needed
@@ -82,12 +108,15 @@ class ChatController extends Controller
      */
     public function sessionForClient(Request $request)
     {
+        $this->authorizeManage();
+
         $data = $request->validate([
             'client_id' => ['required', 'integer', 'exists:clients,id'],
             'platform'  => ['sometimes', 'string', 'max:50'],
         ]);
 
         $client = Client::findOrFail($data['client_id']);
+        $this->authorizeClientScope($request->user(), $client);
         $platform = $data['platform'] ?? 'whatsapp';
 
         $session = ChatSession::firstOrCreate(
@@ -97,6 +126,7 @@ class ChatController extends Controller
             ],
             [
                 'client_name' => $client->name,
+                'bank_id' => $client->bank_id,
                 'status'      => 'active',
                 'agent_id'    => Auth::id(),
                 'unread_count'=> 0,
@@ -111,6 +141,48 @@ class ChatController extends Controller
         $session->update(['unread_count' => 0]);
 
         return response()->json($session);
+    }
+
+    protected function authorizeView()
+    {
+        $user = Auth::user();
+
+        if (!$user || !$user->canViewOperationalData()) {
+            abort(403, 'You are not allowed to access live chat.');
+        }
+
+        return $user;
+    }
+
+    protected function authorizeManage(): void
+    {
+        $user = Auth::user();
+
+        if (!$user || !$user->canManageOperationalData()) {
+            abort(403, 'You are not allowed to manage live chat.');
+        }
+    }
+
+    protected function authorizeSessionScope($user, ChatSession $session): void
+    {
+        if (!$user->canAccessAllBanks() && $user->resolvedBankId() && (int) $session->bank_id !== $user->resolvedBankId()) {
+            abort(403, 'You are not allowed to access this chat session.');
+        }
+
+        if ($user->isPortfolioScoped() && $session->client && (int) $session->client->assigned_to_id !== (int) $user->id) {
+            abort(403, 'You are not allowed to access this chat session.');
+        }
+    }
+
+    protected function authorizeClientScope($user, Client $client): void
+    {
+        if (!$user->canAccessAllBanks() && $user->resolvedBankId() && (int) $client->bank_id !== $user->resolvedBankId()) {
+            abort(403, 'You are not allowed to access this client chat.');
+        }
+
+        if ($user->isPortfolioScoped() && (int) $client->assigned_to_id !== (int) $user->id) {
+            abort(403, 'You are not allowed to access this client chat.');
+        }
     }
 
     protected function sendWhatsappReply(ChatSession $session, string $body): void

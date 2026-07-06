@@ -11,15 +11,44 @@ class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
+    public const ROLE_SUPER_ADMIN = 'SUPER_ADMIN';
+    public const ROLE_ADMIN = 'ADMIN';
+    public const ROLE_MANAGER = 'MANAGER';
+    public const ROLE_CALL_CENTRE_MANAGER = 'CALL_CENTRE_MANAGER';
+    public const ROLE_TEAM_LEADER = 'TEAM_LEADER';
+    public const ROLE_AGENT = 'AGENT';
+    public const ROLE_STAFF_LEGACY = 'STAFF';
+    public const ROLE_AUDITOR = 'AUDITOR';
+    public const ROLE_COMPLIANCE_OFFICER = 'COMPLIANCE_OFFICER';
+    public const ROLE_READ_ONLY_REVIEWER = 'READ_ONLY_REVIEWER';
+
+    public const ALL_ROLES = [
+        self::ROLE_SUPER_ADMIN,
+        self::ROLE_ADMIN,
+        self::ROLE_MANAGER,
+        self::ROLE_CALL_CENTRE_MANAGER,
+        self::ROLE_TEAM_LEADER,
+        self::ROLE_AGENT,
+        self::ROLE_STAFF_LEGACY,
+        self::ROLE_AUDITOR,
+        self::ROLE_COMPLIANCE_OFFICER,
+        self::ROLE_READ_ONLY_REVIEWER,
+    ];
+
     protected $fillable = [
         'name',
         'email',
         'password',
+        'password_changed_at',
+        'password_reset_required',
         'role',
         'status',
         'department',
         'department_id',
+        'bank_id',
         'last_login_at',
+        'last_login_ip',
+        'last_login_user_agent',
         'username',
         'first_name',
         'middle_initial',
@@ -27,6 +56,10 @@ class User extends Authenticatable
         'primary_phone',
         'secondary_phone',
         'inactivity_timeout',
+        'failed_login_attempts',
+        'locked_until',
+        'deactivated_at',
+        'deactivated_by_user_id',
         'is_provider',
         'is_time_clock_user',
     ];
@@ -40,6 +73,10 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'last_login_at' => 'datetime',
+        'locked_until' => 'datetime',
+        'password_changed_at' => 'datetime',
+        'password_reset_required' => 'boolean',
+        'deactivated_at' => 'datetime',
         'is_provider' => 'boolean',
         'is_time_clock_user' => 'boolean',
     ];
@@ -49,23 +86,217 @@ class User extends Authenticatable
         return $this->belongsTo(Department::class);
     }
 
+    public function departments()
+    {
+        return $this->belongsToMany(Department::class, 'department_user')
+            ->withTimestamps();
+    }
+
+    public function bank()
+    {
+        return $this->belongsTo(Bank::class);
+    }
+
+    public function loginSessions()
+    {
+        return $this->hasMany(UserLoginSession::class);
+    }
+
+    public function importUploads()
+    {
+        return $this->hasMany(ImportUpload::class);
+    }
+
     public function isSuperAdmin()
     {
-        return $this->role === 'SUPER_ADMIN';
+        return $this->role === self::ROLE_SUPER_ADMIN;
+    }
+
+    public function isAdmin()
+    {
+        return $this->role === self::ROLE_ADMIN;
     }
 
     public function isManager()
     {
-        return $this->role === 'MANAGER';
+        return in_array($this->role, [
+            self::ROLE_MANAGER,
+            self::ROLE_CALL_CENTRE_MANAGER,
+            self::ROLE_TEAM_LEADER,
+        ], true);
     }
 
     public function isStaff()
     {
-        return $this->role === 'STAFF';
+        return in_array($this->role, [self::ROLE_AGENT, self::ROLE_STAFF_LEGACY], true);
+    }
+
+    public function hasRole(string|array $roles): bool
+    {
+        $roles = is_array($roles) ? $roles : [$roles];
+        return in_array($this->role, $roles, true);
+    }
+
+    public function canManageSystemSettings(): bool
+    {
+        return $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
+    }
+
+    public function canManageUsersAndDepartments(): bool
+    {
+        return $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
+    }
+
+    public function canManageOperationalData(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_SUPER_ADMIN,
+            self::ROLE_ADMIN,
+            self::ROLE_MANAGER,
+            self::ROLE_CALL_CENTRE_MANAGER,
+            self::ROLE_TEAM_LEADER,
+            self::ROLE_AGENT,
+            self::ROLE_STAFF_LEGACY,
+        ]);
+    }
+
+    public function canViewOperationalData(): bool
+    {
+        return $this->canManageOperationalData() || $this->canReviewAuditData();
+    }
+
+    public function canReviewAuditData(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_SUPER_ADMIN,
+            self::ROLE_ADMIN,
+            self::ROLE_AUDITOR,
+            self::ROLE_COMPLIANCE_OFFICER,
+            self::ROLE_READ_ONLY_REVIEWER,
+        ]);
+    }
+
+    public function isReadOnlyRole(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_AUDITOR,
+            self::ROLE_COMPLIANCE_OFFICER,
+            self::ROLE_READ_ONLY_REVIEWER,
+        ]);
+    }
+
+    public function requiresLoginMfa(): bool
+    {
+        return $this->canManageSystemSettings()
+            || $this->isManager()
+            || $this->canReviewAuditData();
+    }
+
+    public function requiresAdminIpAllowlist(): bool
+    {
+        return $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
+    }
+
+    public function canRequestSensitiveExports(): bool
+    {
+        return $this->canViewOperationalData() || $this->canReviewAuditData();
+    }
+
+    public function canApproveExportRequests(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_SUPER_ADMIN,
+            self::ROLE_ADMIN,
+            self::ROLE_COMPLIANCE_OFFICER,
+        ]);
+    }
+
+    public function canViewSecurityIncidents(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_SUPER_ADMIN,
+            self::ROLE_ADMIN,
+            self::ROLE_MANAGER,
+            self::ROLE_CALL_CENTRE_MANAGER,
+            self::ROLE_TEAM_LEADER,
+            self::ROLE_AUDITOR,
+            self::ROLE_COMPLIANCE_OFFICER,
+            self::ROLE_READ_ONLY_REVIEWER,
+        ]);
+    }
+
+    public function canCreateSecurityIncidents(): bool
+    {
+        return $this->canViewSecurityIncidents();
+    }
+
+    public function canManageSecurityIncidents(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_SUPER_ADMIN,
+            self::ROLE_ADMIN,
+            self::ROLE_COMPLIANCE_OFFICER,
+        ]);
+    }
+
+    public function canViewComplianceConsole(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_SUPER_ADMIN,
+            self::ROLE_ADMIN,
+            self::ROLE_MANAGER,
+            self::ROLE_CALL_CENTRE_MANAGER,
+            self::ROLE_TEAM_LEADER,
+            self::ROLE_AUDITOR,
+            self::ROLE_COMPLIANCE_OFFICER,
+            self::ROLE_READ_ONLY_REVIEWER,
+        ]);
+    }
+
+    public function canManageComplianceConsole(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_SUPER_ADMIN,
+            self::ROLE_ADMIN,
+            self::ROLE_COMPLIANCE_OFFICER,
+        ]);
+    }
+
+    public function canBypassExportApproval(): bool
+    {
+        return $this->hasRole([
+            self::ROLE_SUPER_ADMIN,
+            self::ROLE_ADMIN,
+        ]);
+    }
+
+    public function resolvedBankId(): ?int
+    {
+        return $this->bank_id ? (int) $this->bank_id : null;
+    }
+
+    public function canAccessAllBanks(): bool
+    {
+        return $this->canManageSystemSettings();
+    }
+
+    public function isPortfolioScoped(): bool
+    {
+        return $this->hasRole([self::ROLE_AGENT]);
+    }
+
+    public function isActive(): bool
+    {
+        return $this->status === 'Active';
     }
 
     public function resolvedDepartmentId(): ?int
     {
+        $ids = $this->resolvedDepartmentIds();
+        if (!empty($ids)) {
+            return $ids[0];
+        }
+
         if ($this->department_id) {
             return (int) $this->department_id;
         }
@@ -77,5 +308,36 @@ class User extends Authenticatable
         }
 
         return null;
+    }
+
+    public function resolvedDepartmentIds(): array
+    {
+        if ($this->relationLoaded('departments')) {
+            $ids = $this->departments->pluck('id')->map(fn ($id) => (int) $id)->all();
+            if (!empty($ids)) {
+                return array_values(array_unique($ids));
+            }
+        }
+
+        $pivotIds = $this->departments()->pluck('departments.id')->map(fn ($id) => (int) $id)->all();
+        if (!empty($pivotIds)) {
+            return array_values(array_unique($pivotIds));
+        }
+
+        if ($this->department_id) {
+            return [(int) $this->department_id];
+        }
+
+        if (!empty($this->department)) {
+            $departmentId = Department::query()
+                ->where('name', $this->department)
+                ->value('id');
+
+            if ($departmentId) {
+                return [(int) $departmentId];
+            }
+        }
+
+        return [];
     }
 }

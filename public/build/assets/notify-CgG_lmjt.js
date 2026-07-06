@@ -1,0 +1,1 @@
+function s(n,o="info",t=""){window.dispatchEvent(new CustomEvent("app-toast",{detail:{message:n,variant:o,title:t}}))}const i={success(n,o="Success"){s(n,"success",o)},error(n,o="Error"){s(n,"danger",o)},warning(n,o="Warning"){s(n,"warning",o)},info(n,o="Notice"){s(n,"info",o)}};export{i as n};

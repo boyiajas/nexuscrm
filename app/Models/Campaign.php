@@ -10,6 +10,7 @@ class Campaign extends Model
     use HasFactory;
 
     protected $fillable = [
+        'bank_id',
         'name',
         'channels',
         'status',
@@ -28,6 +29,11 @@ class Campaign extends Model
     {
         return $this->belongsToMany(Department::class, 'campaign_department')
             ->withTimestamps();
+    }
+
+    public function bank()
+    {
+        return $this->belongsTo(Bank::class);
     }
 
     // Clients attached to this campaign

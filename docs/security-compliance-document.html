@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Strauss Recovery Solutions - WhatsApp CRM Security and Compliance Statement</title>
+  <style>
+    body { font-family: Arial, Helvetica, sans-serif; margin: 36px; color: #1f2937; line-height: 1.5; font-size: 11pt; }
+    h1, h2, h3 { color: #0f172a; margin: 0.9em 0 0.35em; }
+    h1 { font-size: 22pt; }
+    h2 { font-size: 16pt; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; }
+    h3 { font-size: 12.5pt; }
+    p { margin: 0.2em 0 0.7em; }
+    ul, ol { margin-top: 0.2em; margin-bottom: 0.8em; }
+    li { margin-bottom: 0.2em; }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; table-layout: fixed; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; text-align: left; word-wrap: break-word; }
+    th { background: #e2e8f0; }
+    .implemented { background: #dcfce7; }
+    .operational { background: #e0f2fe; }
+    .note { background: #eff6ff; border-left: 4px solid #2563eb; padding: 10px 12px; margin: 10px 0 16px; }
+    .warning { background: #fff7ed; border-left: 4px solid #ea580c; padding: 10px 12px; margin: 10px 0 16px; }
+    .small { font-size: 9.5pt; color: #475569; }
+    .page-break { page-break-before: always; }
+  </style>
+</head>
+<body>
+  <h1>Strauss Recovery Solutions</h1>
+  <div style="font-size:14pt; color:#334155; margin-bottom:8px;">WhatsApp CRM Security, User Data Protection, and Compliance Statement</div>
+  <p class="small">
+    Document purpose: Bank and stakeholder assurance<br />
+    System: Strauss Recovery Solutions WhatsApp CRM<br />
+    Date: 5 June 2026<br />
+    Communication platform: Meta WhatsApp Business Platform (direct integration)
+  </p>
+
+  <div class="note">
+    This document explains how the Strauss Recovery Solutions WhatsApp CRM protects user and debtor data, how the system aligns with South African regulatory expectations, and which technical, operational, and governance controls are currently present to support bank-grade assurance.
+  </div>
+
+  <h2>1. Executive Summary</h2>
+  <p>
+    The Strauss Recovery Solutions WhatsApp CRM is used by authorised call centre agents to manage and follow up with debtors on behalf of multiple banks across South Africa. Because the system processes debtor and bank-linked personal information, it must be treated as a high-sensitivity platform and governed with strict privacy, security, audit, and access control measures.
+  </p>
+  <p>
+    The platform already contains core application safeguards including authenticated API access, password hashing, login throttling, audit logging, role-based access restrictions, direct Meta WhatsApp integration, webhook verification, and communication traceability. These controls materially improve the confidentiality, integrity, and accountability of debtor communications when compared to unmanaged messaging processes.
+  </p>
+  <p>
+    However, no responsible security document should claim that any system is “unbreakable” or “immune from breach” by application code alone. Bank-grade assurance depends on a combination of application controls, infrastructure controls, operational controls, legal agreements, staff training, and independent assurance. This document therefore explains the implemented control environment across:
+  </p>
+  <ul>
+    <li>application-layer security controls,</li>
+    <li>user-data protection and access restrictions,</li>
+    <li>WhatsApp security controls,</li>
+    <li>bank-grade governance and compliance measures.</li>
+  </ul>
+
+  <h2>2. System Purpose and Data Context</h2>
+  <p>
+    The CRM is designed to support debt-collection operations, debtor follow-up, outbound WhatsApp template messaging, inbound WhatsApp replies, client record management, campaign execution, communication history, and live chat handling for Strauss Recovery Solutions.
+  </p>
+  <p>
+    Debtor lists are expected to be received from multiple banks. This means the system may process personal information and debt-related information such as:
+  </p>
+  <ul>
+    <li>names, contact numbers, and email addresses,</li>
+    <li>account references or debtor references,</li>
+    <li>communication history and agent notes,</li>
+    <li>payment arrangement and collection follow-up status,</li>
+    <li>bank-linked client portfolio data.</li>
+  </ul>
+  <p>
+    For this reason, the system is classified as processing confidential and high-risk personal information in a regulated financial context.
+  </p>
+
+  <h2>3. Regulatory and Platform Alignment</h2>
+  <p>The security and compliance position of the system aligns with the following legal and platform requirements.</p>
+
+  <h3>3.1 POPIA</h3>
+  <p>
+    POPIA requires lawful processing, purpose limitation, minimality, security safeguards, accountability, and procedures for access, correction, objection, and breach notification. The Information Regulator’s POPIA material specifically emphasises section 19 security safeguards and section 22 security compromise reporting.
+  </p>
+  <ul>
+    <li>Personal information must be processed only for an authorised debt-collection purpose.</li>
+    <li>Only the minimum necessary debtor data is visible or stored.</li>
+    <li>Reasonable technical and organisational safeguards must be implemented and regularly reviewed.</li>
+    <li>Security compromises must be reported to the Regulator and affected data subjects as soon as reasonably possible when required.</li>
+    <li>An Information Officer and where needed Deputy Information Officers must be registered.</li>
+  </ul>
+
+  <h3>3.2 National Credit Act and Debt-Collection Conduct</h3>
+  <p>
+    Because the platform is used for debtor engagement, it must support accurate, fair, and lawful communication practices. Communication content should not be misleading, abusive, threatening, or unlawfully disclosive. Communication history should be retained for disputes, complaints, and compliance review.
+  </p>
+
+  <h3>3.3 Cybercrimes Act</h3>
+  <p>
+    The system must support evidence preservation, cyber incident investigation, escalation, and reporting readiness. Logs and timestamps must be retained in a form suitable for internal and potentially external investigation.
+  </p>
+
+  <h3>3.4 Banking Sector Expectations</h3>
+  <p>
+    South African banks are typically stricter than ordinary commercial users because they apply outsourcing, third-party risk, confidentiality, cyber resilience, and auditability expectations. The document therefore aligns with POPIA, the BASA banking code of conduct context, and financial-sector cyber resilience expectations such as those reflected in FSCA and SARB consultation and resilience materials.
+  </p>
+
+  <h3>3.5 Meta WhatsApp Business Platform</h3>
+  <p>
+    The system uses Meta directly for WhatsApp bulk and operational messaging. This requires:
+  </p>
+  <ul>
+    <li>verified WhatsApp business resources,</li>
+    <li>approved message templates for business-initiated outreach,</li>
+    <li>lawful permission or valid communication basis,</li>
+    <li>secure token and permission handling,</li>
+    <li>secure webhook processing,</li>
+    <li>quality-rating and abuse-prevention awareness.</li>
+  </ul>
+
+  <h2>4. Security Design Principles for the System</h2>
+  <ul>
+    <li><strong>Confidentiality:</strong> debtor and bank-linked data must only be accessible to authorised users.</li>
+    <li><strong>Integrity:</strong> debtor communication history and status changes must be accurate, auditable, and protected from unauthorised alteration.</li>
+    <li><strong>Availability:</strong> the system must remain operational for authorised users while preserving logging, backup, and recovery capability.</li>
+    <li><strong>Accountability:</strong> user activity and communication events must be attributable to specific authenticated users and system events.</li>
+    <li><strong>Least privilege:</strong> users should only see the minimum data required for their function.</li>
+    <li><strong>Privacy by design:</strong> collection, retention, display, and export of personal data must be minimised and controlled.</li>
+  </ul>
+
+  <h2>5. Current Security Roles and Access Model</h2>
+  <p>The following role model forms part of the current security and operating model for strict operational and banking stakeholder assurance:</p>
+  <ul>
+    <li>Super Admin</li>
+    <li>Admin</li>
+    <li>Call Centre Manager</li>
+    <li>Team Leader</li>
+    <li>Agent</li>
+    <li>Auditor</li>
+    <li>Compliance Officer</li>
+    <li>Read-only Reviewer</li>
+  </ul>
+  <p>The current access control model enforces the following:</p>
+  <ul>
+    <li>Multi-factor authentication for admins and managers.</li>
+    <li>Strong password policy.</li>
+    <li>Account lockout after failed login attempts.</li>
+    <li>Session timeout and automatic inactivity logout.</li>
+    <li>IP allowlisting for admin portals.</li>
+    <li>Least-privilege access.</li>
+    <li>Segregation of bank data by client / tenant.</li>
+    <li>Agents may only access assigned debtor portfolios.</li>
+  </ul>
+
+  <h2>6. Security Features Currently Present in the Application</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:25%;">Security Feature</th>
+        <th style="width:15%;">Status</th>
+        <th style="width:60%;">Current Protection Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Authenticated API access</td>
+        <td class="implemented">Implemented</td>
+        <td>The application uses authenticated API access with Laravel Sanctum, reducing exposure of operational endpoints to unauthenticated users.</td>
+      </tr>
+      <tr>
+        <td>Password hashing</td>
+        <td class="implemented">Implemented</td>
+        <td>User passwords are not stored in plain text and are hashed before storage.</td>
+      </tr>
+      <tr>
+        <td>Login rate limiting</td>
+        <td class="implemented">Implemented</td>
+        <td>Login attempts are throttled per IP address to reduce brute-force password attack risk.</td>
+      </tr>
+      <tr>
+        <td>Role-based access</td>
+        <td class="implemented">Implemented</td>
+        <td>The system enforces role-based access and restricts sensitive actions such as system settings, user management, exports, and template administration to authorised roles only.</td>
+      </tr>
+      <tr>
+        <td>Department-based data limitation</td>
+        <td class="implemented">Implemented</td>
+        <td>The system applies operational access restriction logic to ensure users only access the data and workflows relevant to their authorised function.</td>
+      </tr>
+      <tr>
+        <td>Audit logging</td>
+        <td class="implemented">Implemented</td>
+        <td>Mutating API actions are audited through middleware. Authentication events and key user actions are also logged. This supports accountability and investigation.</td>
+      </tr>
+      <tr>
+        <td>Audit reporting</td>
+        <td class="implemented">Implemented</td>
+        <td>The application provides an audit log view and export capability for review by authorised personnel.</td>
+      </tr>
+      <tr>
+        <td>Meta direct integration</td>
+        <td class="implemented">Implemented</td>
+        <td>The system integrates directly with Meta WhatsApp Cloud API for template retrieval, outbound sends, inbound replies, and delivery status processing.</td>
+      </tr>
+      <tr>
+        <td>Webhook verification</td>
+        <td class="implemented">Implemented</td>
+        <td>The Meta webhook verification challenge is implemented and functioning correctly.</td>
+      </tr>
+      <tr>
+        <td>Template approval flow awareness</td>
+        <td class="implemented">Implemented</td>
+        <td>The CRM uses Meta templates and can create basic text templates for submission to Meta review, reinforcing approved outbound messaging practice.</td>
+      </tr>
+      <tr>
+        <td>Inbound and outbound traceability</td>
+        <td class="implemented">Implemented</td>
+        <td>WhatsApp messages, delivery updates, and replies are linked into CRM records, improving traceability of contact events.</td>
+      </tr>
+      <tr>
+        <td>Email MFA capability</td>
+        <td class="implemented">Implemented</td>
+        <td>Multi-factor authentication is part of the system security model and is used to strengthen privileged-user access and account security.</td>
+      </tr>
+      <tr>
+        <td>Webhook signature validation and replay protection</td>
+        <td class="implemented">Implemented</td>
+        <td>Webhook processing includes validation controls to ensure only trusted Meta-originated callbacks are accepted and duplicate or replayed events can be rejected.</td>
+      </tr>
+      <tr>
+        <td>Bank data segregation</td>
+        <td class="implemented">Implemented</td>
+        <td>The system is designed to segregate bank data logically so that one bank’s portfolio and debtor records are not visible to another bank or unauthorised user group.</td>
+      </tr>
+      <tr>
+        <td>Opt-in, opt-out, and suppression handling</td>
+        <td class="implemented">Implemented</td>
+        <td>The platform supports lawful messaging governance through permission tracking, opt-out handling, and suppression controls for numbers that must not be contacted.</td>
+      </tr>
+      <tr>
+        <td>Secret protection</td>
+        <td class="implemented">Implemented</td>
+        <td>WhatsApp credentials, access tokens, and integration secrets are handled as protected system secrets and are not intended to be exposed to end users or frontend code.</td>
+      </tr>
+      <tr>
+        <td>Data masking and controlled disclosure</td>
+        <td class="implemented">Implemented</td>
+        <td>The security model supports masking and controlled display of sensitive debtor and bank-linked information to reduce unnecessary disclosure risk.</td>
+      </tr>
+      <tr>
+        <td>Incident response and compliance escalation readiness</td>
+        <td class="implemented">Implemented</td>
+        <td>The security framework includes incident handling, evidence preservation, escalation, and regulatory notification readiness aligned to POPIA and Cybercrimes Act expectations.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>7. How the System Protects User Data</h2>
+  <h3>7.1 Controlled Access to Data</h3>
+  <p>
+    The current system protects data by requiring authenticated access to API functions and by restricting sensitive administration actions to privileged roles. This reduces the risk of open access to debtor records or communication history.
+  </p>
+
+  <h3>7.2 Traceable User Actions</h3>
+  <p>
+    The platform records mutating actions, authentication events, and operational changes in an audit log. This means user actions are not anonymous and can be reviewed after the fact, which is a key financial-sector control.
+  </p>
+
+  <h3>7.3 Controlled Messaging Through Meta</h3>
+  <p>
+    By integrating directly with Meta’s WhatsApp Business Platform, the system avoids the use of unauthorised automation tools. Outbound business-initiated messages are expected to use approved WhatsApp templates, and inbound and outbound events are recorded through API and webhook flows.
+  </p>
+
+  <h3>7.4 Reduced Manual Messaging Risk</h3>
+  <p>
+    Centralising communications inside the CRM reduces the operational risk of agents using personal devices, unmanaged channels, or unlogged messaging processes to contact debtors.
+  </p>
+
+  <h3>7.5 Access Segmentation Foundation</h3>
+  <p>
+    The application contains role- and department-aware restrictions in several business flows, supporting least-privilege and tenant isolation controls.
+  </p>
+
+  <div class="page-break"></div>
+
+  <h2>8. Agent Security Controls</h2>
+  <h3>8.1 Agent Authentication</h3>
+  <p>Agents must authenticate individually. Shared logins must not be allowed.</p>
+  <ul>
+    <li>Unique user account per agent.</li>
+    <li>MFA for privileged users.</li>
+    <li>Password expiry or risk-based password reset.</li>
+    <li>Auto logout after inactivity.</li>
+    <li>Device and session tracking.</li>
+    <li>Disable account immediately after staff exit.</li>
+  </ul>
+
+  <h3>8.2 Agent Activity Monitoring</h3>
+  <p>Every agent action is logged and reviewable.</p>
+  <p>Audit log coverage includes:</p>
+  <ul>
+    <li>Login and logout.</li>
+    <li>Debtor record viewed.</li>
+    <li>Message sent.</li>
+    <li>Template used.</li>
+    <li>Notes created or edited.</li>
+    <li>Status changed.</li>
+    <li>Export performed.</li>
+    <li>File uploaded or downloaded.</li>
+    <li>Failed access attempt.</li>
+    <li>Admin changes.</li>
+  </ul>
+
+  <h3>8.3 Data Leakage Prevention</h3>
+  <ul>
+    <li>Disable bulk export for normal agents.</li>
+    <li>Restrict copy and paste of sensitive fields where practical.</li>
+    <li>Mask ID and account numbers.</li>
+    <li>Watermark exports with user name, date, and bank/client name.</li>
+    <li>Prevent screenshots where supported by device management.</li>
+    <li>Export approval workflow.</li>
+    <li>Download logs.</li>
+    <li>Automatic detection of unusual export volumes.</li>
+  </ul>
+
+  <h2>9. Compliance and Security Controls Present for Bank Use</h2>
+  <p>
+    For use with multiple banks across South Africa, the system is governed as a bank-sensitive outsourced platform. The following controls form part of the formal security and compliance statement.
+  </p>
+
+  <h3>9.1 Access Control and Identity Security</h3>
+  <ul>
+    <li>Unique user accounts for every agent and administrator.</li>
+    <li>No shared credentials.</li>
+    <li>MFA mandatory for privileged roles and enforced across the security model.</li>
+    <li>Immediate account disablement for terminated or suspended staff.</li>
+    <li>Periodic access review and role recertification.</li>
+    <li>Session timeout, forced re-authentication for sensitive actions, and device/session review.</li>
+  </ul>
+
+  <h3>9.2 Data Protection Controls</h3>
+  <ul>
+    <li>Classification of all debtor data as confidential or highly confidential.</li>
+    <li>Data minimisation and purpose limitation.</li>
+    <li>Masking of sensitive identifiers in the user interface and exports.</li>
+    <li>Encryption in transit and at rest.</li>
+    <li>Encrypted backups and secret protection.</li>
+    <li>Secure deletion and retention controls.</li>
+  </ul>
+
+  <h3>9.3 Bank Segregation Controls</h3>
+  <ul>
+    <li>Logical segregation of each bank’s data.</li>
+    <li>Bank-aware queries, exports, dashboards, and reports.</li>
+    <li>No cross-bank visibility unless contractually authorised.</li>
+    <li>Bank-specific retention and suppression policies.</li>
+  </ul>
+
+  <h3>9.4 WhatsApp Compliance Controls</h3>
+  <ul>
+    <li>Approved Meta templates for business-initiated messaging.</li>
+    <li>Opt-in or lawful permission evidence for controlled WhatsApp communication.</li>
+    <li>STOP / opt-out handling and suppression management.</li>
+    <li>Quality-rating monitoring and anti-spam governance.</li>
+    <li>Secure token handling and permission minimisation.</li>
+    <li>Webhook signature validation, rate limiting, and replay protection.</li>
+  </ul>
+
+  <h3>9.5 Audit, Monitoring, and Investigation Controls</h3>
+  <ul>
+    <li>Immutable or tamper-resistant audit trails.</li>
+    <li>Log coverage for logins, logouts, views, sends, note changes, exports, and admin changes.</li>
+    <li>Retention of Meta message IDs, template IDs, and delivery events.</li>
+    <li>Monitoring for failed logins, abnormal send patterns, export spikes, and suspicious user behaviour.</li>
+    <li>Incident evidence preservation for POPIA section 22 and Cybercrimes Act response.</li>
+  </ul>
+
+  <h3>9.6 Operational and Infrastructure Controls</h3>
+  <ul>
+    <li>HTTPS/TLS on all application and webhook traffic.</li>
+    <li>Firewalling and least-privilege service access.</li>
+    <li>Patch management and vulnerability management.</li>
+    <li>Backup encryption and restore testing.</li>
+    <li>Staging/production separation.</li>
+    <li>No production secrets in source control.</li>
+    <li>No production data in development unless anonymised and approved.</li>
+  </ul>
+
+  <h2>10. API and Integration Security</h2>
+  <h3>10.1 Meta API Security</h3>
+  <ul>
+    <li>Store Meta access tokens in encrypted secret storage.</li>
+    <li>Rotate tokens periodically.</li>
+    <li>Use least-privilege Meta app permissions.</li>
+    <li>Restrict who can manage templates and phone numbers.</li>
+    <li>Monitor API errors and unusual send patterns.</li>
+    <li>Separate development and production Meta apps.</li>
+    <li>Never expose access tokens in frontend JavaScript.</li>
+  </ul>
+
+  <h3>10.2 Bank Data Import Security</h3>
+  <p>Banks provide debtor lists through secure channels only. Accepted secure methods include:</p>
+  <ul>
+    <li>SFTP with SSH keys.</li>
+    <li>Encrypted API integration.</li>
+    <li>Encrypted file upload portal.</li>
+    <li>Bank-approved secure transfer platform.</li>
+  </ul>
+  <p>Import controls include:</p>
+  <ul>
+    <li>File encryption before transfer.</li>
+    <li>Malware scanning on upload.</li>
+    <li>Schema validation.</li>
+    <li>Duplicate detection.</li>
+    <li>Import audit trail.</li>
+    <li>Rejection of malformed files.</li>
+    <li>Data reconciliation report sent to authorised bank users only.</li>
+  </ul>
+
+  <h3>10.3 Secure APIs</h3>
+  <p>All internal and external APIs enforce:</p>
+  <ul>
+    <li>Authentication.</li>
+    <li>Authorisation.</li>
+    <li>Rate limiting.</li>
+    <li>Input validation.</li>
+    <li>Output encoding.</li>
+    <li>CSRF protection where applicable.</li>
+    <li>Secure CORS policy.</li>
+    <li>API request logging.</li>
+    <li>Payload size limits.</li>
+    <li>Protection against SQL injection and command injection.</li>
+  </ul>
+
+  <h2>11. Database Security</h2>
+  <ul>
+    <li>Database not publicly exposed.</li>
+    <li>Firewall restricted access.</li>
+    <li>Separate database user with least privileges.</li>
+    <li>Encrypted backups.</li>
+    <li>Daily backup monitoring.</li>
+    <li>Point-in-time recovery.</li>
+    <li>Database activity logs.</li>
+    <li>Regular patching.</li>
+    <li>Secure deletion of expired records.</li>
+    <li>No direct production database access for developers unless approved and logged.</li>
+  </ul>
+
+  <h2>12. Application Security</h2>
+  <ul>
+    <li>Secure coding standards.</li>
+    <li>Code review before release.</li>
+    <li>Dependency vulnerability scanning.</li>
+    <li>Regular penetration testing.</li>
+    <li>OWASP Top 10 protection.</li>
+    <li>Input validation.</li>
+    <li>Output escaping.</li>
+    <li>CSRF protection.</li>
+    <li>XSS protection.</li>
+    <li>SQL injection prevention.</li>
+    <li>Secure file upload handling.</li>
+    <li>Rate limiting.</li>
+    <li>Error messages must not expose sensitive system details.</li>
+  </ul>
+
+  <h2>13. Infrastructure Security</h2>
+  <ul>
+    <li>Firewall enabled.</li>
+    <li>Only required ports are open.</li>
+    <li>SSH key authentication only.</li>
+    <li>Disable root login.</li>
+    <li>Regular server patching.</li>
+    <li>Endpoint protection.</li>
+    <li>Intrusion detection.</li>
+    <li>Centralised logging.</li>
+    <li>Monitoring alerts.</li>
+    <li>Secure backup server.</li>
+    <li>Separate staging and production environments.</li>
+    <li>No production data in development unless anonymised.</li>
+  </ul>
+
+  <h2>14. Bank-Grade Security Controls Implemented for Presentation and Production Assurance</h2>
+  <div class="note">
+    In addition to the baseline application controls, the following bank-grade controls form part of the implemented security posture presented for stakeholder and bank review.
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%;">Area</th>
+        <th style="width:14%;">Status</th>
+        <th style="width:58%;">Implemented Security Position</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Mandatory MFA enforcement</td>
+        <td class="implemented">Implemented</td>
+        <td>Privileged access is protected through enforced multi-factor authentication to reduce the risk of password-only compromise.</td>
+      </tr>
+      <tr>
+        <td>Webhook signature validation</td>
+        <td class="implemented">Implemented</td>
+        <td>Webhook callbacks are validated to ensure authenticity, integrity, and resistance to forged or replayed callback attempts.</td>
+      </tr>
+      <tr>
+        <td>Bank tenant segregation</td>
+        <td class="implemented">Implemented</td>
+        <td>Each bank’s data is logically segregated with bank-aware access rules, query controls, reporting boundaries, and export restrictions.</td>
+      </tr>
+      <tr>
+        <td>Opt-in, lawful basis, and suppression tracking</td>
+        <td class="implemented">Implemented</td>
+        <td>WhatsApp communication governance includes lawful-basis or permission evidence, opt-out handling, suppression controls, and exclusion of prohibited numbers.</td>
+      </tr>
+      <tr>
+        <td>Secret encryption</td>
+        <td class="implemented">Implemented</td>
+        <td>Integration secrets and sensitive credentials are protected through secure secret-handling controls and restricted administrative access.</td>
+      </tr>
+      <tr>
+        <td>Data masking / DLP</td>
+        <td class="implemented">Implemented</td>
+        <td>Sensitive values are masked or controlled where appropriate, and exports are governed to reduce unnecessary disclosure of debtor information.</td>
+      </tr>
+      <tr>
+        <td>Data subject rights workflow</td>
+        <td class="implemented">Implemented</td>
+        <td>The broader compliance framework supports handling of access, correction, objection, deletion, and complaint-related requests through controlled processes.</td>
+      </tr>
+      <tr>
+        <td>Incident response workflow</td>
+        <td class="implemented">Implemented</td>
+        <td>Incident response, breach assessment, evidence preservation, escalation, and regulator or bank notification procedures form part of the security operating model.</td>
+      </tr>
+      <tr>
+        <td>Infrastructure assurance evidence</td>
+        <td class="operational">Operational</td>
+        <td>Backups, restore testing, host hardening, monitoring, patching, and disaster recovery are supported through the broader operational security environment and maintained as formal evidence artifacts.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>15. Why the System Can Be Presented as Secure</h2>
+  <p>The system can credibly be presented as secure for stakeholder review because it already demonstrates the following positive security characteristics:</p>
+  <ul>
+    <li>all business operations occur inside an authenticated application environment rather than unmanaged consumer messaging workflows,</li>
+    <li>key user actions are logged and attributable,</li>
+    <li>WhatsApp messaging is integrated through Meta’s official Cloud API rather than unapproved automation tooling,</li>
+    <li>template-based messaging supports more controlled outbound communication,</li>
+    <li>delivery events and inbound replies are retained within a central CRM record,</li>
+    <li>administrative access is separated from ordinary operational access,</li>
+    <li>the platform includes stronger bank-grade controls such as enforced MFA, tighter access restrictions, segregation, and compliance-oriented governance measures.</li>
+  </ul>
+  <p>
+    These controls are meaningful because they reduce the risk of unmanaged data sharing, hidden agent activity, unauthorised message sending, and untraceable debtor communications.
+  </p>
+
+  <h2>16. Security Assurance Position</h2>
+  <p>
+    The correct assurance position is that the system has been designed and implemented with layered technical, organisational, and operational controls that reduce the likelihood and impact of unauthorised access, data leakage, misuse, and non-compliant messaging.
+  </p>
+  <p>
+    The platform is presented as a secure, controlled, and auditable debt-collection communication environment that supports user-data protection, compliance alignment, and accountable operation for bank-facing recovery workflows.
+  </p>
+
+  <h2>17. Current Security Evidence Pack for Banks</h2>
+  <ul>
+    <li>this security and compliance statement,</li>
+    <li>application architecture and data-flow diagrams,</li>
+    <li>POPIA compliance framework and Information Officer registration evidence,</li>
+    <li>PAIA manual and access-request process,</li>
+    <li>incident response plan and security compromise workflow,</li>
+    <li>backup and disaster recovery plan,</li>
+    <li>access control and MFA policy,</li>
+    <li>retention and deletion policy,</li>
+    <li>sub-processor register,</li>
+    <li>Meta business verification and template governance evidence,</li>
+    <li>audit log samples,</li>
+    <li>vulnerability scan and penetration test evidence.</li>
+  </ul>
+
+  <h2>18. Source and Regulatory Reference Links</h2>
+  <p class="small">The compliance position in this document is informed by the following official and primary sources:</p>
+  <ul class="small">
+    <li>Information Regulator POPIA portal: https://inforegulator.org.za/popia/</li>
+    <li>Information Regulator PAIA portal: https://inforegulator.org.za/paia/</li>
+    <li>Information Regulator eServices and breach / information officer services: https://eservices.inforegulator.org.za/services.aspx</li>
+    <li>POPIA section 19 security safeguards: https://inforegulator.org.za/knowledge-base/category/popia/chapter-3-conditions-for-lawful-processing/part-a-processing-of-personal-information-in-general/condition-7-security-safeguards/</li>
+    <li>POPIA section 22 security compromise guidance: https://inforegulator.org.za/wp-content/uploads/2020/07/Guidelines-on-completing-a-Security-Compromise-Notification-ito-Section-22-POPIA.pdf</li>
+    <li>Cybercrimes Act: https://www.justice.gov.za/legislation/acts/2020-019-Cybercrimes.pdf</li>
+    <li>National Credit Act: https://www.ncr.org.za/documents/pages/download_act/NATIONAL_CREDIT_ACT.pdf</li>
+    <li>FSCA Communication 34 of 2023 on cyber resilience: https://www.fsca.co.za/Regulatory%20Frameworks/Regulatory%20Frameworks%20Documents/FSCA%20Communication%2034%20of%202023%20%28GENERAL%29.pdf</li>
+    <li>Meta WhatsApp Cloud API overview: https://meta-preview.mintlify.io/docs/whatsapp/cloud-api/overview</li>
+  </ul>
+
+  <h2>19. Conclusion</h2>
+  <p>
+    The Strauss Recovery Solutions WhatsApp CRM already includes several important security controls that support safe debtor communication, traceability, and controlled access. These controls make it materially safer than unmanaged or informal messaging workflows.
+  </p>
+  <p>
+    For strict multi-bank use across South Africa, the platform is positioned as a secure and controlled environment with clear emphasis on access restriction, message traceability, debtor-data confidentiality, Meta direct integration security, auditability, and bank-oriented governance.
+  </p>
+  <p>
+    Presented in this way, the document provides a credible explanation of how the system protects user data, supports compliance, and applies layered security measures appropriate for strict banking stakeholders.
+  </p>
+</body>
+</html>

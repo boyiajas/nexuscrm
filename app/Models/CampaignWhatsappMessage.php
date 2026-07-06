@@ -11,6 +11,8 @@ class CampaignWhatsappMessage extends Model
         'mode',
         'template_sid',
         'template_name',
+        'provider_phone_number_id',
+        'provider_display_phone_number',
         'name',
         'preview_body',
         'whatsapp_flow_id',
