@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>@yield('title', 'SRS DailyCRM')</title>
     <meta name="description" content="@yield('meta_description', 'SRS DailyCRM is a secure collections CRM for Strauss Recovery Solutions with WhatsApp, audit, and compliance controls.')">
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ asset('images/strauss-recovery-solution-icon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/strauss-recovery-solution-icon-192.png') }}">
     <style>
         :root {
             --ink: #172033;
@@ -1324,10 +1327,11 @@
     <header class="site-header">
         <div class="shell site-header__row" style="display: flex; align-items: center;">
             <a href="{{ route('public.landing') }}" class="brand" style="flex: 1;">
-                <span class="brand__mark" style="border-radius: 8px;">NC</span>
-                <span class="brand__text">
-                    <strong style="font-size: 1.1rem; color: var(--navy);">SRS DailyCRM</strong>
-                </span>
+                <img
+                    src="{{ asset('images/strauss recovery solution logo.png') }}"
+                    alt="Strauss Recovery Solutions"
+                    style="height:44px;width:auto;display:block;"
+                />
             </a>
             <nav class="site-nav" aria-label="Public navigation" style="display: flex; justify-content: center; gap: 24px;">
                 <a href="{{ route('public.landing') }}#features" class="js-hash-link" data-section="features">Features</a>
@@ -1349,7 +1353,11 @@
     <footer class="site-footer">
         <div class="shell site-footer__row">
             <div>
-                <strong>SRS DailyCRM</strong><br>
+                <img
+                    src="{{ asset('images/strauss recovery solution logo.png') }}"
+                    alt="Strauss Recovery Solutions"
+                    style="height:44px;width:auto;display:block;margin-bottom:8px;"
+                />
                 <span style="color: var(--muted);">Collections workflow, WhatsApp engagement, audit, and compliance tooling for Strauss Recovery Solutions.</span>
             </div>
             <div class="site-footer__links">

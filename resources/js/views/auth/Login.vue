@@ -3,19 +3,11 @@
     <header class="login-topbar">
       <div class="login-topbar__inner">
         <a href="/" class="login-topbar__brand">
-          <span class="login-topbar__mark">
-            <img
-              v-if="branding.app_logo_url"
-              :src="branding.app_logo_url"
-              :alt="branding.app_name"
-              class="login-brand-logo"
-            />
-            <i v-else class="bi bi-shield-lock"></i>
-          </span>
-          <span class="login-topbar__brand-copy">
-            <span class="login-topbar__name">{{ branding.app_name }}</span>
-            <span class="login-topbar__sub">Strauss Recovery Solutions</span>
-          </span>
+          <img
+            :src="publicLogoSrc"
+            alt="Strauss Recovery Solutions"
+            class="login-static-logo"
+          />
         </a>
 
         <nav class="login-topbar__nav">
@@ -206,22 +198,30 @@
       <div class="login-footer__inner">
         <div class="login-footer__brand-block">
           <div class="login-footer__brand">
-            <span class="login-footer__mark">
-              <i class="bi bi-shield-lock"></i>
-            </span>
-            <span class="login-footer__name">{{ branding.app_name }}</span>
+            <img
+              :src="publicLogoSrc"
+              alt="Strauss Recovery Solutions"
+              class="login-static-logo"
+            />
           </div>
           <div class="login-footer__copy">
             Collections workflow, WhatsApp engagement, audit, and compliance tooling for Strauss Recovery Solutions.
           </div>
           <div class="login-footer__copy login-footer__copy--fine">© 2024 {{ branding.app_name }} - Strauss Recovery Solutions. All rights reserved.</div>
         </div>
-        <div class="login-footer__links">
-          <a href="/privacy-policy">Privacy Policy</a>
-          <a href="/compliance">Compliance</a>
-          <a href="/data-deletion">Data Deletion</a>
-          <a href="/terms-of-service">Terms of Service</a>
-          <a href="/login">Login</a>
+        <div class="login-footer__meta">
+          <div class="login-footer__links">
+            <a href="/privacy-policy">Privacy Policy</a>
+            <a href="/compliance">Compliance</a>
+            <a href="/data-deletion">Data Deletion</a>
+            <a href="/terms-of-service">Terms of Service</a>
+            <a href="/login">Login</a>
+          </div>
+          <div class="login-footer__icons">
+            <span><i class="bi bi-lock"></i></span>
+            <span><i class="bi bi-shield-check"></i></span>
+            <span><i class="bi bi-cloud-check"></i></span>
+          </div>
         </div>
       </div>
     </footer>
@@ -262,6 +262,7 @@ export default {
         password: '',
         password_confirmation: '',
       },
+      publicLogoSrc: `${window.location.origin}/images/strauss%20recovery%20solution%20logo.png`,
     };
   },
   computed: {
@@ -488,38 +489,13 @@ export default {
 .login-topbar__brand {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
   text-decoration: none;
 }
 
-.login-topbar__mark {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #00288e;
-  color: #fff;
-}
-
-.login-topbar__brand-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.login-topbar__name {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #131b2e;
-  line-height: 1.05;
-}
-
-.login-topbar__sub {
-  font-size: 0.76rem;
-  color: #6b7280;
-  line-height: 1.1;
+.login-static-logo {
+  height: 44px;
+  width: auto;
+  display: block;
 }
 
 .login-topbar__nav {
@@ -829,9 +805,8 @@ export default {
   max-width: 1280px;
   margin: 0 auto;
   padding: 0 40px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 32px;
 }
 
@@ -842,25 +817,7 @@ export default {
 .login-footer__brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   margin-bottom: 10px;
-}
-
-.login-footer__mark {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  background: #00288e;
-  color: #fff;
-}
-
-.login-footer__name {
-  font-family: Manrope, Inter, sans-serif;
-  font-weight: 800;
-  color: #131b2e;
 }
 
 .login-footer__copy {
@@ -873,6 +830,13 @@ export default {
   margin-top: 12px;
   color: #6b7280;
   font-size: 0.82rem;
+}
+
+.login-footer__meta {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
 }
 
 .login-footer__links {
@@ -891,6 +855,24 @@ export default {
 
 .login-footer__links a:hover {
   text-decoration: underline;
+}
+
+.login-footer__icons {
+  margin-top: 16px;
+  display: flex;
+  gap: 16px;
+  color: #6b7280;
+}
+
+.login-footer__icons span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.login-footer__icons span:hover {
+  color: #00288e;
 }
 
 @media (max-width: 991px) {
@@ -943,12 +925,8 @@ export default {
     padding-bottom: 2px;
   }
 
-  .login-topbar__name {
-    font-size: 1.15rem;
-  }
-
-  .login-topbar__sub {
-    font-size: 0.72rem;
+  .login-static-logo {
+    height: 36px;
   }
 
   .login-stage {
@@ -983,10 +961,13 @@ export default {
   }
 
   .login-footer__inner {
-    align-items: flex-start;
-    flex-direction: column;
+    grid-template-columns: 1fr;
     padding-left: 18px;
     padding-right: 18px;
+  }
+
+  .login-footer__meta {
+    align-items: flex-start;
   }
 
   .login-footer__links {

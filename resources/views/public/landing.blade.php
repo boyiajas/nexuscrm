@@ -5,6 +5,9 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>SRS DailyCRM | Secure Data Management &amp; Compliance</title>
     <meta name="description" content="Public information page for SRS DailyCRM, including security, compliance, and privacy information for Strauss Recovery Solutions and Meta WhatsApp Business usage."/>
+    <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ asset('images/strauss-recovery-solution-icon.svg') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/strauss-recovery-solution-icon-192.png') }}">
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;family=Manrope:wght@600;700;800&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -130,11 +133,12 @@
 <body class="bg-background text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
     <nav class="fixed top-0 z-50 w-full border-b border-outline-variant/30 bg-surface/80 backdrop-blur-md">
         <div class="mx-auto flex h-16 max-w-container-max items-center justify-between px-margin-desktop">
-            <a class="flex items-center gap-2" href="{{ route('public.landing') }}">
-                <div class="flex h-8 w-8 items-center justify-center rounded bg-primary">
-                    <span class="material-symbols-outlined text-[20px] text-on-primary">security</span>
-                </div>
-                <span class="font-headline-md text-headline-md font-bold text-on-surface">SRS DailyCRM</span>
+            <a class="flex items-center" href="{{ route('public.landing') }}">
+                <img
+                    src="{{ asset('images/strauss recovery solution logo.png') }}"
+                    alt="Strauss Recovery Solutions"
+                    class="h-11 w-auto"
+                />
             </a>
             <div class="hidden items-center gap-stack-lg md:flex">
                 <a class="border-b-2 border-primary pb-1 font-body-md text-body-md font-bold text-primary transition-colors hover:text-primary" href="#features">Features</a>
@@ -396,11 +400,12 @@
     <footer class="w-full border-t border-outline-variant/50 bg-surface-container-low py-stack-lg">
         <div class="mx-auto grid max-w-container-max grid-cols-1 gap-stack-lg px-margin-desktop md:grid-cols-2">
             <div class="space-y-4">
-                <div class="flex items-center gap-2">
-                    <div class="flex h-8 w-8 items-center justify-center rounded bg-primary">
-                        <span class="material-symbols-outlined text-[20px] text-on-primary">security</span>
-                    </div>
-                    <span class="font-headline-md text-headline-md font-extrabold text-on-surface">SRS DailyCRM</span>
+                <div class="flex items-center">
+                    <img
+                        src="{{ asset('images/strauss recovery solution logo.png') }}"
+                        alt="Strauss Recovery Solutions"
+                        class="h-11 w-auto"
+                    />
                 </div>
                 <p class="max-w-sm font-body-sm text-on-surface-variant">
                     Collections workflow, WhatsApp engagement, audit, and compliance tooling for Strauss Recovery Solutions.

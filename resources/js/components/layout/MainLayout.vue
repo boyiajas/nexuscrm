@@ -7,19 +7,12 @@
       style="background-color: #070735;"
     >
       <div class="p-3 border-bottom d-flex align-items-center gap-2">
-        <div class="brand-mark fw-bold text-white text-center flex-shrink-0">
-          <img
-            v-if="branding.app_logo_url"
-            :src="branding.app_logo_url"
-            :alt="branding.app_name"
-            class="brand-logo"
-          />
-          <span v-else>{{ collapsedBrandInitials }}</span>
-        </div>
-        <div v-if="!isSidebarCollapsed">
-          <div class="fw-bold text-white">{{ branding.app_name }}</div>
-          <small class="text-white">{{ branding.app_tagline }}</small>
-        </div>
+        <img
+          :src="publicLogoSrc"
+          alt="Strauss Recovery Solutions"
+          class="sidebar-static-logo"
+          :class="{ 'sidebar-static-logo--collapsed': isSidebarCollapsed }"
+        />
       </div>
 
       <ul class="nav nav-pills flex-column p-2">
@@ -287,6 +280,7 @@ export default {
         app_tagline: 'Mini CRM Console',
         app_logo_url: '',
       },
+      publicLogoSrc: `${window.location.origin}/images/strauss%20recovery%20solution%20logo.png`,
       watermarkTimestamp: '',
       watermarkTimer: null,
       toasts: [],
@@ -523,20 +517,14 @@ export default {
   width: 230px;
   transition: width 0.2s ease;
 }
-.sidebar .brand-mark {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background-color: rgba(255, 255, 255, 0.1);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.sidebar-static-logo {
+  width: 168px;
+  max-width: 100%;
+  height: auto;
+  display: block;
 }
-.brand-logo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 12px;
+.sidebar-static-logo--collapsed {
+  width: 44px;
 }
 .sidebar-collapsed {
   width: 72px;
