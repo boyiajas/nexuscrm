@@ -47,10 +47,18 @@
             <span class="login-card__eyebrow">SRS DailyCRM Access</span>
             <h2 v-if="step === 'credentials'">Sign in to {{ branding.app_name }}</h2>
             <h2 v-else-if="step === 'mfa'">Verify your sign in</h2>
-            <h2 v-else>Reset your password</h2>
+            <h2 v-else-if="step === 'password_reset'">Reset your password</h2>
+            <h2 v-else-if="step === 'forgot_request'">Forgot your password?</h2>
+            <h2 v-else>Set a new password</h2>
             <p v-if="step === 'credentials'">{{ branding.app_tagline || 'Secure access to your operating dashboard.' }}</p>
             <p v-else-if="step === 'mfa'">Enter the verification code sent to your email address.</p>
-            <p v-else>Complete the password reset challenge to continue.</p>
+            <p v-else-if="step === 'password_reset'">Complete the password reset challenge to continue.</p>
+            <p v-else-if="step === 'forgot_request'">Enter your email address and we will send you a password reset code.</p>
+            <p v-else>Enter the reset code from your email and choose a new password.</p>
+          </div>
+
+          <div v-if="successMessage" class="alert alert-success py-2">
+            {{ successMessage }}
           </div>
 
           <div v-if="error" class="alert alert-danger py-2">
@@ -58,7 +66,7 @@
           </div>
 
           <form @submit.prevent="submit">
-            <div class="mb-3" v-if="step === 'credentials'">
+            <div class="mb-3" v-if="step === 'credentials' || step === 'forgot_request'">
               <label class="form-label">Email address</label>
               <div class="login-input-wrap">
                 <span class="login-input-icon"><i class="bi bi-at"></i></span>
@@ -66,9 +74,10 @@
                   v-model="form.email"
                   type="email"
                   class="form-control login-control login-control--with-left"
-                  required
-                  autocomplete="email"
+                  :required="step === 'credentials' || step === 'forgot_request'"
+                  :autocomplete="step === 'forgot_request' ? 'email' : 'email'"
                   placeholder="name@nexuscorp.com"
+                  :disabled="step === 'forgot_reset'"
                 />
               </div>
             </div>
@@ -76,7 +85,14 @@
             <div class="mb-3" v-if="step === 'credentials'">
               <label class="form-label d-flex justify-content-between">
                 <span>Password</span>
-                <span class="login-link login-link--static">Forgot password?</span>
+                <button
+                  type="button"
+                  class="login-link login-link--button"
+                  @click="openForgotPassword"
+                  :disabled="loading"
+                >
+                  Forgot password?
+                </button>
               </label>
               <div class="login-input-wrap">
                 <span class="login-input-icon"><i class="bi bi-lock"></i></span>
@@ -160,6 +176,57 @@
               </div>
               <button type="button" class="btn btn-link btn-sm p-0 mb-3 login-link" @click="resetToCredentials" :disabled="loading">
                 Use different credentials
+              </button>
+            </div>
+
+            <div v-if="step === 'forgot_request'">
+              <button type="button" class="btn btn-link btn-sm p-0 mb-3 login-link" @click="resetToCredentials" :disabled="loading">
+                Back to sign in
+              </button>
+            </div>
+
+            <div v-if="step === 'forgot_reset'">
+              <div class="alert alert-info py-2">
+                {{ forgotPassword.message }}
+                <div class="small mt-1" v-if="forgotPassword.maskedEmail">Code destination: {{ forgotPassword.maskedEmail }}</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Verification code</label>
+                <input
+                  v-model="forgotPassword.code"
+                  type="text"
+                  class="form-control login-control"
+                  maxlength="6"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  required
+                />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">New password</label>
+                <input
+                  v-model="forgotPassword.password"
+                  type="password"
+                  class="form-control login-control"
+                  autocomplete="new-password"
+                  required
+                />
+                <div class="form-text">
+                  Use at least 12 characters with upper/lowercase letters, a number, and a symbol.
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Confirm new password</label>
+                <input
+                  v-model="forgotPassword.password_confirmation"
+                  type="password"
+                  class="form-control login-control"
+                  autocomplete="new-password"
+                  required
+                />
+              </div>
+              <button type="button" class="btn btn-link btn-sm p-0 mb-3 login-link" @click="openForgotPassword" :disabled="loading">
+                Use a different email
               </button>
             </div>
 
@@ -248,6 +315,7 @@ export default {
       },
       loading: false,
       error: null,
+      successMessage: null,
       showPassword: false,
       step: 'credentials',
       mfa: {
@@ -262,12 +330,22 @@ export default {
         password: '',
         password_confirmation: '',
       },
+      forgotPassword: {
+        challengeId: '',
+        message: '',
+        maskedEmail: '',
+        code: '',
+        password: '',
+        password_confirmation: '',
+      },
       publicLogoSrc: `${window.location.origin}/images/strauss%20recovery%20solution%20logo.png`,
     };
   },
   computed: {
     submitLabel() {
       if (this.step === 'credentials') return 'Sign in';
+      if (this.step === 'forgot_request') return 'Send reset code';
+      if (this.step === 'forgot_reset') return 'Reset password';
       if (this.step === 'mfa') return 'Verify and continue';
       return 'Reset password and continue';
     },
@@ -324,13 +402,74 @@ export default {
         password: '',
         password_confirmation: '',
       };
+      this.forgotPassword = {
+        challengeId: '',
+        message: '',
+        maskedEmail: '',
+        code: '',
+        password: '',
+        password_confirmation: '',
+      };
       this.error = null;
+      this.successMessage = null;
+    },
+    openForgotPassword() {
+      this.step = 'forgot_request';
+      this.error = null;
+      this.successMessage = null;
+      this.passwordReset = {
+        challengeId: '',
+        message: '',
+        password: '',
+        password_confirmation: '',
+      };
+      this.mfa = {
+        challengeId: '',
+        code: '',
+        message: '',
+        maskedEmail: '',
+      };
+      this.forgotPassword = {
+        challengeId: '',
+        message: '',
+        maskedEmail: '',
+        code: '',
+        password: '',
+        password_confirmation: '',
+      };
     },
     async submit() {
       this.loading = true;
       this.error = null;
 
       try {
+        if (this.step === 'forgot_request') {
+          const response = await axios.post('/api/forgot-password/request', {
+            email: this.form.email,
+          });
+
+          this.step = 'forgot_reset';
+          this.forgotPassword.challengeId = response.data.challenge_id || '';
+          this.forgotPassword.message = response.data.message || 'If an account exists for that email address, a password reset code has been sent.';
+          this.forgotPassword.maskedEmail = response.data.masked_email || '';
+          return;
+        }
+
+        if (this.step === 'forgot_reset') {
+          const response = await axios.post('/api/forgot-password/reset', {
+            challenge_id: this.forgotPassword.challengeId,
+            code: this.forgotPassword.code,
+            password: this.forgotPassword.password,
+            password_confirmation: this.forgotPassword.password_confirmation,
+          });
+
+          this.resetToCredentials();
+          this.successMessage = response.data?.message || 'Your password has been reset successfully. You can now sign in.';
+          this.form.password = '';
+          this.form.remember = false;
+          return;
+        }
+
         if (this.step === 'credentials') {
           await axios.get('/sanctum/csrf-cookie');
 
@@ -387,6 +526,11 @@ export default {
       } catch (e) {
         if (e.response && e.response.status === 422) {
           this.error = e.response.data.message || 'Invalid credentials.';
+        } else if (e.response && e.response.status === 202 && this.step === 'forgot_request') {
+          this.step = 'forgot_reset';
+          this.forgotPassword.challengeId = e.response.data.challenge_id || '';
+          this.forgotPassword.message = e.response.data.message || 'If an account exists for that email address, a password reset code has been sent.';
+          this.forgotPassword.maskedEmail = e.response.data.masked_email || '';
         } else if (e.response && e.response.status === 423) {
           this.error = e.response.data.message || 'Your account is temporarily locked.';
         } else if (e.response && e.response.status === 428 && e.response.data?.password_reset_required) {
@@ -703,18 +847,15 @@ export default {
   font-weight: 600;
 }
 
-.login-link--static {
-  cursor: default;
+.login-link--button {
+  background: transparent;
+  border: 0;
+  padding: 0;
 }
 
 .login-link:hover {
   color: #173bab;
   text-decoration: underline;
-}
-
-.login-link--static:hover {
-  color: #2563eb;
-  text-decoration: none;
 }
 
 .login-submit {

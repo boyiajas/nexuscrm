@@ -32,6 +32,8 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/login/mfa/verify', [AuthController::class, 'verifyLoginMfa']);
 Route::post('/login/password/reset', [AuthController::class, 'resetLoginPassword']);
+Route::post('/forgot-password/request', [AuthController::class, 'requestForgotPassword']);
+Route::post('/forgot-password/reset', [AuthController::class, 'completeForgotPasswordReset']);
 Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 Route::get('/me', [AuthController::class, 'me'])->middleware('auth:sanctum');
 Route::get('/settings/branding', [SettingsController::class, 'branding']);

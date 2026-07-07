@@ -28,7 +28,7 @@ const routes = [
     path: '/',
     component: MainLayout,
     children: [
-      { path: '', name: 'dashboard', component: Dashboard, meta: { sensitiveView: true } },
+      { path: 'dashboard', name: 'dashboard', component: Dashboard, meta: { sensitiveView: true } },
       { path: 'clients', name: 'clients', component: Clients, meta: { sensitiveView: true } },
       { path: 'campaigns', name: 'campaigns', component: Campaigns, meta: { sensitiveView: true } },
       { path: 'campaigns/:id', name: 'campaign.show', component: CampaignShow, meta: { sensitiveView: true } },

@@ -280,7 +280,7 @@ export default {
         app_tagline: 'Mini CRM Console',
         app_logo_url: '',
       },
-      publicLogoSrc: `${window.location.origin}/images/strauss%20recovery%20solution%20logo.png`,
+      publicLogoSrc: `${window.location.origin}/images/strauss%20recovery%20solution%20logo-dark.png`,
       watermarkTimestamp: '',
       watermarkTimer: null,
       toasts: [],

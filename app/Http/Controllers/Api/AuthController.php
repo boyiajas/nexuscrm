@@ -24,6 +24,7 @@ class AuthController extends Controller
 
     private const MFA_CACHE_PREFIX = 'login_mfa:';
     private const PASSWORD_RESET_CACHE_PREFIX = 'login_password_reset:';
+    private const FORGOT_PASSWORD_CACHE_PREFIX = 'forgot_password:';
 
     public function login(Request $request)
     {
@@ -204,6 +205,109 @@ class AuthController extends Controller
         }
 
         return $this->issueAuthenticatedResponse($user, $request, 'password_reset');
+    }
+
+    public function requestForgotPassword(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email'],
+        ]);
+
+        $user = User::where('email', $data['email'])->first();
+
+        if ($user && $user->isActive()) {
+            $challengeId = (string) Str::uuid();
+            $code = (string) random_int(100000, 999999);
+
+            app(CacheRepository::class)->put(
+                self::FORGOT_PASSWORD_CACHE_PREFIX . $challengeId,
+                [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'code' => $code,
+                    'ip' => $request->ip(),
+                    'user_agent' => substr((string) $request->userAgent(), 0, 255),
+                ],
+                now()->addMinutes(15)
+            );
+
+            Mail::raw(
+                "Your SRS DailyCRM password reset code is {$code}. It expires in 15 minutes.",
+                function ($message) use ($user) {
+                    $message->to($user->email)->subject('Your SRS DailyCRM password reset code');
+                }
+            );
+
+            $this->audit(
+                action: "Forgot password challenge created for {$user->email}",
+                module: 'Auth',
+                meta: ['user_id' => $user->id]
+            );
+
+            return response()->json([
+                'challenge_id' => $challengeId,
+                'masked_email' => $this->maskEmail($user->email),
+                'message' => 'A password reset code has been sent to your email address.',
+            ], 202);
+        }
+
+        return response()->json([
+            'message' => 'If an account exists for that email address, a password reset code has been sent.',
+        ], 202);
+    }
+
+    public function completeForgotPasswordReset(Request $request)
+    {
+        $data = $request->validate([
+            'challenge_id' => ['required', 'uuid'],
+            'code' => ['required', 'digits:6'],
+            'password' => ['required', 'string', 'confirmed', Password::min(12)->letters()->mixedCase()->numbers()->symbols()],
+        ]);
+
+        $cacheKey = self::FORGOT_PASSWORD_CACHE_PREFIX . $data['challenge_id'];
+        $challenge = app(CacheRepository::class)->get($cacheKey);
+
+        if (!$challenge) {
+            throw ValidationException::withMessages([
+                'code' => ['The password reset code has expired. Please request a new one.'],
+            ]);
+        }
+
+        if (
+            !hash_equals((string) $challenge['code'], (string) $data['code'])
+            || ($challenge['ip'] ?? null) !== $request->ip()
+        ) {
+            $this->audit(
+                action: 'Failed forgot password verification attempt',
+                module: 'Auth',
+                meta: ['challenge_id' => $data['challenge_id']]
+            );
+
+            throw ValidationException::withMessages([
+                'code' => ['The password reset code is invalid.'],
+            ]);
+        }
+
+        $user = User::findOrFail($challenge['user_id']);
+        $user->forceFill([
+            'password' => Hash::make($data['password']),
+            'password_changed_at' => now(),
+            'password_reset_required' => false,
+            'failed_login_attempts' => 0,
+            'locked_until' => null,
+        ])->save();
+
+        app(CacheRepository::class)->forget($cacheKey);
+
+        $this->audit(
+            action: "Forgot password completed for {$user->email}",
+            module: 'Auth',
+            meta: ['user_id' => $user->id]
+        );
+
+        return response()->json([
+            'message' => 'Your password has been reset successfully. You can now sign in.',
+        ]);
     }
 
     public function register(Request $request)
