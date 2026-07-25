@@ -14,6 +14,7 @@ class ImportUpload extends Model
         'user_id',
         'dataset',
         'original_filename',
+        'import_batch_number',
         'stored_path',
         'mime_type',
         'size_bytes',

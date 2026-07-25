@@ -11,6 +11,7 @@ interface WhatsAppServiceInterface
         ?string $overrideTemplateSid,
         string $subject = '',
         string $message = '',
+        array $templateVariables = [],
         ?string $overrideFrom = null,
         ?string $overrideMsid = null
     ): array;

@@ -69,6 +69,11 @@ class User extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = [
+        'role_codes',
+        'role_names',
+    ];
+
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
@@ -90,6 +95,11 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Department::class, 'department_user')
             ->withTimestamps();
+    }
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'role_user')->withTimestamps();
     }
 
     public function bank()
@@ -134,7 +144,24 @@ class User extends Authenticatable
     public function hasRole(string|array $roles): bool
     {
         $roles = is_array($roles) ? $roles : [$roles];
-        return in_array($this->role, $roles, true);
+        return !empty(array_intersect($this->resolvedRoleCodes(), $roles));
+    }
+
+    public function getRoleCodesAttribute(): array
+    {
+        return $this->resolvedRoleCodes();
+    }
+
+    public function getRoleNamesAttribute(): array
+    {
+        if ($this->relationLoaded('roles')) {
+            $names = $this->roles->pluck('name')->filter()->values()->all();
+            if (!empty($names)) {
+                return $names;
+            }
+        }
+
+        return array_map(fn (string $code) => str_replace('_', ' ', $code), $this->resolvedRoleCodes());
     }
 
     public function canManageSystemSettings(): bool
@@ -282,12 +309,48 @@ class User extends Authenticatable
 
     public function isPortfolioScoped(): bool
     {
-        return $this->hasRole([self::ROLE_AGENT]);
+        return $this->hasRole([
+            self::ROLE_AGENT,
+            self::ROLE_STAFF_LEGACY,
+        ]);
     }
 
     public function isActive(): bool
     {
         return $this->status === 'Active';
+    }
+
+    public function resolvedRoleCodes(): array
+    {
+        if ($this->relationLoaded('roles')) {
+            $codes = $this->roles->pluck('code')->filter()->map(fn ($code) => (string) $code)->values()->all();
+            if (!empty($codes)) {
+                return array_values(array_unique($codes));
+            }
+        }
+
+        $pivotCodes = $this->roles()->pluck('roles.code')->filter()->map(fn ($code) => (string) $code)->values()->all();
+        if (!empty($pivotCodes)) {
+            return array_values(array_unique($pivotCodes));
+        }
+
+        if (!empty($this->role)) {
+            return [(string) $this->role];
+        }
+
+        return [];
+    }
+
+    public static function resolvePrimaryRoleFromCodes(array $codes): ?string
+    {
+        $codes = array_values(array_unique(array_filter(array_map('strval', $codes))));
+        foreach (self::ALL_ROLES as $preferred) {
+            if (in_array($preferred, $codes, true)) {
+                return $preferred;
+            }
+        }
+
+        return $codes[0] ?? null;
     }
 
     public function resolvedDepartmentId(): ?int

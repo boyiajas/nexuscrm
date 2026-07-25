@@ -11,9 +11,11 @@ use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ComplianceController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\Api\DepartmentStatsController;
 use App\Http\Controllers\Api\ExportRequestController;
 use App\Http\Controllers\Api\ImportUploadController;
 use App\Http\Controllers\Api\MfaController;
+use App\Http\Controllers\Api\RoleController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SecurityIncidentController;
 use App\Http\Controllers\Api\UserController;
@@ -45,6 +47,7 @@ Route::post('/twilio/webhook/whatsapp', [WhatsAppWebhookController::class, 'webh
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('clients/import', [ClientController::class, 'import']);
+    Route::delete('clients/delete-batch', [ClientController::class, 'destroyBatch']);
     Route::get('import-uploads', [ImportUploadController::class, 'index']);
     Route::get('clients/export', [ClientController::class, 'export']);
     Route::apiResource('clients', ClientController::class);
@@ -70,6 +73,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/campaigns/{campaign}/stats', [CampaignController::class, 'stats']);
     Route::get('/campaigns/{campaign}/clients', [CampaignController::class, 'clients']);
     Route::get('/campaigns/{campaign}/clients/export', [CampaignController::class, 'exportClients']);
+    Route::delete('/campaigns/{campaign}/clients/{client}', [CampaignController::class, 'detachClient']);
+    Route::post('/campaigns/{campaign}/detach-clients', [CampaignController::class, 'detachClients']);
     Route::get('/campaigns/{campaign}/available-clients', [CampaignController::class, 'availableClients']);
     Route::post('/campaigns/{campaign}/attach-clients', [CampaignController::class, 'attachClients']);
 
@@ -77,6 +82,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/campaigns/{campaign}/whatsapp-messages/export', [CampaignController::class, 'exportWhatsappMessages']);
     Route::put('/campaigns/{campaign}/whatsapp-messages/{message}', [CampaignController::class, 'updateWhatsappMessage']);
     Route::post('/campaigns/{campaign}/whatsapp-messages/{message}/send', [CampaignController::class, 'sendDraftWhatsappMessage']);
+    Route::post('/campaigns/{campaign}/whatsapp-messages/{message}/pause', [CampaignController::class, 'pauseWhatsappMessage']);
+    Route::post('/campaigns/{campaign}/whatsapp-messages/{message}/resume', [CampaignController::class, 'resumeWhatsappMessage']);
+    Route::post('/campaigns/{campaign}/whatsapp-messages/{message}/retry-failed', [CampaignController::class, 'retryFailedWhatsappRecipients']);
     Route::delete('/campaigns/{campaign}/whatsapp-messages/{message}', [CampaignController::class, 'deleteWhatsappMessage']);
     Route::post('/campaigns/{campaign}/whatsapp-messages', [CampaignController::class, 'sendWhatsappMessage']);
 
@@ -129,13 +137,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('settings', [SettingsController::class, 'update']);
     Route::post('settings/meta/validate', [SettingsController::class, 'validateMetaPermissions']);
 
+    Route::get('settings/meta/phone-numbers', [SettingsController::class, 'fetchMetaPhoneNumbers']);
+    Route::post('settings/meta/phone-numbers', [SettingsController::class, 'submitMetaPhoneNumber']);
+    Route::post('settings/meta/phone-numbers/request-verification', [SettingsController::class, 'requestMetaPhoneVerification']);
+    Route::post('settings/meta/phone-numbers/verify', [SettingsController::class, 'verifyMetaPhoneNumber']);
+
     Route::get('dashboard', [DashboardController::class, 'index']);
 
     Route::apiResource('departments', DepartmentController::class);
+    Route::get('departments/{department}/whatsapp-stats', [DepartmentStatsController::class, 'whatsappStats']);
     Route::get('/whatsapp/senders', [WhatsAppWebhookController::class, 'whatsappSenders']);
     Route::get('/twilio/whatsapp-senders', [WhatsAppWebhookController::class, 'whatsappSenders']);
 
     Route::apiResource('users', UserController::class)->except(['show']);
+    Route::patch('roles/{role}/watermark', [RoleController::class, 'toggleWatermark']);
+    Route::apiResource('roles', RoleController::class)->except(['show']);
     Route::get('users-assignees', [UserController::class, 'assignees']);
 
     Route::get('/user', [UserProfileController::class, 'show']);

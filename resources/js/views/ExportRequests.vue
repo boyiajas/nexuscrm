@@ -54,6 +54,7 @@
 
     <div class="card shadow-sm">
       <div class="card-body p-0">
+        <TableLoadingWrapper :loading="loading" message="Loading export requests...">
         <table class="table table-striped table-hover mb-0 align-middle">
           <thead>
             <tr>
@@ -136,11 +137,12 @@
                 </div>
               </td>
             </tr>
-            <tr v-if="requests.length === 0">
+            <tr v-if="!loading && requests.length === 0">
               <td colspan="9" class="text-center text-muted py-4">No export requests found.</td>
             </tr>
           </tbody>
         </table>
+        </TableLoadingWrapper>
       </div>
 
       <div class="card-footer d-flex justify-content-between align-items-center">
@@ -266,15 +268,20 @@
 
 <script>
 import axios from '../axios';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { downloadProtectedFile } from '../utils/download';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 
 export default {
   name: 'ExportRequestsView',
+  components: {
+    TableLoadingWrapper,
+  },
   data() {
     return {
       requests: [],
+      loading: false,
       rowBusyId: null,
       selectedRequest: null,
       detailModal: null,
@@ -326,6 +333,7 @@ export default {
   methods: {
     fetchRequests(page = 1) {
       this.pagination.currentPage = page;
+      this.loading = true;
       axios.get('/api/export-requests', {
         params: {
           page,
@@ -345,6 +353,8 @@ export default {
         this.pagination.total = data.total;
         this.pagination.from = data.from;
         this.pagination.to = data.to;
+      }).finally(() => {
+        this.loading = false;
       });
     },
     resetFilters() {

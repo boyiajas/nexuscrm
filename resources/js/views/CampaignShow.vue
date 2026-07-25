@@ -261,32 +261,32 @@
                         class="btn btn-outline-success"
                         v-if="canSendWhatsapp(w)"
                         @click="sendDraftWhatsapp(w)"
+                        title="Send"
                       >
-                        <i class="bi bi-send-check me-1"></i>
-                        Send
+                        <i class="bi bi-send-check"></i>
                       </button>
                       <button
                         class="btn btn-outline-primary"
                         @click="viewRecipients('WhatsApp', w)"
+                        title="View Dashboard"
                       >
-                        <i class="bi bi-bar-chart-line me-1"></i>
-                        View Dashboard
+                        <i class="bi bi-bar-chart-line"></i>
                       </button>
                       <button
                         class="btn btn-outline-secondary"
                         @click="editWhatsappTemplate(w)"
                         :disabled="!whatsappTemplateId(w)"
+                        title="Edit Template"
                       >
-                        <i class="bi bi-pencil-square me-1"></i>
-                        Edit Template
+                        <i class="bi bi-pencil-square"></i>
                       </button>
                       <button
                         class="btn btn-outline-danger"
                         @click="deleteWhatsappTemplate(w)"
                         :disabled="!whatsappTemplateId(w)"
+                        title="Delete Template"
                       >
-                        <i class="bi bi-trash me-1"></i>
-                        Delete Template
+                        <i class="bi bi-trash"></i>
                       </button>
                     </div>
                   </td>
@@ -451,47 +451,56 @@
 
     <!-- Mini Dashboard Modal (WhatsApp / Email / SMS) -->
     <div class="modal fade" tabindex="-1" ref="recipientsModalRef">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width: 95vw; width: 1500px;">
         <div class="modal-content">
-          <div class="modal-header flex-column flex-md-row align-items-start justify-content-between gap-2">
+          <div class="modal-header flex-column flex-md-row align-items-start justify-content-between gap-3 bg-light border-bottom py-3">
             <div class="me-md-3">
-              <h5 class="modal-title d-flex align-items-center gap-2">
-                <i
-                  v-if="recipientModal.channel === 'WhatsApp'"
-                  class="bi bi-whatsapp text-success"
-                ></i>
-                <i
-                  v-else-if="recipientModal.channel === 'Email'"
-                  class="bi bi-envelope-paper text-primary"
-                ></i>
-                <i
-                  v-else-if="recipientModal.channel === 'SMS'"
-                  class="bi bi-chat-left-text text-info"
-                ></i>
-                <span>
+              <h5 class="modal-title d-flex align-items-center gap-2 mb-2">
+                <span v-if="recipientModal.channel === 'WhatsApp'" class="p-2 rounded bg-success-subtle text-success d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                  <i class="bi bi-whatsapp fs-5"></i>
+                </span>
+                <span v-else-if="recipientModal.channel === 'Email'" class="p-2 rounded bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                  <i class="bi bi-envelope-paper fs-5"></i>
+                </span>
+                <span v-else-if="recipientModal.channel === 'SMS'" class="p-2 rounded bg-info-subtle text-info d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                  <i class="bi bi-chat-left-text fs-5"></i>
+                </span>
+                <span class="fw-bold text-dark">
                   {{ recipientModal.title }}
                 </span>
               </h5>
-              <small class="text-muted d-block">
-                <span class="text-white">Template / Subject:</span>
-                <strong class="text-white">{{ recipientModal.meta.template_name || recipientModal.meta.subject || '-' }}</strong>
-                · <span class="text-white">Status:</span>
-                <span class="badge ms-1" :class="statusColor(recipientModal.meta.status || 'sent')">
+              <div class="d-flex flex-wrap align-items-center gap-2">
+                <span class="badge bg-white text-dark border px-2 py-1">
+                  <i class="bi bi-tag text-muted me-1"></i>
+                  <strong>Template / Subject:</strong> {{ recipientModal.meta.template_name || recipientModal.meta.subject || '-' }}
+                </span>
+                <span class="badge ms-1 px-2 py-1" :class="statusColor(recipientModal.meta.status || 'sent')">
+                  <i class="bi bi-info-circle me-1"></i>
                   {{ recipientModal.meta.status || 'Sent' }}
                 </span>
-                <span v-if="recipientModal.meta.reply_number" class="ms-2 text-white">
-                  · Reply number: <strong>{{ recipientModal.meta.reply_number }}</strong>
+                <span v-if="recipientModal.meta.reply_number" class="badge bg-white text-dark border px-2 py-1">
+                  <i class="bi bi-telephone text-muted me-1"></i>
+                  <strong>From/Reply:</strong> {{ recipientModal.meta.reply_number }}
                 </span>
-              </small>
+                <span v-if="recipientModal.meta.scheduled_at" class="badge bg-info-subtle text-info border border-info px-2 py-1">
+                  <i class="bi bi-clock-history me-1"></i>
+                  Scheduled: {{ recipientModal.meta.scheduled_at }}
+                </span>
+                <span v-if="recipientModal.meta.enable_live_chat" class="badge bg-success-subtle text-success border border-success px-2 py-1">
+                  <i class="bi bi-chat-dots me-1"></i> Live Chat Active
+                </span>
+                <span v-if="recipientModal.meta.track_responses" class="badge bg-primary-subtle text-primary border border-primary px-2 py-1">
+                  <i class="bi bi-graph-up me-1"></i> Tracking Enabled
+                </span>
+              </div>
             </div>
-            <div class="d-flex align-items-start gap-2">
+            <div class="d-flex align-items-start gap-2 align-self-end align-self-md-start">
               <button
                 v-if="recipientModal.meta && recipientModal.meta.can_send"
                 type="button"
-                class="btn btn-sm btn-outline-success"
+                class="btn btn-sm btn-success px-3 shadow-sm"
                 @click="sendBatchNow"
                 :disabled="sendingBatch"
-                style="margin-top: 2px;"
               >
                 <span v-if="sendingBatch" class="spinner-border spinner-border-sm me-1"></span>
                 <i v-else class="bi bi-send-check me-1"></i>
@@ -501,75 +510,73 @@
             </div>
           </div>
 
-          <div class="modal-body">
+          <div class="modal-body p-3 bg-light">
 
-            <!-- Summary cards -->
-            <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-5 g-3 mb-3">
-              <div class="col" v-for="stat in recipientSummaryCards" :key="stat.label">
-                <div class="card shadow-sm h-100">
-                  <div class="card-body py-2">
-                    <div class="d-flex align-items-center gap-2">
-                      <div class="rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                        <i :class="stat.icon"></i>
-                      </div>
-                      <div>
-                        <div class="text-muted small text-uppercase">
-                          {{ stat.label }}
-                        </div>
-                        <div class="h5 mb-0">
-                          {{ stat.value }}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- WhatsApp-only agent chart -->
+            <!-- Ultra-compact stats strip -->
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3 bg-white p-2 px-3 rounded-3 shadow-sm border">
+              <span class="text-muted small text-uppercase fw-bold me-2 d-flex align-items-center">
+                <i class="bi bi-bar-chart-fill text-primary me-2 fs-6"></i>Summary:
+              </span>
               <div
-                v-if="recipientModal.channel === 'WhatsApp' && recipientModal.agents && recipientModal.agents.length"
-                class="col-md-12"
+                v-for="stat in recipientSummaryCards"
+                :key="stat.label"
+                class="badge bg-light text-dark border d-flex align-items-center gap-2 px-3 py-2 fw-normal"
               >
-                <div class="card shadow-sm">
-                  <div class="card-body">
-                    <h6 class="card-title mb-2">
-                      <i class="bi bi-people-fill me-1"></i>
-                      Requests by Agent
-                    </h6>
-                    <div v-for="agent in recipientModal.agents" :key="agent.agent_id" class="mb-2">
-                      <div class="d-flex justify-content-between small mb-1">
-                        <span>{{ agent.agent_name }}</span>
-                        <span>{{ agent.count }} request(s)</span>
-                      </div>
-                      <div class="progress" style="height: 6px;">
-                        <div
-                          class="progress-bar"
-                          role="progressbar"
-                          :style="{ width: agentPercent(agent) + '%' }"
-                        ></div>
+                <i :class="stat.icon || 'bi bi-collection'"></i>
+                <span class="text-muted small fw-semibold">{{ stat.label }}:</span>
+                <strong class="text-dark fw-bold ms-1" style="font-size: 0.9rem;">{{ stat.value }}</strong>
+              </div>
+            </div>
+
+            <!-- WhatsApp-only agent chart -->
+            <div
+              v-if="recipientModal.channel === 'WhatsApp' && recipientModal.agents && recipientModal.agents.length"
+              class="mb-4"
+            >
+              <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-body p-3">
+                  <h6 class="card-title fw-bold mb-3 d-flex align-items-center text-dark">
+                    <i class="bi bi-people-fill text-primary me-2"></i>
+                    Requests by Agent
+                  </h6>
+                  <div class="row g-3">
+                    <div v-for="agent in recipientModal.agents" :key="agent.agent_id" class="col-md-6 col-lg-4">
+                      <div class="p-2 border rounded bg-light">
+                        <div class="d-flex justify-content-between small fw-semibold mb-1">
+                          <span>{{ agent.agent_name }}</span>
+                          <span class="badge bg-primary">{{ agent.count }} request(s)</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                          <div
+                            class="progress-bar bg-primary"
+                            role="progressbar"
+                            :style="{ width: agentPercent(agent) + '%' }"
+                          ></div>
+                        </div>
                       </div>
                     </div>
-                    <small class="text-muted">
-                      Based on WhatsApp replies routed to agents.
-                    </small>
                   </div>
                 </div>
               </div>
             </div>
 
             <!-- Recipients table -->
-            <div class="card shadow-sm">
+            <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
               <div class="card-body p-0">
-                <div class="p-3 border-bottom">
+                <div class="p-3 bg-white border-bottom d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+                  <h6 class="m-0 fw-bold text-dark">
+                    <i class="bi bi-people me-2 text-primary"></i>
+                    Recipients List <span class="text-muted fw-normal">({{ filteredRecipients.length }})</span>
+                  </h6>
                   <div class="input-group input-group-sm" style="max-width: 360px;">
-                    <span class="input-group-text">
-                      <i class="bi bi-search"></i>
+                    <span class="input-group-text bg-light border-end-0">
+                      <i class="bi bi-search text-muted"></i>
                     </span>
                     <input
                       v-model="recipientModal.filter"
                       type="text"
-                      class="form-control"
-                      placeholder="Search by client, email, phone, status..."
+                      class="form-control border-start-0"
+                      placeholder="Search name, email, phone, status..."
                     />
                     <button
                       class="btn btn-outline-secondary"
@@ -581,55 +588,70 @@
                     </button>
                   </div>
                 </div>
-                <table class="table table-hover mb-0 align-middle">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Client</th>
-                      <th>Email</th>
-                      <th>Phone</th>
-                      <th>Bank</th>
-                      <th>Assigned Owner</th>
-                      <th>Departments</th>
-                      <th>Status</th>
-                      <th>Delivered At</th>
-                      <th v-if="recipientModal.channel === 'WhatsApp'">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="r in filteredRecipients" :key="r.id">
-                      <td>{{ r.client_name }}</td>
-                      <td>{{ r.email || '-' }}</td>
-                      <td>{{ r.phone || '-' }}</td>
-                      <td>{{ r.bank_name || campaign?.bank?.name || '-' }}</td>
-                      <td>{{ r.assigned_to_name || '-' }}</td>
-                      <td>
-                        <span class="badge bg-light text-dark border me-1">
-                          {{ r.department_names || '-' }}
-                        </span>
-                      </td>
-                  <td>
-                    <span class="badge" :class="statusColor(r.status)">
-                      {{ r.status }}
-                    </span>
-                  </td>
-                  <td>{{ r.delivered_at || '-' }}</td>
-                  <td v-if="recipientModal.channel === 'WhatsApp'">
-                    <button
-                      class="btn btn-sm btn-outline-primary"
-                      @click="openClientChat(r)"
-                      :disabled="!r.client_id"
-                      >
-                        <i class="bi bi-chat-dots"></i>
-                      </button>
-                    </td>
-                  </tr>
-                    <tr v-if="filteredRecipients.length === 0">
-                      <td colspan="9" class="text-center text-muted py-3">
-                        No recipients found for this send.
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div class="table-responsive">
+                  <table class="table table-hover table-nowrap mb-0 align-middle">
+                    <thead class="table-light text-uppercase small text-muted">
+                      <tr>
+                        <th>Client</th>
+                        <th v-if="recipientModal.channel !== 'WhatsApp'">Email</th>
+                        <th v-if="recipientModal.channel !== 'Email'">Phone</th>
+                        <th>Bank</th>
+                        <th>Assigned Owner</th>
+                        <th>Departments</th>
+                        <th v-if="recipientModal.channel === 'WhatsApp'">Response / Flow</th>
+                        <th>Status</th>
+                        <th>Delivered At</th>
+                        <th v-if="recipientModal.channel === 'WhatsApp'" class="text-end">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="r in filteredRecipients" :key="r.id">
+                        <td class="fw-semibold text-dark">{{ r.client_name || '-' }}</td>
+                        <td v-if="recipientModal.channel !== 'WhatsApp'" class="text-muted">{{ r.email || '-' }}</td>
+                        <td v-if="recipientModal.channel !== 'Email'" class="text-muted">{{ r.phone || '-' }}</td>
+                        <td>{{ r.bank_name || campaign?.bank?.name || '-' }}</td>
+                        <td>{{ r.assigned_to_name || '-' }}</td>
+                        <td>
+                          <span v-if="r.department_names" class="badge bg-light text-dark border">
+                            {{ r.department_names }}
+                          </span>
+                          <span v-else class="text-muted small">-</span>
+                        </td>
+                        <td v-if="recipientModal.channel === 'WhatsApp'">
+                          <span v-if="r.reply_label || r.last_response" class="badge bg-success-subtle text-success border border-success px-2 py-1 me-1">
+                            <i class="bi bi-chat-text me-1"></i>{{ r.reply_label || r.last_response }}
+                          </span>
+                          <span v-else-if="r.current_flow_step_id" class="badge bg-info-subtle text-info border border-info px-2 py-1">
+                            <i class="bi bi-diagram-3 me-1"></i>Step #{{ r.current_flow_step_id }}
+                          </span>
+                          <span v-else class="text-muted small">No response</span>
+                        </td>
+                        <td>
+                          <span class="badge px-2 py-1 text-uppercase" :class="statusColor(r.status)">
+                            {{ r.status || 'Pending' }}
+                          </span>
+                        </td>
+                        <td class="text-muted small">{{ r.delivered_at || '-' }}</td>
+                        <td v-if="recipientModal.channel === 'WhatsApp'" class="text-end">
+                          <button
+                            class="btn btn-sm btn-outline-primary shadow-sm"
+                            @click="openClientChat(r)"
+                            :disabled="!r.client_id"
+                            title="Open WhatsApp Live Chat"
+                          >
+                            <i class="bi bi-chat-dots"></i>
+                          </button>
+                        </td>
+                      </tr>
+                      <tr v-if="filteredRecipients.length === 0">
+                        <td :colspan="recipientModal.channel === 'WhatsApp' ? 9 : 8" class="text-center text-muted py-5">
+                          <i class="bi bi-folder2-open d-block fs-2 mb-2 text-secondary"></i>
+                          No recipients found matching your filter criteria.
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
@@ -1648,13 +1670,40 @@ export default {
     },
     recipientSummaryCards() {
       const s = this.recipientModal.summary || {};
-      return [
-        { label: 'Total', value: s.total || 0, icon: 'bi bi-collection' },
-        { label: 'Delivered', value: s.delivered || 0, icon: 'bi bi-check-circle-fill text-success' },
-        { label: 'Failed', value: s.failed || 0, icon: 'bi bi-x-circle-fill text-danger' },
-        { label: 'Pending', value: s.pending || 0, icon: 'bi bi-hourglass-split text-warning' },
-        { label: 'Replies', value: s.replies || 0, icon: 'bi bi-chat-dots-fill text-info' },
+      const ch = this.recipientModal.channel;
+      if (ch === 'Email') {
+        return [
+          { label: 'Total', value: s.total || 0, icon: 'bi bi-collection text-primary', color: 'primary' },
+          { label: 'Delivered', value: s.delivered || 0, icon: 'bi bi-check-circle-fill text-success', color: 'success' },
+          { label: 'Bounced', value: s.bounced || 0, icon: 'bi bi-exclamation-triangle-fill text-danger', color: 'danger' },
+          { label: 'Opened', value: s.opened || 0, icon: 'bi bi-envelope-open-fill text-info', color: 'info' },
+          { label: 'Clicked', value: s.clicked || 0, icon: 'bi bi-cursor-fill text-warning', color: 'warning' },
+        ];
+      }
+      if (ch === 'SMS') {
+        return [
+          { label: 'Total', value: s.total || 0, icon: 'bi bi-collection text-primary', color: 'primary' },
+          { label: 'Delivered', value: s.delivered || 0, icon: 'bi bi-check-circle-fill text-success', color: 'success' },
+          { label: 'Failed', value: s.failed || 0, icon: 'bi bi-x-circle-fill text-danger', color: 'danger' },
+          { label: 'Pending', value: s.pending || 0, icon: 'bi bi-hourglass-split text-warning', color: 'warning' },
+        ];
+      }
+      // WhatsApp
+      const cards = [
+        { label: 'Total', value: s.total || 0, icon: 'bi bi-collection text-primary', color: 'primary' },
+        { label: 'Delivered', value: s.delivered || 0, icon: 'bi bi-check-circle-fill text-success', color: 'success' },
+        { label: 'Failed', value: s.failed || 0, icon: 'bi bi-x-circle-fill text-danger', color: 'danger' },
+        { label: 'Pending', value: s.pending || 0, icon: 'bi bi-hourglass-split text-warning', color: 'warning' },
+        { label: 'Replies', value: s.replies || 0, icon: 'bi bi-chat-dots-fill text-info', color: 'info' },
       ];
+      if (s.yes_count !== undefined || s.no_count !== undefined) {
+        cards.push({ label: 'Yes Replies', value: s.yes_count || 0, icon: 'bi bi-hand-thumbs-up-fill text-success', color: 'success' });
+        cards.push({ label: 'No Replies', value: s.no_count || 0, icon: 'bi bi-hand-thumbs-down-fill text-danger', color: 'danger' });
+      }
+      if (s.delivery_rate !== undefined) {
+        cards.push({ label: 'Delivery Rate', value: `${s.delivery_rate || 0}%`, icon: 'bi bi-graph-up-arrow text-primary', color: 'primary' });
+      }
+      return cards;
     },
     filteredRecipients() {
       const rows = this.recipientModal.rows || [];
@@ -2202,20 +2251,14 @@ export default {
       };
 
       const campaignId = this.$route.params.id;
-      const loadLists = [];
-      if (!this.whatsappTemplates.length) loadLists.push(axios.get('/api/whatsapp-templates').catch(() => ({ data: [] })));
-      if (!this.whatsappFlows.length) loadLists.push(axios.get('/api/whatsapp-flows').catch(() => ({ data: [] })));
-      Promise.all(loadLists).then((responses) => {
-        responses.forEach((res) => {
-          if (Array.isArray(res?.data)) {
-            // crude detection: if first item has flow_definition -> flows
-            if (res.data.length && res.data[0].flow_definition !== undefined) {
-              this.whatsappFlows = res.data;
-            } else {
-              this.whatsappTemplates = res.data;
-            }
-          }
-        });
+
+      Promise.all([
+        this.whatsappTemplates.length ? Promise.resolve({ data: this.whatsappTemplates }) : axios.get('/api/whatsapp-templates').catch(() => ({ data: [] })),
+        this.whatsappFlows.length ? Promise.resolve({ data: this.whatsappFlows }) : axios.get('/api/whatsapp-flows').catch(() => ({ data: [] })),
+      ]).then(([tplRes, flowRes]) => {
+        this.whatsappTemplates = tplRes.data.data || tplRes.data || [];
+        this.whatsappFlows = flowRes.data.data || flowRes.data || [];
+        this.whatsappForm.templateId = templateId || '';
       }).finally(() => {
         axios
           .get(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/recipients`)

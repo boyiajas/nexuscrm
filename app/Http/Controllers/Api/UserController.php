@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Bank;
 use App\Models\Department;
+use App\Models\Role;
 use App\Models\User;
 use App\Services\UserSessionTracker;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ class UserController extends Controller
     public function index()
     {
         $this->authorizeManageUsers();
-        return User::with('bank')->orderBy('name')->paginate(20);
+        return User::with(['bank', 'roles:id,code,name,whatsapp_daily_limit'])->orderBy('name')->paginate(20);
     }
 
     public function assignees()
@@ -64,11 +65,15 @@ class UserController extends Controller
             'is_time_clock_user'=> ['sometimes', 'boolean'],
             'password'          => ['required', 'string', Password::min(12)->letters()->mixedCase()->numbers()->symbols()],
             'role'              => ['required', Rule::in(User::ALL_ROLES)],
+            'role_ids'          => ['sometimes', 'array', 'min:1'],
+            'role_ids.*'        => ['integer', 'exists:roles,id'],
             'department'        => ['nullable', 'string', 'max:255'],
             'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
             'status'            => ['required', Rule::in(['Active', 'Inactive'])],
         ]);
 
+        $roleIds = $this->normalizeRoleIds($data['role_ids'] ?? null, $data['role'] ?? null);
+        $data['role'] = $this->resolvePrimaryRoleCode($roleIds, $data['role'] ?? null);
         $data['password'] = Hash::make($data['password']);
         $data['password_changed_at'] = now();
         $data['password_reset_required'] = true;
@@ -81,8 +86,9 @@ class UserController extends Controller
 
         $user = User::create($data);
         $this->syncDepartmentMembership($user, $data['department_id'] ?? null);
+        $this->syncUserRoles($user, $roleIds);
 
-        return response()->json($user->load('bank'), 201);
+        return response()->json($user->load(['bank', 'roles:id,code,name,whatsapp_daily_limit']), 201);
     }
 
     public function update(Request $request, User $user)
@@ -103,6 +109,8 @@ class UserController extends Controller
             'is_time_clock_user'=> ['sometimes', 'boolean'],
             'password'          => ['nullable', 'string', Password::min(12)->letters()->mixedCase()->numbers()->symbols()],
             'role'              => ['sometimes', Rule::in(User::ALL_ROLES)],
+            'role_ids'          => ['sometimes', 'array', 'min:1'],
+            'role_ids.*'        => ['integer', 'exists:roles,id'],
             'department'        => ['nullable', 'string', 'max:255'],
             'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
             'status'            => ['sometimes', Rule::in(['Active', 'Inactive'])],
@@ -117,6 +125,11 @@ class UserController extends Controller
         } else {
             unset($data['password']);
         }
+
+        $roleIds = array_key_exists('role_ids', $data)
+            ? $this->normalizeRoleIds($data['role_ids'] ?? null, $data['role'] ?? $user->role)
+            : null;
+        $data['role'] = $this->resolvePrimaryRoleCode($roleIds, $data['role'] ?? $user->role);
 
         $this->syncDepartmentFields($data);
         $role = $data['role'] ?? $user->role;
@@ -135,11 +148,14 @@ class UserController extends Controller
         }
 
         $user->update($data);
+        if (is_array($roleIds)) {
+            $this->syncUserRoles($user, $roleIds);
+        }
         if (array_key_exists('department_id', $data) || array_key_exists('department', $data)) {
             $this->syncDepartmentMembership($user, $data['department_id'] ?? $user->department_id);
         }
 
-        return $user->load('bank');
+        return $user->load(['bank', 'roles:id,code,name,whatsapp_daily_limit']);
     }
 
     public function destroy(User $user)
@@ -216,5 +232,46 @@ class UserController extends Controller
         }
 
         return (int) $requestedBankId;
+    }
+
+    protected function normalizeRoleIds(?array $roleIds, ?string $fallbackRole): array
+    {
+        $normalized = collect($roleIds ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (!empty($normalized)) {
+            return $normalized;
+        }
+
+        if ($fallbackRole) {
+            $fallbackId = Role::query()->where('code', $fallbackRole)->value('id');
+            if ($fallbackId) {
+                return [(int) $fallbackId];
+            }
+        }
+
+        abort(422, 'At least one role must be selected.');
+    }
+
+    protected function resolvePrimaryRoleCode(?array $roleIds, ?string $fallbackRole): string
+    {
+        if (!empty($roleIds)) {
+            $codes = Role::query()->whereIn('id', $roleIds)->pluck('code')->map(fn ($code) => (string) $code)->all();
+            $primary = User::resolvePrimaryRoleFromCodes($codes);
+            if ($primary) {
+                return $primary;
+            }
+        }
+
+        return $fallbackRole ?: User::ROLE_AGENT;
+    }
+
+    protected function syncUserRoles(User $user, array $roleIds): void
+    {
+        $user->roles()->sync($roleIds);
     }
 }

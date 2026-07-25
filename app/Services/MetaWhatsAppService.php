@@ -138,12 +138,86 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function listWhatsappSenders(): array
     {
-        return [[
-            'number' => $this->displayPhoneNumber ?: $this->phoneNumberId,
-            'label' => 'Meta WhatsApp Number',
-            'default' => true,
-            'phone_number_id' => $this->phoneNumberId,
-        ]];
+        try {
+            $numbers = \Illuminate\Support\Facades\Cache::remember('meta_whatsapp_senders', 3600, function () {
+                $metaNumbers = $this->getPhoneNumbers();
+                return array_map(function($num) {
+                    return [
+                        'number' => $num['display_phone_number'] ?? null,
+                        'label' => $num['verified_name'] ?? 'Meta WhatsApp Number',
+                        'default' => false,
+                        'phone_number_id' => $num['id'],
+                    ];
+                }, $metaNumbers);
+            });
+
+            foreach ($numbers as &$num) {
+                if ($num['phone_number_id'] == $this->phoneNumberId) {
+                    $num['default'] = true;
+                }
+            }
+
+            return $numbers;
+        } catch (\Throwable $e) {
+            Log::warning('Failed to load dynamic Meta WhatsApp senders for webhook list, falling back to static config.', [
+                'error' => $e->getMessage()
+            ]);
+            return [[
+                'number' => $this->displayPhoneNumber ?: $this->phoneNumberId,
+                'label' => 'Meta WhatsApp Number',
+                'default' => true,
+                'phone_number_id' => $this->phoneNumberId,
+            ]];
+        }
+    }
+
+    public function getPhoneNumbers(): array
+    {
+        $fields = [
+            'id',
+            'display_phone_number',
+            'verified_name',
+            'quality_rating',
+            'code_verification_status',
+            'name_status',
+            'messaging_limit_tier',
+            'platform_type',
+            'throughput',
+        ];
+
+        $response = $this->get("{$this->businessAccountId}/phone_numbers", [
+            'fields' => implode(',', $fields),
+        ]);
+
+        return $response['data'] ?? [];
+    }
+
+    public function addPhoneNumber(string $cc, string $phoneNumber, ?string $verifiedName = null): array
+    {
+        $payload = [
+            'cc' => $cc,
+            'phone_number' => $phoneNumber,
+        ];
+        if ($verifiedName) {
+            $payload['verified_name'] = $verifiedName;
+        }
+        
+        return $this->post("{$this->businessAccountId}/phone_numbers", $payload);
+    }
+
+    public function requestVerificationCode(string $phoneNumberId, string $method = 'SMS'): array
+    {
+        return $this->post("{$phoneNumberId}/request_code", [
+            'code_method' => strtoupper($method),
+            'language' => 'en',
+        ]);
+    }
+
+    public function verifyCode(string $phoneNumberId, string $code): array
+    {
+        return $this->post("{$phoneNumberId}/verify_code", [
+            'code' => $code,
+        ]);
     }
 
     public function resolveSenderContext(?string $overrideFrom = null): array
@@ -156,11 +230,62 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ];
     }
 
+    public function getPhoneNumberProfile(): array
+    {
+        $fields = [
+            'display_phone_number',
+            'verified_name',
+            'quality_rating',
+            'code_verification_status',
+            'name_status',
+            'messaging_limit_tier',
+            'platform_type',
+            'throughput',
+        ];
+
+        $response = $this->get($this->phoneNumberId, [
+            'fields' => implode(',', $fields),
+        ]);
+
+        $listingMatch = null;
+        if (empty($response['messaging_limit_tier']) || empty($response['throughput'])) {
+            try {
+                $listing = $this->get("{$this->businessAccountId}/phone_numbers", [
+                    'fields' => implode(',', array_merge(['id'], $fields)),
+                ]);
+
+                $listingMatch = collect($listing['data'] ?? [])
+                    ->first(fn (array $phone) => (string) ($phone['id'] ?? '') === (string) $this->phoneNumberId);
+            } catch (\Throwable $e) {
+                Log::warning('Meta WhatsApp phone_numbers fallback lookup failed', [
+                    'business_account_id' => $this->businessAccountId,
+                    'phone_number_id' => $this->phoneNumberId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $merged = array_merge($response, is_array($listingMatch) ? $listingMatch : []);
+
+        return [
+            'display_phone_number' => $merged['display_phone_number'] ?? $this->displayPhoneNumber,
+            'verified_name' => $merged['verified_name'] ?? null,
+            'quality_rating' => $merged['quality_rating'] ?? null,
+            'code_verification_status' => $merged['code_verification_status'] ?? null,
+            'name_status' => $merged['name_status'] ?? null,
+            'messaging_limit_tier' => $merged['messaging_limit_tier'] ?? null,
+            'platform_type' => $merged['platform_type'] ?? null,
+            'throughput' => $merged['throughput'] ?? null,
+            'fetched_at' => now()->toDateTimeString(),
+        ];
+    }
+
     public function sendTemplateFromSubjectMessage(
         string $toE164,
         ?string $overrideTemplateSid,
         string $subject = '',
         string $message = '',
+        array $templateVariables = [],
         ?string $overrideFrom = null,
         ?string $overrideMsid = null
     ): array {
@@ -181,7 +306,14 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         $placeholderCount = count($matches[0] ?? []);
 
         $parameters = [];
-        if ($placeholderCount === 1) {
+        if (!empty($templateVariables)) {
+            foreach (array_values($templateVariables) as $value) {
+                $parameters[] = [
+                    'type' => 'text',
+                    'text' => (string) $value,
+                ];
+            }
+        } elseif ($placeholderCount === 1) {
             $parameters[] = ['type' => 'text', 'text' => $subject !== '' ? $subject : $message];
         } elseif ($placeholderCount >= 2) {
             $parameters[] = ['type' => 'text', 'text' => $subject];

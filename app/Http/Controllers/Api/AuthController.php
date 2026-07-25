@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
+use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\UserSessionTracker;
@@ -331,6 +332,10 @@ class AuthController extends Controller
             'status'        => 'Active',                 // default status
         ]);
 
+        if ($role = Role::query()->where('code', $user->role)->first()) {
+            $user->roles()->syncWithoutDetaching([$role->id]);
+        }
+
         // Create Sanctum token for the new user
         $token = $user->createToken('auth_token')->plainTextToken;
 
@@ -342,7 +347,7 @@ class AuthController extends Controller
         );
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->fresh()->load(['roles:id,code,name,whatsapp_daily_limit']),
             'token' => $token,
         ], 201);
     }
@@ -374,7 +379,7 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = $request->user()->load('department');
+        $user = $request->user()->load(['department', 'departments:id,name', 'roles:id,code,name,whatsapp_daily_limit,watermark_enabled']);
         return response()->json($user);
     }
 
@@ -510,7 +515,7 @@ class AuthController extends Controller
         );
 
         return response()->json([
-            'user' => $user,
+            'user' => $user->fresh()->load(['bank:id,name', 'departments:id,name', 'roles:id,code,name,whatsapp_daily_limit,watermark_enabled']),
             'token' => $newToken->plainTextToken,
         ]);
     }

@@ -45,6 +45,7 @@ class ImportUploadController extends Controller
         if ($q = trim((string) $request->get('q'))) {
             $query->where(function ($inner) use ($q) {
                 $inner->where('original_filename', 'like', "%{$q}%")
+                    ->orWhere('import_batch_number', 'like', "%{$q}%")
                     ->orWhere('dataset', 'like', "%{$q}%")
                     ->orWhere('error_message', 'like', "%{$q}%")
                     ->orWhere('scan_signature', 'like', "%{$q}%");

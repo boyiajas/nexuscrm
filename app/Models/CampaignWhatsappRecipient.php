@@ -14,6 +14,10 @@ class CampaignWhatsappRecipient extends Model
         'provider_message_id',
         'provider_phone_number_id',
         'provider_display_phone_number',
+        'queued_at',
+        'processing_started_at',
+        'last_attempted_at',
+        'attempts_count',
         'status',
         'error_code',
         'error_message',
@@ -25,10 +29,14 @@ class CampaignWhatsappRecipient extends Model
     ];
 
     protected $casts = [
+        'queued_at'        => 'datetime',
+        'processing_started_at' => 'datetime',
+        'last_attempted_at' => 'datetime',
         'delivered_at'     => 'datetime',
         'last_response_at' => 'datetime',
         'status_payload'   => 'array',
         'provider_status_payload' => 'array',
+        'attempts_count' => 'integer',
     ];
 
     public function message()

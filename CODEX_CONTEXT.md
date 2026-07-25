@@ -43,6 +43,9 @@ Read this file first in any new Codex session before making changes. It is the p
   - WhatsApp reply conversations
 - WhatsApp Flows
   - template-based guided follow-up sequences
+- WhatsApp Storylines
+  - rule-based WhatsApp template auto-responses tied to campaign messages
+  - triggers on specific client replies (e.g., quick replies, opt-outs)
 - Audit Log
   - user and system activity reporting
 - Settings
@@ -197,6 +200,8 @@ Key files:
 - portfolio assignees are exposed through:
   - `GET /api/users-assignees`
 - user department assignments now support multiple departments through `department_user`
+- departments have a `primary_whatsapp_number` and a JSON array of `secondary_whatsapp_numbers`
+- if a department has no numbers configured, the system uses the global WhatsApp number as fallback
 - legacy `users.department_id` remains the primary department for backward compatibility
 - admin user create/update now keeps `department_user` synchronized with the selected primary department
 - existing legacy users need the backfill migration `2026_06_11_160000_backfill_user_department_memberships.php` applied so department-based access uses real membership rows consistently
@@ -373,6 +378,13 @@ Sensitive config:
 - `campaign_whatsapp_messages`
   - `provider_phone_number_id`
   - `provider_display_phone_number`
+
+- `campaign_whatsapp_auto_replies`
+  - `campaign_whatsapp_message_id`
+  - `trigger_keyword`
+  - `template_sid`
+  - `template_name`
+  - `template_variables`
 
 ## Important Migrations Added Recently
 

@@ -32,14 +32,19 @@ class DepartmentController extends Controller
         $data = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'whatsapp_numbers' => ['nullable', 'array'],
-            'whatsapp_numbers.*' => ['string'],
+            'primary_whatsapp_number' => ['nullable', 'string'],
+            'secondary_whatsapp_numbers' => ['nullable', 'array'],
+            'secondary_whatsapp_numbers.*' => ['string'],
         ]);
 
-        if (empty($data['whatsapp_numbers'])) {
+        if (empty($data['primary_whatsapp_number'])) {
             $settings = \App\Models\SystemSetting::first();
             $default = $settings?->meta_whatsapp_display_phone_number ?: $settings?->twilio_whatsapp_from;
-            $data['whatsapp_numbers'] = $default ? [$default] : [];
+            $data['primary_whatsapp_number'] = $default ?: null;
+        }
+
+        if (!isset($data['secondary_whatsapp_numbers'])) {
+            $data['secondary_whatsapp_numbers'] = [];
         }
 
         return Department::create($data);
@@ -51,14 +56,19 @@ class DepartmentController extends Controller
         $data = $request->validate([
             'name'        => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'whatsapp_numbers' => ['nullable', 'array'],
-            'whatsapp_numbers.*' => ['string'],
+            'primary_whatsapp_number' => ['nullable', 'string'],
+            'secondary_whatsapp_numbers' => ['nullable', 'array'],
+            'secondary_whatsapp_numbers.*' => ['string'],
         ]);
 
-        if (array_key_exists('whatsapp_numbers', $data) && empty($data['whatsapp_numbers'])) {
+        if (array_key_exists('primary_whatsapp_number', $data) && empty($data['primary_whatsapp_number'])) {
             $settings = \App\Models\SystemSetting::first();
             $default = $settings?->meta_whatsapp_display_phone_number ?: $settings?->twilio_whatsapp_from;
-            $data['whatsapp_numbers'] = $default ? [$default] : [];
+            $data['primary_whatsapp_number'] = $default ?: null;
+        }
+
+        if (array_key_exists('secondary_whatsapp_numbers', $data) && $data['secondary_whatsapp_numbers'] === null) {
+            $data['secondary_whatsapp_numbers'] = [];
         }
 
         $department->update($data);

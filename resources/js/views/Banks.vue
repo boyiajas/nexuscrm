@@ -39,46 +39,48 @@
 
     <div class="card shadow-sm">
       <div class="card-body p-0">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
-              <th>Code</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th style="width: 120px;" class="text-end">Actions</th>
-            </tr>
-          </thead>
+        <TableLoadingWrapper :loading="loading" message="Loading banks...">
+          <table class="table table-hover mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>Name</th>
+                <th>Code</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th style="width: 120px;" class="text-end">Actions</th>
+              </tr>
+            </thead>
 
-          <tbody>
-            <tr v-for="bank in banks" :key="bank.id">
-              <td>{{ bank.name }}</td>
-              <td><code>{{ bank.code }}</code></td>
-              <td>
-                <span class="badge" :class="bank.status === 'Active' ? 'bg-success' : 'bg-secondary'">
-                  {{ bank.status }}
-                </span>
-              </td>
-              <td>{{ formatDate(bank.created_at) }}</td>
-              <td class="text-end">
-                <div class="btn-group btn-group-sm" role="group">
-                  <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(bank)">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                  <button class="btn btn-outline-danger" title="Delete" @click="remove(bank)">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
+            <tbody>
+              <tr v-for="bank in banks" :key="bank.id">
+                <td>{{ bank.name }}</td>
+                <td><code>{{ bank.code }}</code></td>
+                <td>
+                  <span class="badge" :class="bank.status === 'Active' ? 'bg-success' : 'bg-secondary'">
+                    {{ bank.status }}
+                  </span>
+                </td>
+                <td>{{ formatDate(bank.created_at) }}</td>
+                <td class="text-end">
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(bank)">
+                      <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" title="Delete" @click="remove(bank)">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
 
-            <tr v-if="banks.length === 0">
-              <td colspan="5" class="text-center text-muted py-3">
-                No banks found.
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              <tr v-if="!loading && banks.length === 0">
+                <td colspan="5" class="text-center text-muted py-3">
+                  No banks found.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </TableLoadingWrapper>
       </div>
 
       <div class="card-footer d-flex justify-content-between align-items-center">
@@ -156,6 +158,7 @@
 <script>
 import axios from '../axios';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 
@@ -163,10 +166,12 @@ export default {
   name: 'BanksView',
   components: {
     ConfirmationModal,
+    TableLoadingWrapper,
   },
   data() {
     return {
       banks: [],
+      loading: false,
       filters: {
         search: '',
         status: 'All',
@@ -217,6 +222,7 @@ export default {
       return new Date(value).toLocaleString();
     },
     fetchBanks(page = 1) {
+      this.loading = true;
       axios.get('/api/banks', {
         params: {
           page,
@@ -229,6 +235,8 @@ export default {
         this.buildPagination(res.data);
       }).catch((error) => {
         notify.error(error.response?.data?.message || 'Failed to load banks.', 'Banks');
+      }).finally(() => {
+        this.loading = false;
       });
     },
     goToPage(page) {

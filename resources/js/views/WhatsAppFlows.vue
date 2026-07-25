@@ -19,56 +19,58 @@
           <span class="badge bg-secondary">{{ flows.length }}</span>
         </div>
 
-        <div v-if="flows.length">
-          <div class="table-responsive">
-            <table class="table align-middle">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Template</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th class="text-end">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="flow in flows" :key="flow.id">
-                  <td class="fw-semibold">{{ flow.name }}</td>
-                  <td>
-                    <div class="small">
-                      <div class="fw-semibold">{{ flow.template_name || flow.template_sid }}</div>
-                      <div class="text-muted">Lang: {{ flow.template_language || 'n/a' }}</div>
-                    </div>
-                  </td>
-                  <td>
-                    <span class="badge" :class="flow.status === 'active' ? 'bg-success' : 'bg-secondary'">
-                      {{ flow.status }}
-                    </span>
-                  </td>
-                  <td class="text-muted small">
-                    {{ formatDate(flow.created_at) }}
-                  </td>
-                  <td class="text-end">
-                    <div class="btn-group btn-group-sm">
-                      <button class="btn btn-outline-secondary" @click="openDiagram(flow)" title="View diagram">
-                        <i class="bi bi-diagram-3"></i>
-                      </button>
-                      <button class="btn btn-outline-primary" @click="startEdit(flow)" title="Edit" :disabled="!canManageFlows">
-                        <i class="bi bi-pencil"></i>
-                      </button>
-                      <button class="btn btn-outline-danger" @click="deleteFlow(flow)" title="Delete" :disabled="!canManageFlows">
-                        <i class="bi bi-trash"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <TableLoadingWrapper :loading="loadingFlows" message="Loading WhatsApp flows..." min-height="220px">
+          <div v-if="flows.length">
+            <div class="table-responsive">
+              <table class="table align-middle">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Template</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th class="text-end">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="flow in flows" :key="flow.id">
+                    <td class="fw-semibold">{{ flow.name }}</td>
+                    <td>
+                      <div class="small">
+                        <div class="fw-semibold">{{ flow.template_name || flow.template_sid }}</div>
+                        <div class="text-muted">Lang: {{ flow.template_language || 'n/a' }}</div>
+                      </div>
+                    </td>
+                    <td>
+                      <span class="badge" :class="flow.status === 'active' ? 'bg-success' : 'bg-secondary'">
+                        {{ flow.status }}
+                      </span>
+                    </td>
+                    <td class="text-muted small">
+                      {{ formatDate(flow.created_at) }}
+                    </td>
+                    <td class="text-end">
+                      <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" @click="openDiagram(flow)" title="View diagram">
+                          <i class="bi bi-diagram-3"></i>
+                        </button>
+                        <button class="btn btn-outline-primary" @click="startEdit(flow)" title="Edit" :disabled="!canManageFlows">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" @click="deleteFlow(flow)" title="Delete" :disabled="!canManageFlows">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-        <div v-else class="text-center text-muted py-4">
-          No WhatsApp flows yet. Create your first flow to get started.
-        </div>
+          <div v-else-if="!loadingFlows" class="text-center text-muted py-4">
+            No WhatsApp flows yet. Create your first flow to get started.
+          </div>
+        </TableLoadingWrapper>
       </div>
     </div>
 
@@ -317,6 +319,7 @@
 import { h } from 'vue';
 import axios from '../axios';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { notify } from '../utils/notify';
 
 const defaultSteps = () => ([
@@ -453,11 +456,13 @@ export default {
   name: 'WhatsAppFlows',
   components: {
     ConfirmationModal,
+    TableLoadingWrapper,
     TreeNode,
   },
   data() {
     return {
       flows: [],
+      loadingFlows: false,
       templates: [],
       saving: false,
       showModal: false,
@@ -552,11 +557,14 @@ export default {
   },
   methods: {
     async fetchFlows() {
+      this.loadingFlows = true;
       try {
         const res = await axios.get('/api/whatsapp-flows');
         this.flows = res.data || [];
       } catch (e) {
         console.error('Failed to load WhatsApp flows', e);
+      } finally {
+        this.loadingFlows = false;
       }
     },
     stepOptions(excludeId) {

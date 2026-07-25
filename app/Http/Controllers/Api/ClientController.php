@@ -7,6 +7,7 @@ use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
 use App\Models\Bank;
 use App\Models\Client;
+use App\Models\Department;
 use App\Models\ExportRequest;
 use App\Models\ImportUpload;
 use App\Models\User;
@@ -32,6 +33,11 @@ class ClientController extends Controller
         $user = Auth::user();
         $this->authorizeView($user);
         $query = Client::query()->with(['departments', 'assignedTo:id,name,bank_id']);
+        $allowedPerPage = [25, 50, 100, 200, 300, 500, 1000];
+        $perPage = (int) $request->integer('per_page', 25);
+        if (!in_array($perPage, $allowedPerPage, true)) {
+            $perPage = 25;
+        }
 
         $this->applyBankScope($query, $user);
         $this->applyPortfolioScope($query, $user);
@@ -71,18 +77,49 @@ class ClientController extends Controller
             $query->where('bank_id', (int) $request->get('bank_id'));
         }
 
-        $clients = $query->orderBy('name')->paginate(20);
+        $batchOptions = (clone $query)
+            ->whereNotNull('import_batch_number')
+            ->distinct()
+            ->orderByDesc('import_batch_number')
+            ->pluck('import_batch_number')
+            ->values();
 
-        $clients->getCollection()->transform(function (Client $client) {
+        if ($batch = trim((string) $request->get('import_batch_number'))) {
+            $query->where('import_batch_number', $batch);
+        }
+
+        $clients = $query->orderBy('name')->paginate($perPage);
+        $importBatches = $clients->getCollection()
+            ->pluck('import_batch_number')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $uploadsByBatch = ImportUpload::query()
+            ->with('user:id,name')
+            ->whereIn('import_batch_number', $importBatches)
+            ->get()
+            ->keyBy('import_batch_number');
+
+        $clients->getCollection()->transform(function (Client $client) use ($uploadsByBatch) {
+            $upload = $client->import_batch_number ? $uploadsByBatch->get($client->import_batch_number) : null;
+            $createdByName = $upload?->user?->name;
+            $createdByLabel = $client->import_batch_number
+                ? ($createdByName ?: 'Imported / Unknown')
+                : 'Manual / Not tracked';
+
             return [
                 'id' => $client->id,
                 'name' => $client->name,
-                'email' => $client->email,
-                'phone' => $client->phone,
+                'email' => $this->resolveClientDisplayEmail($client),
+                'phone' => $this->resolveClientDisplayPhone($client),
                 'bank_id' => $client->bank_id,
                 'bank_name' => $client->bank_name,
                 'assigned_to_id' => $client->assigned_to_id,
                 'assigned_to_name' => $client->assignedTo?->name,
+                'import_batch_number' => $client->import_batch_number,
+                'created_by_name' => $createdByName,
+                'created_by_label' => $createdByLabel,
                 'id_number_masked' => $client->maskedIdNumber(),
                 'account_number_masked' => $client->maskedAccountNumber(),
                 'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
@@ -101,7 +138,9 @@ class ClientController extends Controller
             ];
         });
 
-        return $clients;
+        return response()->json(array_merge($clients->toArray(), [
+            'batch_options' => $batchOptions,
+        ]));
     }
 
     /**
@@ -128,8 +167,8 @@ class ClientController extends Controller
         return response()->json([
             'id' => $client->id,
             'name' => $client->name,
-            'email' => $client->email,
-            'phone' => $client->phone,
+            'email' => $this->resolveClientDisplayEmail($client),
+            'phone' => $this->resolveClientDisplayPhone($client),
             'bank_id' => $client->bank_id,
             'bank_name' => $client->bank_name,
             'assigned_to_id' => $client->assigned_to_id,
@@ -168,6 +207,7 @@ class ClientController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
             'bank_id' => ['nullable', 'integer', 'exists:banks,id'],
             'phone' => ['nullable', 'string', 'max:50'],
             'id_number' => ['nullable', 'string', 'max:255'],
@@ -261,6 +301,7 @@ class ClientController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
             'bank_id' => ['nullable', 'integer', 'exists:banks,id'],
             'phone' => ['nullable', 'string', 'max:50'],
             'id_number' => ['nullable', 'string', 'max:255'],
@@ -356,17 +397,22 @@ class ClientController extends Controller
     public function import(Request $request)
     {
         $user = Auth::user();
+        $this->extendImportExecutionLimits();
         
         if (!$user || !$user->canManageOperationalData()) {
             abort(403, 'You are not allowed to import clients.');
         }
 
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt', 'max:2048'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:10240'],
             'bank_id' => ['nullable', 'integer', 'exists:banks,id'],
+            'department_ids' => ['required', 'array', 'min:1'],
+            'department_ids.*' => ['integer', 'exists:departments,id'],
         ]);
 
         $bankId = $this->resolveRequestedBankId($user, $request->input('bank_id'));
+        $selectedDepartmentIds = $this->resolveImportDepartmentIds($user, $request->input('department_ids', []));
+        $importBatchNumber = $this->generateImportBatchNumber();
         $uploadedFile = $request->file('file');
         $originalName = $uploadedFile->getClientOriginalName();
         $storedPath = $uploadedFile->store('imports/quarantine', 'local');
@@ -377,6 +423,7 @@ class ClientController extends Controller
             'user_id' => $user->id,
             'dataset' => 'clients',
             'original_filename' => $originalName,
+            'import_batch_number' => $importBatchNumber,
             'stored_path' => $storedPath,
             'mime_type' => $uploadedFile->getMimeType(),
             'size_bytes' => $uploadedFile->getSize(),
@@ -396,9 +443,8 @@ class ClientController extends Controller
         }
 
         $scanResult = $this->scanImportedFileIfEnabled($path, $originalName, $bankId, $importUpload);
-        $handle = fopen($path, 'r');
-
-        $header = fgetcsv($handle);
+        $rows = $this->readImportRows($path, $originalName);
+        $header = array_shift($rows);
         $normalizedHeader = $this->normalizeImportHeader($header);
         $importCount = 0;
         $createdCount = 0;
@@ -408,19 +454,29 @@ class ClientController extends Controller
         $errors = [];
         $seenEmails = [];
         $seenPhones = [];
+        $bankName = $this->resolveBankName($bankId, null);
+        $defaultAssignedToId = $this->resolveAssignedUserId($user, $bankId, null);
+        $departmentLookup = Department::query()
+            ->pluck('id', 'name')
+            ->mapWithKeys(function ($id, $name) {
+                return [mb_strtolower(trim((string) $name)) => (int) $id];
+            })
+            ->all();
 
         if (empty($normalizedHeader) || !$this->isValidImportHeader($normalizedHeader)) {
-            fclose($handle);
             return response()->json([
-                'message' => 'Import failed: the CSV header is invalid. Expected at least a name column and only supported client fields.',
+                'message' => 'Import failed: the file header is invalid. Expected at least a name column and only supported client fields.',
             ], 422);
         }
 
         DB::beginTransaction();
         try {
             $rowNumber = 1;
-            while (($row = fgetcsv($handle)) !== false) {
+            foreach ($rows as $row) {
                 $rowNumber++;
+                if ($rowNumber % 100 === 0) {
+                    $this->refreshImportExecutionWindow();
+                }
 
                 if (count($row) !== count($normalizedHeader)) {
                     $errors[] = "Row {$rowNumber} has an incorrect number of columns.";
@@ -430,14 +486,47 @@ class ClientController extends Controller
 
                 $data = array_combine($normalizedHeader, $row);
 
-                if (empty($data['name'])) {
+                $firstName = $this->cleanImportString($data['name'] ?? null);
+                $surname = $this->cleanImportString($data['surname'] ?? null);
+                $fullName = trim(implode(' ', array_filter([$firstName, $surname])));
+                if ($fullName === '') {
+                    $fullName = $firstName;
+                }
+
+                if ($fullName === '') {
                     $errors[] = "Row {$rowNumber} skipped: missing client name.";
                     $skippedCount++;
                     continue;
                 }
 
-                $normalizedEmail = !empty($data['email']) ? mb_strtolower(trim((string) $data['email'])) : null;
-                $normalizedPhone = !empty($data['phone']) ? preg_replace('/\D+/', '', (string) $data['phone']) : null;
+                $emailValue = $this->firstNonEmptyImportValue([
+                    $data['email_personal'] ?? null,
+                    $data['patient_email_personal'] ?? null,
+                    $data['email'] ?? null,
+                    $data['email_work'] ?? null,
+                    $data['patient_email_work'] ?? null,
+                ]);
+                $cellPhone = $this->firstNonEmptyImportValue([
+                    $data['cell'] ?? null,
+                    $data['cell_phone'] ?? null,
+                ]);
+                $homePhone = $this->firstNonEmptyImportValue([
+                    $data['home'] ?? null,
+                    $data['home_phone'] ?? null,
+                ]);
+                $workPhone = $this->firstNonEmptyImportValue([
+                    $data['work'] ?? null,
+                    $data['work_phone'] ?? null,
+                ]);
+                $primaryPhone = $this->firstNonEmptyImportValue([
+                    $cellPhone,
+                    $this->cleanImportString($data['phone'] ?? null),
+                    $homePhone,
+                    $workPhone,
+                ]);
+
+                $normalizedEmail = $emailValue ? mb_strtolower($emailValue) : null;
+                $normalizedPhone = $primaryPhone ? preg_replace('/\D+/', '', (string) $primaryPhone) : null;
 
                 if ($normalizedEmail && isset($seenEmails[$normalizedEmail])) {
                     $errors[] = "Row {$rowNumber} skipped: duplicate email found in import file ({$data['email']}).";
@@ -470,9 +559,9 @@ class ClientController extends Controller
                     else {
                         $deptNames = array_map('trim', explode(',', $data['department_ids']));
                         foreach ($deptNames as $deptName) {
-                            $dept = \App\Models\Department::where('name', $deptName)->first();
-                            if ($dept) {
-                                $departmentIds[] = $dept->id;
+                            $resolvedDeptId = $departmentLookup[mb_strtolower($deptName)] ?? null;
+                            if ($resolvedDeptId) {
+                                $departmentIds[] = $resolvedDeptId;
                             }
                         }
                     }
@@ -480,67 +569,94 @@ class ClientController extends Controller
 
                 // For backward compatibility, also check old 'department' field
                 if (empty($departmentIds) && !empty($data['department'])) {
-                    $dept = \App\Models\Department::where('name', $data['department'])->first();
-                    if ($dept) {
-                        $departmentIds = [$dept->id];
+                    $resolvedDeptId = $departmentLookup[mb_strtolower(trim((string) $data['department']))] ?? null;
+                    if ($resolvedDeptId) {
+                        $departmentIds = [$resolvedDeptId];
                     }
                 }
+
+                $departmentIds = array_values(array_unique(array_merge($selectedDepartmentIds, $departmentIds)));
 
                 // Create or update client
                     $clientData = [
                     'bank_id' => $bankId,
-                    'name' => $data['name'],
-                    'email' => $data['email'] ?? null,
-                    'phone' => $data['phone'] ?? null,
-                    'id_number' => $data['id_number'] ?? null,
-                    'bank_name' => $this->resolveBankName($bankId, $data['bank_name'] ?? null),
-                    'account_number' => $data['account_number'] ?? null,
-                    'branch_code' => $data['branch_code'] ?? null,
+                    'name' => $fullName,
+                    'title' => $this->cleanImportString($data['title'] ?? null),
+                    'initials' => $this->cleanImportString($data['initials'] ?? null),
+                    'first_name' => $firstName,
+                    'surname' => $surname,
+                    'email' => $emailValue,
+                    'phone' => $primaryPhone,
+                    'cell_phone' => $cellPhone,
+                    'home_phone' => $homePhone,
+                    'work_phone' => $workPhone,
+                    'id_number' => $this->cleanImportString($data['id_number'] ?? null),
+                    'bank_name' => $bankName ?? $this->cleanImportString($data['bank_name'] ?? null),
+                    'account_number' => $this->cleanImportString($data['account_number'] ?? null),
+                    'easy_pay_number' => $this->cleanImportString($data['easy_pay_number'] ?? null),
+                    'branch_code' => $this->cleanImportString($data['branch_code'] ?? null),
+                    'arrears_amount' => $this->parseImportAmount($data['arrears_amount'] ?? null),
+                    'outstanding_balance' => $this->parseImportAmount($data['outstanding_balance'] ?? null),
+                    'installment_amount' => $this->parseImportAmount($data['installment_amount'] ?? null),
+                    'import_batch_number' => $importBatchNumber,
                     'whatsapp_contact_basis' => $data['whatsapp_contact_basis'] ?? 'bank_instruction',
                     'whatsapp_contact_basis_details' => $data['whatsapp_contact_basis_details'] ?? 'Imported from bank-provided debtor list.',
                     'whatsapp_opted_in_at' => $data['whatsapp_opted_in_at'] ?? null,
                     'whatsapp_opt_in_source' => $data['whatsapp_opt_in_source'] ?? 'bank_import',
-                    'assigned_to_id' => $this->resolveAssignedUserId($user, $bankId, null),
+                    'assigned_to_id' => $defaultAssignedToId,
                     'tags' => isset($data['tags'])
                         ? array_filter(array_map('trim', explode(',', $data['tags'])))
                         : [],
                 ];
 
-                if (empty($data['email'])) {
-                    // If no email, create with name + timestamp to avoid unique constraint
+                $matchAttributes = null;
+                if (!empty($clientData['account_number'])) {
+                    $matchAttributes = [
+                        'bank_id' => $bankId,
+                        'account_number' => $clientData['account_number'],
+                    ];
+                } elseif (!empty($clientData['easy_pay_number'])) {
+                    $matchAttributes = [
+                        'bank_id' => $bankId,
+                        'easy_pay_number' => $clientData['easy_pay_number'],
+                    ];
+                } elseif (!empty($emailValue)) {
+                    $matchAttributes = [
+                        'bank_id' => $bankId,
+                        'email' => $emailValue,
+                    ];
+                }
+
+                if ($matchAttributes) {
+                    $existing = Client::query()
+                        ->where($matchAttributes)
+                        ->first();
+
+                    if ($existing) {
+                        $existing->fill($clientData);
+                        $existing->save();
+                        $client = $existing;
+                        $updatedCount++;
+                    } else {
+                        $client = Client::create($clientData);
+                        $createdCount++;
+                    }
+                } else {
                     $client = Client::create(array_merge($clientData, [
                         'email' => 'import_' . time() . '_' . $importCount . '@example.com',
                     ]));
                     $createdCount++;
-                } else {
-                    $existing = Client::query()
-                        ->where('bank_id', $bankId)
-                        ->where('email', $data['email'])
-                        ->first();
-
-                    $client = Client::updateOrCreate(
-                        ['bank_id' => $bankId, 'email' => $data['email']],
-                        $clientData
-                    );
-                    if ($existing) {
-                        $updatedCount++;
-                    } else {
-                        $createdCount++;
-                    }
                 }
 
                 // Sync departments if we found any
                 if (!empty($departmentIds)) {
                     $client->departments()->sync($departmentIds);
-                    $client->primary_department_id = $departmentIds[0];
-                    $client->save();
                 }
 
                 $importCount++;
             }
 
             DB::commit();
-            fclose($handle);
 
             $importUpload->forceFill([
                 'import_status' => 'imported',
@@ -567,6 +683,8 @@ class ClientController extends Controller
                     'skipped_count' => $skippedCount,
                     'errors' => $errors,
                     'file' => $originalName,
+                    'import_batch_number' => $importBatchNumber,
+                    'department_ids' => $selectedDepartmentIds,
                     'malware_scan' => $scanResult,
                 ]
             );
@@ -579,12 +697,13 @@ class ClientController extends Controller
                 'duplicates' => $duplicateCount,
                 'skipped' => $skippedCount,
                 'upload_id' => $importUpload->id,
+                'import_batch_number' => $importBatchNumber,
+                'department_ids' => $selectedDepartmentIds,
                 'malware_scan' => $scanResult,
                 'errors' => $errors,
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            fclose($handle);
 
             $importUpload->forceFill([
                 'import_status' => 'import_failed',
@@ -598,6 +717,7 @@ class ClientController extends Controller
                     'error' => $e->getMessage(),
                     'file' => $originalName,
                     'upload_id' => $importUpload->id,
+                    'import_batch_number' => $importBatchNumber,
                 ]
             );
 
@@ -649,6 +769,10 @@ class ClientController extends Controller
             }
         }
 
+        if ($batch = trim((string) $request->get('import_batch_number'))) {
+            $query->where('import_batch_number', $batch);
+        }
+
         $fileName = 'clients_' . now()->format('Ymd_His') . '.csv';
         $bankScope = $user->canAccessAllBanks()
             ? ($request->filled('bank_id') ? optional(Bank::find($request->get('bank_id')))->name ?? 'Selected Bank' : 'All Banks')
@@ -669,7 +793,7 @@ class ClientController extends Controller
             fputcsv($handle, ['User Role', $user->role]);
             fputcsv($handle, []);
             
-            fputcsv($handle, ['name', 'email', 'phone', 'bank', 'assigned_to', 'department_ids', 'department_names', 'tags']);
+            fputcsv($handle, ['name', 'email', 'phone', 'bank', 'assigned_to', 'import_batch_number', 'department_ids', 'department_names', 'tags']);
             
             $query->with('assignedTo:id,name')->chunk(200, function ($clients) use ($handle) {
                 foreach ($clients as $client) {
@@ -678,10 +802,11 @@ class ClientController extends Controller
                     
                     fputcsv($handle, [
                         $client->name,
-                        $client->email,
-                        $client->phone,
+                        $this->resolveClientDisplayEmail($client),
+                        $this->resolveClientDisplayPhone($client),
                         $client->bank_name,
                         $client->assignedTo?->name,
+                        $client->import_batch_number,
                         implode(',', $deptIds), // Comma-separated department IDs
                         implode(',', $deptNames), // Comma-separated department names
                         implode(',', $client->tags ?? []),
@@ -749,6 +874,79 @@ class ClientController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Failed to delete client: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function destroyBatch(Request $request)
+    {
+        $user = Auth::user();
+        $this->authorizeManage($user, 'delete clients');
+
+        $validated = $request->validate([
+            'import_batch_number' => ['required', 'string', 'max:255'],
+        ]);
+
+        $batchNumber = trim((string) ($validated['import_batch_number'] ?? ''));
+        if ($batchNumber === '') {
+            return response()->json([
+                'message' => 'An import batch number is required.',
+            ], 422);
+        }
+
+        $query = Client::query()->with('departments');
+        $this->applyBankScope($query, $user);
+        $this->applyPortfolioScope($query, $user);
+
+        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
+        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
+                $q->whereIn('departments.id', $userDepartmentIds);
+            });
+        }
+
+        $clients = $query
+            ->where('import_batch_number', $batchNumber)
+            ->get();
+
+        if ($clients->isEmpty()) {
+            return response()->json([
+                'message' => 'No clients found for the selected import batch.',
+            ], 404);
+        }
+
+        $deletedCount = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($clients as $client) {
+                $client->departments()->detach();
+                $client->campaigns()->detach();
+                $client->delete();
+                $deletedCount++;
+            }
+
+            DB::commit();
+
+            $this->audit(
+                action: "Deleted {$deletedCount} clients from import batch {$batchNumber}",
+                module: 'Clients',
+                meta: [
+                    'import_batch_number' => $batchNumber,
+                    'deleted_count' => $deletedCount,
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Clients deleted successfully.',
+                'deleted_count' => $deletedCount,
+                'import_batch_number' => $batchNumber,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to delete clients for batch: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
@@ -969,10 +1167,11 @@ class ClientController extends Controller
 
     protected function validateImportFile(string $path, string $originalName): void
     {
+        $extension = mb_strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
         $sample = file_get_contents($path, false, null, 0, 4096) ?: '';
 
-        if (str_contains($sample, "\0")) {
-            abort(422, 'Import failed: binary file content detected. Only plain CSV uploads are allowed.');
+        if ($extension !== 'xlsx' && str_contains($sample, "\0")) {
+            abort(422, 'Import failed: binary file content detected. Only CSV or Excel (.xlsx) uploads are allowed.');
         }
 
         $mime = function_exists('finfo_open')
@@ -985,6 +1184,8 @@ class ClientController extends Controller
             'application/csv',
             'application/vnd.ms-excel',
             'text/x-csv',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/zip',
         ];
 
         if ($mime && !in_array($mime, $allowedMimes, true)) {
@@ -995,31 +1196,219 @@ class ClientController extends Controller
     protected function normalizeImportHeader($header): array
     {
         return collect($header ?? [])
-            ->map(fn ($column) => trim(mb_strtolower((string) $column)))
+            ->map(fn ($column) => $this->normalizeImportColumnName($column))
             ->all();
     }
 
     protected function isValidImportHeader(array $header): bool
     {
-        $allowed = [
-            'name',
-            'email',
-            'phone',
-            'department',
-            'department_ids',
-            'tags',
-            'bank_name',
-            'id_number',
-            'account_number',
-            'branch_code',
-            'whatsapp_contact_basis',
-            'whatsapp_contact_basis_details',
-            'whatsapp_opted_in_at',
-            'whatsapp_opt_in_source',
-        ];
+        return in_array('name', $header, true);
+    }
 
-        return in_array('name', $header, true)
-            && empty(array_diff($header, $allowed));
+    protected function resolveImportDepartmentIds($user, array $departmentIds): array
+    {
+        $resolved = collect($departmentIds)
+            ->filter(fn ($id) => is_numeric($id))
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($resolved)) {
+            abort(422, 'Select at least one department for this import.');
+        }
+
+        $allowedDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
+        if ($user && !$user->canManageSystemSettings() && !empty($allowedDepartmentIds)) {
+            $invalid = array_diff($resolved, $allowedDepartmentIds);
+            if (!empty($invalid)) {
+                abort(403, 'You are not allowed to import clients into one or more selected departments.');
+            }
+        }
+
+        return $resolved;
+    }
+
+    protected function readImportRows(string $path, string $originalName): array
+    {
+        $extension = mb_strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        return match ($extension) {
+            'xlsx' => $this->readXlsxRows($path),
+            default => $this->readCsvRows($path),
+        };
+    }
+
+    protected function readCsvRows(string $path): array
+    {
+        $handle = fopen($path, 'r');
+        if (!$handle) {
+            abort(422, 'Import failed: unable to read the uploaded CSV file.');
+        }
+
+        $rows = [];
+        while (($row = fgetcsv($handle)) !== false) {
+            if ($row === [null] || $row === false) {
+                continue;
+            }
+            $rows[] = $row;
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    protected function readXlsxRows(string $path): array
+    {
+        if (!class_exists(\ZipArchive::class)) {
+            abort(422, 'Import failed: this server cannot read Excel files because ZipArchive is not available.');
+        }
+
+        $zip = new \ZipArchive();
+        if ($zip->open($path) !== true) {
+            abort(422, 'Import failed: unable to open the Excel workbook.');
+        }
+
+        $sheetPath = $this->resolveFirstWorksheetPath($zip);
+        $sheetXml = $sheetPath ? $zip->getFromName($sheetPath) : false;
+        if ($sheetXml === false) {
+            $zip->close();
+            abort(422, 'Import failed: no worksheet data was found in the Excel workbook.');
+        }
+
+        $sharedStrings = [];
+        $sharedStringsXml = $zip->getFromName('xl/sharedStrings.xml');
+        if ($sharedStringsXml !== false) {
+            $sharedStringsDoc = @simplexml_load_string($sharedStringsXml);
+            if ($sharedStringsDoc) {
+                foreach ($sharedStringsDoc->si ?? [] as $si) {
+                    $text = '';
+                    if (isset($si->t)) {
+                        $text = (string) $si->t;
+                    } elseif (isset($si->r)) {
+                        foreach ($si->r as $run) {
+                            $text .= (string) ($run->t ?? '');
+                        }
+                    }
+                    $sharedStrings[] = $text;
+                }
+            }
+        }
+
+        $sheetDoc = @simplexml_load_string($sheetXml);
+        if (!$sheetDoc) {
+            $zip->close();
+            abort(422, 'Import failed: unable to parse the Excel worksheet.');
+        }
+
+        $sheetDoc->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $rows = [];
+
+        foreach ($sheetDoc->xpath('//main:sheetData/main:row') ?: [] as $rowNode) {
+            $cells = [];
+            $maxIndex = -1;
+
+            foreach ($rowNode->c as $cell) {
+                $reference = (string) ($cell['r'] ?? '');
+                preg_match('/([A-Z]+)/', $reference, $matches);
+                $columnLetters = $matches[1] ?? 'A';
+                $columnIndex = $this->excelColumnLettersToIndex($columnLetters);
+                $maxIndex = max($maxIndex, $columnIndex);
+                $cells[$columnIndex] = $this->extractExcelCellValue($cell, $sharedStrings);
+            }
+
+            if ($maxIndex < 0) {
+                continue;
+            }
+
+            $row = [];
+            for ($i = 0; $i <= $maxIndex; $i++) {
+                $row[] = $cells[$i] ?? '';
+            }
+
+            if (count(array_filter($row, fn ($value) => trim((string) $value) !== '')) === 0) {
+                continue;
+            }
+
+            $rows[] = $row;
+        }
+
+        $zip->close();
+
+        return $rows;
+    }
+
+    protected function resolveFirstWorksheetPath(\ZipArchive $zip): ?string
+    {
+        $workbookXml = $zip->getFromName('xl/workbook.xml');
+        $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
+
+        if ($workbookXml === false || $relsXml === false) {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        $workbook = @simplexml_load_string($workbookXml);
+        $rels = @simplexml_load_string($relsXml);
+
+        if (!$workbook || !$rels) {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        $workbook->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
+        $workbook->registerXPathNamespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships');
+        $rels->registerXPathNamespace('rel', 'http://schemas.openxmlformats.org/package/2006/relationships');
+
+        $firstSheet = $workbook->xpath('//main:sheets/main:sheet[1]');
+        if (empty($firstSheet)) {
+            return 'xl/worksheets/sheet1.xml';
+        }
+
+        $relationshipId = (string) $firstSheet[0]->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships')['id'];
+        foreach ($rels->xpath('//rel:Relationship') ?: [] as $relationship) {
+            if ((string) $relationship['Id'] !== $relationshipId) {
+                continue;
+            }
+
+            $target = ltrim((string) $relationship['Target'], '/');
+            return str_starts_with($target, 'xl/') ? $target : 'xl/' . $target;
+        }
+
+        return 'xl/worksheets/sheet1.xml';
+    }
+
+    protected function excelColumnLettersToIndex(string $letters): int
+    {
+        $letters = strtoupper($letters);
+        $index = 0;
+
+        for ($i = 0; $i < strlen($letters); $i++) {
+            $index = ($index * 26) + (ord($letters[$i]) - 64);
+        }
+
+        return $index - 1;
+    }
+
+    protected function extractExcelCellValue(\SimpleXMLElement $cell, array $sharedStrings): string
+    {
+        $type = (string) ($cell['t'] ?? '');
+
+        if ($type === 'inlineStr') {
+            return trim((string) ($cell->is->t ?? ''));
+        }
+
+        $value = (string) ($cell->v ?? '');
+
+        if ($type === 's') {
+            $sharedIndex = (int) $value;
+            return trim((string) ($sharedStrings[$sharedIndex] ?? ''));
+        }
+
+        if ($type === 'b') {
+            return $value === '1' ? '1' : '0';
+        }
+
+        return trim($value);
     }
 
     protected function whatsappComplianceStatus(Client $client): string
@@ -1033,5 +1422,111 @@ class ClientController extends Controller
         }
 
         return 'Eligible';
+    }
+
+    protected function resolveClientDisplayEmail(Client $client): ?string
+    {
+        return $this->cleanImportString($client->email);
+    }
+
+    protected function resolveClientDisplayPhone(Client $client): ?string
+    {
+        return $this->firstNonEmptyImportValue([
+            $client->cell_phone,
+            $client->phone,
+            $client->home_phone,
+            $client->work_phone,
+        ]);
+    }
+
+    protected function normalizeImportColumnName($column): string
+    {
+        $normalized = mb_strtolower(trim((string) $column));
+        $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? '';
+        $normalized = trim($normalized, '_');
+
+        $aliases = [
+            'emailpersonal' => 'email_personal',
+            'easy_pay' => 'easy_pay_number',
+            'easypay' => 'easy_pay_number',
+            'idno' => 'id_number',
+            'known_as' => 'name',
+            'patient_cell' => 'cell_phone',
+            'patient_home' => 'home_phone',
+            'patient_work' => 'work_phone',
+            'patient_email_personal' => 'email_personal',
+            'patient_email_work' => 'email_work',
+            'cell_no' => 'cell',
+            'home_no' => 'home',
+            'work_no' => 'work',
+            'outstandingbalance' => 'outstanding_balance',
+            'installmentamount' => 'installment_amount',
+            'arrearsamount' => 'arrears_amount',
+        ];
+
+        return $aliases[$normalized] ?? $normalized;
+    }
+
+    protected function cleanImportString($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $text = trim((string) $value);
+        return $text === '' ? null : $text;
+    }
+
+    protected function firstNonEmptyImportValue(array $values): ?string
+    {
+        foreach ($values as $value) {
+            $clean = $this->cleanImportString($value);
+            if ($clean !== null) {
+                return $clean;
+            }
+        }
+
+        return null;
+    }
+
+    protected function parseImportAmount($value): ?string
+    {
+        $text = $this->cleanImportString($value);
+        if ($text === null) {
+            return null;
+        }
+
+        $normalized = str_replace([' ', ','], ['', ''], $text);
+        $normalized = preg_replace('/[^0-9.\-]/', '', $normalized) ?? '';
+        if ($normalized === '' || $normalized === '-' || !is_numeric($normalized)) {
+            return null;
+        }
+
+        return number_format((float) $normalized, 2, '.', '');
+    }
+
+    protected function extendImportExecutionLimits(): void
+    {
+        @ini_set('max_execution_time', '0');
+
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+    }
+
+    protected function refreshImportExecutionWindow(int $seconds = 30): void
+    {
+        if (function_exists('set_time_limit')) {
+            @set_time_limit($seconds);
+        }
+    }
+
+    protected function generateImportBatchNumber(): string
+    {
+        do {
+            $batchNumber = 'IMP-' . now()->format('Ymd-His') . '-' . strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
+        } while (ImportUpload::query()->where('import_batch_number', $batchNumber)->exists());
+
+        return $batchNumber;
     }
 }

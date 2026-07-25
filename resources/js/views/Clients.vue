@@ -1,12 +1,12 @@
 <template>
-  <div>
+  <div class="clients-page">
     <!-- Header + actions -->
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 gap-2" style="background-color:#0087ff0f">
       <h2 class="h4 mb-0"><i class="bi bi-people me-2"></i>Clients</h2>
 
       <div class="d-flex gap-2">
-        <button class="btn btn-outline-success btn-sm" @click="triggerImport" :disabled="!canManage">
-          <i class="bi bi-file-earmark-arrow-up me-1"></i> Import CSV
+        <button class="btn btn-outline-success btn-sm" @click="openImportModal" :disabled="!canManage">
+          <i class="bi bi-file-earmark-arrow-up me-1"></i> Import CSV / Excel
         </button>
         <router-link
           class="btn btn-outline-info btn-sm"
@@ -48,13 +48,13 @@
           </div>
 
           <div class="col-md-3">
-            <label class="form-label">Tags (contains)</label>
-            <input
-              v-model="filters.tag"
-              type="text"
-              class="form-control"
-              placeholder="VIP, overdue..."
-            />
+            <label class="form-label">Import Batch</label>
+            <select v-model="filters.import_batch_number" class="form-select">
+              <option value="">All batches</option>
+              <option v-for="batch in clientBatchOptions" :key="batch" :value="batch">
+                {{ batch }}
+              </option>
+            </select>
           </div>
 
           <div class="col-md-3" v-if="canChooseBank">
@@ -81,96 +81,159 @@
 
     <!-- Clients table -->
     <div class="card shadow-sm">
-      <div class="card-body p-0">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Phone</th>
-              <th>Bank</th>
-              <th>WhatsApp Compliance</th>
-              <th>Masked Sensitive Data</th>
-              <th>Departments</th>
-              <th>Tags</th>
-              <th style="width: 130px;" class="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in clients" :key="c.id">
-              <td>{{ c.name }}</td>
-              <td>{{ c.email || '-' }}</td>
-              <td>{{ c.phone || '-' }}</td>
-              <td>{{ c.bank_name || '-' }}</td>
-              <td>
-                <span
-                  class="badge"
-                  :class="{
-                    'bg-success': c.whatsapp_compliance_status === 'Eligible',
-                    'bg-warning text-dark': c.whatsapp_compliance_status === 'Missing Lawful Basis',
-                    'bg-danger': c.whatsapp_compliance_status === 'Suppressed',
-                  }"
-                >
-                  {{ c.whatsapp_compliance_status || 'Unknown' }}
-                </span>
-                <div class="small text-muted mt-1" v-if="c.whatsapp_opt_in_source || c.whatsapp_opt_out_reason">
-                  {{ c.whatsapp_opt_out_reason || c.whatsapp_opt_in_source }}
-                </div>
-              </td>
-              <td>
-                <div class="small">
-                  <div>ID: {{ c.id_number_masked || '-' }}</div>
-                  <div>Account: {{ c.account_number_masked || '-' }}</div>
-                </div>
-              </td>
-              <td>
-                <template v-if="c.departments && c.departments.length">
-                  <span
-                    v-for="d in c.departments"
-                    :key="d.id"
-                    class="badge bg-light text-dark border me-1"
-                  >
-                    {{ d.name }}
+      <div v-if="canManage" class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 px-3 py-2 border-bottom bg-light-subtle">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            class="btn btn-outline-secondary btn-sm"
+            @click="selectAllVisibleClients"
+            :disabled="clients.length === 0"
+          >
+            <i class="bi bi-check2-square me-1"></i> Select All Visible
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-secondary btn-sm"
+            @click="clearSelectedClients"
+            :disabled="selectedClientIds.length === 0"
+          >
+            Clear
+          </button>
+          <small v-if="selectedClientIds.length > 0" class="text-muted">
+            {{ selectedClientIds.length }} selected
+          </small>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-danger btn-sm"
+          @click="removeSelectedClients"
+          :disabled="selectedClientIds.length === 0"
+        >
+          <i class="bi bi-trash me-1"></i> Delete Selected
+        </button>
+        <button
+          type="button"
+          class="btn btn-outline-danger btn-sm"
+          @click="removeBatchClients"
+          :disabled="!currentBatchFilter"
+        >
+          <i class="bi bi-layers me-1"></i> Delete Batch
+        </button>
+      </div>
+
+      <div class="card-body p-0 clients-table-wrap">
+        <TableLoadingWrapper :loading="loading" message="Loading clients..." min-height="320px">
+          <table class="table table-sm table-hover mb-0 align-middle clients-table">
+            <thead class="table-light">
+              <tr>
+                <th v-if="canManage" class="clients-col-select"></th>
+                <th class="clients-col-name">Name</th>
+                <th class="clients-col-email">Email Personal</th>
+                <th class="clients-col-cell">Cell</th>
+                <th class="clients-col-bank">Bank</th>
+                <th class="clients-col-import">Import Batch</th>
+                <th class="clients-col-created">Import / Created By</th>
+                <th class="clients-col-departments">Departments</th>
+                <th class="clients-col-actions text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in clients" :key="c.id">
+                <td v-if="canManage" class="clients-col-select">
+                  <input
+                    :id="`client-select-${c.id}`"
+                    class="form-check-input"
+                    type="checkbox"
+                    :checked="selectedClientIds.includes(c.id)"
+                    @change="toggleClientSelection(c.id, $event.target.checked)"
+                  />
+                </td>
+                <td class="clients-col-name">
+                  <div class="clients-cell-text" :title="c.name">
+                    {{ c.name }}
+                  </div>
+                </td>
+                <td class="clients-col-email">
+                  <div class="clients-cell-text" :title="c.email || '-'">
+                    {{ c.email || '-' }}
+                  </div>
+                </td>
+                <td class="clients-col-cell">
+                  <div class="clients-cell-text" :title="c.phone || '-'">
+                    {{ c.phone || '-' }}
+                  </div>
+                </td>
+                <td class="clients-col-bank">
+                  <div class="clients-cell-text" :title="c.bank_name || '-'">
+                    {{ c.bank_name || '-' }}
+                  </div>
+                </td>
+                <td class="clients-col-import">
+                  <span v-if="c.import_batch_number" class="badge bg-light text-dark border">
+                    {{ c.import_batch_number }}
                   </span>
-                </template>
-                <span v-else class="text-muted">-</span>
-              </td>
-              <td>
-                <span
-                  v-for="tag in (c.tags || [])"
-                  :key="tag"
-                  class="badge bg-light text-dark border me-1"
-                >
-                  {{ tag }}
-                </span>
-                <span v-if="!c.tags || c.tags.length === 0" class="text-muted">-</span>
-              </td>
-              <td class="text-end">
-                <div class="btn-group btn-group-sm" role="group">
-                  <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(c)" :disabled="!canManage">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                  <button class="btn btn-outline-danger" title="Delete" @click="remove(c)" :disabled="!canManage">
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="clients.length === 0">
-              <td colspan="9" class="text-center text-muted py-3">
-                No clients found.
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                  <span v-else class="text-muted">-</span>
+                </td>
+                <td class="clients-col-created">
+                  <div class="clients-cell-text" :title="c.created_by_label || '-'">
+                    {{ c.created_by_label || '-' }}
+                  </div>
+                </td>
+                <td class="clients-col-departments">
+                  <template v-if="c.departments && c.departments.length">
+                    <span
+                      v-for="d in c.departments"
+                      :key="d.id"
+                      class="badge bg-light text-dark border me-1"
+                    >
+                      {{ d.name }}
+                    </span>
+                  </template>
+                  <span v-else class="text-muted">-</span>
+                </td>
+                <td class="clients-col-actions text-end">
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(c)" :disabled="!canManage">
+                      <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" title="Delete" @click="remove(c)" :disabled="!canManage">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="!loading && clients.length === 0">
+                <td :colspan="canManage ? 9 : 8" class="text-center text-muted py-3">
+                  No clients found.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </TableLoadingWrapper>
       </div>
 
       <!-- Pagination -->
-      <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-muted">
-          Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
-          of {{ pagination.total || 0 }}
-        </small>
+      <div class="card-footer d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <small class="text-muted">
+            Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
+            of {{ pagination.total || 0 }}
+          </small>
+
+          <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 text-muted">Rows per page</label>
+            <select
+              v-model.number="pageSize"
+              class="form-select form-select-sm clients-page-size"
+              @change="changePageSize"
+            >
+              <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                {{ size }}
+              </option>
+            </select>
+          </div>
+        </div>
 
         <ul class="pagination mb-0 pagination-sm">
           <li class="page-item" :class="{ disabled: !pagination.prevPage }">
@@ -179,12 +242,12 @@
 
           <li
             v-for="p in pagination.pages"
-            :key="p"
+            :key="p.key"
             class="page-item"
-            :class="{ active: p === pagination.currentPage }"
+            :class="{ active: p.active, disabled: p.ellipsis }"
           >
-            <button class="page-link" @click="goToPage(p)">
-              {{ p }}
+            <button class="page-link" @click="goToPage(p.page)" :disabled="p.ellipsis">
+              {{ p.label }}
             </button>
           </li>
 
@@ -195,18 +258,102 @@
       </div>
     </div>
 
-    <!-- Hidden file input for import -->
-    <input
-      ref="importInput"
-      type="file"
-      class="d-none"
-      accept=".csv,text/csv"
-      @change="handleImport"
-    />
+    <div class="modal fade" tabindex="-1" ref="importModalRef">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Import Clients</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+
+          <div class="modal-body">
+            <div class="alert alert-info py-2">
+              Upload a CSV or Excel `.xlsx` file. The selected departments below will be attached to every imported client.
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">File <span class="text-danger">*</span></label>
+                <input
+                  ref="importFileInput"
+                  type="file"
+                  class="form-control"
+                  accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  @change="onImportFileSelected"
+                />
+                <small class="text-muted">Supported formats: `.csv` and `.xlsx`.</small>
+              </div>
+
+              <div class="col-md-6" v-if="canChooseBank">
+                <label class="form-label">Bank <span class="text-danger">*</span></label>
+                <select v-model="importForm.bank_id" class="form-select">
+                  <option value="">Select bank</option>
+                  <option v-for="bank in banks" :key="bank.id" :value="bank.id">
+                    {{ bank.name }}
+                  </option>
+                </select>
+              </div>
+
+              <div class="col-12">
+                <label class="form-label">Departments <span class="text-danger">*</span></label>
+                <vue-multiselect
+                  v-model="importSelectedDepartments"
+                  :options="departmentOptions"
+                  :multiple="true"
+                  :close-on-select="false"
+                  :clear-on-select="false"
+                  placeholder="Select one or more departments for this import"
+                  label="name"
+                  track-by="id"
+                  :searchable="true"
+                  class="mb-2"
+                >
+                  <template #noResult>No departments found</template>
+                  <template #noOptions>No departments available</template>
+                </vue-multiselect>
+
+                <div class="d-flex justify-content-between">
+                  <small class="text-muted">
+                    Choose one or more departments to attach to all imported clients.
+                  </small>
+                  <div>
+                    <button
+                      type="button"
+                      class="btn btn-link btn-sm p-0 me-2"
+                      @click="selectAllImportDepartments"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-link btn-sm p-0 text-danger"
+                      @click="clearImportDepartments"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="importForm.uploading">
+              Cancel
+            </button>
+            <button type="button" class="btn btn-success" @click="submitImport" :disabled="importForm.uploading">
+              <span v-if="importForm.uploading" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-upload me-1"></i>
+              Import Clients
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Create/Edit Modal -->
     <div class="modal fade" tabindex="-1" ref="modalRef">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
 
           <div class="modal-header">
@@ -218,37 +365,32 @@
 
           <div class="modal-body">
             <form @submit.prevent="save">
-
-              <div class="mb-3">
-                <label class="form-label">Name <span class="text-danger">*</span></label>
-                <input v-model="form.name" type="text" class="form-control" required />
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label">Email</label>
-                <input v-model="form.email" type="email" class="form-control" />
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label">Phone</label>
-                <input v-model="form.phone" type="text" class="form-control" />
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label">ID Number</label>
-                <input
-                  v-model="form.id_number"
-                  type="text"
-                  class="form-control"
-                  @copy.prevent
-                  @cut.prevent
-                  @paste.prevent
-                  @drop.prevent
-                  autocomplete="off"
-                />
-              </div>
-
               <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">Name <span class="text-danger">*</span></label>
+                  <input v-model="form.name" type="text" class="form-control" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Email</label>
+                  <input v-model="form.email" type="email" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Phone</label>
+                  <input v-model="form.phone" type="text" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">ID Number</label>
+                  <input
+                    v-model="form.id_number"
+                    type="text"
+                    class="form-control"
+                    @copy.prevent
+                    @cut.prevent
+                    @paste.prevent
+                    @drop.prevent
+                    autocomplete="off"
+                  />
+                </div>
                 <div class="col-md-6">
                   <label class="form-label">Bank <span class="text-danger">*</span></label>
                   <select v-model="form.bank_id" class="form-select" :disabled="!canChooseBank">
@@ -275,20 +417,28 @@
                     autocomplete="off"
                   />
                 </div>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Branch Code</label>
-                <input v-model="form.branch_code" type="text" class="form-control" />
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label">Assigned Portfolio Owner</label>
-                <select v-model="form.assigned_to_id" class="form-select" :disabled="!canChooseAssignee">
-                  <option value="">Unassigned</option>
-                  <option v-for="assignee in assignees" :key="assignee.id" :value="assignee.id">
-                    {{ assignee.name }} ({{ assignee.role }})
-                  </option>
-                </select>
+                <div class="col-md-6">
+                  <label class="form-label">Branch Code</label>
+                  <input v-model="form.branch_code" type="text" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Assigned Portfolio Owner</label>
+                  <select v-model="form.assigned_to_id" class="form-select" :disabled="!canChooseAssignee">
+                    <option value="">Unassigned</option>
+                    <option v-for="assignee in assignees" :key="assignee.id" :value="assignee.id">
+                      {{ assignee.name }} ({{ assignee.role }})
+                    </option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Tags (comma separated)</label>
+                  <input
+                    v-model="tagsInput"
+                    type="text"
+                    class="form-control"
+                    placeholder="VIP, Overdue, ..."
+                  />
+                </div>
               </div>
 
               <div class="card border mb-3">
@@ -377,16 +527,6 @@
                 </div>
               </div>
 
-              <div class="mb-3">
-                <label class="form-label">Tags (comma separated)</label>
-                <input
-                  v-model="tagsInput"
-                  type="text"
-                  class="form-control"
-                  placeholder="VIP, Overdue, ..."
-                />
-              </div>
-
               <div class="text-end">
                 <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">
                   Cancel
@@ -413,6 +553,7 @@ import axios, { syncAuthenticatedUser } from '../axios';
 import VueMultiselect from 'vue-multiselect';
 import ExportRequestModal from '../components/ExportRequestModal.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
@@ -423,19 +564,24 @@ export default {
     VueMultiselect,
     ExportRequestModal,
     ConfirmationModal,
+    TableLoadingWrapper,
   },
   data() {
     return {
       clients: [],
+      loading: false,
       banks: [],
       assignees: [],
       departmentOptions: [],
+      clientBatchOptions: [],
       filters: {
         q: '',
         department: '',
-        tag: '',
+        import_batch_number: '',
         bank_id: '',
       },
+      pageSize: 25,
+      pageSizeOptions: [25, 50, 100, 200, 300, 500, 1000],
       pagination: {
         currentPage: 1,
         lastPage: 1,
@@ -464,13 +610,23 @@ export default {
         whatsapp_opt_out_reason: '',
       },
       selectedDepartments: [], // Array of department objects for VueMultiselect
+      importSelectedDepartments: [],
       tagsInput: '',
       isEdit: false,
       modal: null,
+      importModal: null,
+      importForm: {
+        file: null,
+        bank_id: '',
+        department_ids: [],
+        uploading: false,
+      },
+      selectedClientIds: [],
     };
   },
   async mounted() {
     this.modal = createManagedModal(this.$refs.modalRef);
+    this.importModal = createManagedModal(this.$refs.importModalRef);
     await this.syncCurrentUser();
     this.fetchBanks();
     this.fetchAssignees();
@@ -479,6 +635,7 @@ export default {
   },
   beforeUnmount() {
     disposeManagedModal(this.modal);
+    disposeManagedModal(this.importModal);
   },
   computed: {
     currentUser() {
@@ -504,6 +661,9 @@ export default {
       if (!this.filters.bank_id) return '';
       return this.banks.find((bank) => Number(bank.id) === Number(this.filters.bank_id))?.name || '';
     },
+    currentBatchFilter() {
+      return String(this.filters.import_batch_number || '').trim();
+    },
   },
   watch: {
     // Sync selectedDepartments with form.department_ids
@@ -513,6 +673,12 @@ export default {
         this.form.department_ids = newVal.map(dept => dept.id);
       },
       deep: true
+    },
+    importSelectedDepartments: {
+      handler(newVal) {
+        this.importForm.department_ids = newVal.map((dept) => dept.id);
+      },
+      deep: true,
     }
   },
   methods: {
@@ -530,13 +696,72 @@ export default {
       this.pagination.total = data.total;
       this.pagination.from = data.from;
       this.pagination.to = data.to;
+      this.pageSize = Number(data.per_page || this.pageSize);
 
       this.pagination.prevPage = data.current_page > 1 ? data.current_page - 1 : null;
       this.pagination.nextPage = data.current_page < data.last_page ? data.current_page + 1 : null;
 
-      const pages = [];
-      for (let i = 1; i <= data.last_page; i++) pages.push(i);
-      this.pagination.pages = pages;
+      this.pagination.pages = this.buildPaginationItems(data.current_page, data.last_page);
+    },
+    buildPaginationItems(currentPage, lastPage) {
+      const maxVisiblePages = 20;
+      const items = [];
+      const addPage = (page) => {
+        items.push({
+          key: `page-${page}`,
+          label: String(page),
+          page,
+          active: page === currentPage,
+          ellipsis: false,
+        });
+      };
+      const addEllipsis = (key) => {
+        items.push({
+          key,
+          label: '...',
+          page: null,
+          active: false,
+          ellipsis: true,
+        });
+      };
+
+      if (lastPage <= maxVisiblePages) {
+        for (let page = 1; page <= lastPage; page += 1) {
+          addPage(page);
+        }
+        return items;
+      }
+
+      const innerVisiblePages = maxVisiblePages - 2;
+      let start = Math.max(2, currentPage - Math.floor(innerVisiblePages / 2));
+      let end = start + innerVisiblePages - 1;
+
+      if (end > lastPage - 1) {
+        end = lastPage - 1;
+        start = end - innerVisiblePages + 1;
+      }
+
+      if (start < 2) {
+        start = 2;
+      }
+
+      addPage(1);
+
+      if (start > 2) {
+        addEllipsis('ellipsis-left');
+      }
+
+      for (let page = start; page <= end; page += 1) {
+        addPage(page);
+      }
+
+      if (end < lastPage - 1) {
+        addEllipsis('ellipsis-right');
+      }
+
+      addPage(lastPage);
+
+      return items;
     },
     goToPage(page) {
       if (!page || page === this.pagination.currentPage) return;
@@ -561,16 +786,20 @@ export default {
       });
     },
     fetchClients(page = 1) {
+      this.loading = true;
       const params = {
         page,
         search: this.filters.q || undefined,
         department: this.filters.department || undefined,
-        tag: this.filters.tag || undefined,
+        import_batch_number: this.filters.import_batch_number || undefined,
         bank_id: this.filters.bank_id || undefined,
+        per_page: this.pageSize,
       };
 
-      axios.get('/api/clients', { params }).then((res) => {
+      return axios.get('/api/clients', { params }).then((res) => {
         this.clients = res.data.data || res.data;
+        this.clientBatchOptions = res.data.batch_options || [];
+        this.selectedClientIds = [];
         if (res.data.data) {
           this.buildPagination(res.data);
         } else {
@@ -589,6 +818,9 @@ export default {
       }).catch((error) => {
         console.error('Failed to fetch clients:', error);
         notify.error(error.response?.data?.message || 'Failed to load clients.', 'Clients');
+        throw error;
+      }).finally(() => {
+        this.loading = false;
       });
     },
 
@@ -596,7 +828,10 @@ export default {
       this.fetchClients(1);
     },
     resetFilters() {
-      this.filters = { q: '', department: '', tag: '', bank_id: '' };
+      this.filters = { q: '', department: '', import_batch_number: '', bank_id: '' };
+      this.fetchClients(1);
+    },
+    changePageSize() {
       this.fetchClients(1);
     },
 
@@ -734,11 +969,111 @@ export default {
         onConfirm: async () => {
           try {
             await axios.delete(`/api/clients/${client.id}`);
-            this.fetchClients(this.pagination.currentPage);
+            await this.fetchClients(this.pagination.currentPage);
             notify.success(`Client "${client.name}" deleted.`, 'Clients');
           } catch (error) {
             console.error('Failed to delete client:', error);
             notify.error('Failed to delete client: ' + (error.response?.data?.message || error.message), 'Clients');
+            throw error;
+          }
+        },
+      });
+    },
+    toggleClientSelection(clientId, isSelected) {
+      if (isSelected) {
+        if (!this.selectedClientIds.includes(clientId)) {
+          this.selectedClientIds = [...this.selectedClientIds, clientId];
+        }
+        return;
+      }
+
+      this.selectedClientIds = this.selectedClientIds.filter((id) => id !== clientId);
+    },
+    selectAllVisibleClients() {
+      this.selectedClientIds = this.clients.map((client) => client.id);
+    },
+    clearSelectedClients() {
+      this.selectedClientIds = [];
+    },
+    removeSelectedClients() {
+      if (!this.canManage || this.selectedClientIds.length === 0) return;
+
+      const selectedIds = [...this.selectedClientIds];
+      const selectedCount = selectedIds.length;
+
+      this.$refs.confirmModal.open({
+        title: 'Delete Selected Clients',
+        message: `Delete ${selectedCount} selected client${selectedCount === 1 ? '' : 's'}? This action cannot be undone.`,
+        confirmLabel: 'Delete Selected',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          const results = await Promise.allSettled(
+            selectedIds.map((id) => axios.delete(`/api/clients/${id}`))
+          );
+
+          const failed = results.filter((result) => result.status === 'rejected');
+          const deletedCount = results.length - failed.length;
+
+          this.clearSelectedClients();
+          await this.fetchClients(1);
+
+          if (deletedCount > 0) {
+            notify.success(
+              `Deleted ${deletedCount} client${deletedCount === 1 ? '' : 's'}.`,
+              'Clients'
+            );
+          }
+
+          if (failed.length > 0) {
+            const firstError =
+              failed[0]?.reason?.response?.data?.message ||
+              failed[0]?.reason?.message ||
+              'One or more selected clients could not be deleted.';
+
+            notify.error(
+              `${failed.length} client${failed.length === 1 ? '' : 's'} could not be deleted. ${firstError}`,
+              'Clients'
+            );
+          }
+        },
+      });
+    },
+    removeBatchClients() {
+      if (!this.canManage) return;
+
+      const batchNumber = this.currentBatchFilter;
+      if (!batchNumber) {
+        notify.warning('Enter or select an import batch number first.', 'Clients');
+        return;
+      }
+
+      this.$refs.confirmModal.open({
+        title: 'Delete Clients By Batch',
+        message: `Delete all accessible clients from batch ${batchNumber}? This will also remove them from any campaigns. This action cannot be undone.`,
+        confirmLabel: 'Delete Batch',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            const response = await axios.delete('/api/clients/delete-batch', {
+              data: {
+                import_batch_number: batchNumber,
+              },
+            });
+
+            this.clearSelectedClients();
+            this.filters.import_batch_number = '';
+            await this.fetchClients(1);
+
+            notify.success(
+              `Deleted ${response.data?.deleted_count || 0} client(s) from batch "${batchNumber}".`,
+              'Clients'
+            );
+          } catch (error) {
+            console.error('Failed to delete clients by batch:', error);
+            notify.error(
+              'Failed to delete batch clients: ' + (error.response?.data?.message || error.message),
+              'Clients'
+            );
             throw error;
           }
         },
@@ -756,26 +1091,57 @@ export default {
     },
 
     // Import / Export
-    triggerImport() {
+    openImportModal() {
       if (!this.canManage) return;
-
-      this.$refs.importInput.click();
+      this.importForm = {
+        file: null,
+        bank_id: this.canChooseBank ? (this.filters.bank_id || '') : (this.currentUser?.bank_id || ''),
+        department_ids: [],
+        uploading: false,
+      };
+      this.importSelectedDepartments = [];
+      if (this.$refs.importFileInput) {
+        this.$refs.importFileInput.value = '';
+      }
+      this.importModal.show();
     },
-    handleImport(event) {
-      const file = event.target.files[0];
-      if (!file) return;
+    onImportFileSelected(event) {
+      const file = event.target.files?.[0] || null;
+      this.importForm.file = file;
+    },
+    selectAllImportDepartments() {
+      if (!Array.isArray(this.departmentOptions)) return;
+      this.importSelectedDepartments = [...this.departmentOptions];
+    },
+    clearImportDepartments() {
+      this.importSelectedDepartments = [];
+    },
+    submitImport() {
+      if (!this.importForm.file) {
+        notify.warning('Please choose a CSV or Excel file to import.', 'Clients');
+        return;
+      }
 
-      if (this.canChooseBank && !this.filters.bank_id) {
-        notify.warning('Select a bank filter before importing clients.', 'Clients');
-        event.target.value = '';
+      if (this.canChooseBank && !this.importForm.bank_id) {
+        notify.warning('Please select a bank for this import.', 'Clients');
+        return;
+      }
+
+      if (!this.importSelectedDepartments.length) {
+        notify.warning('Please select at least one department for this import.', 'Clients');
         return;
       }
 
       const formData = new FormData();
-      formData.append('file', file);
-      if (this.filters.bank_id) {
-        formData.append('bank_id', this.filters.bank_id);
+      formData.append('file', this.importForm.file);
+      if (this.importForm.bank_id) {
+        formData.append('bank_id', this.importForm.bank_id);
       }
+      for (const departmentId of this.importForm.department_ids) {
+        formData.append('department_ids[]', departmentId);
+      }
+
+      this.importForm.uploading = true;
 
       axios
         .post('/api/clients/import', formData, {
@@ -784,12 +1150,13 @@ export default {
         .then((response) => {
           const data = response.data;
           notify.success(
-            `Import completed. Imported: ${data.imported || 0}, created: ${data.created || 0}, updated: ${data.updated || 0}, duplicates: ${data.duplicates || 0}, skipped: ${data.skipped || 0}.`,
+            `Import completed for batch ${data.import_batch_number || '-'}. Imported: ${data.imported || 0}, created: ${data.created || 0}, updated: ${data.updated || 0}, duplicates: ${data.duplicates || 0}, skipped: ${data.skipped || 0}.`,
             'Clients'
           );
           if (data.errors && data.errors.length > 0) {
             console.warn('Import errors:', data.errors);
           }
+          this.importModal.hide();
           this.fetchClients(1);
         })
         .catch(error => {
@@ -797,7 +1164,11 @@ export default {
           notify.error('Import failed: ' + (error.response?.data?.message || error.message), 'Clients');
         })
         .finally(() => {
-          event.target.value = '';
+          this.importForm.uploading = false;
+          if (this.$refs.importFileInput) {
+            this.$refs.importFileInput.value = '';
+          }
+          this.importForm.file = null;
         });
     },
     exportCsv() {
@@ -807,13 +1178,13 @@ export default {
         filters: {
           search: this.filters.q || '',
           department: this.filters.department || '',
-          tag: this.filters.tag || '',
+          import_batch_number: this.filters.import_batch_number || '',
           bank_id: this.filters.bank_id || '',
         },
         summaryRows: [
           { label: 'Search', value: this.filters.q || 'All clients' },
           { label: 'Department', value: this.filters.department || 'All departments' },
-          { label: 'Tag Filter', value: this.filters.tag || 'No tag filter' },
+          { label: 'Import Batch', value: this.filters.import_batch_number || 'All batches' },
           { label: 'Bank Scope', value: this.selectedBankName || 'Current access scope' },
         ],
         fallbackName: 'clients.csv',
@@ -863,5 +1234,90 @@ export default {
 
 :deep(.multiselect__option--highlight:after) {
   background: #0d6efd;
+}
+
+.clients-table-wrap {
+  overflow-x: auto;
+}
+
+.clients-table {
+  width: 100%;
+  min-width: 1120px;
+  table-layout: fixed;
+}
+
+.clients-table th,
+.clients-table td {
+  white-space: nowrap;
+}
+
+.clients-col-select {
+  width: 48px;
+}
+
+.clients-col-name {
+  width: 18%;
+}
+
+.clients-col-email {
+  width: 24%;
+}
+
+.clients-col-cell {
+  width: 12%;
+}
+
+.clients-col-bank {
+  width: 11%;
+}
+
+.clients-col-import {
+  width: 15%;
+}
+
+.clients-col-created {
+  width: 14%;
+}
+
+.clients-col-departments {
+  width: 9%;
+}
+
+.clients-col-actions {
+  width: 96px;
+}
+
+.clients-cell-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clients-page .card,
+.clients-page .table,
+.clients-page .form-label,
+.clients-page .form-control,
+.clients-page .form-select,
+.clients-page .btn,
+.clients-page .pagination,
+.clients-page .badge,
+.clients-page small {
+  font-size: 0.84rem;
+}
+
+.clients-page .table th,
+.clients-page .table td {
+  font-size: 0.8rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.clients-page .btn-group-sm > .btn,
+.clients-page .btn-sm {
+  font-size: 0.78rem;
+}
+
+.clients-page-size {
+  width: 110px;
 }
 </style>

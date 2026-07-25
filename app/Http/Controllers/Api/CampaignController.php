@@ -17,10 +17,13 @@ use App\Models\ExportRequest;
 use App\Models\WhatsAppFlow;
 use App\Models\Client;
 use App\Services\MetaWhatsAppService;
+use App\Services\WhatsAppBatchService;
+use App\Services\WhatsAppDailyLimitService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CampaignController extends Controller
@@ -28,10 +31,18 @@ class CampaignController extends Controller
     use HasAuditLogging, GuardsSensitiveExports, EnforcesMetaPermissionHealth;
 
     protected WhatsAppServiceInterface $whatsApp;
+    protected WhatsAppDailyLimitService $dailyLimitService;
+    protected WhatsAppBatchService $batchService;
 
-    public function __construct(WhatsAppServiceInterface $whatsApp)
+    public function __construct(
+        WhatsAppServiceInterface $whatsApp,
+        WhatsAppDailyLimitService $dailyLimitService,
+        WhatsAppBatchService $batchService
+    )
     {
         $this->whatsApp = $whatsApp;
+        $this->dailyLimitService = $dailyLimitService;
+        $this->batchService = $batchService;
     }
     /**
      * List campaigns (department + role scoped).
@@ -106,10 +117,6 @@ class CampaignController extends Controller
             ->with('departments')
             ->select('clients.*');
 
-        if ($campaign->bank_id) {
-            $query->where('clients.bank_id', $campaign->bank_id);
-        }
-
         if ($user = Auth::user()) {
             if ($user->isPortfolioScoped()) {
                 $query->where('clients.assigned_to_id', $user->id);
@@ -131,14 +138,14 @@ class CampaignController extends Controller
         // Get the results
         $clients = $query
             ->orderBy('clients.name')
-            ->take(500)
             ->get()
             ->map(function ($client) {
                 return [
                     'id' => $client->id,
                     'name' => $client->name,
                     'email' => $client->email,
-                    'phone' => $this->normalizePhone($client->phone),
+                    'phone' => $this->resolveClientPhone($client),
+                    'import_batch_number' => $client->import_batch_number,
                     'departments' => $client->departments->map(function ($dept) {
                         return [
                             'id' => $dept->id,
@@ -167,10 +174,12 @@ class CampaignController extends Controller
             'add_all'    => ['required', 'boolean'],
             'client_ids' => ['array'],
             'client_ids.*' => ['integer', 'exists:clients,id'],
+            'import_batch_number' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $addAll    = (bool) $validated['add_all'];
+        $addAll = (bool) $validated['add_all'];
         $clientIds = $validated['client_ids'] ?? [];
+        $importBatchNumber = $validated['import_batch_number'] ?? null;
 
         // Ensure campaign departments are loaded
         $campaign->loadMissing('departments');
@@ -179,10 +188,6 @@ class CampaignController extends Controller
 
         // Build base allowed clients query (department-scoped)
         $allowedClientsQuery = Client::query();
-
-        if ($campaign->bank_id) {
-            $allowedClientsQuery->where('bank_id', $campaign->bank_id);
-        }
 
         if ($user = Auth::user()) {
             if ($user->isPortfolioScoped()) {
@@ -194,6 +199,10 @@ class CampaignController extends Controller
             $allowedClientsQuery->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
+        }
+
+        if ($importBatchNumber) {
+            $allowedClientsQuery->where('import_batch_number', $importBatchNumber);
         }
 
         // Exclude already attached clients
@@ -248,43 +257,192 @@ class CampaignController extends Controller
         ], 200);
     }
 
+    public function detachClient(Campaign $campaign, Client $client): JsonResponse
+    {
+        $this->authorizeManageCampaign($campaign);
+
+        $attachedQuery = $campaign->clients()->where('clients.id', $client->id);
+
+        if (Auth::user()?->isPortfolioScoped()) {
+            $attachedQuery->where('clients.assigned_to_id', Auth::id());
+        }
+
+        if (!$attachedQuery->exists()) {
+            return response()->json([
+                'message' => 'Client is not attached to this campaign.',
+            ], 404);
+        }
+
+        $campaign->clients()->detach($client->id);
+
+        return response()->json([
+            'message' => 'Client removed from campaign.',
+        ]);
+    }
+
+    public function detachClients(Request $request, Campaign $campaign): JsonResponse
+    {
+        $this->authorizeManageCampaign($campaign);
+
+        $validated = $request->validate([
+            'client_ids' => ['nullable', 'array'],
+            'client_ids.*' => ['integer', 'exists:clients,id'],
+            'import_batch_number' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $clientIds = $validated['client_ids'] ?? [];
+        $importBatchNumber = $validated['import_batch_number'] ?? null;
+
+        if (empty($clientIds) && !$importBatchNumber) {
+            return response()->json([
+                'message' => 'Select client_ids or provide an import_batch_number.',
+            ], 422);
+        }
+
+        $query = $campaign->clients()->select('clients.id');
+
+        if (Auth::user()?->isPortfolioScoped()) {
+            $query->where('clients.assigned_to_id', Auth::id());
+        }
+
+        if (!empty($clientIds)) {
+            $query->whereIn('clients.id', $clientIds);
+        }
+
+        if ($importBatchNumber) {
+            $query->where('clients.import_batch_number', $importBatchNumber);
+        }
+
+        $idsToDetach = $query->pluck('clients.id')->all();
+
+        if (empty($idsToDetach)) {
+            return response()->json([
+                'message' => 'No matching clients found to remove from this campaign.',
+            ], 404);
+        }
+
+        $campaign->clients()->detach($idsToDetach);
+
+        return response()->json([
+            'message' => 'Clients removed from campaign.',
+            'detached_count' => count($idsToDetach),
+            'detached_ids' => $idsToDetach,
+        ]);
+    }
+
     /**
      * Clients attached to this campaign.
      */
-    public function clients(Campaign $campaign)
+    public function clients(Request $request, Campaign $campaign)
     {
         $this->authorizeView($campaign);
 
-        return $campaign->clients()
-            ->with(['departments', 'assignedTo:id,name'])
-            ->when(Auth::user()?->isPortfolioScoped(), function ($q) {
-                $q->where('clients.assigned_to_id', Auth::id());
-            })
-            ->paginate(50)
-            ->through(function ($client) use ($campaign) {
-                $pivot = CampaignClient::where('campaign_id', $campaign->id)
-                    ->where('client_id', $client->id)
-                    ->first();
-                
-                return [
-                    'id' => $client->id,
-                    'name' => $client->name,
-                    'email' => $client->email,
-                    'phone' => $this->normalizePhone($client->phone),
-                    'bank_name' => $client->bank_name,
-                    'assigned_to_name' => $client->assignedTo?->name,
-                    'departments' => $client->departments->map(function ($dept) {
-                        return ['id' => $dept->id, 'name' => $dept->name];
-                    }),
-                    'whatsapp_status' => $pivot->whatsapp_status ?? 'Pending',
-                    'whatsapp_sent_at' => $pivot->whatsapp_sent_at,
-                    'email_status' => $pivot->email_status ?? 'Pending',
-                    'email_sent_at' => $pivot->email_sent_at,
-                    'sms_status' => $pivot->sms_status ?? 'Pending',
-                    'sms_sent_at' => $pivot->sms_sent_at,
-                    'created_at' => $pivot->created_at ?? $client->created_at,
-                ];
+        $allowedPerPage = [25, 50, 100, 200, 300, 500, 1000];
+        $perPage = (int) $request->integer('per_page', 25);
+        if (!in_array($perPage, $allowedPerPage, true)) {
+            $perPage = 25;
+        }
+
+        $baseQuery = $campaign->clients()
+            ->with(['departments', 'assignedTo:id,name']);
+
+        if (Auth::user()?->isPortfolioScoped()) {
+            $baseQuery->where('clients.assigned_to_id', Auth::id());
+        }
+
+        $batchOptions = (clone $baseQuery)
+            ->whereNotNull('clients.import_batch_number')
+            ->distinct()
+            ->orderByDesc('clients.import_batch_number')
+            ->pluck('clients.import_batch_number')
+            ->values();
+
+        if ($search = trim((string) $request->get('search', $request->get('q')))) {
+            $baseQuery->where(function ($q) use ($search) {
+                $q->where('clients.name', 'like', "%{$search}%")
+                    ->orWhere('clients.email', 'like', "%{$search}%")
+                    ->orWhere('clients.phone', 'like', "%{$search}%")
+                    ->orWhere('clients.cell_phone', 'like', "%{$search}%")
+                    ->orWhere('clients.home_phone', 'like', "%{$search}%")
+                    ->orWhere('clients.work_phone', 'like', "%{$search}%")
+                    ->orWhere('clients.import_batch_number', 'like', "%{$search}%");
             });
+        }
+
+        if ($importBatchNumber = trim((string) $request->get('import_batch_number'))) {
+            $baseQuery->where('clients.import_batch_number', $importBatchNumber);
+        }
+
+        if ($request->boolean('all')) {
+            $clients = $baseQuery
+                ->orderBy('clients.name')
+                ->get()
+                ->map(function ($client) use ($campaign) {
+                    $pivot = CampaignClient::where('campaign_id', $campaign->id)
+                        ->where('client_id', $client->id)
+                        ->first();
+
+                    return [
+                        'id' => $client->id,
+                        'name' => $client->name,
+                        'email' => $client->email,
+                        'phone' => $this->resolveClientPhone($client),
+                        'bank_name' => $client->bank_name,
+                        'assigned_to_name' => $client->assignedTo?->name,
+                        'import_batch_number' => $client->import_batch_number,
+                        'departments' => $client->departments->map(function ($dept) {
+                            return ['id' => $dept->id, 'name' => $dept->name];
+                        }),
+                        'whatsapp_status' => $pivot->whatsapp_status ?? 'Pending',
+                        'whatsapp_sent_at' => $pivot->whatsapp_sent_at,
+                        'email_status' => $pivot->email_status ?? 'Pending',
+                        'email_sent_at' => $pivot->email_sent_at,
+                        'sms_status' => $pivot->sms_status ?? 'Pending',
+                        'sms_sent_at' => $pivot->sms_sent_at,
+                        'created_at' => $pivot->created_at ?? $client->created_at,
+                    ];
+                })
+                ->values();
+
+            return response()->json([
+                'data' => $clients,
+                'batch_options' => $batchOptions,
+            ]);
+        }
+
+        $paginator = $baseQuery
+            ->orderBy('clients.name')
+            ->paginate($perPage);
+
+        $paginator->getCollection()->transform(function ($client) use ($campaign) {
+            $pivot = CampaignClient::where('campaign_id', $campaign->id)
+                ->where('client_id', $client->id)
+                ->first();
+
+            return [
+                'id' => $client->id,
+                'name' => $client->name,
+                'email' => $client->email,
+                'phone' => $this->resolveClientPhone($client),
+                'bank_name' => $client->bank_name,
+                'assigned_to_name' => $client->assignedTo?->name,
+                'import_batch_number' => $client->import_batch_number,
+                'departments' => $client->departments->map(function ($dept) {
+                    return ['id' => $dept->id, 'name' => $dept->name];
+                }),
+                'whatsapp_status' => $pivot->whatsapp_status ?? 'Pending',
+                'whatsapp_sent_at' => $pivot->whatsapp_sent_at,
+                'email_status' => $pivot->email_status ?? 'Pending',
+                'email_sent_at' => $pivot->email_sent_at,
+                'sms_status' => $pivot->sms_status ?? 'Pending',
+                'sms_sent_at' => $pivot->sms_sent_at,
+                'created_at' => $pivot->created_at ?? $client->created_at,
+            ];
+        });
+
+        return response()->json(array_merge($paginator->toArray(), [
+            'batch_options' => $batchOptions,
+        ]));
     }
 
     public function exportClients(Request $request, Campaign $campaign): StreamedResponse
@@ -331,7 +489,7 @@ class CampaignController extends Controller
                     fputcsv($handle, [
                         $client->name,
                         $client->email,
-                        $this->normalizePhone($client->phone),
+                        $this->resolveClientPhone($client),
                         $client->bank_name,
                         $client->assignedTo?->name,
                         $client->departments->pluck('name')->join(', '),
@@ -467,26 +625,61 @@ class CampaignController extends Controller
     public function send(Campaign $campaign)
     {
         $this->authorizeManageCampaign($campaign);
+        $draftWhatsappMessages = $campaign->whatsappMessages()
+            ->where(function ($query) {
+                $query->whereNull('sent_at')
+                    ->orWhere('status', 'Draft');
+            })
+            ->get();
 
-        // Example structure (pseudo-code):
-        //
-        // dispatch(new SendCampaignJob(
-        //     campaign: $campaign,
-        //     channels: $campaign->channels,
-        // ));
-        //
-        // Inside the job you would:
-        //  - Resolve campaign clients (department-scoped)
-        //  - For WhatsApp: call the configured WhatsApp provider with an approved template
-        //  - For Email: push to your mailer
-        //  - For SMS: call ZoomConnect API
-        //  - Store each send result into campaign_* tables for reporting
-        //  - Update campaign stats + audit trail
+        if ($draftWhatsappMessages->isNotEmpty()) {
+            $this->enforceMetaPermissionHealthForProduction('Campaign WhatsApp send');
+        }
 
-        // For now we just return a simple JSON stub
+        $queuedBatchCount = 0;
+        $queuedRecipientCount = 0;
+        $now = now();
+
+        foreach ($draftWhatsappMessages as $message) {
+            if ($message->mode === 'template' && empty($message->template_sid)) {
+                continue;
+            }
+
+            $message->update([
+                'sent_at' => $message->sent_at ?: $now,
+                'status' => 'Queued',
+                'queued_at' => $message->queued_at ?: $now,
+                'processing_started_at' => null,
+                'completed_at' => null,
+                'paused_at' => null,
+                'pause_reason' => null,
+                'last_processed_at' => null,
+                'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
+            ]);
+
+            $recipientIds = $message->recipients()->pluck('client_id');
+            if ($recipientIds->isNotEmpty()) {
+                CampaignClient::where('campaign_id', $campaign->id)
+                    ->whereIn('client_id', $recipientIds)
+                    ->update([
+                        'whatsapp_status' => 'Pending',
+                        'whatsapp_sent_at' => $now,
+                        'updated_at' => $now,
+                    ]);
+            }
+
+            $queuedRecipientCount += $this->batchService->queueAllRecipients($message->fresh());
+            $queuedBatchCount++;
+        }
+
         return response()->json([
-            'message'  => 'Send job queued (stub). Implement SendCampaignJob with WhatsApp/Email/ZoomConnect.',
+            'message'  => $queuedBatchCount > 0
+                ? 'Campaign WhatsApp batches queued successfully.'
+                : 'No unsent WhatsApp batches were available to queue.',
             'campaign' => $campaign->id,
+            'queued_whatsapp_batches' => $queuedBatchCount,
+            'queued_whatsapp_recipients' => $queuedRecipientCount,
+            'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
         ]);
     }
 
@@ -516,7 +709,7 @@ class CampaignController extends Controller
                 'total'     => (clone $whatsRecipientQuery)->count(),
                 'delivered' => (clone $whatsRecipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count(),
                 'failed'    => (clone $whatsRecipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])->count(),
-                'pending'   => (clone $whatsRecipientQuery)->whereIn(\DB::raw('LOWER(status)'), ['pending', 'queued', 'scheduled'])->count(),
+                'pending'   => (clone $whatsRecipientQuery)->whereIn(\DB::raw('LOWER(status)'), ['pending', 'queued', 'processing', 'paused', 'scheduled'])->count(),
             ];
 
             $emailRecipientQuery = CampaignEmailRecipient::query()
@@ -584,6 +777,11 @@ class CampaignController extends Controller
             'delivered'      => $whatsTotals['delivered'] + $emailTotals['delivered'] + $smsTotals['delivered'],
             'failed'         => $whatsTotals['failed']    + $emailTotals['bounced']   + $smsTotals['failed'],
             'pending'        => $whatsTotals['pending']   + $smsTotals['pending'],
+            'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor($user),
+            'whatsapp_messages_per_second' => $this->batchService->enforcedMessagesPerSecond(),
+            'active_whatsapp_batches' => $campaign->whatsappMessages()
+                ->whereIn('status', ['Queued', 'Processing', 'Paused'])
+                ->count(),
         ]);
     }
 
@@ -598,6 +796,7 @@ class CampaignController extends Controller
 
         $messages = $campaign->whatsappMessages()
             ->orderByDesc('created_at')
+            ->with('autoReplies')
             ->withCount([
                 'recipients as yes_responses_count' => function ($q) {
                     $q->whereRaw('LOWER(last_response) = ?', ['yes']);
@@ -619,11 +818,22 @@ class CampaignController extends Controller
                 'template_name',
                 'name',
                 'preview_body',
+                'template_variables',
                 'sent_at',
                 'total',
                 'delivered',
                 'failed',
                 'pending',
+                'status',
+                'queued_at',
+                'processing_started_at',
+                'completed_at',
+                'paused_at',
+                'pause_reason',
+                'last_processed_at',
+                'messages_per_second',
+                'created_by_user_id',
+                'provider_display_phone_number',
                 'enable_live_chat',
                 'created_at',
             ]);
@@ -640,6 +850,9 @@ class CampaignController extends Controller
             $delivered = $m->delivered;
             $failed = $m->failed;
             $pending = $m->pending;
+            $queued = 0;
+            $processing = 0;
+            $paused = 0;
             $repliesCount = $m->replies_count ?? 0;
             $yesResponsesCount = $m->yes_responses_count ?? 0;
             $noResponsesCount = $m->no_responses_count ?? 0;
@@ -652,24 +865,31 @@ class CampaignController extends Controller
                 $total = (clone $recipientQuery)->count();
                 $delivered = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
                 $failed = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])->count();
-                $pending = (clone $recipientQuery)->whereRaw("LOWER(status) in ('pending','queued','scheduled')")->count();
+                $queued = (clone $recipientQuery)->whereRaw("LOWER(status) = 'queued'")->count();
+                $processing = (clone $recipientQuery)->whereRaw("LOWER(status) = 'processing'")->count();
+                $paused = (clone $recipientQuery)->whereRaw("LOWER(status) = 'paused'")->count();
+                $pending = (clone $recipientQuery)->whereRaw("LOWER(status) in ('pending','queued','processing','paused','scheduled')")->count();
                 $repliesCount = (clone $recipientQuery)->whereNotNull('last_response')->count();
                 $yesResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['yes'])->count();
                 $noResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['no'])->count();
+            } else {
+                $counts = $this->batchService->recipientCounts($m);
+                $queued = $counts['queued'];
+                $processing = $counts['processing'];
+                $paused = $counts['paused'];
+                $pending = $counts['pending'];
             }
-
-            $status = 'Draft';
-            if ($m->sent_at) {
-                if ($pending > 0) {
-                    $status = 'Pending';
-                } elseif ($failed > 0 && $delivered === 0) {
-                    $status = 'Failed';
-                } elseif ($delivered > 0 && $pending === 0) {
-                    $status = 'Delivered';
-                } else {
-                    $status = 'Sent';
-                }
-            }
+            $status = $m->status ?: $this->batchService->resolveMessageStatus($m, [
+                'total' => $total,
+                'delivered' => $delivered,
+                'failed' => $failed,
+                'queued' => $queued,
+                'processing' => $processing,
+                'paused' => $paused,
+                'provider_pending' => max($pending - $queued - $processing - $paused, 0),
+                'suppressed' => 0,
+                'pending' => $pending,
+            ]);
 
             return [
                 'id'            => $m->id,
@@ -681,17 +901,34 @@ class CampaignController extends Controller
                 'template_name' => $m->template_name,
                 'name'          => $m->name,
                 'preview_body'  => $m->preview_body,
+                'template_variables' => $m->template_variables ?? [],
                 'sent_at'       => optional($m->sent_at)->toDateTimeString(),
                 'total'         => $total,
                 'delivered'     => $delivered,
                 'failed'        => $failed,
                 'pending'       => $pending,
+                'queued'        => $queued,
+                'processing'    => $processing,
+                'paused'        => $paused,
                 'created_at'    => optional($m->created_at)->toDateTimeString(),
+                'queued_at'     => optional($m->queued_at)->toDateTimeString(),
+                'processing_started_at' => optional($m->processing_started_at)->toDateTimeString(),
+                'completed_at'  => optional($m->completed_at)->toDateTimeString(),
+                'paused_at'     => optional($m->paused_at)->toDateTimeString(),
+                'pause_reason'  => $m->pause_reason,
+                'last_processed_at' => optional($m->last_processed_at)->toDateTimeString(),
+                'messages_per_second' => (int) ($m->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond()),
+                'created_by_user_id' => $m->created_by_user_id,
+                'reply_number'  => $m->provider_display_phone_number,
                 'enable_live_chat' => (bool) $m->enable_live_chat,
                 'yes_responses_count' => $yesResponsesCount,
                 'no_responses_count' => $noResponsesCount,
                 'replies_count' => $repliesCount,
                 'status'        => $status,
+                'can_pause'     => in_array($status, ['Queued', 'Processing'], true),
+                'can_resume'    => $status === 'Paused',
+                'can_retry_failed' => $failed > 0,
+                'auto_replies'  => $m->autoReplies,
             ];
         });
 
@@ -772,11 +1009,17 @@ class CampaignController extends Controller
             'mode'             => ['required', 'in:template,flow'],
             'template_id'      => ['nullable', 'string'],
             'flow_id'          => ['nullable', 'integer', 'exists:whatsapp_flows,id'],
+            'template_variables' => ['sometimes', 'array'],
             'clients_mode'     => ['required', 'in:all,selected'],
             'client_ids'       => ['array'],
             'client_ids.*'     => ['integer', 'exists:clients,id'],
             'send_now'         => ['sometimes', 'boolean'],
             'enable_live_chat' => ['sometimes', 'boolean'],
+            'auto_replies'     => ['sometimes', 'array'],
+            'auto_replies.*.trigger_keyword' => ['required', 'string'],
+            'auto_replies.*.template_sid' => ['required', 'string'],
+            'auto_replies.*.template_name' => ['nullable', 'string'],
+            'auto_replies.*.template_variables' => ['nullable', 'array'],
         ]);
 
         $sendNow = $data['send_now'] ?? false;
@@ -806,6 +1049,11 @@ class CampaignController extends Controller
             'clients.id',
             'clients.name',
             'clients.phone',
+            'clients.email',
+            'clients.id_number',
+            'clients.account_number',
+            'clients.bank_name',
+            'clients.branch_code',
             'clients.whatsapp_opted_out_at',
             'clients.whatsapp_opt_out_reason',
             'clients.whatsapp_contact_basis',
@@ -820,6 +1068,16 @@ class CampaignController extends Controller
             return response()->json(['message' => 'All selected clients are blocked by WhatsApp compliance controls (opt-out or missing lawful basis).'], 422);
         }
 
+        if ($sendNow) {
+            $limitCheck = $this->dailyLimitService->validateSendAllowance(Auth::user(), $clients->count());
+            if (!$limitCheck['allowed']) {
+                return response()->json([
+                    'message' => $limitCheck['message'],
+                    'whatsapp_daily_limit' => $limitCheck['summary'],
+                ], 422);
+            }
+        }
+
         // Refresh template/flow info
         $templateSid  = null;
         $friendlyName = null;
@@ -827,6 +1085,7 @@ class CampaignController extends Controller
         $flowId       = null;
         $flowName     = null;
         $flowDef      = null;
+        $templateVariables = null;
 
         if ($mode === 'template') {
             $templateSid  = $data['template_id'];
@@ -834,6 +1093,10 @@ class CampaignController extends Controller
             $friendlyName = $template['name'] ?? $templateSid;
             $previewBody  = collect($template['components'] ?? [])
                 ->firstWhere('type', 'BODY')['text'] ?? null;
+            $templateVariables = $this->normalizeTemplateVariables(
+                $data['template_variables'] ?? [],
+                $template['variables'] ?? []
+            );
         } else {
             $flow        = WhatsAppFlow::findOrFail($data['flow_id']);
             $flowId      = $flow->id;
@@ -857,17 +1120,20 @@ class CampaignController extends Controller
             $rows[] = [
                 'whatsapp_message_id' => $message->id,
                 'client_id'           => $client->id,
-                'phone'               => $this->normalizePhone($client->phone),
+                'phone'               => $this->resolveClientPhone($client),
                 'provider_phone_number_id' => $senderContext['phone_number_id'],
                 'provider_display_phone_number' => $senderContext['display_phone_number'],
-                'status'              => $sendNow ? 'pending' : 'draft',
+                'status'              => $sendNow ? 'Queued' : 'Draft',
+                'queued_at'           => $sendNow ? $now : null,
+                'processing_started_at' => null,
+                'last_attempted_at'   => null,
+                'attempts_count'      => 0,
                 'created_at'          => $now,
                 'updated_at'          => $now,
             ];
         }
         CampaignWhatsappRecipient::insert($rows);
 
-        // Update message meta
         $message->update([
             'mode'             => $mode,
             'template_sid'     => $templateSid,
@@ -876,6 +1142,7 @@ class CampaignController extends Controller
             'provider_display_phone_number' => $senderContext['display_phone_number'],
             'name'             => $friendlyName,
             'preview_body'     => $previewBody,
+            'template_variables' => $templateVariables,
             'whatsapp_flow_id' => $flowId,
             'flow_name'        => $flowName,
             'flow_definition'  => $flowDef,
@@ -884,10 +1151,33 @@ class CampaignController extends Controller
             'delivered'        => 0,
             'failed'           => 0,
             'pending'          => $sendNow ? $total : 0,
+            'status'           => $sendNow ? 'Queued' : 'Draft',
+            'queued_at'        => $sendNow ? $now : null,
+            'processing_started_at' => null,
+            'completed_at'     => null,
+            'paused_at'        => null,
+            'pause_reason'     => null,
+            'last_processed_at'=> null,
+            'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
             'enable_live_chat' => $data['enable_live_chat'] ?? $message->enable_live_chat,
+            'created_by_user_id' => $message->created_by_user_id ?: Auth::id(),
         ]);
 
-        if ($sendNow && $templateSid) {
+        if (isset($data['auto_replies'])) {
+            $message->autoReplies()->delete();
+            foreach ($data['auto_replies'] as $reply) {
+                $message->autoReplies()->create([
+                    'trigger_keyword' => $reply['trigger_keyword'],
+                    'template_sid' => $reply['template_sid'],
+                    'template_name' => $reply['template_name'] ?? null,
+                    'template_variables' => $reply['template_variables'] ?? null,
+                ]);
+            }
+        }
+
+
+        $queuedCount = 0;
+        if ($sendNow) {
             // Mark campaign clients as pending
             CampaignClient::where('campaign_id', $campaign->id)
                 ->whereIn('client_id', $clients->pluck('id'))
@@ -896,57 +1186,14 @@ class CampaignController extends Controller
                     'whatsapp_sent_at' => $now,
                     'updated_at'       => $now,
                 ]);
-
-            // Send messages
-            foreach ($clients as $client) {
-                if (!$client->phone) {
-                    continue;
-                }
-                if (!$this->canSendWhatsappToClient($client)) {
-                    CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
-                        ->where('client_id', $client->id)
-                        ->update(['status' => $this->whatsappComplianceBlockedStatus($client)]);
-                    continue;
-                }
-                try {
-                    $subject = $client->name ?? '';
-                    $bodyVar = $mode === 'flow'
-                        ? ($flowDef[0]['message'] ?? '')
-                        : '';
-                    $twResponse = $this->whatsApp->sendTemplateFromSubjectMessage(
-                        $client->phone,
-                        $templateSid,
-                        $subject,
-                        $bodyVar,
-                        $campaign->whatsapp_from
-                    );
-                    $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');
-
-                    CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
-                        ->where('client_id', $client->id)
-                        ->update([
-                            'message_sid'  => $twResponse['sid'] ?? null,
-                            'provider_message_id' => $twResponse['message_id'] ?? ($twResponse['sid'] ?? null),
-                            'provider_phone_number_id' => $twResponse['phone_number_id'] ?? $senderContext['phone_number_id'],
-                            'provider_display_phone_number' => $twResponse['display_phone_number'] ?? $senderContext['display_phone_number'],
-                            'status'       => $mappedStatus,
-                            'delivered_at' => $mappedStatus === 'Delivered' ? now() : null,
-                        ]);
-                } catch (\Throwable $e) {
-                    \Log::error('Failed to send WhatsApp (update draft)', [
-                        'campaign_id' => $campaign->id,
-                        'client_id'   => $client->id,
-                        'error'       => $e->getMessage(),
-                    ]);
-                }
-            }
-
-            $this->refreshWhatsappMessageCounts($message);
+            $queuedCount = $this->batchService->queueAllRecipients($message->fresh());
         }
 
         return response()->json([
-            'message' => 'Batch ' . ($sendNow ? 'sent' : 'updated') . ' successfully.',
+            'message' => 'Batch ' . ($sendNow ? 'queued' : 'updated') . ' successfully.',
             'id'      => $message->id,
+            'queued_count' => $queuedCount,
+            'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
         ]);
     }
 
@@ -981,12 +1228,28 @@ class CampaignController extends Controller
             return response()->json(['message' => 'No recipients found for this batch.'], 422);
         }
 
+        $sendableRecipients = $recipients->filter(function ($recipient) {
+            $client = $recipient->client;
+            $phone = $recipient->phone ?: $client?->phone;
+            return !empty($phone) && (!$client || $this->canSendWhatsappToClient($client));
+        })->values();
+
+        $limitCheck = $this->dailyLimitService->validateSendAllowance(Auth::user(), $sendableRecipients->count());
+        if (!$limitCheck['allowed']) {
+            return response()->json([
+                'message' => $limitCheck['message'],
+                'whatsapp_daily_limit' => $limitCheck['summary'],
+            ], 422);
+        }
+
         $now = now();
 
-        // Update recipient statuses to pending
+        // Update recipient statuses to queued
         CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
             ->update([
-                'status' => 'pending',
+                'status' => 'Queued',
+                'queued_at' => $now,
+                'processing_started_at' => null,
                 'provider_phone_number_id' => $senderContext['phone_number_id'],
                 'provider_display_phone_number' => $senderContext['display_phone_number'],
                 'updated_at' => $now,
@@ -998,6 +1261,15 @@ class CampaignController extends Controller
             'pending'   => $recipients->count(),
             'delivered' => 0,
             'failed'    => 0,
+            'status'    => 'Queued',
+            'queued_at' => $now,
+            'processing_started_at' => null,
+            'completed_at' => null,
+            'paused_at' => null,
+            'pause_reason' => null,
+            'last_processed_at' => null,
+            'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
+            'created_by_user_id' => $message->created_by_user_id ?: Auth::id(),
             'provider_phone_number_id' => $senderContext['phone_number_id'],
             'provider_display_phone_number' => $senderContext['display_phone_number'],
         ]);
@@ -1011,87 +1283,13 @@ class CampaignController extends Controller
                 'updated_at'       => $now,
             ]);
 
-        // Send via the configured WhatsApp provider
-        if ($message->template_sid) {
-            Log::info('Campaign draft WhatsApp send started', [
-                'campaign_id' => $campaign->id,
-                'message_id' => $message->id,
-                'template_sid' => $message->template_sid,
-                'mode' => $message->mode,
-                'recipient_count' => $recipients->count(),
-                'campaign_whatsapp_from' => $campaign->whatsapp_from,
-            ]);
+        $queuedCount = $this->batchService->queueAllRecipients($message->fresh());
 
-            foreach ($recipients as $recipient) {
-                $client = $recipient->client;
-                $phone  = $recipient->phone ?: $client?->phone;
-                if (!$phone) {
-                    Log::warning('Campaign draft WhatsApp send skipped: no phone', [
-                        'campaign_id' => $campaign->id,
-                        'message_id' => $message->id,
-                        'client_id' => $client?->id,
-                        'recipient_id' => $recipient->id,
-                    ]);
-                    continue;
-                }
-                if ($client && !$this->canSendWhatsappToClient($client)) {
-                    Log::info('Campaign draft WhatsApp send skipped: compliance blocked client', [
-                        'campaign_id' => $campaign->id,
-                        'message_id' => $message->id,
-                        'client_id' => $client->id,
-                        'recipient_id' => $recipient->id,
-                        'block_status' => $this->whatsappComplianceBlockedStatus($client),
-                    ]);
-                    $recipient->status = $this->whatsappComplianceBlockedStatus($client);
-                    $recipient->save();
-                    continue;
-                }
-                try {
-                    Log::info('Campaign draft WhatsApp recipient send attempt', [
-                        'campaign_id' => $campaign->id,
-                        'message_id' => $message->id,
-                        'client_id' => $client?->id,
-                        'recipient_id' => $recipient->id,
-                        'phone' => $phone,
-                        'campaign_whatsapp_from' => $campaign->whatsapp_from,
-                    ]);
-
-                    $subject = $client?->name ?? '';
-                    $bodyVar = $message->mode === 'flow'
-                        ? ($message->flow_definition[0]['message'] ?? '')
-                        : '';
-                    $twResponse = $this->whatsApp->sendTemplateFromSubjectMessage(
-                        $phone,
-                        $message->template_sid,
-                        $subject,
-                        $bodyVar,
-                        $campaign->whatsapp_from
-                    );
-
-                    $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');
-                    $recipient->message_sid = $twResponse['sid'] ?? $recipient->message_sid;
-                    $recipient->provider_message_id = $twResponse['message_id'] ?? ($twResponse['sid'] ?? $recipient->provider_message_id);
-                    $recipient->provider_phone_number_id = $twResponse['phone_number_id'] ?? $senderContext['phone_number_id'];
-                    $recipient->provider_display_phone_number = $twResponse['display_phone_number'] ?? $senderContext['display_phone_number'];
-                    $recipient->status = $mappedStatus;
-                    if ($mappedStatus === 'Delivered') {
-                        $recipient->delivered_at = $recipient->delivered_at ?? now();
-                    }
-                    $recipient->save();
-                } catch (\Throwable $e) {
-                    \Log::error('Failed to send WhatsApp draft', [
-                        'campaign_id' => $campaign->id,
-                        'client_id'   => $client?->id,
-                        'message_id'  => $message->id,
-                        'error'       => $e->getMessage(),
-                    ]);
-                }
-            }
-        }
-
-        $this->refreshWhatsappMessageCounts($message);
-
-        return response()->json(['message' => 'Batch sent successfully.']);
+        return response()->json([
+            'message' => 'Batch queued successfully.',
+            'queued_count' => $queuedCount,
+            'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
+        ]);
     }
 
     /**
@@ -1105,6 +1303,72 @@ class CampaignController extends Controller
         $message->delete();
 
         return response()->noContent();
+    }
+
+    public function pauseWhatsappMessage(Campaign $campaign, $messageId)
+    {
+        $this->authorizeManageCampaign($campaign);
+
+        /** @var CampaignWhatsappMessage $message */
+        $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
+
+        if (in_array($message->status, ['Completed', 'Completed With Failures', 'Failed', 'Draft'], true)) {
+            return response()->json(['message' => 'Only queued or processing WhatsApp batches can be paused.'], 422);
+        }
+
+        $reason = 'Paused manually by ' . (Auth::user()?->name ?? 'system') . ' on ' . now()->toDateTimeString() . '.';
+        $this->batchService->pauseMessage($message, $reason);
+
+        return response()->json([
+            'message' => 'WhatsApp batch paused.',
+            'batch' => $message->fresh(),
+            'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
+        ]);
+    }
+
+    public function resumeWhatsappMessage(Campaign $campaign, $messageId)
+    {
+        $this->authorizeManageCampaign($campaign);
+        $this->enforceMetaPermissionHealthForProduction('WhatsApp batch resume');
+
+        /** @var CampaignWhatsappMessage $message */
+        $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
+
+        if ($message->status !== 'Paused') {
+            return response()->json(['message' => 'Only paused WhatsApp batches can be resumed.'], 422);
+        }
+
+        $result = $this->batchService->resumeMessage($message);
+
+        return response()->json([
+            'message' => 'WhatsApp batch resumed.',
+            'queued_count' => $result['queued_count'],
+            'batch' => $result['message'],
+            'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
+        ]);
+    }
+
+    public function retryFailedWhatsappRecipients(Campaign $campaign, $messageId)
+    {
+        $this->authorizeManageCampaign($campaign);
+        $this->enforceMetaPermissionHealthForProduction('WhatsApp failed-recipient retry');
+
+        /** @var CampaignWhatsappMessage $message */
+        $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
+
+        $failedCount = $message->recipients()->whereRaw('LOWER(status) = ?', ['failed'])->count();
+        if ($failedCount === 0) {
+            return response()->json(['message' => 'No failed recipients are available to retry for this batch.'], 422);
+        }
+
+        $result = $this->batchService->retryFailedRecipients($message);
+
+        return response()->json([
+            'message' => 'Failed recipients re-queued.',
+            'queued_count' => $result['queued_count'],
+            'batch' => $result['message'],
+            'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
+        ]);
     }
 
 
@@ -1465,6 +1729,7 @@ class CampaignController extends Controller
             $departments     = $client && $client->relationLoaded('departments')
                 ? $client->departments
                 : collect();
+            $replyMeta = $this->extractWhatsappReplyMeta($r);
 
             return [
                 'id'               => $r->id,
@@ -1476,9 +1741,20 @@ class CampaignController extends Controller
                 'assigned_to_name' => $client?->assignedTo?->name,
                 'department_names' => $departments->pluck('name')->join(', ') ?: null,
                 'status'           => $r->status,
+                'attempts_count'   => $r->attempts_count ?? 0,
+                'queued_at'        => optional($r->queued_at)->toDateTimeString(),
+                'processing_started_at' => optional($r->processing_started_at)->toDateTimeString(),
+                'last_attempted_at' => optional($r->last_attempted_at)->toDateTimeString(),
+                'error_code'       => $r->error_code,
+                'error_message'    => $r->error_message,
                 'delivered_at'     => optional($r->delivered_at)->toDateTimeString(),
                 'last_response'    => $r->last_response,
                 'last_response_at' => optional($r->last_response_at)->toDateTimeString(),
+                'reply_type'       => $replyMeta['type'],
+                'reply_label'      => $replyMeta['label'],
+                'reply_key'        => $replyMeta['key'],
+                'reply_source'     => $replyMeta['source'],
+                'current_flow_step_id' => $r->current_flow_step_id,
             ];
         });
 
@@ -1494,15 +1770,24 @@ class CampaignController extends Controller
         })->count();
 
         $pending = $recipients->filter(function ($r) {
-            return in_array(strtolower($r['status']), ['pending', 'queued', 'scheduled'], true);
+            return in_array(strtolower($r['status']), ['pending', 'queued', 'processing', 'paused', 'scheduled'], true);
         })->count();
+        $queued = $recipients->where('status', 'Queued')->count();
+        $processing = $recipients->where('status', 'Processing')->count();
+        $paused = $recipients->where('status', 'Paused')->count();
 
         $summary = [
-            'total'     => $totalRecipients,
-            'delivered' => $delivered,
-            'failed'    => $failed,
-            'pending'   => $pending,
-            'replies'   => $recipients->filter(fn ($r) => !empty($r['last_response']))->count(),
+            'total'      => $totalRecipients,
+            'delivered'  => $delivered,
+            'failed'     => $failed,
+            'pending'    => $pending,
+            'queued'     => $queued,
+            'processing' => $processing,
+            'paused'     => $paused,
+            'replies'    => $recipients->filter(fn ($r) => !empty($r['last_response']))->count(),
+            'yes_count'  => $recipients->filter(fn ($r) => strcasecmp((string)$r['reply_key'], 'yes') === 0 || strcasecmp((string)$r['last_response'], 'yes') === 0)->count(),
+            'no_count'   => $recipients->filter(fn ($r) => strcasecmp((string)$r['reply_key'], 'no') === 0 || strcasecmp((string)$r['last_response'], 'no') === 0)->count(),
+            'delivery_rate' => $totalRecipients > 0 ? round(($delivered / $totalRecipients) * 100) : 0,
         ];
 
         // Agents block (for now empty – fill from your own aggregation if you track agents)
@@ -1516,12 +1801,24 @@ class CampaignController extends Controller
             'id'            => $message->id,
             'mode'          => $message->mode ?? 'template',
             'flow_name'     => $message->flow_name,
-                'template_name' => $message->template_name ?? $message->name,
-                'subject'       => null, // WhatsApp has no subject, keep for consistency with Email
-                'status'        => $status,
-                'can_send'      => !$message->sent_at, // enable "Send Now" if not yet sent
-                'reply_number'  => $message->provider_display_phone_number,
-            ];
+            'template_name' => $message->template_name ?? $message->name,
+            'subject'       => null, // WhatsApp has no subject, keep for consistency with Email
+            'status'        => $status,
+            'can_send'      => !$message->sent_at, // enable "Send Now" if not yet sent
+            'reply_number'  => $message->provider_display_phone_number,
+            'scheduled_at'  => optional($message->scheduled_at)->toDateTimeString(),
+            'enable_live_chat' => (bool) $message->enable_live_chat,
+            'track_responses'  => (bool) $message->track_responses,
+            'queued_at'     => optional($message->queued_at)->toDateTimeString(),
+            'processing_started_at' => optional($message->processing_started_at)->toDateTimeString(),
+            'completed_at'  => optional($message->completed_at)->toDateTimeString(),
+            'paused_at'     => optional($message->paused_at)->toDateTimeString(),
+            'pause_reason'  => $message->pause_reason,
+            'messages_per_second' => (int) ($message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond()),
+            'can_pause'     => in_array($status, ['Queued', 'Processing'], true),
+            'can_resume'    => $status === 'Paused',
+            'can_retry_failed' => $failed > 0,
+        ];
 
         return response()->json([
             // kept for backward compatibility if you still use it somewhere
@@ -1560,12 +1857,18 @@ class CampaignController extends Controller
             'mode'             => ['required', 'in:template,flow'],
             'template_id'      => ['nullable', 'string'],
             'flow_id'          => ['nullable', 'integer', 'exists:whatsapp_flows,id'],
+            'template_variables' => ['sometimes', 'array'],
             'clients_mode'     => ['required', 'in:all,selected'],
             'client_ids'       => ['array'],
             'client_ids.*'     => ['integer', 'exists:clients,id'],
             'track_responses'  => ['sometimes', 'boolean'],
             'enable_live_chat' => ['sometimes', 'boolean'],
             'send_now'         => ['sometimes', 'boolean'],
+            'auto_replies'     => ['sometimes', 'array'],
+            'auto_replies.*.trigger_keyword' => ['required', 'string'],
+            'auto_replies.*.template_sid' => ['required', 'string'],
+            'auto_replies.*.template_name' => ['nullable', 'string'],
+            'auto_replies.*.template_variables' => ['nullable', 'array'],
         ]);
 
         $sendNow = $data['send_now'] ?? true;
@@ -1599,6 +1902,11 @@ class CampaignController extends Controller
             'clients.id',
             'clients.name',
             'clients.phone',
+            'clients.email',
+            'clients.id_number',
+            'clients.account_number',
+            'clients.bank_name',
+            'clients.branch_code',
             'clients.whatsapp_opted_out_at',
             'clients.whatsapp_opt_out_reason',
             'clients.whatsapp_contact_basis',
@@ -1626,6 +1934,7 @@ class CampaignController extends Controller
         $flowName     = null;
         $flowDef      = null;
         $flowTemplateSid = null;
+        $templateVariables = null;
 
         if ($mode === 'template') {
             $templateSid   = $data['template_id'];
@@ -1633,6 +1942,10 @@ class CampaignController extends Controller
             $friendlyName  = $template['name'] ?? $templateSid;
             $previewBody   = collect($template['components'] ?? [])
                 ->firstWhere('type', 'BODY')['text'] ?? null;
+            $templateVariables = $this->normalizeTemplateVariables(
+                $data['template_variables'] ?? [],
+                $template['variables'] ?? []
+            );
         } else {
             $flow = WhatsAppFlow::findOrFail($data['flow_id']);
             $flowId   = $flow->id;
@@ -1650,7 +1963,11 @@ class CampaignController extends Controller
         $total = $clients->count();
         $now   = now();
 
+        $isScheduled = !$sendNow && !empty($data['scheduled_at']);
+        $status = $sendNow ? 'Queued' : ($isScheduled ? 'Scheduled' : 'Draft');
+        
         $message = $campaign->whatsappMessages()->create([
+            'created_by_user_id' => Auth::id(),
             'mode'              => $mode,
             'template_sid'      => $templateSid,
             'template_name'     => $friendlyName,
@@ -1658,6 +1975,7 @@ class CampaignController extends Controller
             'provider_display_phone_number' => $senderContext['display_phone_number'],
             'name'              => $friendlyName,
             'preview_body'      => $previewBody,
+            'template_variables'=> $templateVariables,
             'whatsapp_flow_id'  => $flowId,
             'flow_name'         => $flowName,
             'flow_definition'   => $flowDef,
@@ -1665,10 +1983,41 @@ class CampaignController extends Controller
             'total'             => $total,
             'delivered'         => 0,
             'failed'            => 0,
-            'pending'           => $sendNow ? $total : 0,
+            'pending'           => ($sendNow || $isScheduled) ? $total : 0,
+            'status'            => $status,
+            'scheduled_at'      => $isScheduled ? $data['scheduled_at'] : null,
+            'queued_at'         => $sendNow ? $now : null,
+            'processing_started_at' => null,
+            'completed_at'      => null,
+            'paused_at'         => null,
+            'pause_reason'      => null,
+            'last_processed_at' => null,
+            'messages_per_second' => $this->batchService->enforcedMessagesPerSecond(),
             'track_responses'   => $data['track_responses']  ?? false,
             'enable_live_chat'  => $data['enable_live_chat'] ?? false,
         ]);
+
+        if ($sendNow) {
+            $limitCheck = $this->dailyLimitService->validateSendAllowance(Auth::user(), $clients->count());
+            if (!$limitCheck['allowed']) {
+                $message->delete();
+                return response()->json([
+                    'message' => $limitCheck['message'],
+                    'whatsapp_daily_limit' => $limitCheck['summary'],
+                ], 422);
+            }
+        }
+
+        if (isset($data['auto_replies'])) {
+            foreach ($data['auto_replies'] as $reply) {
+                $message->autoReplies()->create([
+                    'trigger_keyword' => $reply['trigger_keyword'],
+                    'template_sid' => $reply['template_sid'],
+                    'template_name' => $reply['template_name'] ?? null,
+                    'template_variables' => $reply['template_variables'] ?? null,
+                ]);
+            }
+        }
 
         // Create recipients for this batch
         $rows = [];
@@ -1676,10 +2025,14 @@ class CampaignController extends Controller
             $rows[] = [
                 'whatsapp_message_id' => $message->id,
                 'client_id'                    => $client->id,
-                'phone'                        => $this->normalizePhone($client->phone),
+                'phone'                        => $this->resolveClientPhone($client),
                 'provider_phone_number_id'     => $senderContext['phone_number_id'],
                 'provider_display_phone_number'=> $senderContext['display_phone_number'],
-                'status'                       => $sendNow ? 'pending' : 'draft',
+                'status'                       => $status,
+                'queued_at'                    => $sendNow ? $now : null,
+                'processing_started_at'        => null,
+                'last_attempted_at'            => null,
+                'attempts_count'               => 0,
                 'created_at'                   => $now,
                 'updated_at'                   => $now,
             ];
@@ -1698,84 +2051,9 @@ class CampaignController extends Controller
                 ]);
         }
         
-            // Only send immediately when requested
-        if ($sendNow && $templateSid) {
-            Log::info('Campaign WhatsApp batch send started', [
-                'campaign_id' => $campaign->id,
-                'message_id' => $message->id,
-                'template_sid' => $templateSid,
-                'mode' => $mode,
-                'client_count' => $clients->count(),
-                'campaign_whatsapp_from' => $campaign->whatsapp_from,
-            ]);
-
-            foreach ($clients as $client) {
-                if (!$client->phone) {
-                    Log::warning('Campaign WhatsApp send skipped: no phone', [
-                        'campaign_id' => $campaign->id,
-                        'message_id' => $message->id,
-                        'client_id' => $client->id,
-                    ]);
-                    continue;
-                }
-                if (!$this->canSendWhatsappToClient($client)) {
-                    Log::info('Campaign WhatsApp send skipped: compliance blocked client', [
-                        'campaign_id' => $campaign->id,
-                        'message_id' => $message->id,
-                        'client_id' => $client->id,
-                        'block_status' => $this->whatsappComplianceBlockedStatus($client),
-                    ]);
-                    CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
-                        ->where('client_id', $client->id)
-                        ->update(['status' => $this->whatsappComplianceBlockedStatus($client)]);
-                    continue;
-                }
-
-                try {
-                    Log::info('Campaign WhatsApp recipient send attempt', [
-                        'campaign_id' => $campaign->id,
-                        'message_id' => $message->id,
-                        'client_id' => $client->id,
-                        'phone' => $client->phone,
-                        'campaign_whatsapp_from' => $campaign->whatsapp_from,
-                    ]);
-
-                    $subject = $client->name ?? '';
-                    $bodyVar = $mode === 'flow'
-                        ? ($flowDef[0]['message'] ?? '')
-                        : '';
-
-                    $twResponse = $this->whatsApp->sendTemplateFromSubjectMessage(
-                        $client->phone,
-                        $templateSid,
-                        $subject,
-                        $bodyVar,
-                        $campaign->whatsapp_from
-                    );
-
-                    $mappedStatus = $this->mapTwilioStatus($twResponse['status'] ?? 'queued');
-
-                    CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
-                        ->where('client_id', $client->id)
-                        ->update([
-                            'message_sid'  => $twResponse['sid'] ?? null,
-                            'provider_message_id' => $twResponse['message_id'] ?? ($twResponse['sid'] ?? null),
-                            'provider_phone_number_id' => $twResponse['phone_number_id'] ?? $senderContext['phone_number_id'],
-                            'provider_display_phone_number' => $twResponse['display_phone_number'] ?? $senderContext['display_phone_number'],
-                            'status'       => $mappedStatus,
-                            'delivered_at' => $mappedStatus === 'Delivered' ? now() : null,
-                        ]);
-                } catch (\Throwable $e) {
-                    Log::error('Failed to send WhatsApp for client', [
-                        'campaign_id' => $campaign->id,
-                        'client_id'   => $client->id,
-                        'mode'        => $mode,
-                        'error'       => $e->getMessage(),
-                    ]);
-                }
-            }
-
-            $this->refreshWhatsappMessageCounts($message);
+        $queuedCount = 0;
+        if ($sendNow) {
+            $queuedCount = $this->batchService->queueAllRecipients($message->fresh());
         }
 
        
@@ -1790,6 +2068,8 @@ class CampaignController extends Controller
                 'total'      => $total,
                 'sent_at'    => $now->toDateTimeString(),
             ],
+            'queued_count' => $queuedCount,
+            'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
         ], 201);
     }
 
@@ -1894,57 +2174,100 @@ class CampaignController extends Controller
 
     protected function normalizePhone(?string $raw): ?string
     {
-        if (!$raw) {
-            return null;
-        }
+        return $this->batchService->normalizePhone($raw);
+    }
 
-        $normalized = MetaWhatsAppService::normalizePhoneNumber($raw);
-        if ($normalized) {
-            return $normalized;
-        }
-
-        // fallback: ensure leading + if already looks international
-        return str_starts_with($raw, '+') ? $raw : $raw;
+    protected function resolveClientPhone($client): ?string
+    {
+        return $this->batchService->resolveClientPhone($client);
     }
 
     protected function isWhatsappSuppressedClient($client): bool
     {
-        if (!$client) {
-            return false;
-        }
-
-        if ($client instanceof Client) {
-            return $client->isWhatsappSuppressed();
-        }
-
-        return !empty($client->whatsapp_opted_out_at);
+        return $this->batchService->isWhatsappSuppressedClient($client);
     }
 
     protected function clientHasWhatsappLawfulBasis($client): bool
     {
-        if (!$client) {
-            return false;
-        }
-
-        if ($client instanceof Client) {
-            return $client->hasWhatsappLawfulBasis();
-        }
-
-        return !empty($client->whatsapp_contact_basis) || !empty($client->whatsapp_opted_in_at);
+        return $this->batchService->clientHasWhatsappLawfulBasis($client);
     }
 
     protected function canSendWhatsappToClient($client): bool
     {
-        return !$this->isWhatsappSuppressedClient($client) && $this->clientHasWhatsappLawfulBasis($client);
+        return $this->batchService->canSendWhatsappToClient($client);
     }
 
     protected function whatsappComplianceBlockedStatus($client): string
     {
-        if ($this->isWhatsappSuppressedClient($client)) {
-            return 'Suppressed';
+        return $this->batchService->whatsappComplianceBlockedStatus($client);
+    }
+
+    protected function normalizeTemplateVariables(array $input, array $expectedVariables): ?array
+    {
+        if (empty($expectedVariables)) {
+            return null;
         }
 
-        return 'No Lawful Basis';
+        $normalized = [];
+        $missing = [];
+
+        foreach ($this->sortedTemplateVariableKeys($expectedVariables) as $key) {
+            $entry = $input[$key] ?? null;
+            $source = is_array($entry) ? trim((string) ($entry['source'] ?? '')) : trim((string) $entry);
+            $customValue = is_array($entry) ? trim((string) ($entry['custom_value'] ?? '')) : '';
+
+            if ($source === '') {
+                $missing[] = '{{' . $key . '}}';
+                continue;
+            }
+
+            if ($source === 'custom' && $customValue === '') {
+                $missing[] = '{{' . $key . '}}';
+                continue;
+            }
+
+            $normalized[(string) $key] = [
+                'source' => $source,
+                'custom_value' => $source === 'custom' ? $customValue : null,
+            ];
+        }
+
+        if (!empty($missing)) {
+            throw ValidationException::withMessages([
+                'template_variables' => 'Please map all template variables before saving this WhatsApp batch: ' . implode(', ', $missing),
+            ]);
+        }
+
+        return $normalized;
+    }
+
+    protected function sortedTemplateVariableKeys(array $variables): array
+    {
+        $keys = array_map('strval', array_keys($variables));
+        usort($keys, fn (string $a, string $b) => (int) $a <=> (int) $b);
+        return $keys;
+    }
+
+    protected function resolveTemplateVariableValues(array $templateVariables, $client, Campaign $campaign): array
+    {
+        return $this->batchService->resolveTemplateVariableValues($templateVariables, $client, $campaign);
+    }
+
+    protected function resolveTemplateVariableValue(?string $source, ?string $customValue, $client, Campaign $campaign): string
+    {
+        return match ($source) {
+            'client.name' => (string) ($client?->name ?? ''),
+            'client.phone' => (string) ($this->resolveClientPhone($client) ?? ''),
+            'client.email' => (string) ($client?->email ?? ''),
+            'client.id_number' => (string) ($client?->id_number ?? ''),
+            'client.account_number' => (string) ($client?->account_number ?? ''),
+            'client.bank_name' => (string) ($client?->bank_name ?? $campaign->bank?->name ?? ''),
+            'client.branch_code' => (string) ($client?->branch_code ?? ''),
+            'campaign.name' => (string) ($campaign->name ?? ''),
+            'campaign.status' => (string) ($campaign->status ?? ''),
+            'custom' => (string) ($customValue ?? ''),
+            default => '',
+        };
     }
 
     protected function refreshWhatsappMessageCounts(?CampaignWhatsappMessage $message): void
@@ -1953,15 +2276,117 @@ class CampaignController extends Controller
             return;
         }
 
-        $delivered = $message->recipients()->whereRaw('LOWER(status) = ?', ['delivered'])->count();
-        $failed    = $message->recipients()->whereRaw('LOWER(status) = ?', ['failed'])->count();
-        $pending   = $message->recipients()->whereNotIn('status', ['Delivered', 'Failed', 'Suppressed'])->count();
+        $this->batchService->syncMessageProgress($message);
+    }
 
-        $message->update([
-            'delivered' => $delivered,
-            'failed'    => $failed,
-            'pending'   => $pending,
-        ]);
+    protected function extractWhatsappReplyMeta(CampaignWhatsappRecipient $recipient): array
+    {
+        $payload = $recipient->provider_status_payload ?: $recipient->status_payload ?: [];
+        $message = $this->extractInboundWhatsappPayloadMessage(is_array($payload) ? $payload : []);
+
+        $textBody = trim((string) data_get($message, 'text.body', ''));
+        $buttonText = trim((string) data_get($message, 'button.text', ''));
+        $buttonPayload = trim((string) data_get($message, 'button.payload', ''));
+        $interactiveType = strtolower(trim((string) data_get($message, 'interactive.type', '')));
+        $interactiveButtonTitle = trim((string) data_get($message, 'interactive.button_reply.title', ''));
+        $interactiveButtonId = trim((string) data_get($message, 'interactive.button_reply.id', ''));
+        $interactiveListTitle = trim((string) data_get($message, 'interactive.list_reply.title', ''));
+        $interactiveListId = trim((string) data_get($message, 'interactive.list_reply.id', ''));
+        $normalizedResponse = trim((string) ($recipient->last_response ?? ''));
+
+        $keywords = array_values(array_filter([
+            $interactiveButtonTitle,
+            $interactiveButtonId,
+            $buttonText,
+            $buttonPayload,
+            $interactiveListTitle,
+            $interactiveListId,
+            $textBody,
+            $normalizedResponse,
+        ], fn ($value) => trim((string) $value) !== ''));
+
+        $replyType = null;
+        $replyLabel = null;
+        $replyKey = null;
+        $replySource = null;
+
+        if ($interactiveType === 'button_reply') {
+            $replyType = 'Quick Reply';
+            $replyLabel = $interactiveButtonTitle ?: $normalizedResponse;
+            $replyKey = $interactiveButtonId ?: null;
+            $replySource = 'interactive.button_reply';
+        } elseif ($interactiveType === 'list_reply') {
+            $replyType = 'List Reply';
+            $replyLabel = $interactiveListTitle ?: $normalizedResponse;
+            $replyKey = $interactiveListId ?: null;
+            $replySource = 'interactive.list_reply';
+        } elseif ($buttonText !== '' || $buttonPayload !== '') {
+            $replyType = 'Quick Reply';
+            $replyLabel = $buttonText ?: $normalizedResponse;
+            $replyKey = $buttonPayload ?: null;
+            $replySource = 'button';
+        } elseif ($textBody !== '' || $normalizedResponse !== '') {
+            $replyType = 'Text Reply';
+            $replyLabel = $textBody ?: $normalizedResponse;
+            $replySource = 'text';
+        }
+
+        if ($this->isOptOutMessage($normalizedResponse !== '' ? $normalizedResponse : ($replyLabel ?? ''), $keywords)) {
+            $replyType = 'Opt Out';
+            $replyLabel = $replyLabel ?: ($normalizedResponse !== '' ? $normalizedResponse : 'Opt Out');
+            $replySource = $replySource ?: 'opt_out';
+        } elseif (in_array(strtolower($normalizedResponse), ['yes', 'no'], true) && $replyType === 'Text Reply') {
+            $replyType = 'Yes/No Reply';
+        }
+
+        return [
+            'type' => $replyType,
+            'label' => $replyLabel ?: ($normalizedResponse !== '' ? $normalizedResponse : null),
+            'key' => $replyKey ?: null,
+            'source' => $replySource,
+        ];
+    }
+
+    protected function extractInboundWhatsappPayloadMessage(array $payload): ?array
+    {
+        foreach (($payload['entry'] ?? []) as $entry) {
+            foreach (($entry['changes'] ?? []) as $change) {
+                $value = $change['value'] ?? [];
+                foreach (($value['messages'] ?? []) as $message) {
+                    if (is_array($message)) {
+                        return $message;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    protected function isOptOutMessage(string $body, array $keywords = []): bool
+    {
+        $phrases = array_filter(array_map(
+            fn ($value) => strtolower(trim((string) $value)),
+            array_merge([$body], $keywords)
+        ));
+
+        $optOutTriggers = [
+            'stop',
+            'unsubscribe',
+            'opt out',
+            'optout',
+            'cancel',
+            'end',
+            'quit',
+        ];
+
+        foreach ($phrases as $phrase) {
+            if (in_array($phrase, $optOutTriggers, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
      /**

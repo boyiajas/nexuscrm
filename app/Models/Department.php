@@ -14,11 +14,12 @@ class Department extends Model
     protected $fillable = [
         'name',
         'description',
-        'whatsapp_numbers',
+        'primary_whatsapp_number',
+        'secondary_whatsapp_numbers',
     ];
 
     protected $casts = [
-        'whatsapp_numbers' => 'array',
+        'secondary_whatsapp_numbers' => 'array',
     ];
 
     public function users()

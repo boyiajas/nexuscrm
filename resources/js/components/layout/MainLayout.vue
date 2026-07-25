@@ -171,6 +171,17 @@
           </router-link>
         </li>
 
+        <li class="nav-item" v-if="canManageRoles">
+          <router-link
+            :to="{ name: 'roles' }"
+            class="nav-link"
+            :class="{ active: isActive('roles') }"
+          >
+            <i class="bi bi-person-badge me-2"></i>
+            <span class="nav-label">Roles</span>
+          </router-link>
+        </li>
+
         <li class="nav-item" v-if="canManageSettings">
           <router-link
             :to="{ name: 'settings' }"
@@ -327,47 +338,68 @@ export default {
     currentRole() {
       return this.user?.role || 'AGENT';
     },
+    currentRoleCodes() {
+      if (Array.isArray(this.user?.role_codes) && this.user.role_codes.length) {
+        return this.user.role_codes;
+      }
+
+      if (this.user?.role) {
+        return [this.user.role];
+      }
+
+      return ['AGENT'];
+    },
     canViewClients() {
-      return !['AUDITOR', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+      return !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
     canViewCampaigns() {
-      return !['AUDITOR', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+      return !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
     canViewChat() {
-      return !['AUDITOR', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+      return !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
     canViewAuditLog() {
-      return ['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
     },
     canViewImportUploads() {
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(this.currentRole);
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF']);
     },
     canViewSecurityIncidents() {
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
     },
     canViewComplianceConsole() {
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
     },
     canViewAutomation() {
-      return !['AUDITOR', 'READ_ONLY_REVIEWER'].includes(this.currentRole);
+      return !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
     canManageBanks() {
-      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentRole);
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canManageDepartments() {
-      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentRole);
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canManageUsers() {
-      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentRole);
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+    },
+    canManageRoles() {
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canManageSettings() {
-      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentRole);
+      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canViewAdminSection() {
-      return this.canManageBanks || this.canManageDepartments || this.canManageUsers || this.canManageSettings;
+      return this.canManageBanks || this.canManageDepartments || this.canManageUsers || this.canManageRoles || this.canManageSettings;
+    },
+    roleWatermarkEnabled() {
+      if (Array.isArray(this.user?.roles) && this.user.roles.length) {
+        return this.user.roles.some((role) => role?.watermark_enabled !== false);
+      }
+
+      return true;
     },
     showSensitiveWatermark() {
-      return !!this.user && !!this.$route?.meta?.sensitiveView;
+      return !!this.user && !!this.$route?.meta?.sensitiveView && this.roleWatermarkEnabled;
     },
     watermarkText() {
       const name = this.user?.name || 'Unknown User';
@@ -390,6 +422,9 @@ export default {
     },
   },
   methods: {
+    hasAnyRole(roles = []) {
+      return this.currentRoleCodes.some((role) => roles.includes(role));
+    },
     isActive(name) {
       return this.$route.name === name;
     },
@@ -504,6 +539,8 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  white-space: nowrap;
 }
 .nav-link.active {
   background-color: #0d6efd;
@@ -515,6 +552,9 @@ export default {
 
 .sidebar {
   width: 230px;
+  min-width: 230px;
+  max-width: 230px;
+  flex: 0 0 230px;
   transition: width 0.2s ease;
 }
 .sidebar-static-logo {
@@ -528,6 +568,9 @@ export default {
 }
 .sidebar-collapsed {
   width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  flex-basis: 72px;
 }
 .sidebar-collapsed .nav-link {
   justify-content: center;
@@ -546,6 +589,11 @@ export default {
 }
 .sidebar-collapsed .nav-link i {
   margin-right: 0;
+}
+
+.nav-label,
+.sidebar-section-title {
+  white-space: nowrap;
 }
 
 .sensitive-surface {
@@ -586,6 +634,34 @@ export default {
 
 .page-content-shell {
   position: relative;
+  font-size: 0.84rem;
+}
+
+.page-content-shell .card,
+.page-content-shell .table,
+.page-content-shell .form-label,
+.page-content-shell .form-control,
+.page-content-shell .form-select,
+.page-content-shell .btn,
+.page-content-shell .pagination,
+.page-content-shell .badge,
+.page-content-shell .nav-link,
+.page-content-shell .dropdown-item,
+.page-content-shell .modal-content,
+.page-content-shell small {
+  font-size: 0.84rem;
+}
+
+.page-content-shell .table th,
+.page-content-shell .table td {
+  font-size: 0.8rem;
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+.page-content-shell .btn-group-sm > .btn,
+.page-content-shell .btn-sm {
+  font-size: 0.78rem;
 }
 
 @media print {

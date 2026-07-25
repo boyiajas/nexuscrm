@@ -15,7 +15,7 @@
         <form class="row g-2 align-items-end" @submit.prevent="fetchUploads(1)">
           <div class="col-md-4">
             <label class="form-label">Search</label>
-            <input v-model.trim="filters.q" type="text" class="form-control" placeholder="Filename, signature, error..." />
+            <input v-model.trim="filters.q" type="text" class="form-control" placeholder="Filename, batch number, signature, error..." />
           </div>
           <div class="col-md-2">
             <label class="form-label">Import Status</label>
@@ -48,10 +48,12 @@
 
     <div class="card shadow-sm">
       <div class="card-body p-0">
+        <TableLoadingWrapper :loading="loading" message="Loading import uploads...">
         <table class="table table-striped table-hover mb-0 align-middle">
           <thead>
             <tr>
               <th>File</th>
+              <th>Batch</th>
               <th>Bank</th>
               <th>Uploaded By</th>
               <th>Scan</th>
@@ -65,6 +67,12 @@
               <td>
                 <div class="fw-semibold">{{ upload.original_filename }}</div>
                 <small class="text-muted">#{{ upload.id }} • {{ formatSize(upload.size_bytes) }}</small>
+              </td>
+              <td>
+                <span v-if="upload.import_batch_number" class="badge bg-light text-dark border">
+                  {{ upload.import_batch_number }}
+                </span>
+                <span v-else class="text-muted">-</span>
               </td>
               <td>{{ upload.bank?.name || 'Global / Shared' }}</td>
               <td>
@@ -96,11 +104,12 @@
                 <small class="text-muted d-block" v-if="upload.imported_at">Imported: {{ formatDateTime(upload.imported_at) }}</small>
               </td>
             </tr>
-            <tr v-if="!uploads.length">
-              <td colspan="7" class="text-center text-muted py-4">No import uploads found.</td>
+            <tr v-if="!loading && !uploads.length">
+              <td colspan="8" class="text-center text-muted py-4">No import uploads found.</td>
             </tr>
           </tbody>
         </table>
+        </TableLoadingWrapper>
       </div>
       <div class="card-footer d-flex justify-content-between align-items-center">
         <small class="text-muted">Showing {{ pagination.from || 0 }}-{{ pagination.to || 0 }} of {{ pagination.total || 0 }}</small>
@@ -115,12 +124,17 @@
 
 <script>
 import axios from '../axios';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 
 export default {
   name: 'ImportUploadsView',
+  components: {
+    TableLoadingWrapper,
+  },
   data() {
     return {
       uploads: [],
+      loading: false,
       banks: [],
       filters: {
         q: '',
@@ -159,24 +173,29 @@ export default {
   },
   methods: {
     async fetchUploads(page = 1) {
-      const { data } = await axios.get('/api/import-uploads', {
-        params: {
-          page,
-          q: this.filters.q || undefined,
-          import_status: this.filters.import_status,
-          scan_status: this.filters.scan_status,
-          bank_id: this.filters.bank_id || undefined,
-        },
-      });
+      this.loading = true;
+      try {
+        const { data } = await axios.get('/api/import-uploads', {
+          params: {
+            page,
+            q: this.filters.q || undefined,
+            import_status: this.filters.import_status,
+            scan_status: this.filters.scan_status,
+            bank_id: this.filters.bank_id || undefined,
+          },
+        });
 
-      this.uploads = data.data || [];
-      this.pagination = {
-        from: data.from,
-        to: data.to,
-        total: data.total,
-        prevPage: data.prev_page_url ? data.current_page - 1 : null,
-        nextPage: data.next_page_url ? data.current_page + 1 : null,
-      };
+        this.uploads = data.data || [];
+        this.pagination = {
+          from: data.from,
+          to: data.to,
+          total: data.total,
+          prevPage: data.prev_page_url ? data.current_page - 1 : null,
+          nextPage: data.next_page_url ? data.current_page + 1 : null,
+        };
+      } finally {
+        this.loading = false;
+      }
     },
     async fetchBanks() {
       const { data } = await axios.get('/api/banks', { params: { per_page: 200 } });

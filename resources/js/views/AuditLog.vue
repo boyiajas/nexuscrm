@@ -76,6 +76,7 @@
     <!-- Table -->
     <div class="card shadow-sm">
       <div class="card-body p-0">
+        <TableLoadingWrapper :loading="loading" message="Loading audit log...">
         <table class="table table-striped table-hover mb-0 align-middle">
           <thead>
             <tr>
@@ -107,17 +108,18 @@
                 </button>
               </td>
             </tr>
-            <tr v-if="logs.length === 0">
+            <tr v-if="!loading && logs.length === 0">
               <td colspan="7" class="text-center text-muted py-3">
                 No audit entries for this filter.
               </td>
             </tr>
           </tbody>
         </table>
+        </TableLoadingWrapper>
       </div>
 
       <!-- Pagination -->
-      <div class="card-footer d-flex justify-content-between align-items-center">
+      <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
         <small class="text-muted">
           Showing
           {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
@@ -126,32 +128,48 @@
           entries
         </small>
 
-        <nav>
-          <ul class="pagination mb-0 pagination-sm">
-            <li class="page-item" :class="{ disabled: !pagination.prevPage }">
-              <button class="page-link" @click="goToPage(pagination.prevPage)" :disabled="!pagination.prevPage">
-                «
-              </button>
-            </li>
-
-            <li
-              v-for="page in pagination.pages"
-              :key="page"
-              class="page-item"
-              :class="{ active: page === pagination.currentPage }"
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <div class="d-flex align-items-center gap-2">
+            <label class="form-label mb-0 text-muted">Rows per page</label>
+            <select
+              v-model.number="pageSize"
+              class="form-select form-select-sm"
+              style="width: auto;"
+              @change="changePageSize"
             >
-              <button class="page-link" @click="goToPage(page)">
-                {{ page }}
-              </button>
-            </li>
+              <option v-for="size in pageSizeOptions" :key="size" :value="size">
+                {{ size }}
+              </option>
+            </select>
+          </div>
 
-            <li class="page-item" :class="{ disabled: !pagination.nextPage }">
-              <button class="page-link" @click="goToPage(pagination.nextPage)" :disabled="!pagination.nextPage">
-                »
-              </button>
-            </li>
-          </ul>
-        </nav>
+          <nav>
+            <ul class="pagination mb-0 pagination-sm">
+              <li class="page-item" :class="{ disabled: !pagination.prevPage }">
+                <button class="page-link" @click="goToPage(pagination.prevPage)" :disabled="!pagination.prevPage">
+                  «
+                </button>
+              </li>
+
+              <li
+                v-for="p in pagination.pages"
+                :key="p.key"
+                class="page-item"
+                :class="{ active: p.active, disabled: p.ellipsis }"
+              >
+                <button class="page-link" @click="!p.ellipsis && goToPage(p.page)" :disabled="p.ellipsis">
+                  {{ p.label }}
+                </button>
+              </li>
+
+              <li class="page-item" :class="{ disabled: !pagination.nextPage }">
+                <button class="page-link" @click="goToPage(pagination.nextPage)" :disabled="!pagination.nextPage">
+                  »
+                </button>
+              </li>
+            </ul>
+          </nav>
+        </div>
       </div>
     </div>
 
@@ -210,16 +228,21 @@
 <script>
 import axios from '../axios';
 import ExportRequestModal from '../components/ExportRequestModal.vue';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 
 export default {
   name: 'AuditLogView',
   components: {
     ExportRequestModal,
+    TableLoadingWrapper,
   },
   data() {
     return {
       logs: [],
+      loading: false,
+      pageSize: 25,
+      pageSizeOptions: [25, 50, 100, 200, 300, 500, 1000],
       filters: {
         module: 'all',
         user_id: 'all',
@@ -281,6 +304,66 @@ export default {
     disposeManagedModal(this.detailModal);
   },
   methods: {
+    buildPaginationItems(currentPage, lastPage) {
+      const maxVisiblePages = 20;
+      const items = [];
+      const addPage = (page) => {
+        items.push({
+          key: `page-${page}`,
+          label: String(page),
+          page,
+          active: page === currentPage,
+          ellipsis: false,
+        });
+      };
+      const addEllipsis = (key) => {
+        items.push({
+          key,
+          label: '...',
+          page: null,
+          active: false,
+          ellipsis: true,
+        });
+      };
+
+      if (lastPage <= maxVisiblePages) {
+        for (let page = 1; page <= lastPage; page += 1) {
+          addPage(page);
+        }
+        return items;
+      }
+
+      const innerVisiblePages = maxVisiblePages - 2;
+      let start = Math.max(2, currentPage - Math.floor(innerVisiblePages / 2));
+      let end = start + innerVisiblePages - 1;
+
+      if (end > lastPage - 1) {
+        end = lastPage - 1;
+        start = end - innerVisiblePages + 1;
+      }
+
+      if (start < 2) {
+        start = 2;
+      }
+
+      addPage(1);
+
+      if (start > 2) {
+        addEllipsis('ellipsis-left');
+      }
+
+      for (let page = start; page <= end; page += 1) {
+        addPage(page);
+      }
+
+      if (end < lastPage - 1) {
+        addEllipsis('ellipsis-right');
+      }
+
+      addPage(lastPage);
+
+      return items;
+    },
     buildQueryParams(extra = {}) {
       const params = {
         module: this.filters.module,
@@ -289,7 +372,7 @@ export default {
         date_to: this.filters.date_to || undefined,
         q: this.filters.q || undefined,
         page: this.pagination.currentPage,
-        per_page: 20,
+        per_page: this.pageSize,
         ...extra,
       };
 
@@ -302,6 +385,7 @@ export default {
     },
     fetchLogs(page = 1) {
       this.pagination.currentPage = page;
+      this.loading = true;
 
       axios
         .get('/api/audit-logs', { params: this.buildQueryParams({ page }) })
@@ -317,13 +401,8 @@ export default {
           this.pagination.prevPage = data.current_page > 1 ? data.current_page - 1 : null;
           this.pagination.nextPage =
             data.current_page < data.last_page ? data.current_page + 1 : null;
-
-          // Build simple page list (you can optimize if last_page is huge)
-          const pages = [];
-          for (let i = 1; i <= data.last_page; i++) {
-            pages.push(i);
-          }
-          this.pagination.pages = pages;
+          this.pageSize = Number(data.per_page || this.pageSize);
+          this.pagination.pages = this.buildPaginationItems(data.current_page, data.last_page);
 
           // Derive module options from returned logs (you can also load from backend if you prefer)
           const modulesSet = new Set();
@@ -331,6 +410,9 @@ export default {
             if (l.module) modulesSet.add(l.module);
           });
           this.moduleOptions = Array.from(modulesSet);
+        })
+        .finally(() => {
+          this.loading = false;
         });
     },
     fetchUsersForFilter() {
@@ -361,6 +443,9 @@ export default {
     goToPage(page) {
       if (!page || page === this.pagination.currentPage) return;
       this.fetchLogs(page);
+    },
+    changePageSize() {
+      this.fetchLogs(1);
     },
     exportCsv() {
       const params = this.buildQueryParams();

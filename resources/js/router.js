@@ -17,6 +17,7 @@ const Settings = () => import('./views/Settings.vue');
 const Departments = () => import('./views/Departments.vue');
 const Banks = () => import('./views/Banks.vue');
 const Users = () => import('./views/Users.vue');
+const Roles = () => import('./views/Roles.vue');
 const WhatsAppFlows = () => import('./views/WhatsAppFlows.vue');
 const WhatsappReplies = () => import('./views/WhatsappReplies.vue');
 const MainLayout = () => import('./components/layout/MainLayout.vue');
@@ -83,6 +84,12 @@ const routes = [
         component: Users,
         meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'] },
       },
+      {
+        path: 'roles',
+        name: 'roles',
+        component: Roles,
+        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'] },
+      },
       { path: 'automation/whatsapp-flows', name: 'whatsapp-flows', component: WhatsAppFlows, meta: { sensitiveView: true } },
       { path: 'whatsapp-replies', name: 'whatsapp-replies', component: WhatsappReplies, meta: { sensitiveView: true } },
       
@@ -96,6 +103,17 @@ const router = createRouter({
   history: createWebHistory(),
   routes,
 });
+
+function resolveStoredUserRoles(user) {
+  if (!user || typeof user !== 'object') return [];
+  if (Array.isArray(user.role_codes) && user.role_codes.length) {
+    return user.role_codes;
+  }
+  if (user.role) {
+    return [user.role];
+  }
+  return [];
+}
 
 // Simple auth guard
 router.beforeEach(async (to, from, next) => {
@@ -116,8 +134,9 @@ router.beforeEach(async (to, from, next) => {
   if (authRequired && isLoggedIn) {
     const user = JSON.parse(storedUser || '{}');
     const allowedRoles = to.meta?.allowedRoles;
+    const roleCodes = resolveStoredUserRoles(user);
 
-    if (Array.isArray(allowedRoles) && allowedRoles.length && !allowedRoles.includes(user.role)) {
+    if (Array.isArray(allowedRoles) && allowedRoles.length && !roleCodes.some((role) => allowedRoles.includes(role))) {
       return next({ name: 'dashboard' });
     }
   }

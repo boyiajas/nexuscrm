@@ -10,6 +10,7 @@ use App\Models\CampaignWhatsappRecipient;
 use App\Models\ChatSession;
 use App\Models\Client;
 use App\Services\MetaWhatsAppService;
+use App\Services\WhatsAppBatchService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -133,7 +134,9 @@ class WhatsAppWebhookController extends Controller
     protected function handleInboundMessage(array $message, array $payload = []): void
     {
         $from = MetaWhatsAppService::normalizePhoneNumber((string) ($message['from'] ?? ''));
-        $body = trim((string) ($message['text']['body'] ?? ''));
+        $phoneNumberId = $payload['metadata']['phone_number_id'] ?? null;
+        $reply = $this->extractInboundReply($message);
+        $body = $reply['display_text'];
         $messageId = $message['id'] ?? null;
 
         if (!$from || $body === '') {
@@ -141,6 +144,13 @@ class WhatsAppWebhookController extends Controller
         }
 
         $normalizedReply = $this->normalizeReply($body);
+        foreach ($reply['keywords'] as $candidate) {
+            $candidateReply = $this->normalizeReply((string) $candidate);
+            if (in_array($candidateReply, ['yes', 'no'], true)) {
+                $normalizedReply = $candidateReply;
+                break;
+            }
+        }
         $recipient = $this->findRecipientByPhone($from, $phoneNumberId);
         $client = $this->findClientByPhone($from, $phoneNumberId);
 
@@ -152,9 +162,12 @@ class WhatsAppWebhookController extends Controller
             $client = $recipient->client;
         }
 
+        $messageBatch = $recipient?->message;
+        $shouldTrackResponse = (bool) ($messageBatch?->track_responses ?? false);
+        $shouldOpenLiveChat = !$messageBatch || (bool) ($messageBatch->enable_live_chat ?? false);
+        $isOptOut = $this->isOptOutMessage($body, $reply['keywords']);
+
         if ($recipient) {
-            $recipient->last_response = $normalizedReply ?? $body;
-            $recipient->last_response_at = Carbon::now();
             $recipient->provider_message_id = $recipient->provider_message_id ?: $messageId;
             $recipient->message_sid = $recipient->message_sid ?: $messageId;
             $recipient->status_payload = $payload;
@@ -162,12 +175,117 @@ class WhatsAppWebhookController extends Controller
             if ($client && !$recipient->client_id) {
                 $recipient->client_id = $client->id;
             }
+
+            if ($shouldTrackResponse || $isOptOut) {
+                $recipient->last_response = $normalizedReply ?? strtolower(trim($body));
+                $recipient->last_response_at = Carbon::now();
+            }
+
             $recipient->save();
             $this->refreshWhatsappMessageCounts($recipient->message);
+
+            if ($messageBatch && $messageBatch->mode === 'flow' && $recipient->last_response) {
+                $flowDef = $messageBatch->flow_definition ?? [];
+                $currentStepId = $recipient->current_flow_step_id;
+                
+                $currentStep = collect($flowDef)->firstWhere('id', $currentStepId);
+                if (!$currentStep && !empty($flowDef)) {
+                    $currentStep = $flowDef[0];
+                }
+                
+                if ($currentStep) {
+                    $nextStepId = null;
+                    if (!empty($currentStep['decision'])) {
+                        if ($normalizedReply === 'yes') {
+                            $nextStepId = $currentStep['yesNextId'] ?? null;
+                        } elseif ($normalizedReply === 'no') {
+                            $nextStepId = $currentStep['noNextId'] ?? null;
+                        }
+                    } else {
+                        // Linear progression
+                        $currentIndex = collect($flowDef)->search(fn($s) => $s['id'] === $currentStep['id']);
+                        if ($currentIndex !== false && isset($flowDef[$currentIndex + 1])) {
+                            $nextStepId = $flowDef[$currentIndex + 1]['id'];
+                        }
+                    }
+                    
+                    if ($nextStepId) {
+                        $nextStep = collect($flowDef)->firstWhere('id', $nextStepId);
+                        if ($nextStep && !empty($nextStep['message'])) {
+                            try {
+                                app(MetaWhatsAppService::class)->sendTextMessage(
+                                    $from,
+                                    $nextStep['message'],
+                                    $messageBatch->provider_display_phone_number
+                                );
+                                
+                                $recipient->current_flow_step_id = $nextStepId;
+                                $recipient->save();
+                                
+                                Log::info('Meta WhatsApp flow step advanced.', [
+                                    'from' => $from,
+                                    'recipient_id' => $recipient->id,
+                                    'next_step_id' => $nextStepId,
+                                ]);
+                            } catch (\Throwable $e) {
+                                Log::error('Failed to send flow next step message.', [
+                                    'error' => $e->getMessage(),
+                                    'phone' => $from,
+                                ]);
+                            }
+                        }
+                    }
+                }
+            } elseif ($messageBatch && $recipient->last_response) {
+                $autoReply = $messageBatch->autoReplies()
+                    ->where('trigger_keyword', strtolower($recipient->last_response))
+                    ->first();
+
+                if ($autoReply) {
+                    try {
+                        app(MetaWhatsAppService::class)->sendTemplateFromSubjectMessage(
+                            $from,
+                            $autoReply->template_sid,
+                            '',
+                            '',
+                            $autoReply->template_variables ?? [],
+                            $messageBatch->provider_display_phone_number
+                        );
+                        
+                        Log::info('Meta WhatsApp auto-reply template sent.', [
+                            'from' => $from,
+                            'client_id' => $client?->id,
+                            'recipient_id' => $recipient->id,
+                            'template_sid' => $autoReply->template_sid,
+                        ]);
+                    } catch (\Throwable $e) {
+                        Log::error('Failed to send auto-reply template.', [
+                            'error' => $e->getMessage(),
+                            'client_id' => $client?->id,
+                            'phone' => $from,
+                            'template_sid' => $autoReply->template_sid,
+                        ]);
+                    }
+                }
+            }
         }
 
-        if ($client && $this->isOptOutMessage($body)) {
-            $client->markWhatsappOptOut($this->normalizeReply($body) ?? strtolower(trim($body)));
+        if ($client && $isOptOut) {
+            $client->markWhatsappOptOut(strtolower(trim($body)));
+        }
+
+        if (!$shouldOpenLiveChat) {
+            Log::info('Meta WhatsApp reply tracked without opening live chat session.', [
+                'from' => $from,
+                'client_id' => $client?->id,
+                'recipient_id' => $recipient?->id,
+                'message_id' => $messageId,
+                'message_type' => $reply['message_type'],
+                'interactive_type' => $reply['interactive_type'],
+                'normalized_reply' => $normalizedReply,
+            ]);
+
+            return;
         }
 
         if ($client) {
@@ -207,6 +325,17 @@ class WhatsAppWebhookController extends Controller
             'phone' => $session->phone ?: ($client?->phone ?? $from),
             'bank_id' => $session->bank_id ?: ($client?->bank_id ?? null),
         ]);
+
+        Log::info('Meta WhatsApp inbound reply routed to live chat.', [
+            'from' => $from,
+            'client_id' => $client?->id,
+            'recipient_id' => $recipient?->id,
+            'message_id' => $messageId,
+            'message_type' => $reply['message_type'],
+            'interactive_type' => $reply['interactive_type'],
+            'normalized_reply' => $normalizedReply,
+            'session_id' => $session->id,
+        ]);
     }
 
     protected function mapStatus(string $status): string
@@ -224,17 +353,7 @@ class WhatsAppWebhookController extends Controller
             return;
         }
 
-        $delivered = $message->recipients()->whereRaw('LOWER(status) = ?', ['delivered'])->count();
-        $failed = $message->recipients()->whereRaw('LOWER(status) = ?', ['failed'])->count();
-        $pending = $message->recipients()->whereNotIn('status', ['Delivered', 'Failed', 'Suppressed'])->count();
-
-        $message->update([
-            'delivered' => $delivered,
-            'failed' => $failed,
-            'pending' => $pending,
-            'track_responses' => $message->track_responses,
-            'enable_live_chat' => $message->enable_live_chat,
-        ]);
+        app(WhatsAppBatchService::class)->syncMessageProgress($message);
     }
 
     protected function findClientByPhone(string $phone, ?string $phoneNumberId = null): ?Client
@@ -366,9 +485,14 @@ class WhatsAppWebhookController extends Controller
         };
     }
 
-    protected function isOptOutMessage(string $body): bool
+    protected function isOptOutMessage(string $body, array $keywords = []): bool
     {
-        return in_array(strtolower(trim($body)), [
+        $phrases = array_filter(array_map(
+            fn ($value) => strtolower(trim((string) $value)),
+            array_merge([$body], $keywords)
+        ));
+
+        $optOutTriggers = [
             'stop',
             'unsubscribe',
             'opt out',
@@ -376,7 +500,54 @@ class WhatsAppWebhookController extends Controller
             'cancel',
             'end',
             'quit',
-        ], true);
+        ];
+
+        foreach ($phrases as $phrase) {
+            if (in_array($phrase, $optOutTriggers, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function extractInboundReply(array $message): array
+    {
+        $messageType = strtolower((string) ($message['type'] ?? ''));
+        $interactiveType = strtolower((string) ($message['interactive']['type'] ?? ''));
+
+        $textBody = trim((string) ($message['text']['body'] ?? ''));
+        $buttonText = trim((string) ($message['button']['text'] ?? ''));
+        $buttonPayload = trim((string) ($message['button']['payload'] ?? ''));
+        $interactiveButtonTitle = trim((string) ($message['interactive']['button_reply']['title'] ?? ''));
+        $interactiveButtonId = trim((string) ($message['interactive']['button_reply']['id'] ?? ''));
+        $interactiveListTitle = trim((string) ($message['interactive']['list_reply']['title'] ?? ''));
+        $interactiveListId = trim((string) ($message['interactive']['list_reply']['id'] ?? ''));
+
+        $displayText = collect([
+            $interactiveButtonTitle,
+            $buttonText,
+            $interactiveListTitle,
+            $textBody,
+            $interactiveButtonId,
+            $buttonPayload,
+            $interactiveListId,
+        ])->first(fn ($value) => trim((string) $value) !== '') ?? '';
+
+        return [
+            'display_text' => trim((string) $displayText),
+            'message_type' => $messageType,
+            'interactive_type' => $interactiveType !== '' ? $interactiveType : null,
+            'keywords' => array_values(array_filter([
+                $interactiveButtonTitle,
+                $interactiveButtonId,
+                $buttonText,
+                $buttonPayload,
+                $interactiveListTitle,
+                $interactiveListId,
+                $textBody,
+            ], fn ($value) => trim((string) $value) !== '')),
+        ];
     }
 
     protected function validateWebhookSignature(Request $request): void

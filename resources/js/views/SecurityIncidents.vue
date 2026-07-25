@@ -60,6 +60,7 @@
 
     <div class="card shadow-sm">
       <div class="card-body p-0">
+        <TableLoadingWrapper :loading="loading" message="Loading security incidents...">
         <table class="table table-striped table-hover mb-0 align-middle">
           <thead>
             <tr>
@@ -91,11 +92,12 @@
                 </button>
               </td>
             </tr>
-            <tr v-if="!incidents.length">
+            <tr v-if="!loading && !incidents.length">
               <td colspan="8" class="text-center text-muted py-4">No security incidents found.</td>
             </tr>
           </tbody>
         </table>
+        </TableLoadingWrapper>
       </div>
       <div class="card-footer d-flex justify-content-between align-items-center">
         <small class="text-muted">Showing {{ pagination.from || 0 }}-{{ pagination.to || 0 }} of {{ pagination.total || 0 }}</small>
@@ -380,14 +382,19 @@
 
 <script>
 import axios from '../axios';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 
 export default {
   name: 'SecurityIncidentsView',
+  components: {
+    TableLoadingWrapper,
+  },
   data() {
     return {
       incidents: [],
+      loading: false,
       banks: [],
       assignableUsers: [],
       filters: {
@@ -473,25 +480,30 @@ export default {
   },
   methods: {
     async fetchIncidents(page = 1) {
-      const { data } = await axios.get('/api/security-incidents', {
-        params: {
-          page,
-          q: this.filters.q || undefined,
-          status: this.filters.status,
-          type: this.filters.type,
-          severity: this.filters.severity,
-          bank_id: this.filters.bank_id || undefined,
-        },
-      });
+      this.loading = true;
+      try {
+        const { data } = await axios.get('/api/security-incidents', {
+          params: {
+            page,
+            q: this.filters.q || undefined,
+            status: this.filters.status,
+            type: this.filters.type,
+            severity: this.filters.severity,
+            bank_id: this.filters.bank_id || undefined,
+          },
+        });
 
-      this.incidents = data.data || [];
-      this.pagination = {
-        from: data.from,
-        to: data.to,
-        total: data.total,
-        prevPage: data.prev_page_url ? data.current_page - 1 : null,
-        nextPage: data.next_page_url ? data.current_page + 1 : null,
-      };
+        this.incidents = data.data || [];
+        this.pagination = {
+          from: data.from,
+          to: data.to,
+          total: data.total,
+          prevPage: data.prev_page_url ? data.current_page - 1 : null,
+          nextPage: data.next_page_url ? data.current_page + 1 : null,
+        };
+      } finally {
+        this.loading = false;
+      }
     },
     async loadBanks() {
       if (!this.canAccessAllBanks) return;

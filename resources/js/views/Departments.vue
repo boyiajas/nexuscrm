@@ -9,6 +9,7 @@
 
     <div class="card shadow-sm">
       <div class="card-body p-0">
+        <TableLoadingWrapper :loading="loading" message="Loading departments...">
         <table class="table table-hover mb-0 align-middle">
           <thead class="table-light">
             <tr>
@@ -24,17 +25,24 @@
               <td>{{ d.name }}</td>
               <td>{{ d.description || '-' }}</td>
               <td>
-                <span
-                  v-for="num in d.whatsapp_numbers || []"
-                  :key="num"
-                  class="badge bg-light text-dark border me-1"
-                >
-                  {{ num }}
-                </span>
-                <span v-if="!d.whatsapp_numbers || d.whatsapp_numbers.length === 0" class="text-muted">Default</span>
+                <div v-if="d.primary_whatsapp_number">
+                  <span class="badge bg-primary me-1" title="Primary">{{ d.primary_whatsapp_number }}</span>
+                  <span
+                    v-for="num in d.secondary_whatsapp_numbers || []"
+                    :key="num"
+                    class="badge bg-light text-dark border me-1"
+                    title="Secondary"
+                  >
+                    {{ num }}
+                  </span>
+                </div>
+                <span v-else class="text-muted">Default</span>
               </td>
               <td class="text-end">
                 <div class="btn-group btn-group-sm" role="group">
+                  <button class="btn btn-outline-info" title="Stats" @click="$refs.statsModal.open(d)">
+                    <i class="bi bi-bar-chart"></i>
+                  </button>
                   <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(d)">
                     <i class="bi bi-pencil-square"></i>
                   </button>
@@ -45,13 +53,14 @@
               </td>
             </tr>
 
-            <tr v-if="departments.length === 0">
+            <tr v-if="!loading && departments.length === 0">
               <td colspan="3" class="text-center text-muted py-3">
                 No departments found.
               </td>
             </tr>
           </tbody>
         </table>
+        </TableLoadingWrapper>
       </div>
 
       <div class="card-footer d-flex justify-content-between align-items-center">
@@ -108,7 +117,18 @@
               </div>
 
               <div class="mb-3">
-                <label class="form-label">WhatsApp Numbers</label>
+                <label class="form-label">Primary WhatsApp Number</label>
+                <select v-model="form.primary_whatsapp_number" class="form-select" :disabled="senders.length === 0">
+                  <option value="">-- Use System Default --</option>
+                  <option v-for="s in senders" :key="s.number" :value="s.number">
+                    {{ s.number }} <span v-if="s.label">({{ s.label }})</span>
+                  </option>
+                </select>
+                <small class="text-muted">The main number used for outbound messaging.</small>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label">Secondary WhatsApp Numbers</label>
                 <div class="input-group">
                   <select v-model="newNumber" class="form-select" :disabled="senders.length === 0">
                     <option value="">-- Select WhatsApp sender --</option>
@@ -117,20 +137,18 @@
                     </option>
                   </select>
                   <button class="btn btn-outline-primary" type="button" @click="addNumber" :disabled="!newNumber">
-                    Add
+                    + Add WhatsApp Number
                   </button>
                 </div>
-                <small class="text-muted">Pick one or more WhatsApp numbers for this department. If none are set, the system default will be used.</small>
                 <div class="mt-2">
                   <span
-                    v-for="num in form.whatsapp_numbers"
+                    v-for="num in form.secondary_whatsapp_numbers"
                     :key="num"
                     class="badge bg-secondary me-1"
                   >
                     {{ num }}
                     <i class="bi bi-x ms-1" role="button" @click="removeNumber(num)"></i>
                   </span>
-                  <span v-if="form.whatsapp_numbers.length === 0" class="text-muted">Default</span>
                 </div>
               </div>
 
@@ -147,12 +165,15 @@
     </div>
 
     <ConfirmationModal ref="confirmModal" />
+    <DepartmentWhatsappStats ref="statsModal" />
   </div>
 </template>
 
 <script>
 import axios from '../axios';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
+import DepartmentWhatsappStats from '../components/DepartmentWhatsappStats.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 
@@ -160,11 +181,14 @@ export default {
   name: "DepartmentsView",
   components: {
     ConfirmationModal,
+    TableLoadingWrapper,
+    DepartmentWhatsappStats,
   },
 
   data() {
     return {
       departments: [],
+      loading: false,
       senders: [],
       newNumber: '',
 
@@ -183,7 +207,8 @@ export default {
         id: null,
         name: "",
         description: "",
-        whatsapp_numbers: [],
+        primary_whatsapp_number: "",
+        secondary_whatsapp_numbers: [],
       },
       isEdit: false,
       modal: null,
@@ -216,9 +241,12 @@ export default {
     },
 
     fetchDepartments(page = 1) {
+      this.loading = true;
       axios.get("/api/departments", { params: { page } }).then((res) => {
         this.departments = res.data.data;
         this.buildPagination(res.data);
+      }).finally(() => {
+        this.loading = false;
       });
     },
     fetchSenders() {
@@ -236,7 +264,7 @@ export default {
 
     openCreateModal() {
       this.isEdit = false;
-      this.form = { id: null, name: "", description: "", whatsapp_numbers: [] };
+      this.form = { id: null, name: "", description: "", primary_whatsapp_number: "", secondary_whatsapp_numbers: [] };
       this.newNumber = '';
       this.modal.show();
     },
@@ -247,20 +275,21 @@ export default {
         id: d.id,
         name: d.name,
         description: d.description || '',
-        whatsapp_numbers: d.whatsapp_numbers ? [...d.whatsapp_numbers] : [],
+        primary_whatsapp_number: d.primary_whatsapp_number || "",
+        secondary_whatsapp_numbers: d.secondary_whatsapp_numbers ? [...d.secondary_whatsapp_numbers] : [],
       };
       this.newNumber = '';
       this.modal.show();
     },
     addNumber() {
       if (!this.newNumber) return;
-      if (!this.form.whatsapp_numbers.includes(this.newNumber)) {
-        this.form.whatsapp_numbers.push(this.newNumber);
+      if (!this.form.secondary_whatsapp_numbers.includes(this.newNumber) && this.newNumber !== this.form.primary_whatsapp_number) {
+        this.form.secondary_whatsapp_numbers.push(this.newNumber);
       }
       this.newNumber = '';
     },
     removeNumber(num) {
-      this.form.whatsapp_numbers = this.form.whatsapp_numbers.filter((n) => n !== num);
+      this.form.secondary_whatsapp_numbers = this.form.secondary_whatsapp_numbers.filter((n) => n !== num);
     },
 
     save() {

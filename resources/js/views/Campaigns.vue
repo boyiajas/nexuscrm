@@ -15,6 +15,7 @@
     <!-- Campaigns table -->
     <div class="card shadow-sm">
       <div class="card-body p-0">
+        <TableLoadingWrapper :loading="loading" message="Loading campaigns..." min-height="260px">
         <table class="table table-hover mb-0 align-middle">
           <thead class="table-light">
             <tr>
@@ -103,13 +104,14 @@
               </td>
             </tr>
 
-            <tr v-if="campaigns.length === 0">
+            <tr v-if="!loading && campaigns.length === 0">
               <td colspan="8" class="text-center py-4 text-muted">
                 No campaigns.
               </td>
             </tr>
           </tbody>
         </table>
+        </TableLoadingWrapper>
       </div>
 
       <!-- Pagination -->
@@ -330,6 +332,7 @@
 import axios, { syncAuthenticatedUser } from '../axios';
 import VueMultiselect from "vue-multiselect";
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 import 'vue-multiselect/dist/vue-multiselect.min.css'; // Import styles
@@ -339,11 +342,13 @@ export default {
   components: {
     VueMultiselect,
     ConfirmationModal,
+    TableLoadingWrapper,
   },
   data() {
     return {
       department_ids: [], 
       campaigns: [],
+      loading: false,
       banks: [],
       departments: [],
       availableWhatsappNumbers: [],
@@ -477,6 +482,7 @@ export default {
       this.fetchCampaigns(page);
     },
     fetchCampaigns(page = 1) {
+      this.loading = true;
       axios.get('/api/campaigns', { params: { page } }).then((res) => {
         this.campaigns = res.data.data || res.data;
         if (res.data.data) {
@@ -496,6 +502,8 @@ export default {
       }).catch((error) => {
         console.error('Failed to fetch campaigns:', error);
         notify.error(error.response?.data?.message || 'Failed to load campaigns.', 'Campaigns');
+      }).finally(() => {
+        this.loading = false;
       });
     },
     fetchBanks() {

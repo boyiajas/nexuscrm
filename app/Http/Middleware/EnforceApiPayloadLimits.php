@@ -32,7 +32,8 @@ class EnforceApiPayloadLimits
     protected function resolveLimitBytes(Request $request): int
     {
         if ($request->is('api/clients/import')) {
-            return (int) env('IMPORT_MAX_PAYLOAD_KB', 2048) * 1024;
+            // Keep some headroom above the 10 MB file validation limit for multipart form boundaries.
+            return (int) env('IMPORT_MAX_PAYLOAD_KB', 12288) * 1024;
         }
 
         if ($request->is('api/whatsapp/webhook') || $request->is('api/twilio/webhook/whatsapp')) {

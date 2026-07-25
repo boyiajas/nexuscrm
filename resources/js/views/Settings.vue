@@ -29,6 +29,11 @@
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
+        <button class="nav-link" id="whatsapp-numbers-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-numbers" type="button">
+          WhatsApp Numbers
+        </button>
+      </li>
+      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
         <button class="nav-link" id="whatsapp-templates-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-templates" type="button">
           WhatsApp Templates
         </button>
@@ -240,35 +245,37 @@
               </div>
             </div>
 
-            <div v-if="sessions.length" class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th>Device / Browser</th>
-                    <th>IP</th>
-                    <th>Auth</th>
-                    <th>Authenticated</th>
-                    <th>Last Activity</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="session in sessions" :key="session.id">
-                    <td class="small">{{ session.user_agent || '-' }}</td>
-                    <td>{{ session.ip_address || '-' }}</td>
-                    <td>{{ session.authentication_method || '-' }}</td>
-                    <td>{{ session.authenticated_at || '-' }}</td>
-                    <td>{{ session.last_activity_at || '-' }}</td>
-                    <td>
-                      <span v-if="session.is_current" class="badge bg-primary">Current</span>
-                      <span v-else-if="session.logged_out_at" class="badge bg-secondary">{{ session.logout_reason || 'Closed' }}</span>
-                      <span v-else class="badge bg-success">Active</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-else class="text-muted small">No tracked sessions yet.</div>
+            <TableLoadingWrapper :loading="sessionsLoading" message="Loading sessions..." min-height="180px">
+              <div v-if="sessions.length" class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th>Device / Browser</th>
+                      <th>IP</th>
+                      <th>Auth</th>
+                      <th>Authenticated</th>
+                      <th>Last Activity</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="session in sessions" :key="session.id">
+                      <td class="small">{{ session.user_agent || '-' }}</td>
+                      <td>{{ session.ip_address || '-' }}</td>
+                      <td>{{ session.authentication_method || '-' }}</td>
+                      <td>{{ session.authenticated_at || '-' }}</td>
+                      <td>{{ session.last_activity_at || '-' }}</td>
+                      <td>
+                        <span v-if="session.is_current" class="badge bg-primary">Current</span>
+                        <span v-else-if="session.logged_out_at" class="badge bg-secondary">{{ session.logout_reason || 'Closed' }}</span>
+                        <span v-else class="badge bg-success">Active</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else-if="!sessionsLoading" class="text-muted small">No tracked sessions yet.</div>
+            </TableLoadingWrapper>
           </div>
         </div>
       </div>
@@ -463,10 +470,6 @@
                   type="password"
                   class="form-control"
                   placeholder="••••••"
-                  @copy.prevent
-                  @cut.prevent
-                  @paste.prevent
-                  @drop.prevent
                   autocomplete="off"
                 />
               </div>
@@ -477,10 +480,6 @@
                   type="password"
                   class="form-control"
                   placeholder="EA..."
-                  @copy.prevent
-                  @cut.prevent
-                  @paste.prevent
-                  @drop.prevent
                   autocomplete="off"
                 />
               </div>
@@ -509,16 +508,23 @@
                 <input v-model="meta.form.meta_whatsapp_display_phone_number" type="text" class="form-control" placeholder="+1 555 003 2209" />
               </div>
               <div class="col-md-6">
+                <label class="form-label">Manual Daily WhatsApp Limit</label>
+                <input
+                  v-model.number="meta.form.meta_daily_whatsapp_limit"
+                  type="number"
+                  min="1"
+                  class="form-control"
+                  placeholder="5000"
+                />
+                <small class="text-muted">Leave blank to treat the system-wide daily cap as unlimited. This value is enforced against bulk WhatsApp sends.</small>
+              </div>
+              <div class="col-md-6">
                 <label class="form-label">Webhook Verify Token</label>
                 <input
                   v-model="meta.form.meta_webhook_verify_token"
                   type="text"
                   class="form-control"
                   placeholder="Generated verify token"
-                  @copy.prevent
-                  @cut.prevent
-                  @paste.prevent
-                  @drop.prevent
                   autocomplete="off"
                 />
               </div>
@@ -543,6 +549,88 @@
                 <div class="alert alert-warning mb-0">
                   {{ metaTokenWarning }}
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h6 class="mb-1">Current Meta Number Health</h6>
+                <small class="text-muted">Live WhatsApp phone details fetched from the configured Meta Cloud API number.</small>
+              </div>
+              <div class="small text-muted">
+                Last fetched: {{ meta.phone_profile?.fetched_at || '-' }}
+              </div>
+            </div>
+
+            <div v-if="meta.phone_profile?.fetch_error" class="alert alert-warning mb-3">
+              Unable to fetch live Meta number details: {{ meta.phone_profile.fetch_error }}
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Messaging Limit Tier</div>
+                <div class="fw-semibold">{{ metaMessagingTierLabel }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Throughput</div>
+                <div class="fw-semibold">{{ metaThroughputLabel }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Quality Rating</div>
+                <div class="fw-semibold">{{ meta.phone_profile?.quality_rating || '-' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Verified Name</div>
+                <div class="fw-semibold">{{ meta.phone_profile?.verified_name || '-' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Display Number</div>
+                <div class="fw-semibold">{{ meta.phone_profile?.display_phone_number || meta.form.meta_whatsapp_display_phone_number || '-' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Name Status</div>
+                <div class="fw-semibold">{{ meta.phone_profile?.name_status || '-' }}</div>
+              </div>
+              <div class="col-md-4">
+                <div class="small text-muted text-uppercase">Code Verification</div>
+                <div class="fw-semibold">{{ meta.phone_profile?.code_verification_status || '-' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mt-3">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h6 class="mb-1">Daily WhatsApp Sending Limit</h6>
+                <small class="text-muted">Manual CRM-side daily cap used for campaign send validation and remaining-cap display.</small>
+              </div>
+              <span class="badge" :class="whatsappLimitStatusBadge">
+                {{ whatsappLimitStatusLabel }}
+              </span>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-3">
+                <div class="small text-muted text-uppercase">Configured Daily Cap</div>
+                <div class="fw-semibold">{{ whatsappSystemLimitLabel }}</div>
+              </div>
+              <div class="col-md-3">
+                <div class="small text-muted text-uppercase">Sent Today</div>
+                <div class="fw-semibold">{{ whatsappDailyLimitSummary?.system_used ?? 0 }}</div>
+              </div>
+              <div class="col-md-3">
+                <div class="small text-muted text-uppercase">Remaining Today</div>
+                <div class="fw-semibold">{{ whatsappSystemRemainingLabel }}</div>
+              </div>
+              <div class="col-md-3">
+                <div class="small text-muted text-uppercase">Effective Per-User Cap</div>
+                <div class="fw-semibold">{{ whatsappEffectiveLimitLabel }}</div>
               </div>
             </div>
           </div>
@@ -608,6 +696,73 @@
                 <div class="fw-semibold">{{ meta.permissions_snapshot.expires_at || '-' }}</div>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WHATSAPP NUMBERS TAB -->
+      <div class="tab-pane fade" id="whatsapp-numbers" v-if="isSuperAdmin">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h5 class="mb-1">WhatsApp Phone Numbers</h5>
+            <small class="text-muted">Manage phone numbers associated with your WhatsApp Business Account (WABA).</small>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" @click="fetchWhatsappNumbers" :disabled="wn.loading">
+              <span v-if="wn.loading" class="spinner-border spinner-border-sm me-1"></span>
+              Refresh
+            </button>
+            <button class="btn btn-primary btn-sm" @click="openAddNumberModal">
+              <i class="bi bi-plus-circle me-1"></i> Add Number
+            </button>
+          </div>
+        </div>
+
+        <div class="card shadow-sm">
+          <div class="card-body p-0">
+            <div v-if="wn.loading" class="p-4 text-center text-muted">
+              <span class="spinner-border spinner-border-sm me-2"></span>
+              Loading phone numbers...
+            </div>
+            <div v-else-if="!wn.numbers.length" class="p-4 text-center text-muted">
+              No WhatsApp phone numbers found for this WABA.
+            </div>
+            <table v-else class="table table-hover mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Display Number</th>
+                  <th>Verified Name</th>
+                  <th>Quality Rating</th>
+                  <th>Status</th>
+                  <th>Messaging Tier</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="num in wn.numbers" :key="num.id">
+                  <td class="fw-semibold">{{ num.display_phone_number }}</td>
+                  <td>{{ num.verified_name || '-' }}</td>
+                  <td>
+                    <span class="badge" :class="qualityRatingBadge(num.quality_rating)">
+                      {{ num.quality_rating || 'UNKNOWN' }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="small">Code: <strong>{{ num.code_verification_status }}</strong></div>
+                    <div class="small text-muted">Name: {{ num.name_status }}</div>
+                  </td>
+                  <td>{{ num.messaging_limit_tier || '-' }}</td>
+                  <td class="text-end">
+                    <button 
+                      v-if="num.code_verification_status === 'UNVERIFIED'"
+                      class="btn btn-sm btn-warning" 
+                      @click="openVerifyNumberModal(num)">
+                      Verify
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -836,14 +991,96 @@
       </div>
     </div>
 
+    </div>
+
+    <!-- ADD NUMBER MODAL -->
+    <div class="modal fade" tabindex="-1" ref="addNumberModalRef">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Add WhatsApp Number</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="alert alert-info small">
+              This adds a phone number to your Meta WhatsApp Business Account. It must be a valid number capable of receiving an SMS or Voice call for verification.
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Country Code (e.g. 1 for US, 27 for SA)</label>
+              <input v-model="wn.addForm.cc" type="text" class="form-control" placeholder="1" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Phone Number (without country code)</label>
+              <input v-model="wn.addForm.phone_number" type="text" class="form-control" placeholder="5551234567" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Verified Name (Optional)</label>
+              <input v-model="wn.addForm.verified_name" type="text" class="form-control" placeholder="My Business Name" />
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wn.saving">Cancel</button>
+            <button type="button" class="btn btn-primary" @click="submitAddNumber" :disabled="wn.saving || !wn.addForm.cc || !wn.addForm.phone_number">
+              <span v-if="wn.saving" class="spinner-border spinner-border-sm me-1"></span>
+              Add Number
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VERIFY NUMBER MODAL -->
+    <div class="modal fade" tabindex="-1" ref="verifyNumberModalRef">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Verify WhatsApp Number</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Verifying: <strong>{{ wn.verifyForm.display_phone_number }}</strong></p>
+            
+            <div v-if="!wn.verifyForm.codeSent">
+              <div class="mb-3">
+                <label class="form-label">Verification Method</label>
+                <select v-model="wn.verifyForm.method" class="form-select">
+                  <option value="SMS">SMS</option>
+                  <option value="VOICE">Voice Call</option>
+                </select>
+              </div>
+              <button class="btn btn-outline-primary" @click="requestVerificationCode" :disabled="wn.saving">
+                <span v-if="wn.saving" class="spinner-border spinner-border-sm me-1"></span>
+                Send Verification Code
+              </button>
+            </div>
+            
+            <div v-else class="mt-3">
+              <div class="alert alert-success small">Code sent via {{ wn.verifyForm.method }}. Please enter the 6-digit code below.</div>
+              <div class="mb-3">
+                <label class="form-label">6-Digit Code</label>
+                <input v-model="wn.verifyForm.code" type="text" class="form-control" placeholder="123456" maxlength="6" />
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wn.saving">Cancel</button>
+            <button v-if="wn.verifyForm.codeSent" type="button" class="btn btn-success" @click="submitVerificationCode" :disabled="wn.saving || wn.verifyForm.code.length < 6">
+              <span v-if="wn.saving" class="spinner-border spinner-border-sm me-1"></span>
+              Verify Number
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <ConfirmationModal ref="confirmModal" />
-  </div>
 </template>
 
 <script>
 import axios from '../axios';
 import VueMultiselect from 'vue-multiselect';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
@@ -853,6 +1090,7 @@ export default {
   components: {
     VueMultiselect,
     ConfirmationModal,
+    TableLoadingWrapper,
   },
   data() {
     return {
@@ -887,6 +1125,7 @@ export default {
         notifications: true,
       },
       sessions: [],
+      sessionsLoading: false,
       departmentOptions: [],
       selectedDepartments: [],
       system: {
@@ -927,11 +1166,33 @@ export default {
           meta_whatsapp_business_account_id: '',
           meta_whatsapp_phone_number_id: '',
           meta_whatsapp_display_phone_number: '',
+          meta_daily_whatsapp_limit: null,
           meta_webhook_verify_token: '',
         },
         permissions_last_checked_at: null,
         permissions_status: null,
         permissions_snapshot: null,
+        phone_profile: null,
+        daily_limit_summary: null,
+      },
+      wn: {
+        loading: false,
+        saving: false,
+        numbers: [],
+        addForm: {
+          cc: '',
+          phone_number: '',
+          verified_name: '',
+        },
+        verifyForm: {
+          id: null,
+          display_phone_number: '',
+          method: 'SMS',
+          code: '',
+          codeSent: false,
+        },
+        addNumberModal: null,
+        verifyNumberModal: null,
       },
       wa: {
         templates: [],
@@ -969,14 +1230,19 @@ export default {
       this.loadMFA();
       this.loadSessions();
       this.templateModal = createManagedModal(this.$refs.templateModalRef);
+      this.wn.addNumberModal = createManagedModal(this.$refs.addNumberModalRef);
+      this.wn.verifyNumberModal = createManagedModal(this.$refs.verifyNumberModalRef);
       if (this.isSuperAdmin) {
         this.loadAdminSettings();
         this.loadWhatsappTemplates();
+        this.fetchWhatsappNumbers();
       }
       this.loadDepartmentOptions();
     },
   beforeUnmount() {
     disposeManagedModal(this.templateModal);
+    disposeManagedModal(this.wn.addNumberModal);
+    disposeManagedModal(this.wn.verifyNumberModal);
   },
   watch: {
     selectedDepartments: {
@@ -993,7 +1259,11 @@ export default {
       const stored = localStorage.getItem('nexus_user');
       if (!stored) return false;
       try {
-        return ['SUPER_ADMIN', 'ADMIN'].includes(JSON.parse(stored)?.role);
+        const user = JSON.parse(stored);
+        const roles = Array.isArray(user?.role_codes) && user.role_codes.length
+          ? user.role_codes
+          : [user?.role].filter(Boolean);
+        return roles.some((role) => ['SUPER_ADMIN', 'ADMIN'].includes(role));
       } catch {
         return false;
       }
@@ -1050,6 +1320,82 @@ export default {
 
       return '';
     },
+    metaMessagingTierLabel() {
+      const tier = this.meta.phone_profile?.messaging_limit_tier;
+      if (!tier) {
+        return this.metaThroughputLabel !== '-' ? `Unavailable from Meta, throughput ${this.metaThroughputLabel}` : '-';
+      }
+
+      return String(tier)
+        .replace(/^TIER_/i, 'Tier ')
+        .replace(/_/g, ' ')
+        .trim();
+    },
+    metaThroughputLabel() {
+      const throughput = this.meta.phone_profile?.throughput;
+      if (!throughput) {
+        return '-';
+      }
+
+      if (typeof throughput === 'string') {
+        return throughput.replace(/_/g, ' ').trim();
+      }
+
+      if (typeof throughput === 'object') {
+        const level = throughput.level || throughput.tier || throughput.name || null;
+        const mps = throughput.messages_per_second || throughput.mps || throughput.value || null;
+
+        if (level && mps) {
+          return `${String(level).replace(/_/g, ' ').trim()} (${mps})`;
+        }
+
+        if (level) {
+          return String(level).replace(/_/g, ' ').trim();
+        }
+
+        if (mps) {
+          return String(mps);
+        }
+      }
+
+      return '-';
+    },
+    whatsappDailyLimitSummary() {
+      return this.meta.daily_limit_summary || null;
+    },
+    whatsappLimitStatusLabel() {
+      return this.whatsappDailyLimitSummary?.status
+        ? String(this.whatsappDailyLimitSummary.status).toUpperCase()
+        : 'UNAVAILABLE';
+    },
+    whatsappLimitStatusBadge() {
+      switch (this.whatsappDailyLimitSummary?.status) {
+        case 'healthy':
+          return 'bg-success';
+        case 'warning':
+          return 'bg-warning text-dark';
+        case 'low':
+          return 'bg-warning text-dark';
+        case 'critical':
+          return 'bg-danger';
+        case 'unlimited':
+          return 'bg-primary';
+        default:
+          return 'bg-secondary';
+      }
+    },
+    whatsappSystemLimitLabel() {
+      const value = this.whatsappDailyLimitSummary?.system_limit ?? this.meta.form.meta_daily_whatsapp_limit;
+      return value ? Number(value).toLocaleString() : 'Unlimited';
+    },
+    whatsappSystemRemainingLabel() {
+      const value = this.whatsappDailyLimitSummary?.system_remaining;
+      return value === null || value === undefined ? 'Unlimited' : Number(value).toLocaleString();
+    },
+    whatsappEffectiveLimitLabel() {
+      const value = this.whatsappDailyLimitSummary?.effective_limit;
+      return value === null || value === undefined ? 'Unlimited' : Number(value).toLocaleString();
+    },
     filteredWhatsappTemplates() {
       const search = (this.wa.filters.search || '').trim().toLowerCase();
       return this.wa.templates.filter((template) => {
@@ -1102,10 +1448,13 @@ export default {
       this.selectedDepartments = this.departmentOptions.filter((department) => selectedIds.includes(Number(department.id)));
     },
     loadSessions() {
+      this.sessionsLoading = true;
       axios.get('/api/user/sessions').then((res) => {
         this.sessions = res.data || [];
       }).catch(() => {
         this.sessions = [];
+      }).finally(() => {
+        this.sessionsLoading = false;
       });
     },
     updateAccount() {
@@ -1235,11 +1584,14 @@ export default {
         meta_whatsapp_business_account_id: settings.meta_whatsapp_business_account_id || '',
         meta_whatsapp_phone_number_id: settings.meta_whatsapp_phone_number_id || '',
         meta_whatsapp_display_phone_number: settings.meta_whatsapp_display_phone_number || '',
+        meta_daily_whatsapp_limit: settings.meta_daily_whatsapp_limit ?? null,
         meta_webhook_verify_token: settings.meta_webhook_verify_token || '',
       };
       this.meta.permissions_last_checked_at = settings.meta_permissions_last_checked_at || null;
       this.meta.permissions_status = settings.meta_permissions_status || null;
       this.meta.permissions_snapshot = settings.meta_permissions_snapshot || null;
+      this.meta.phone_profile = settings.meta_phone_profile || null;
+      this.meta.daily_limit_summary = settings.whatsapp_daily_limit_summary || null;
 
       this.applyBranding(settings);
     },
@@ -1329,6 +1681,28 @@ export default {
         category: '',
         language: '',
       };
+      this.wa.waModal = null;
+
+      // WhatsApp Numbers
+      this.wn = {
+        loading: false,
+        saving: false,
+        numbers: [],
+        addForm: {
+          cc: '',
+          phone_number: '',
+          verified_name: '',
+        },
+        verifyForm: {
+          id: '',
+          display_phone_number: '',
+          method: 'SMS',
+          code: '',
+          codeSent: false,
+        }
+      };
+      this.wn.addNumberModal = null;
+      this.wn.verifyNumberModal = null;
     },
     startCreate() {
       this.resetForm();
@@ -1475,6 +1849,83 @@ export default {
           }
         },
       });
+    },
+    // WhatsApp Numbers Methods
+    async fetchWhatsappNumbers() {
+      this.wn.loading = true;
+      try {
+        const { data } = await axios.get('/api/settings/meta/phone-numbers');
+        this.wn.numbers = data || [];
+      } catch (err) {
+        notify.error('Failed to load WhatsApp phone numbers: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        this.wn.loading = false;
+      }
+    },
+    openAddNumberModal() {
+      this.wn.addForm = { cc: '', phone_number: '', verified_name: '' };
+      this.wn.addNumberModal?.show();
+    },
+    async submitAddNumber() {
+      this.wn.saving = true;
+      try {
+        await axios.post('/api/settings/meta/phone-numbers', this.wn.addForm);
+        notify.success('Phone number successfully added to WABA.', 'Settings');
+        this.wn.addNumberModal?.hide();
+        this.fetchWhatsappNumbers();
+      } catch (err) {
+        notify.error('Failed to add phone number: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        this.wn.saving = false;
+      }
+    },
+    openVerifyNumberModal(num) {
+      this.wn.verifyForm = {
+        id: num.id,
+        display_phone_number: num.display_phone_number,
+        method: 'SMS',
+        code: '',
+        codeSent: false,
+      };
+      this.wn.verifyNumberModal?.show();
+    },
+    async requestVerificationCode() {
+      this.wn.saving = true;
+      try {
+        await axios.post('/api/settings/meta/phone-numbers/request-verification', {
+          phone_number_id: this.wn.verifyForm.id,
+          method: this.wn.verifyForm.method,
+        });
+        notify.success('Verification code requested via ' + this.wn.verifyForm.method, 'Settings');
+        this.wn.verifyForm.codeSent = true;
+      } catch (err) {
+        notify.error('Failed to request verification code: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        this.wn.saving = false;
+      }
+    },
+    async submitVerificationCode() {
+      this.wn.saving = true;
+      try {
+        await axios.post('/api/settings/meta/phone-numbers/verify', {
+          phone_number_id: this.wn.verifyForm.id,
+          code: this.wn.verifyForm.code,
+        });
+        notify.success('Phone number verified successfully!', 'Settings');
+        this.wn.verifyNumberModal?.hide();
+        this.fetchWhatsappNumbers();
+      } catch (err) {
+        notify.error('Failed to verify phone number: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        this.wn.saving = false;
+      }
+    },
+    qualityRatingBadge(rating) {
+      const r = (rating || '').toUpperCase();
+      if (r === 'HIGH') return 'bg-success';
+      if (r === 'MEDIUM') return 'bg-warning';
+      if (r === 'LOW') return 'bg-danger';
+      return 'bg-secondary';
     },
     statusBadge(status) {
       const s = (status || '').toLowerCase();

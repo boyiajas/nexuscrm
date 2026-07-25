@@ -9,6 +9,7 @@
 
     <div class="card shadow-sm">
       <div class="card-body p-0">
+        <TableLoadingWrapper :loading="loading" message="Loading WhatsApp replies...">
         <table class="table table-hover mb-0 align-middle">
           <thead class="table-light">
             <tr>
@@ -49,13 +50,14 @@
                 </button>
               </td>
             </tr>
-            <tr v-if="replies.length === 0">
-              <td colspan="6" class="text-center text-muted py-3">
+            <tr v-if="!loading && replies.length === 0">
+              <td colspan="7" class="text-center text-muted py-3">
                 No replies yet.
               </td>
             </tr>
           </tbody>
         </table>
+        </TableLoadingWrapper>
       </div>
     </div>
   </div>
@@ -63,12 +65,17 @@
 
 <script>
 import axios from '../axios';
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 
 export default {
   name: 'WhatsappReplies',
+  components: {
+    TableLoadingWrapper,
+  },
   data() {
     return {
       replies: [],
+      loading: false,
     };
   },
   mounted() {
@@ -76,8 +83,11 @@ export default {
   },
   methods: {
     fetchReplies() {
+      this.loading = true;
       axios.get('/api/dashboard/whatsapp-replies').then((res) => {
         this.replies = res.data || [];
+      }).finally(() => {
+        this.loading = false;
       });
     },
     openChat(row) {

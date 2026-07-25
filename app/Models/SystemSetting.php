@@ -48,6 +48,7 @@ class SystemSetting extends Model
         'meta_token_last_rotated_at',
         'meta_token_expires_at',
         'meta_token_rotation_notes',
+        'meta_daily_whatsapp_limit',
         'meta_permissions_last_checked_at',
         'meta_permissions_status',
         'meta_permissions_snapshot',
@@ -71,6 +72,7 @@ class SystemSetting extends Model
         'malware_scanner_timeout_seconds' => 'integer',
         'meta_token_last_rotated_at' => 'datetime',
         'meta_token_expires_at' => 'datetime',
+        'meta_daily_whatsapp_limit' => 'integer',
         'meta_permissions_last_checked_at' => 'datetime',
         'meta_permissions_snapshot' => 'array',
     ];
