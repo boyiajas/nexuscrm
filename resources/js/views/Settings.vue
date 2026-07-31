@@ -493,7 +493,7 @@
               </div>
               <div class="col-md-3">
                 <label class="form-label">Token Last Rotated</label>
-                <input v-model="meta.form.meta_token_last_rotated_at" type="datetime-local" class="form-control" />
+                <input v-model="meta.form.meta_token_last_rotated_at" type="datetime-local" class="form-control" min="2000-01-01T00:00" />
               </div>
               <div class="col-md-6">
                 <label class="form-label">WhatsApp Business Account ID</label>
@@ -539,7 +539,7 @@
               </div>
               <div class="col-md-6">
                 <label class="form-label">Token Expires At</label>
-                <input v-model="meta.form.meta_token_expires_at" type="datetime-local" class="form-control" />
+                <input v-model="meta.form.meta_token_expires_at" type="datetime-local" class="form-control" min="2000-01-01T00:00" />
               </div>
               <div class="col-12">
                 <label class="form-label">Token Rotation Notes</label>

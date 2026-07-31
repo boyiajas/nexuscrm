@@ -179,8 +179,8 @@ class SettingsController extends Controller
             'meta_whatsapp_display_phone_number' => ['sometimes', 'nullable', 'string'],
             'meta_webhook_verify_token' => ['sometimes', 'nullable', 'string'],
             'meta_environment'       => ['sometimes', 'nullable', 'string', 'in:development,staging,production'],
-            'meta_token_last_rotated_at' => ['sometimes', 'nullable', 'date'],
-            'meta_token_expires_at'  => ['sometimes', 'nullable', 'date'],
+            'meta_token_last_rotated_at' => ['sometimes', 'nullable', 'date', 'after:2000-01-01'],
+            'meta_token_expires_at'  => ['sometimes', 'nullable', 'date', 'after:2000-01-01'],
             'meta_token_rotation_notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'meta_daily_whatsapp_limit' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000000'],
         ]);
