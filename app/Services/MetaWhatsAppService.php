@@ -222,11 +222,21 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function resolveSenderContext(?string $overrideFrom = null): array
     {
-        $selectedNumber = $overrideFrom ?: ($this->displayPhoneNumber ?: $this->phoneNumberId);
+        if ($overrideFrom) {
+            $senders = $this->listWhatsappSenders();
+            $sender = collect($senders)->firstWhere('number', $overrideFrom);
+            
+            if ($sender) {
+                return [
+                    'phone_number_id' => $sender['phone_number_id'],
+                    'display_phone_number' => $sender['number'],
+                ];
+            }
+        }
 
         return [
             'phone_number_id' => $this->phoneNumberId,
-            'display_phone_number' => $selectedNumber,
+            'display_phone_number' => $this->displayPhoneNumber ?: $this->phoneNumberId,
         ];
     }
 
