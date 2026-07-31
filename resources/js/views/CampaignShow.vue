@@ -506,6 +506,17 @@
                 <i v-else class="bi bi-send-check me-1"></i>
                 Send Now
               </button>
+              <button
+                v-if="recipientModal.channel === 'WhatsApp' && recipientModal.meta && recipientModal.meta.can_retry_failed"
+                type="button"
+                class="btn btn-sm btn-warning px-3 shadow-sm text-dark"
+                @click="retryFailedBatch"
+                :disabled="retryingBatch"
+              >
+                <span v-if="retryingBatch" class="spinner-border spinner-border-sm me-1"></span>
+                <i v-else class="bi bi-arrow-clockwise me-1"></i>
+                Retry Failed
+              </button>
               <button type="button" class="btn-close mt-1" data-bs-dismiss="modal"></button>
             </div>
           </div>
@@ -1582,6 +1593,7 @@ export default {
       // dashboard modal
       recipientsModal: null,
       sendingBatch: false,
+      retryingBatch: false,
       recipientModal: {
         title: '',
         channel: '',
@@ -2034,6 +2046,36 @@ export default {
         this.fetchStats();
       }).finally(() => {
         this.sendingBatch = false;
+      });
+    },
+    retryFailedBatch() {
+      if (!this.recipientModal.meta || !this.recipientModal.meta.id) return;
+      const id = this.$route.params.id;
+      const messageId = this.recipientModal.meta.id;
+
+      this.retryingBatch = true;
+      axios.post(`/api/campaigns/${id}/whatsapp-messages/${messageId}/retry-failed`).then(() => {
+        notify.success('Retry job queued for failed recipients.', 'Campaigns');
+        this.fetchWhatsApp();
+        this.fetchStats();
+        
+        // Refresh the modal content
+        const url = `/api/campaigns/${id}/whatsapp-messages/${messageId}/recipients`;
+        axios.get(url).then((res) => {
+          if (res.data.summary) {
+            this.recipientModal.summary = Object.assign({ replies: 0 }, res.data.summary);
+          }
+          this.recipientModal.rows = res.data.recipients || [];
+          this.recipientModal.agents = res.data.agents || [];
+          if (res.data.meta) {
+            this.recipientModal.meta = Object.assign({}, this.recipientModal.meta, res.data.meta);
+          }
+        });
+      }).catch((error) => {
+        console.error('Failed to retry batch:', error);
+        notify.error('Failed to retry batch: ' + (error.response?.data?.message || error.message), 'Campaigns');
+      }).finally(() => {
+        this.retryingBatch = false;
       });
     },
     cleanupModalArtifacts() {
