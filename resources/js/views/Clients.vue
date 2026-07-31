@@ -181,15 +181,15 @@
                   </div>
                 </td>
                 <td class="clients-col-departments">
-                  <template v-if="c.departments && c.departments.length">
+                  <div class="d-flex flex-wrap gap-1" v-if="c.departments && c.departments.length">
                     <span
                       v-for="d in c.departments"
                       :key="d.id"
-                      class="badge bg-light text-dark border me-1"
+                      class="badge bg-light text-dark border"
                     >
                       {{ d.name }}
                     </span>
-                  </template>
+                  </div>
                   <span v-else class="text-muted">-</span>
                 </td>
                 <td class="clients-col-actions text-end">
@@ -1256,11 +1256,11 @@ export default {
 }
 
 .clients-col-name {
-  width: 18%;
+  width: 15%;
 }
 
 .clients-col-email {
-  width: 24%;
+  width: 18%;
 }
 
 .clients-col-cell {
@@ -1268,19 +1268,20 @@ export default {
 }
 
 .clients-col-bank {
-  width: 11%;
+  width: 10%;
 }
 
 .clients-col-import {
-  width: 15%;
+  width: 12%;
 }
 
 .clients-col-created {
-  width: 14%;
+  width: 13%;
 }
 
 .clients-col-departments {
-  width: 9%;
+  width: 14%;
+  white-space: normal !important;
 }
 
 .clients-col-actions {
