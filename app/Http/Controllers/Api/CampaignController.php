@@ -1809,6 +1809,7 @@ class CampaignController extends Controller
             'scheduled_at'  => optional($message->scheduled_at)->toDateTimeString(),
             'enable_live_chat' => (bool) $message->enable_live_chat,
             'track_responses'  => (bool) $message->track_responses,
+            'template_variables' => $message->template_variables ?? [],
             'queued_at'     => optional($message->queued_at)->toDateTimeString(),
             'processing_started_at' => optional($message->processing_started_at)->toDateTimeString(),
             'completed_at'  => optional($message->completed_at)->toDateTimeString(),

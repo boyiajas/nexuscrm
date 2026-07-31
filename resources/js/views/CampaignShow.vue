@@ -990,6 +990,63 @@
                   </div>
                 </div>
                 
+                <!-- Template variables mapping -->
+                <div v-if="whatsappForm.mode === 'template' && currentWhatsappTemplate && Object.keys(currentWhatsappTemplate.variables || {}).length > 0" class="mb-3">
+                  <label class="form-label d-flex align-items-center">
+                    Template Variables
+                    <span class="badge bg-secondary ms-2" title="Map these template variables to client data">
+                      {{ Object.keys(currentWhatsappTemplate.variables).length }} Variable(s)
+                    </span>
+                  </label>
+                  <div class="card bg-light shadow-sm border-0 rounded-3">
+                    <div class="card-body p-3">
+                      <div class="row g-3">
+                        <div
+                          v-for="(val, key) in currentWhatsappTemplate.variables"
+                          :key="key"
+                          class="col-12"
+                        >
+                          <div class="d-flex align-items-start gap-2">
+                            <div class="pt-1" style="min-width: 50px;">
+                              <span class="badge bg-primary bg-gradient rounded-pill px-2 py-1 shadow-sm w-100 text-center">
+                                {{ '{' + '{' + key + '}' + '}' }}
+                              </span>
+                            </div>
+                            <div class="flex-grow-1">
+                              <select
+                                v-model="getTemplateVariable(key).source"
+                                class="form-select form-select-sm shadow-sm border-0"
+                                style="max-width: 320px; background-color: #ffffff;"
+                              >
+                                <option value="">-- Select mapping --</option>
+                                <option value="client.name">Client Name</option>
+                                <option value="client.phone">Client Phone</option>
+                                <option value="client.email">Client Email</option>
+                                <option value="client.id_number">Client ID Number</option>
+                                <option value="client.account_number">Client Account Number</option>
+                                <option value="client.bank_name">Client Bank</option>
+                                <option value="client.branch_code">Client Branch Code</option>
+                                <option value="campaign.name">Campaign Name</option>
+                                <option value="campaign.status">Campaign Status</option>
+                                <option value="custom">Custom Value...</option>
+                              </select>
+                              <div v-if="getTemplateVariable(key).source === 'custom'" class="mt-2 position-relative" style="max-width: 320px;">
+                                <input
+                                  type="text"
+                                  v-model="getTemplateVariable(key).custom_value"
+                                  class="form-control form-control-sm border-primary shadow-sm pe-4"
+                                  :placeholder="'Enter static text for {' + '{' + key + '}' + '}'"
+                                />
+                                <i class="bi bi-pencil-square position-absolute top-50 end-0 translate-middle-y me-2 text-primary" style="pointer-events: none;"></i>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <!-- Open full preview / configure page -->
                 <div class="mb-3" v-if="whatsappForm.mode === 'template'">
                   <button
@@ -1568,6 +1625,7 @@ export default {
         mode: 'template', // 'template' | 'flow'
         templateId: '',
         flowId: '',
+        templateVariables: {},
         clientsMode: 'all',
         selectedClients: [],
         trackResponses: false,
@@ -1788,6 +1846,12 @@ export default {
     cleanupManagedModalArtifacts(true);
   },
   methods: {
+    getTemplateVariable(key) {
+      if (!this.whatsappForm.templateVariables[key]) {
+        this.whatsappForm.templateVariables[key] = { source: '', custom_value: '' };
+      }
+      return this.whatsappForm.templateVariables[key];
+    },
     statusBadgeClass(status) {
       switch (status) {
         case 'Draft':
@@ -2159,6 +2223,7 @@ export default {
         mode: 'template',
         templateId: '',
         flowId: '',
+        templateVariables: {},
         selectedClients: [],
         trackResponses: false,
         enableLiveChat: false,
@@ -2201,6 +2266,7 @@ export default {
         mode: this.whatsappForm.mode,
         template_id: isTemplate ? this.whatsappForm.templateId : null,
         flow_id: isFlow ? this.whatsappForm.flowId : null,
+        template_variables: isTemplate ? this.whatsappForm.templateVariables : {},
         clients_mode: hasSelection ? 'selected' : 'all',
         client_ids: hasSelection ? this.whatsappForm.selectedClients.map((c) => c.id) : [],
         send_now: sendNow,
@@ -2239,10 +2305,20 @@ export default {
       const isFlow = !!(message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow);
       const templateId = this.whatsappTemplateId(message);
       this.editingWhatsappMessageId = message.id;
+      let parsedVariables = {};
+      try {
+        parsedVariables = (typeof message.template_variables === 'string') 
+            ? JSON.parse(message.template_variables) 
+            : (message.template_variables || {});
+      } catch (e) {
+        parsedVariables = {};
+      }
+
       this.whatsappForm = {
         mode: isFlow ? 'flow' : 'template',
         templateId: templateId || '',
         flowId: isFlow ? (message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow?.id || '') : '',
+        templateVariables: parsedVariables,
         selectedClients: [],
         trackResponses: false,
         enableLiveChat: !!message.enable_live_chat,
