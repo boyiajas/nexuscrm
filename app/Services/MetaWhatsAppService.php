@@ -224,7 +224,11 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     {
         if ($overrideFrom) {
             $senders = $this->listWhatsappSenders();
-            $sender = collect($senders)->firstWhere('number', $overrideFrom);
+            $normalizedOverride = self::normalizePhoneNumber($overrideFrom);
+            
+            $sender = collect($senders)->first(function ($s) use ($normalizedOverride, $overrideFrom) {
+                return self::normalizePhoneNumber($s['number']) === $normalizedOverride || $s['number'] === $overrideFrom;
+            });
             
             if ($sender) {
                 return [
