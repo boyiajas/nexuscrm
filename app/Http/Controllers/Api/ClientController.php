@@ -398,9 +398,8 @@ class ClientController extends Controller
     {
         \Illuminate\Support\Facades\Log::info('Import method hit', [
             'has_file' => $request->hasFile('file'),
-            'file_is_valid' => $request->hasFile('file') ? $request->file('file')->isValid() : false,
-            'files' => array_keys($_FILES),
-            'post' => array_keys($_POST),
+            '_FILES' => $_FILES,
+            '_POST' => $_POST,
         ]);
         $user = Auth::user();
         $this->extendImportExecutionLimits();
