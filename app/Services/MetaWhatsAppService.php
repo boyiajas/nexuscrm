@@ -139,17 +139,15 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     public function listWhatsappSenders(): array
     {
         try {
-            $numbers = \Illuminate\Support\Facades\Cache::remember('meta_whatsapp_senders', 3600, function () {
-                $metaNumbers = $this->getPhoneNumbers();
-                return array_map(function($num) {
-                    return [
-                        'number' => $num['display_phone_number'] ?? null,
-                        'label' => $num['verified_name'] ?? 'Meta WhatsApp Number',
-                        'default' => false,
-                        'phone_number_id' => $num['id'],
-                    ];
-                }, $metaNumbers);
-            });
+            $metaNumbers = $this->getPhoneNumbers();
+            $numbers = array_map(function($num) {
+                return [
+                    'number' => $num['display_phone_number'] ?? null,
+                    'label' => $num['verified_name'] ?? 'Meta WhatsApp Number',
+                    'default' => false,
+                    'phone_number_id' => $num['id'],
+                ];
+            }, $metaNumbers);
 
             foreach ($numbers as &$num) {
                 if ($num['phone_number_id'] == $this->phoneNumberId) {
