@@ -358,7 +358,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         }
 
         $senderContext = $this->resolveSenderContext($overrideFrom);
-        $response = $this->post("{$this->phoneNumberId}/messages", $payload);
+        $response = $this->post("{$senderContext['phone_number_id']}/messages", $payload);
         $messageId = $response['messages'][0]['id'] ?? null;
 
         Log::info('Meta WhatsApp template sent', [

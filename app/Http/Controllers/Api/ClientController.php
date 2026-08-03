@@ -403,6 +403,10 @@ class ClientController extends Controller
             abort(403, 'You are not allowed to import clients.');
         }
 
+        if ($request->hasFile('file') && !$request->file('file')->isValid()) {
+            \Illuminate\Support\Facades\Log::error('Upload failed with error code: ' . $request->file('file')->getError() . ' Message: ' . $request->file('file')->getErrorMessage());
+        }
+
         $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:10240'],
             'bank_id' => ['nullable', 'integer', 'exists:banks,id'],
