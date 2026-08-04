@@ -170,7 +170,7 @@
                   </div>
                 </td>
                 <td class="clients-col-import">
-                  <span v-if="c.import_batch_number" class="badge bg-light text-dark border">
+                  <span v-if="c.import_batch_number" class="badge bg-light text-dark border text-truncate" style="max-width: 100%;" :title="c.import_batch_number">
                     {{ c.import_batch_number }}
                   </span>
                   <span v-else class="text-muted">-</span>
@@ -194,6 +194,9 @@
                 </td>
                 <td class="clients-col-actions text-end">
                   <div class="btn-group btn-group-sm" role="group">
+                    <button class="btn btn-outline-info" title="View" @click="openViewModal(c)">
+                      <i class="bi bi-eye"></i>
+                    </button>
                     <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(c)" :disabled="!canManage">
                       <i class="bi bi-pencil-square"></i>
                     </button>
@@ -545,6 +548,89 @@
 
     <ExportRequestModal ref="exportRequestModal" />
     <ConfirmationModal ref="confirmModal" />
+
+    <!-- View Client Modal -->
+    <div class="modal fade" tabindex="-1" ref="viewModalRef">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-person-lines-fill me-2"></i>Client Details
+            </h5>
+            <button type="button" class="btn-close" @click="closeViewModal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" v-if="viewClient">
+            <div class="row g-3">
+              <!-- Personal Details -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3 text-primary">Personal Information</h6>
+                <div class="row">
+                  <div class="col-md-6 mb-2"><strong>Name:</strong> {{ viewClient.name || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>ID Number:</strong> {{ viewClient.id_number_masked || viewClient.id_number || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Title:</strong> {{ viewClient.title || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Initials:</strong> {{ viewClient.initials || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>First Name:</strong> {{ viewClient.first_name || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Surname:</strong> {{ viewClient.surname || '-' }}</div>
+                </div>
+              </div>
+
+              <!-- Contact Details -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3 text-primary mt-2">Contact Details</h6>
+                <div class="row">
+                  <div class="col-md-6 mb-2"><strong>Email:</strong> <a :href="'mailto:' + viewClient.email" v-if="viewClient.email">{{ viewClient.email }}</a><span v-else>-</span></div>
+                  <div class="col-md-6 mb-2"><strong>Primary Phone:</strong> <a :href="'tel:' + viewClient.phone" v-if="viewClient.phone">{{ viewClient.phone }}</a><span v-else>-</span></div>
+                  <div class="col-md-6 mb-2"><strong>Cell Phone:</strong> {{ viewClient.cell_phone || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Home Phone:</strong> {{ viewClient.home_phone || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Work Phone:</strong> {{ viewClient.work_phone || '-' }}</div>
+                </div>
+              </div>
+
+              <!-- Financial Details -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3 text-primary mt-2">Financial Information</h6>
+                <div class="row">
+                  <div class="col-md-6 mb-2"><strong>Bank:</strong> {{ viewClient.bank_name || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Account Number:</strong> {{ viewClient.account_number_masked || viewClient.account_number || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Branch Code:</strong> {{ viewClient.branch_code || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Easy Pay Number:</strong> {{ viewClient.easy_pay_number || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ viewClient.arrears_amount || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Outstanding Balance:</strong> {{ viewClient.outstanding_balance || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Installment Amount:</strong> {{ viewClient.installment_amount || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Last Payment Amount:</strong> {{ viewClient.last_payment_amount || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Total Payment Amount:</strong> {{ viewClient.total_payment_amount || '-' }}</div>
+                </div>
+              </div>
+
+              <!-- System Details -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3 text-primary mt-2">System Information</h6>
+                <div class="row">
+                  <div class="col-md-6 mb-2"><strong>Assigned To:</strong> {{ viewClient.assigned_to_name || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Import Batch:</strong> {{ viewClient.import_batch_number || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Departments:</strong> 
+                    <span v-if="viewClient.departments && viewClient.departments.length">
+                      <span v-for="d in viewClient.departments" :key="d.id" class="badge bg-light text-dark border me-1">{{ d.name }}</span>
+                    </span>
+                    <span v-else>-</span>
+                  </div>
+                  <div class="col-md-6 mb-2"><strong>Tags:</strong>
+                    <span v-if="viewClient.tags && viewClient.tags.length">
+                      <span v-for="t in viewClient.tags" :key="t" class="badge bg-secondary me-1">{{ t }}</span>
+                    </span>
+                    <span v-else>-</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeViewModal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -615,6 +701,8 @@ export default {
       isEdit: false,
       modal: null,
       importModal: null,
+      viewModal: null,
+      viewClient: null,
       importForm: {
         file: null,
         bank_id: '',
@@ -627,6 +715,7 @@ export default {
   async mounted() {
     this.modal = createManagedModal(this.$refs.modalRef);
     this.importModal = createManagedModal(this.$refs.importModalRef);
+    this.viewModal = createManagedModal(this.$refs.viewModalRef);
     await this.syncCurrentUser();
     this.fetchBanks();
     this.fetchAssignees();
@@ -636,6 +725,7 @@ export default {
   beforeUnmount() {
     disposeManagedModal(this.modal);
     disposeManagedModal(this.importModal);
+    disposeManagedModal(this.viewModal);
   },
   computed: {
     currentUser() {
@@ -682,6 +772,16 @@ export default {
     }
   },
   methods: {
+    openViewModal(client) {
+      this.viewClient = client;
+      this.viewModal.show();
+    },
+    closeViewModal() {
+      this.viewModal.hide();
+      setTimeout(() => {
+        this.viewClient = null;
+      }, 300);
+    },
     async syncCurrentUser() {
       try {
         await syncAuthenticatedUser();

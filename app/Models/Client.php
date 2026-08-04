@@ -32,6 +32,8 @@ class Client extends Model
         'arrears_amount',
         'outstanding_balance',
         'installment_amount',
+        'last_payment_amount',
+        'total_payment_amount',
         'import_batch_number',
         'whatsapp_opted_out_at',
         'whatsapp_opt_out_reason',
@@ -48,6 +50,8 @@ class Client extends Model
         'arrears_amount' => 'decimal:2',
         'outstanding_balance' => 'decimal:2',
         'installment_amount' => 'decimal:2',
+        'last_payment_amount' => 'decimal:2',
+        'total_payment_amount' => 'decimal:2',
         'whatsapp_opted_out_at' => 'datetime',
         'whatsapp_opted_in_at' => 'datetime',
     ];

@@ -396,20 +396,11 @@ class ClientController extends Controller
 
     public function import(Request $request)
     {
-        \Illuminate\Support\Facades\Log::info('Import method hit', [
-            'has_file' => $request->hasFile('file'),
-            '_FILES' => $_FILES,
-            '_POST' => $_POST,
-        ]);
         $user = Auth::user();
         $this->extendImportExecutionLimits();
         
         if (!$user || !$user->canManageOperationalData()) {
             abort(403, 'You are not allowed to import clients.');
-        }
-
-        if ($request->hasFile('file') && !$request->file('file')->isValid()) {
-            \Illuminate\Support\Facades\Log::error('Upload failed with error code: ' . $request->file('file')->getError() . ' Message: ' . $request->file('file')->getErrorMessage());
         }
 
         $request->validate([
@@ -607,6 +598,8 @@ class ClientController extends Controller
                     'arrears_amount' => $this->parseImportAmount($data['arrears_amount'] ?? null),
                     'outstanding_balance' => $this->parseImportAmount($data['outstanding_balance'] ?? null),
                     'installment_amount' => $this->parseImportAmount($data['installment_amount'] ?? null),
+                    'last_payment_amount' => $this->parseImportAmount($data['last_payment_amount'] ?? null),
+                    'total_payment_amount' => $this->parseImportAmount($data['total_payment_amount'] ?? null),
                     'import_batch_number' => $importBatchNumber,
                     'whatsapp_contact_basis' => $data['whatsapp_contact_basis'] ?? 'bank_instruction',
                     'whatsapp_contact_basis_details' => $data['whatsapp_contact_basis_details'] ?? 'Imported from bank-provided debtor list.',
@@ -1471,6 +1464,8 @@ class ClientController extends Controller
             'outstandingbalance' => 'outstanding_balance',
             'installmentamount' => 'installment_amount',
             'arrearsamount' => 'arrears_amount',
+            'lastpaymentamount' => 'last_payment_amount',
+            'totalpaymentamount' => 'total_payment_amount',
         ];
 
         return $aliases[$normalized] ?? $normalized;
