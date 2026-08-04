@@ -48,6 +48,7 @@ Route::post('/twilio/webhook/whatsapp', [WhatsAppWebhookController::class, 'webh
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('clients/import', [ClientController::class, 'import']);
     Route::delete('clients/delete-batch', [ClientController::class, 'destroyBatch']);
+    Route::post('clients/assign-batch', [ClientController::class, 'assignBatch']);
     Route::get('import-uploads', [ImportUploadController::class, 'index']);
     Route::get('clients/export', [ClientController::class, 'export']);
     Route::apiResource('clients', ClientController::class);

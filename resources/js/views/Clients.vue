@@ -104,22 +104,33 @@
           </small>
         </div>
 
-        <button
-          type="button"
-          class="btn btn-danger btn-sm"
-          @click="removeSelectedClients"
-          :disabled="selectedClientIds.length === 0"
-        >
-          <i class="bi bi-trash me-1"></i> Delete Selected
-        </button>
-        <button
-          type="button"
-          class="btn btn-outline-danger btn-sm"
-          @click="removeBatchClients"
-          :disabled="!currentBatchFilter"
-        >
-          <i class="bi bi-layers me-1"></i> Delete Batch
-        </button>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            class="btn btn-danger btn-sm"
+            @click="removeSelectedClients"
+            :disabled="selectedClientIds.length === 0"
+          >
+            <i class="bi bi-trash me-1"></i> Delete Selected
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-primary btn-sm"
+            @click="openAssignBatchModal"
+            v-if="canChooseAssignee"
+            :disabled="!currentBatchFilter"
+          >
+            <i class="bi bi-person-plus me-1"></i> Assign Batch
+          </button>
+          <button
+            type="button"
+            class="btn btn-outline-danger btn-sm"
+            @click="removeBatchClients"
+            :disabled="!currentBatchFilter"
+          >
+            <i class="bi bi-layers me-1"></i> Delete Batch
+          </button>
+        </div>
       </div>
 
       <div class="card-body p-0 clients-table-wrap">
@@ -549,6 +560,40 @@
     <ExportRequestModal ref="exportRequestModal" />
     <ConfirmationModal ref="confirmModal" />
 
+    <!-- Assign Batch Modal -->
+    <div class="modal fade" tabindex="-1" ref="assignBatchModalRef">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Assign Batch to User</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Select a user to assign all clients in batch <strong>{{ currentBatchFilter }}</strong>.</p>
+            <div class="mb-3">
+              <label class="form-label">Assign To</label>
+              <select v-model="assignBatchForm.assigned_to_id" class="form-select">
+                <option value="">Unassigned</option>
+                <option v-for="assignee in assignees" :key="assignee.id" :value="assignee.id">
+                  {{ assignee.name }} ({{ assignee.role }})
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="assignBatchForm.submitting">
+              Cancel
+            </button>
+            <button type="button" class="btn btn-primary" @click="submitAssignBatch" :disabled="assignBatchForm.submitting">
+              <span v-if="assignBatchForm.submitting" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-check2 me-1"></i>
+              Assign
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- View Client Modal -->
     <div class="modal fade" tabindex="-1" ref="viewModalRef">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -703,6 +748,11 @@ export default {
       importModal: null,
       viewModal: null,
       viewClient: null,
+      assignBatchModal: null,
+      assignBatchForm: {
+        assigned_to_id: '',
+        submitting: false,
+      },
       importForm: {
         file: null,
         bank_id: '',
@@ -716,6 +766,7 @@ export default {
     this.modal = createManagedModal(this.$refs.modalRef);
     this.importModal = createManagedModal(this.$refs.importModalRef);
     this.viewModal = createManagedModal(this.$refs.viewModalRef);
+    this.assignBatchModal = createManagedModal(this.$refs.assignBatchModalRef);
     await this.syncCurrentUser();
     this.fetchBanks();
     this.fetchAssignees();
@@ -726,6 +777,7 @@ export default {
     disposeManagedModal(this.modal);
     disposeManagedModal(this.importModal);
     disposeManagedModal(this.viewModal);
+    disposeManagedModal(this.assignBatchModal);
   },
   computed: {
     currentUser() {
@@ -1137,6 +1189,42 @@ export default {
           }
         },
       });
+    },
+    openAssignBatchModal() {
+      if (!this.canChooseAssignee) return;
+      if (!this.currentBatchFilter) {
+        notify.warning('Enter or select an import batch number first.', 'Clients');
+        return;
+      }
+      this.assignBatchForm.assigned_to_id = '';
+      this.assignBatchForm.submitting = false;
+      this.assignBatchModal.show();
+    },
+    async submitAssignBatch() {
+      if (this.assignBatchForm.submitting) return;
+      this.assignBatchForm.submitting = true;
+      try {
+        const response = await axios.post('/api/clients/assign-batch', {
+          import_batch_number: this.currentBatchFilter,
+          assigned_to_id: this.assignBatchForm.assigned_to_id || null,
+        });
+        
+        this.assignBatchModal.hide();
+        await this.fetchClients(this.pagination.currentPage);
+        
+        notify.success(
+          `Assigned ${response.data?.updated_count || 0} client(s) to selected user.`,
+          'Clients'
+        );
+      } catch (error) {
+        console.error('Failed to assign clients by batch:', error);
+        notify.error(
+          'Failed to assign batch clients: ' + (error.response?.data?.message || error.message),
+          'Clients'
+        );
+      } finally {
+        this.assignBatchForm.submitting = false;
+      }
     },
     removeBatchClients() {
       if (!this.canManage) return;

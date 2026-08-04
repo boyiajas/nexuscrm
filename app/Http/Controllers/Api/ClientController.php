@@ -952,6 +952,83 @@ class ClientController extends Controller
         }
     }
 
+    public function assignBatch(Request $request)
+    {
+        $user = Auth::user();
+        $this->authorizeManage($user, 'update clients');
+
+        $validated = $request->validate([
+            'import_batch_number' => ['required', 'string', 'max:255'],
+            'assigned_to_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $batchNumber = trim((string) ($validated['import_batch_number'] ?? ''));
+        if ($batchNumber === '') {
+            return response()->json([
+                'message' => 'An import batch number is required.',
+            ], 422);
+        }
+
+        $assignedToId = $this->resolveAssignedUserId($user, null, $validated['assigned_to_id'] ?? null);
+
+        $query = Client::query()->with('departments');
+        $this->applyBankScope($query, $user);
+        $this->applyPortfolioScope($query, $user);
+
+        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
+        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
+                $q->whereIn('departments.id', $userDepartmentIds);
+            });
+        }
+
+        $clients = $query
+            ->where('import_batch_number', $batchNumber)
+            ->get();
+
+        if ($clients->isEmpty()) {
+            return response()->json([
+                'message' => 'No clients found for the selected import batch.',
+            ], 404);
+        }
+
+        $updatedCount = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($clients as $client) {
+                $client->assigned_to_id = $assignedToId;
+                $client->save();
+                $updatedCount++;
+            }
+
+            DB::commit();
+
+            $this->audit(
+                action: "Assigned {$updatedCount} clients from import batch {$batchNumber} to user " . ($assignedToId ?? 'Unassigned'),
+                module: 'Clients',
+                meta: [
+                    'import_batch_number' => $batchNumber,
+                    'updated_count' => $updatedCount,
+                    'assigned_to_id' => $assignedToId,
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Clients assigned successfully.',
+                'updated_count' => $updatedCount,
+                'import_batch_number' => $batchNumber,
+                'assigned_to_id' => $assignedToId,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to assign clients for batch: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     // Helper method to get department options for frontend
     public function departmentOptions()
     {
