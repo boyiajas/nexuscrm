@@ -731,6 +731,7 @@
               <thead class="table-light">
                 <tr>
                   <th>Display Number</th>
+                  <th>Phone Number ID</th>
                   <th>Verified Name</th>
                   <th>Quality Rating</th>
                   <th>Status</th>
@@ -741,6 +742,7 @@
               <tbody>
                 <tr v-for="num in wn.numbers" :key="num.id">
                   <td class="fw-semibold">{{ num.display_phone_number }}</td>
+                  <td class="text-muted small font-monospace">{{ num.id }}</td>
                   <td>{{ num.verified_name || '-' }}</td>
                   <td>
                     <span class="badge" :class="qualityRatingBadge(num.quality_rating)">
