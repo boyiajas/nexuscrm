@@ -142,6 +142,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('settings/meta/phone-numbers', [SettingsController::class, 'submitMetaPhoneNumber']);
     Route::post('settings/meta/phone-numbers/request-verification', [SettingsController::class, 'requestMetaPhoneVerification']);
     Route::post('settings/meta/phone-numbers/verify', [SettingsController::class, 'verifyMetaPhoneNumber']);
+    Route::post('settings/meta/phone-numbers/register', [SettingsController::class, 'registerMetaPhoneNumber']);
 
     Route::get('dashboard', [DashboardController::class, 'index']);
 

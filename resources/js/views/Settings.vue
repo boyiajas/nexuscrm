@@ -759,6 +759,15 @@
                       @click="openVerifyNumberModal(num)">
                       Verify
                     </button>
+                    <button
+                      v-if="num.code_verification_status === 'VERIFIED' && num.platform_type === 'NOT_APPLICABLE'"
+                      class="btn btn-sm btn-success ms-2"
+                      @click="registerNumberOnMeta(num)"
+                      :disabled="num.registering"
+                    >
+                      <span v-if="num.registering" class="spinner-border spinner-border-sm me-1"></span>
+                      Complete Registration
+                    </button>
                   </td>
                 </tr>
               </tbody>
@@ -1918,6 +1927,25 @@ export default {
         notify.error('Failed to verify phone number: ' + (err.response?.data?.message || err.message), 'Settings');
       } finally {
         this.wn.saving = false;
+      }
+    },
+    async registerNumberOnMeta(num) {
+      if (this.$set) {
+        this.$set(num, 'registering', true);
+      } else {
+        num.registering = true;
+      }
+      try {
+        await axios.post('/api/settings/meta/phone-numbers/register', {
+          phone_number_id: num.id,
+          pin: '123456'
+        });
+        notify.success('Number successfully registered on Cloud API!', 'Settings');
+        this.fetchWhatsappNumbers();
+      } catch (err) {
+        notify.error('Failed to register number: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        num.registering = false;
       }
     },
     qualityRatingBadge(rating) {

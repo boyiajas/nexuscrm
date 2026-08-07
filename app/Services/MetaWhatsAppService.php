@@ -218,6 +218,14 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ]);
     }
 
+    public function registerPhoneNumber(string $phoneNumberId, string $pin): array
+    {
+        return $this->post("{$phoneNumberId}/register", [
+            'messaging_product' => 'whatsapp',
+            'pin' => $pin,
+        ]);
+    }
+
     public function resolveSenderContext(?string $overrideFrom = null): array
     {
         if ($overrideFrom) {

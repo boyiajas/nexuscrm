@@ -1,0 +1,83 @@
+{
+    "data": [
+        {
+            "verified_name": "Iconis CRM",
+            "code_verification_status": "VERIFIED",
+            "display_phone_number": "+1 781-399-4783",
+            "quality_rating": "GREEN",
+            "platform_type": "CLOUD_API",
+            "throughput": {
+                "level": "STANDARD"
+            },
+            "last_onboarded_time": "2025-10-30T03:43:24+0000",
+            "webhook_configuration": {
+                "application": "https:\/\/crm.straussonline.co.za\/api\/whatsapp\/webhook"
+            },
+            "id": "897918230060626"
+        },
+        {
+            "verified_name": "Strauss Daly CRM",
+            "code_verification_status": "VERIFIED",
+            "display_phone_number": "+1 555-835-5133",
+            "quality_rating": "UNKNOWN",
+            "platform_type": "NOT_APPLICABLE",
+            "throughput": {
+                "level": "NOT_APPLICABLE"
+            },
+            "last_onboarded_time": "2025-10-28T06:28:56+0000",
+            "webhook_configuration": {
+                "application": "https:\/\/crm.straussonline.co.za\/api\/whatsapp\/webhook"
+            },
+            "id": "773609549180055"
+        },
+        {
+            "verified_name": "ICON INFORMATION SYSTEMS",
+            "code_verification_status": "VERIFIED",
+            "display_phone_number": "+1 555-700-1172",
+            "quality_rating": "GREEN",
+            "platform_type": "CLOUD_API",
+            "throughput": {
+                "level": "STANDARD"
+            },
+            "last_onboarded_time": "2024-08-11T15:49:03+0000",
+            "webhook_configuration": {
+                "application": "https:\/\/crm.straussonline.co.za\/api\/whatsapp\/webhook"
+            },
+            "id": "432162949975025"
+        },
+        {
+            "verified_name": "Iconis CRM",
+            "code_verification_status": "VERIFIED",
+            "display_phone_number": "+27 61 064 7115",
+            "quality_rating": "UNKNOWN",
+            "platform_type": "NOT_APPLICABLE",
+            "throughput": {
+                "level": "NOT_APPLICABLE"
+            },
+            "webhook_configuration": {
+                "application": "https:\/\/crm.straussonline.co.za\/api\/whatsapp\/webhook"
+            },
+            "id": "1324173460771054"
+        },
+        {
+            "verified_name": "Iconis CRM",
+            "code_verification_status": "NOT_VERIFIED",
+            "display_phone_number": "+27 76 022 8742",
+            "quality_rating": "UNKNOWN",
+            "platform_type": "NOT_APPLICABLE",
+            "throughput": {
+                "level": "NOT_APPLICABLE"
+            },
+            "webhook_configuration": {
+                "application": "https:\/\/crm.straussonline.co.za\/api\/whatsapp\/webhook"
+            },
+            "id": "1236180619572836"
+        }
+    ],
+    "paging": {
+        "cursors": {
+            "before": "QVFIU1BYTmNkdmt1UmVoMVcxTUlMRm1DZAThfNU9kdmp2T19TOWpzV09nNUNWeGZApY05xMndOWGtnaXY4UE5qOVFsUi1FZAUNiWnBoTTNCOVNkclFWT3FfQTZAn",
+            "after": "QVFIU3dQejRFTTZAVQWVIVmtfNEh4elNyenZApZAEVFZAk5aTWEyZAms1LXJwUTU2cUJxNEVXeVdoaEVmS3BqRWg5dmhYcHYZD"
+        }
+    }
+}

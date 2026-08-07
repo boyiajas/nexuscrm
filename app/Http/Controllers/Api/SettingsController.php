@@ -144,6 +144,24 @@ class SettingsController extends Controller
         }
     }
 
+    public function registerMetaPhoneNumber(Request $request)
+    {
+        $this->authorizeAdmin();
+        $data = $request->validate([
+            'phone_number_id' => 'required|string',
+            'pin' => 'required|string|size:6',
+        ]);
+
+        try {
+            $service = app(MetaWhatsAppService::class);
+            $result = $service->registerPhoneNumber($data['phone_number_id'], $data['pin']);
+            \Illuminate\Support\Facades\Cache::forget('meta_whatsapp_senders'); // invalidate cache
+            return response()->json(['message' => 'Phone number successfully registered on Cloud API.', 'data' => $result]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to register phone number: ' . $e->getMessage()], 422);
+        }
+    }
+
     public function update(Request $request)
     {
         $this->authorizeAdmin();
