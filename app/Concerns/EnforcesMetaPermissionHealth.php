@@ -16,7 +16,7 @@ trait EnforcesMetaPermissionHealth
             return;
         }
 
-        $maxAgeHours = max(1, (int) env('META_PERMISSION_VALIDATION_MAX_AGE_HOURS', 24));
+        $maxAgeHours = max(1, (int) env('META_PERMISSION_VALIDATION_MAX_AGE_HOURS', 720));
         $checkedAt = $settings?->meta_permissions_last_checked_at;
         $status = $settings?->meta_permissions_status;
         $snapshot = $settings?->meta_permissions_snapshot ?? [];
@@ -26,7 +26,10 @@ trait EnforcesMetaPermissionHealth
         }
 
         if ($checkedAt->lt(now()->subHours($maxAgeHours))) {
-            $this->failMetaPermissionHealth($operation, "The last Meta permission validation is older than {$maxAgeHours} hours. Revalidate Meta permissions in Settings before sending WhatsApp messages.");
+            $ageDisplay = $maxAgeHours >= 24 && $maxAgeHours % 24 === 0 
+                ? ($maxAgeHours / 24) . ' days' 
+                : $maxAgeHours . ' hours';
+            $this->failMetaPermissionHealth($operation, "The last Meta permission validation is older than {$ageDisplay}. Revalidate Meta permissions in Settings before sending WhatsApp messages.");
         }
 
         if ($status !== 'healthy') {
