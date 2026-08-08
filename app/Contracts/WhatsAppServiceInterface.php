@@ -31,4 +31,6 @@ interface WhatsAppServiceInterface
     public function deleteWhatsAppTemplate(string $templateId): bool;
 
     public function submitTemplateForApproval(string $templateId, string $category = 'UTILITY'): array;
+
+    public function migrateTemplates(string $destinationWabaId, array $templateIds): array;
 }

@@ -59,6 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/whatsapp-templates', [WhatsAppTemplateController::class, 'index']);
     Route::post('/whatsapp-templates', [WhatsAppTemplateController::class, 'store']);
+    Route::post('/whatsapp-templates/migrate', [WhatsAppTemplateController::class, 'migrate']);
     Route::get('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'show']);
     Route::put('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'update']);
     Route::delete('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'destroy']);
@@ -141,8 +142,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('settings/meta/phone-numbers', [SettingsController::class, 'fetchMetaPhoneNumbers']);
     Route::post('settings/meta/phone-numbers', [SettingsController::class, 'submitMetaPhoneNumber']);
     Route::post('settings/meta/phone-numbers/request-verification', [SettingsController::class, 'requestMetaPhoneVerification']);
-    Route::post('settings/meta/phone-numbers/verify', [SettingsController::class, 'verifyMetaPhoneNumber']);
-    Route::post('settings/meta/phone-numbers/register', [SettingsController::class, 'registerMetaPhoneNumber']);
+    Route::post('/settings/meta/phone-numbers/verify', [App\Http\Controllers\Api\SettingsController::class, 'verifyMetaPhoneNumber']);
+    Route::post('/settings/meta/phone-numbers/register', [App\Http\Controllers\Api\SettingsController::class, 'registerMetaPhoneNumber']);
+
+    Route::apiResource('/settings/whatsapp-accounts', App\Http\Controllers\Api\WhatsappAccountController::class)->except(['show']);
+    Route::post('/settings/whatsapp-accounts/{id}/activate', [App\Http\Controllers\Api\WhatsappAccountController::class, 'activate']);
 
     Route::get('dashboard', [DashboardController::class, 'index']);
 

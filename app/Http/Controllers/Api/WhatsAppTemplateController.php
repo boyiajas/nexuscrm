@@ -24,6 +24,7 @@ class WhatsAppTemplateController extends Controller
             $whatsapp = $t['whatsapp'] ?? [];
             return [
                 'id'           => $t['sid'],
+                'meta_id'      => $t['meta_id'] ?? null,
                 'sid'          => $t['sid'],
                 'name'         => $t['friendly_name'] ?? $t['sid'],
                 'language'     => $t['language'] ?? null,
@@ -124,6 +125,24 @@ class WhatsAppTemplateController extends Controller
         $result = $this->whatsApp->submitTemplateForApproval($id, $data['category']);
 
         return response()->json($result);
+    }
+
+    public function migrate(Request $request): JsonResponse
+    {
+        $this->authorizeAdmin();
+
+        $data = $request->validate([
+            'destination_waba_id' => ['required', 'string'],
+            'template_ids' => ['required', 'array'],
+            'template_ids.*' => ['string'],
+        ]);
+
+        $result = $this->whatsApp->migrateTemplates($data['destination_waba_id'], $data['template_ids']);
+
+        return response()->json([
+            'message' => 'Templates migrated successfully.',
+            'result' => $result,
+        ]);
     }
 
     private function authorizeAdmin(): void

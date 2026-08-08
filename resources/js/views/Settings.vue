@@ -29,6 +29,11 @@
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
+        <button class="nav-link" id="whatsapp-profiles-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-profiles" type="button">
+          WhatsApp Profiles
+        </button>
+      </li>
+      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
         <button class="nav-link" id="whatsapp-numbers-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-numbers" type="button">
           WhatsApp Numbers
         </button>
@@ -700,6 +705,67 @@
         </div>
       </div>
 
+      <!-- WHATSAPP PROFILES TAB -->
+      <div class="tab-pane fade" id="whatsapp-profiles" v-if="isSuperAdmin">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h5 class="mb-1">WhatsApp Profiles</h5>
+            <small class="text-muted">Manage credentials for multiple WhatsApp Business Accounts.</small>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary btn-sm" @click="fetchWhatsappProfiles" :disabled="wp.loading">
+              <span v-if="wp.loading" class="spinner-border spinner-border-sm me-1"></span>
+              Refresh
+            </button>
+            <button class="btn btn-primary btn-sm" @click="openAddProfileModal">
+              <i class="bi bi-plus-circle me-1"></i> Add Profile
+            </button>
+          </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+          <div class="card-body p-0">
+            <div v-if="wp.loading" class="p-4 text-center text-muted">
+              <span class="spinner-border spinner-border-sm me-2"></span>
+              Loading profiles...
+            </div>
+            <div v-else-if="!wp.profiles.length" class="p-4 text-center text-muted">
+              No WhatsApp profiles saved. Add one to get started.
+            </div>
+            <table v-else class="table table-hover mb-0 align-middle">
+              <thead class="table-light">
+                <tr>
+                  <th>Profile Name</th>
+                  <th>App ID</th>
+                  <th>WABA ID</th>
+                  <th>Display Number</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="profile in wp.profiles" :key="profile.id">
+                  <td class="fw-semibold">
+                    {{ profile.name }}
+                    <span v-if="profile.waba_id === meta.form.meta_whatsapp_business_account_id" class="badge bg-success ms-2">Active</span>
+                  </td>
+                  <td class="text-muted small">{{ profile.app_id }}</td>
+                  <td class="text-muted small">{{ profile.waba_id }}</td>
+                  <td>{{ profile.display_phone_number || profile.phone_number_id }}</td>
+                  <td class="text-end">
+                    <button class="btn btn-sm btn-outline-secondary me-2" @click="editProfile(profile)">Edit</button>
+                    <button class="btn btn-sm btn-outline-danger me-2" @click="deleteProfile(profile)">Delete</button>
+                    <button class="btn btn-sm btn-outline-primary" @click="activateProfile(profile)" :disabled="profile.waba_id === meta.form.meta_whatsapp_business_account_id || wp.activating === profile.id">
+                      <span v-if="wp.activating === profile.id" class="spinner-border spinner-border-sm me-1"></span>
+                      Set Active
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- WHATSAPP NUMBERS TAB -->
       <div class="tab-pane fade" id="whatsapp-numbers" v-if="isSuperAdmin">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -790,6 +856,10 @@
               <span v-if="wa.loading" class="spinner-border spinner-border-sm me-1"></span>
               Refresh
             </button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="openMigrateModal" :disabled="wa.selected.length === 0">
+              <i class="bi bi-arrow-right-circle me-1"></i>
+              Migrate Selected ({{ wa.selected.length }})
+            </button>
             <button type="button" class="btn btn-primary btn-sm" @click="startCreate">
               <i class="bi bi-plus-circle me-1"></i>
               Create Template
@@ -852,6 +922,11 @@
             <table v-else class="table table-hover mb-0 align-middle">
               <thead class="table-light">
                 <tr>
+                  <th style="width: 40px;">
+                    <div class="form-check m-0">
+                      <input class="form-check-input" type="checkbox" :checked="wa.selected.length > 0 && wa.selected.length === filteredWhatsappTemplates.length" @change="toggleSelectAllTemplates" />
+                    </div>
+                  </th>
                   <th>Name</th>
                   <th>Language</th>
                   <th>Category</th>
@@ -862,6 +937,11 @@
               </thead>
               <tbody>
                 <tr v-for="t in filteredWhatsappTemplates" :key="t.sid">
+                  <td>
+                    <div class="form-check m-0">
+                      <input class="form-check-input" type="checkbox" :value="t.meta_id || t.sid" v-model="wa.selected" />
+                    </div>
+                  </td>
                   <td class="fw-semibold">{{ t.name }}</td>
                   <td>{{ t.language || '-' }}</td>
                   <td>{{ t.category || '-' }}</td>
@@ -981,6 +1061,17 @@
                   </a>
                 </div>
               </div>
+              <div class="col-12" v-if="wa.form.variables && Object.keys(wa.form.variables).length > 0">
+                <label class="form-label d-flex align-items-center">
+                  Template Variables
+                  <span class="badge bg-secondary ms-2">{{ Object.keys(wa.form.variables).length }} Variable(s)</span>
+                </label>
+                <div class="d-flex flex-wrap gap-2">
+                  <span v-for="(val, key) in wa.form.variables" :key="key" class="badge bg-light text-dark border shadow-sm">
+                    {{ '{' + '{' + key + '}' + '}' }}
+                  </span>
+                </div>
+              </div>
               <div class="col-12" v-if="wa.form.buttons.length">
                 <label class="form-label">Buttons</label>
                 <div class="d-flex gap-2 flex-wrap">
@@ -1080,6 +1171,110 @@
               Verify Number
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+    <!-- WHATSAPP MIGRATE MODAL -->
+    <div class="modal fade" id="whatsappMigrateModal" tabindex="-1" ref="migrateModalRef">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Migrate WhatsApp Templates</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" :disabled="wa.migrating"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-3">
+              You are about to migrate <strong>{{ wa.selected.length }}</strong> template(s) to another WhatsApp Business Account.
+            </p>
+            
+            <div class="mb-3">
+              <label class="form-label">Destination WABA ID Source</label>
+              <select v-model="wa.migrateForm.destinationType" class="form-select" :disabled="wa.migrating">
+                <option value="profile">Select from Saved Profiles</option>
+                <option value="custom">Enter Custom WABA ID</option>
+              </select>
+            </div>
+
+            <div v-if="wa.migrateForm.destinationType === 'profile'" class="mb-3">
+              <label class="form-label">Select Profile</label>
+              <select v-model="wa.migrateForm.profile_id" class="form-select" :disabled="wa.migrating">
+                <option value="" disabled>-- Select a Profile --</option>
+                <option v-for="profile in wp.profiles" :key="profile.id" :value="profile.waba_id">
+                  {{ profile.name }} (WABA: {{ profile.waba_id }})
+                </option>
+              </select>
+            </div>
+
+            <div v-if="wa.migrateForm.destinationType === 'custom'" class="mb-3">
+              <label class="form-label">Custom WABA ID</label>
+              <input v-model.trim="wa.migrateForm.custom_waba_id" type="text" class="form-control" placeholder="e.g. 1455412218881488" :disabled="wa.migrating" />
+            </div>
+
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wa.migrating">Cancel</button>
+            <button type="button" class="btn btn-primary" @click="submitMigration" :disabled="wa.migrating || !hasValidMigrationDestination">
+              <span v-if="wa.migrating" class="spinner-border spinner-border-sm me-1"></span>
+              Start Migration
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- WHATSAPP PROFILE MODAL -->
+    <div class="modal fade" id="whatsappProfileModal" tabindex="-1" ref="profileModalRef">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <form @submit.prevent="submitProfile">
+            <div class="modal-header">
+              <h5 class="modal-title">{{ wp.form.id ? 'Edit Profile' : 'Add WhatsApp Profile' }}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row g-3">
+                <div class="col-12">
+                  <label class="form-label">Profile Name *</label>
+                  <input v-model="wp.form.name" type="text" class="form-control" placeholder="e.g. Iconis CRM" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">App ID *</label>
+                  <input v-model="wp.form.app_id" type="text" class="form-control" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">App Secret *</label>
+                  <input v-model="wp.form.app_secret" type="password" class="form-control" :required="!wp.form.id" :placeholder="wp.form.id ? 'Leave blank to keep existing' : ''" />
+                </div>
+                <div class="col-12">
+                  <label class="form-label">System User Access Token *</label>
+                  <input v-model="wp.form.access_token" type="password" class="form-control" :required="!wp.form.id" :placeholder="wp.form.id ? 'Leave blank to keep existing' : ''" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">WhatsApp Business Account ID *</label>
+                  <input v-model="wp.form.waba_id" type="text" class="form-control" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Phone Number ID *</label>
+                  <input v-model="wp.form.phone_number_id" type="text" class="form-control" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Display Phone Number</label>
+                  <input v-model="wp.form.display_phone_number" type="text" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Webhook Verify Token *</label>
+                  <input v-model="wp.form.webhook_verify_token" type="password" class="form-control" :required="!wp.form.id" :placeholder="wp.form.id ? 'Leave blank to keep existing' : ''" />
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary" :disabled="wp.saving">
+                <span v-if="wp.saving" class="spinner-border spinner-border-sm me-1"></span>
+                Save Profile
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
@@ -1186,6 +1381,24 @@ export default {
         phone_profile: null,
         daily_limit_summary: null,
       },
+      wp: {
+        loading: false,
+        saving: false,
+        activating: null,
+        profiles: [],
+        modal: null,
+        form: {
+          id: null,
+          name: '',
+          app_id: '',
+          app_secret: '',
+          access_token: '',
+          waba_id: '',
+          phone_number_id: '',
+          display_phone_number: '',
+          webhook_verify_token: '',
+        }
+      },
       wn: {
         loading: false,
         saving: false,
@@ -1207,8 +1420,16 @@ export default {
       },
       wa: {
         templates: [],
+        selected: [],
         loading: false,
         saving: false,
+        migrating: false,
+        migrateModal: null,
+        migrateForm: {
+          destinationType: 'profile',
+          profile_id: '',
+          custom_waba_id: '',
+        },
         viewOnly: false,
         viewingSid: null,
         filters: {
@@ -1231,6 +1452,7 @@ export default {
           header_text: '',
           footer_text: '',
           buttons: [],
+          variables: {},
         },
       },
       templateModal: null,
@@ -1243,8 +1465,11 @@ export default {
       this.templateModal = createManagedModal(this.$refs.templateModalRef);
       this.wn.addNumberModal = createManagedModal(this.$refs.addNumberModalRef);
       this.wn.verifyNumberModal = createManagedModal(this.$refs.verifyNumberModalRef);
+      this.wp.modal = createManagedModal(this.$refs.profileModalRef);
+      this.wa.migrateModal = createManagedModal(this.$refs.migrateModalRef);
       if (this.isSuperAdmin) {
         this.loadAdminSettings();
+        this.fetchWhatsappProfiles();
         this.loadWhatsappTemplates();
         this.fetchWhatsappNumbers();
       }
@@ -1254,6 +1479,8 @@ export default {
     disposeManagedModal(this.templateModal);
     disposeManagedModal(this.wn.addNumberModal);
     disposeManagedModal(this.wn.verifyNumberModal);
+    disposeManagedModal(this.wp.modal);
+    disposeManagedModal(this.wa.migrateModal);
   },
   watch: {
     selectedDepartments: {
@@ -1266,6 +1493,12 @@ export default {
     },
   },
   computed: {
+    hasValidMigrationDestination() {
+      if (this.wa.migrateForm.destinationType === 'profile') {
+        return !!this.wa.migrateForm.profile_id;
+      }
+      return !!this.wa.migrateForm.custom_waba_id;
+    },
     isSuperAdmin() {
       const stored = localStorage.getItem('nexus_user');
       if (!stored) return false;
@@ -1685,6 +1918,44 @@ export default {
           this.wa.loading = false;
         });
     },
+    toggleSelectAllTemplates(event) {
+      if (event.target.checked) {
+        this.wa.selected = this.filteredWhatsappTemplates.map(t => t.meta_id || t.sid);
+      } else {
+        this.wa.selected = [];
+      }
+    },
+    openMigrateModal() {
+      if (!this.wa.selected.length) return;
+      this.wa.migrateForm.custom_waba_id = '';
+      this.wa.migrateForm.profile_id = '';
+      this.wa.migrateForm.destinationType = 'profile';
+      this.wa.migrateModal?.show();
+    },
+    submitMigration() {
+      if (!this.hasValidMigrationDestination) return;
+
+      const destinationId = this.wa.migrateForm.destinationType === 'profile'
+        ? this.wa.migrateForm.profile_id
+        : this.wa.migrateForm.custom_waba_id;
+
+      this.wa.migrating = true;
+      axios.post('/api/whatsapp-templates/migrate', {
+        destination_waba_id: destinationId,
+        template_ids: this.wa.selected,
+      })
+      .then(res => {
+        notify.success('Templates migrated successfully.', 'Migration');
+        this.wa.migrateModal?.hide();
+        this.wa.selected = [];
+      })
+      .catch(err => {
+        notify.error('Migration failed: ' + (err.response?.data?.message || err.message), 'Migration');
+      })
+      .finally(() => {
+        this.wa.migrating = false;
+      });
+    },
     resetWhatsappTemplateFilters() {
       this.wa.filters = {
         search: '',
@@ -1715,6 +1986,108 @@ export default {
       this.wn.addNumberModal = null;
       this.wn.verifyNumberModal = null;
     },
+
+    // WhatsApp Profiles Methods
+    fetchWhatsappProfiles() {
+      this.wp.loading = true;
+      axios.get('/api/settings/whatsapp-accounts')
+        .then(res => {
+          this.wp.profiles = res.data || [];
+        })
+        .catch(err => {
+          notify.error('Failed to load WhatsApp profiles: ' + (err.response?.data?.message || err.message), 'Settings');
+        })
+        .finally(() => {
+          this.wp.loading = false;
+        });
+    },
+    openAddProfileModal() {
+      this.wp.form = {
+        id: null,
+        name: '',
+        app_id: '',
+        app_secret: '',
+        access_token: '',
+        waba_id: '',
+        phone_number_id: '',
+        display_phone_number: '',
+        webhook_verify_token: '',
+      };
+      this.wp.modal?.show();
+    },
+    editProfile(profile) {
+      this.wp.form = {
+        id: profile.id,
+        name: profile.name,
+        app_id: profile.app_id,
+        app_secret: '',
+        access_token: '',
+        waba_id: profile.waba_id,
+        phone_number_id: profile.phone_number_id,
+        display_phone_number: profile.display_phone_number,
+        webhook_verify_token: '',
+      };
+      this.wp.modal?.show();
+    },
+    submitProfile() {
+      this.wp.saving = true;
+      const request = this.wp.form.id
+        ? axios.put(`/api/settings/whatsapp-accounts/${this.wp.form.id}`, this.wp.form)
+        : axios.post('/api/settings/whatsapp-accounts', this.wp.form);
+
+      request
+        .then(() => {
+          notify.success(this.wp.form.id ? 'Profile updated.' : 'Profile created.', 'Settings');
+          this.wp.modal?.hide();
+          this.fetchWhatsappProfiles();
+        })
+        .catch(err => {
+          notify.error('Failed to save profile: ' + (err.response?.data?.message || err.message), 'Settings');
+        })
+        .finally(() => {
+          this.wp.saving = false;
+        });
+    },
+    deleteProfile(profile) {
+      this.$refs.confirmModal.open({
+        title: 'Delete Profile',
+        message: `Are you sure you want to delete the profile "${profile.name}"?`,
+        confirmLabel: 'Delete',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            await axios.delete(`/api/settings/whatsapp-accounts/${profile.id}`);
+            notify.success('Profile deleted.', 'Settings');
+            this.fetchWhatsappProfiles();
+          } catch (err) {
+            notify.error('Failed to delete profile: ' + (err.response?.data?.message || err.message), 'Settings');
+          }
+        },
+      });
+    },
+    activateProfile(profile) {
+      this.$refs.confirmModal.open({
+        title: 'Activate Profile',
+        message: `This will overwrite your current active Meta WhatsApp credentials with the credentials from "${profile.name}". Do you want to continue?`,
+        confirmLabel: 'Yes, Set Active',
+        confirmVariant: 'primary',
+        onConfirm: async () => {
+          this.wp.activating = profile.id;
+          try {
+            await axios.post(`/api/settings/whatsapp-accounts/${profile.id}/activate`);
+            notify.success(`Profile "${profile.name}" is now active.`, 'Settings');
+            this.loadAdminSettings(); // Reload global settings so UI updates
+            this.fetchWhatsappNumbers(); // Fetch numbers for new WABA
+          } catch (err) {
+            notify.error('Failed to activate profile: ' + (err.response?.data?.message || err.message), 'Settings');
+          } finally {
+            this.wp.activating = null;
+          }
+        },
+      });
+    },
+
+
     startCreate() {
       this.resetForm();
       this.wa.viewOnly = false;
@@ -1747,6 +2120,7 @@ export default {
             buttons: Array.isArray(template.buttons)
               ? template.buttons
               : (Array.isArray(t.buttons) ? t.buttons : []),
+            variables: template.variables || t.variables || {},
           };
           this.templateModal?.show();
         })

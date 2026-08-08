@@ -683,7 +683,7 @@
 
     <!-- Add Clients Modal (unchanged except already using VueMultiselect) -->
     <div class="modal fade" tabindex="-1" ref="addClientsModalRef">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-xl">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Add Clients to Campaign</h5>
@@ -866,7 +866,7 @@
 
     <!-- Add WhatsApp Template Modal -->
     <div class="modal fade" tabindex="-1" ref="addWhatsappModalRef">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width: 80vw; width: 1200px;">
             <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
@@ -876,6 +876,9 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+              <div class="row">
+                <div class="col-lg-8 col-md-7 border-end pe-4">
+
                 <p class="text-muted small">
                   Choose whether to send a WhatsApp template or a saved WhatsApp Flow. Leave recipients empty to target all campaign clients.
                 </p>
@@ -925,139 +928,6 @@
                     Templates are synced from your connected WhatsApp account.
                   </small>
                 </div>
-                <!-- Template preview -->
-                <div v-if="whatsappForm.mode === 'template' && currentWhatsappTemplate" class="mb-3">
-                  <div class="card border-success">
-                    <div class="card-header py-2 d-flex justify-content-between align-items-center">
-                      <strong>Template Preview</strong>
-                      <small class="text-muted">
-                        {{ currentWhatsappTemplate.language || 'N/A' }}
-                        <span v-if="currentWhatsappTemplate.category">
-                          · {{ currentWhatsappTemplate.category }}
-                        </span>
-                      </small>
-                    </div>
-                    <div class="card-body py-2">
-                      <div
-                        v-if="
-                          currentWhatsappTemplate.media_urls &&
-                          currentWhatsappTemplate.media_urls.length
-                        "
-                        class="mb-2 text-center"
-                      >
-                        <img
-                          v-if="currentWhatsappTemplate.header_format === 'IMAGE'"
-                          :src="currentWhatsappTemplate.media_urls[0]"
-                          alt="WhatsApp template media"
-                          class="img-fluid rounded border"
-                          style="max-height: 200px; object-fit: contain;"
-                        />
-                        <video
-                          v-else-if="currentWhatsappTemplate.header_format === 'VIDEO'"
-                          :src="currentWhatsappTemplate.media_urls[0]"
-                          class="img-fluid rounded border"
-                          style="max-height: 220px; object-fit: contain;"
-                          controls
-                          preload="metadata"
-                        ></video>
-                        <div
-                          v-else-if="currentWhatsappTemplate.header_format === 'DOCUMENT'"
-                          class="border rounded p-3 bg-light"
-                        >
-                          <i class="bi bi-file-earmark-arrow-down fs-4 d-block mb-2"></i>
-                          <a
-                            :href="currentWhatsappTemplate.media_urls[0]"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Open template document
-                          </a>
-                        </div>
-                      </div>
-
-                      <div v-if="currentWhatsappTemplate.header_text" class="small fw-semibold mb-2">
-                        {{ currentWhatsappTemplate.header_text }}
-                      </div>
-
-                      <pre class="mb-0 small">{{ currentWhatsappTemplate.body_preview }}</pre>
-
-                      <div v-if="currentWhatsappTemplate.footer_text" class="small text-muted mt-2">
-                        {{ currentWhatsappTemplate.footer_text }}
-                      </div>
-
-                      <div
-                        v-if="currentWhatsappTemplate.buttons && currentWhatsappTemplate.buttons.length"
-                        class="mt-3 d-flex gap-2 flex-wrap"
-                      >
-                        <span
-                          v-for="(button, idx) in currentWhatsappTemplate.buttons"
-                          :key="idx"
-                          class="badge bg-light text-dark border"
-                        >
-                          {{ button.text || button.type || 'Button' }}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Template variables mapping -->
-                <div v-if="whatsappForm.mode === 'template' && currentWhatsappTemplate && Object.keys(currentWhatsappTemplate.variables || {}).length > 0" class="mb-3">
-                  <label class="form-label d-flex align-items-center">
-                    Template Variables
-                    <span class="badge bg-secondary ms-2" title="Map these template variables to client data">
-                      {{ Object.keys(currentWhatsappTemplate.variables).length }} Variable(s)
-                    </span>
-                  </label>
-                  <div class="card bg-light shadow-sm border-0 rounded-3">
-                    <div class="card-body p-3">
-                      <div class="row g-3">
-                        <div
-                          v-for="(val, key) in currentWhatsappTemplate.variables"
-                          :key="key"
-                          class="col-12"
-                        >
-                          <div class="d-flex align-items-start gap-2">
-                            <div class="pt-1" style="min-width: 50px;">
-                              <span class="badge bg-primary bg-gradient rounded-pill px-2 py-1 shadow-sm w-100 text-center">
-                                {{ '{' + '{' + key + '}' + '}' }}
-                              </span>
-                            </div>
-                            <div class="flex-grow-1">
-                              <select
-                                v-model="getTemplateVariable(key).source"
-                                class="form-select form-select-sm shadow-sm border-0"
-                                style="max-width: 320px; background-color: #ffffff;"
-                              >
-                                <option value="">-- Select mapping --</option>
-                                <option value="client.name">Client Name</option>
-                                <option value="client.phone">Client Phone</option>
-                                <option value="client.email">Client Email</option>
-                                <option value="client.id_number">Client ID Number</option>
-                                <option value="client.account_number">Client Account Number</option>
-                                <option value="client.bank_name">Client Bank</option>
-                                <option value="client.branch_code">Client Branch Code</option>
-                                <option value="campaign.name">Campaign Name</option>
-                                <option value="campaign.status">Campaign Status</option>
-                                <option value="custom">Custom Value...</option>
-                              </select>
-                              <div v-if="getTemplateVariable(key).source === 'custom'" class="mt-2 position-relative" style="max-width: 320px;">
-                                <input
-                                  type="text"
-                                  v-model="getTemplateVariable(key).custom_value"
-                                  class="form-control form-control-sm border-primary shadow-sm pe-4"
-                                  :placeholder="'Enter static text for {' + '{' + key + '}' + '}'"
-                                />
-                                <i class="bi bi-pencil-square position-absolute top-50 end-0 translate-middle-y me-2 text-primary" style="pointer-events: none;"></i>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <!-- Open full preview / configure page -->
                 <div class="mb-3" v-if="whatsappForm.mode === 'template'">
                   <button
@@ -1205,7 +1075,158 @@
                 </div>
                 </div>
 
-            </div>
+            
+                </div>
+                <div class="col-lg-4 col-md-5 ps-4">
+<!-- Template preview -->
+                <div v-if="whatsappForm.mode === 'template' && currentWhatsappTemplate" class="mb-3">
+                  <div class="card border-success shadow-sm">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center bg-white border-bottom-0">
+                      <strong>Template Preview</strong>
+                      <div>
+                        <div class="form-check form-switch d-inline-block mb-0">
+                          <input class="form-check-input" type="checkbox" id="sampleDataToggle" v-model="whatsappForm.showSamplePreview">
+                          <label class="form-check-label small text-muted ms-1" for="sampleDataToggle">Preview with sample data</label>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="card-body p-4" style="background-color: #e5ddd5; position: relative;">
+                      <div style="opacity: 0.05; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cGF0aCBkPSJNMCAwaDQwMHY0MDBIMHoiIGZpbGw9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjM1IiBmaWxsPSIjMDAwIi8+PC9zdmc+'); background-size: 200px; pointer-events: none;"></div>
+                      
+                      <div class="bg-white rounded position-relative shadow-sm" style="max-width: 85%; border-top-left-radius: 0 !important; padding: 0.5rem; margin-left: 10px; z-index: 1;">
+                        <svg viewBox="0 0 8 13" width="8" height="13" style="position: absolute; top: 0; left: -8px; color: white;">
+                          <path opacity="1" fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"></path>
+                        </svg>
+
+                        <div
+                          v-if="
+                            currentWhatsappTemplate.media_urls &&
+                            currentWhatsappTemplate.media_urls.length
+                          "
+                          class="mb-2"
+                        >
+                          <img
+                            v-if="currentWhatsappTemplate.header_format === 'IMAGE'"
+                            :src="currentWhatsappTemplate.media_urls[0]"
+                            alt="WhatsApp template media"
+                            class="img-fluid rounded"
+                            style="width: 100%; object-fit: cover;"
+                          />
+                          <video
+                            v-else-if="currentWhatsappTemplate.header_format === 'VIDEO'"
+                            :src="currentWhatsappTemplate.media_urls[0]"
+                            class="img-fluid rounded"
+                            style="width: 100%; object-fit: cover;"
+                            controls
+                            preload="metadata"
+                          ></video>
+                          <div
+                            v-else-if="currentWhatsappTemplate.header_format === 'DOCUMENT'"
+                            class="border rounded p-3 bg-light text-center"
+                          >
+                            <i class="bi bi-file-earmark-arrow-down fs-3 d-block text-secondary"></i>
+                          </div>
+                        </div>
+
+                        <div v-if="currentWhatsappTemplate.header_text" class="fw-bold text-dark mb-1" style="font-size: 0.95rem; line-height: 1.3;">
+                          {{ previewHeaderText }}
+                        </div>
+
+                        <div class="text-dark" style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">{{ previewBodyText }}<span class="d-inline-block" style="width: 40px;"></span></div>
+                        
+                        <div class="d-flex justify-content-between align-items-end mt-1">
+                            <div class="text-muted" style="font-size: 0.75rem;">
+                                {{ currentWhatsappTemplate.footer_text || '' }}
+                            </div>
+                            <div class="text-muted text-end" style="font-size: 0.65rem; margin-top: -15px; margin-right: 4px;">
+                                09:31
+                            </div>
+                        </div>
+
+                      </div>
+                      
+                      <div
+                        v-if="currentWhatsappTemplate.buttons && currentWhatsappTemplate.buttons.length"
+                        class="mt-1 d-flex flex-column gap-1"
+                        style="max-width: 85%; margin-left: 10px; z-index: 1; position: relative;"
+                      >
+                        <div
+                          v-for="(button, idx) in currentWhatsappTemplate.buttons"
+                          :key="idx"
+                          class="bg-white rounded shadow-sm text-center py-2 fw-semibold cursor-pointer hover-shadow transition"
+                          style="color: #00a884; font-size: 0.9rem; border: 1px solid rgba(0,0,0,0.05);"
+                        >
+                          <i v-if="button.type === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
+                          <i v-if="button.type === 'URL'" class="bi bi-box-arrow-up-right me-1"></i>
+                          <i v-if="button.type === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
+                          {{ button.text || 'Button' }}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+<!-- Template variables mapping -->
+                <div v-if="whatsappForm.mode === 'template' && currentWhatsappTemplate && Object.keys(currentWhatsappTemplate.variables || {}).length > 0" class="mb-3">
+                  <label class="form-label d-flex align-items-center">
+                    Template Variables
+                    <span class="badge bg-secondary ms-2" title="Map these template variables to client data">
+                      {{ Object.keys(currentWhatsappTemplate.variables).length }} Variable(s)
+                    </span>
+                  </label>
+                  <div class="card bg-light shadow-sm border-0 rounded-3">
+                    <div class="card-body p-3">
+                      <div class="row g-3">
+                        <div
+                          v-for="(val, key) in currentWhatsappTemplate.variables"
+                          :key="key"
+                          class="col-12"
+                        >
+                          <div class="d-flex align-items-start gap-2">
+                            <div class="pt-1" style="min-width: 50px;">
+                              <span class="badge bg-primary bg-gradient rounded-pill px-2 py-1 shadow-sm w-100 text-center">
+                                {{ '{' + '{' + key + '}' + '}' }}
+                              </span>
+                            </div>
+                            <div class="flex-grow-1">
+                              <select
+                                v-model="getTemplateVariable(key).source"
+                                class="form-select form-select-sm shadow-sm border-0"
+                                style="max-width: 320px; background-color: #ffffff;"
+                              >
+                                <option value="">-- Select mapping --</option>
+                                <option value="client.name">Client Name</option>
+                                <option value="client.phone">Client Phone</option>
+                                <option value="client.email">Client Email</option>
+                                <option value="client.id_number">Client ID Number</option>
+                                <option value="client.account_number">Client Account Number</option>
+                                <option value="client.bank_name">Client Bank</option>
+                                <option value="client.branch_code">Client Branch Code</option>
+                                <option value="campaign.name">Campaign Name</option>
+                                <option value="campaign.status">Campaign Status</option>
+                                <option value="custom">Custom Value...</option>
+                              </select>
+                              <div v-if="getTemplateVariable(key).source === 'custom'" class="mt-2 position-relative" style="max-width: 320px;">
+                                <input
+                                  type="text"
+                                  v-model="getTemplateVariable(key).custom_value"
+                                  class="form-control form-control-sm border-primary shadow-sm pe-4"
+                                  :placeholder="'Enter static text for {' + '{' + key + '}' + '}'"
+                                />
+                                <i class="bi bi-pencil-square position-absolute top-50 end-0 translate-middle-y me-2 text-primary" style="pointer-events: none;"></i>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                
+                </div>
+              </div>
+</div>
             <div class="modal-footer">
                 <button
                 type="button"
@@ -1642,6 +1663,7 @@ export default {
         selectedClients: [],
         trackResponses: false,
         enableLiveChat: false,
+        showSamplePreview: false,
         sending: false,
       },
 
@@ -1676,6 +1698,24 @@ export default {
 
       const role = JSON.parse(stored)?.role;
       return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
+    },
+    previewHeaderText() {
+        if (!this.currentWhatsappTemplate || !this.currentWhatsappTemplate.header_text) return '';
+        let text = this.currentWhatsappTemplate.header_text;
+        if (!this.whatsappForm.showSamplePreview) return text;
+        return text.replace(/{{(\d+)}}/g, (match, p1) => {
+            const key = `header_${p1}`;
+            return this.resolveSampleVariable(key);
+        });
+    },
+    previewBodyText() {
+        if (!this.currentWhatsappTemplate || !this.currentWhatsappTemplate.body_preview) return '';
+        let text = this.currentWhatsappTemplate.body_preview;
+        if (!this.whatsappForm.showSamplePreview) return text;
+        return text.replace(/{{(\d+)}}/g, (match, p1) => {
+            const key = `body_${p1}`;
+            return this.resolveSampleVariable(key);
+        });
     },
     goToWhatsappTemplatePreview() {
         if (!this.whatsappForm.templateId) {
@@ -1863,6 +1903,24 @@ export default {
         this.whatsappForm.templateVariables[key] = { source: '', custom_value: '' };
       }
       return this.whatsappForm.templateVariables[key];
+    },
+    resolveSampleVariable(key) {
+      const mapping = this.whatsappForm.templateVariables[key];
+      if (!mapping || !mapping.source) return `{{${key}}}`;
+      
+      const source = mapping.source;
+      if (source === 'custom') return mapping.custom_value || `{{${key}}}`;
+      
+      const client = this.clients[0];
+      if (!client) return `{{${key}}}`;
+      
+      const parts = source.split('.');
+      if (parts[0] === 'client') {
+          return client[parts[1]] || `{{${key}}}`;
+      } else if (parts[0] === 'campaign') {
+          return this.campaign ? this.campaign[parts[1]] : `{{${key}}}`;
+      }
+      return `{{${key}}}`;
     },
     statusBadgeClass(status) {
       switch (status) {

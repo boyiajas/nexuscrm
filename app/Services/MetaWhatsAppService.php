@@ -325,22 +325,34 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         preg_match_all('/{{\d+}}/', $exampleBody, $matches);
         $placeholderCount = count($matches[0] ?? []);
 
-        $parameters = [];
+        $headerParams = [];
+        $bodyParams = [];
+
         if (!empty($templateVariables)) {
-            foreach (array_values($templateVariables) as $value) {
-                $parameters[] = [
-                    'type' => 'text',
-                    'text' => (string) $value,
-                ];
+            $isAssociative = array_keys($templateVariables) !== range(0, count($templateVariables) - 1);
+            if ($isAssociative) {
+                foreach ($templateVariables as $key => $value) {
+                    if (str_starts_with((string)$key, 'header_')) {
+                        $headerParams[] = ['type' => 'text', 'text' => (string) $value];
+                    } elseif (str_starts_with((string)$key, 'body_')) {
+                        $bodyParams[] = ['type' => 'text', 'text' => (string) $value];
+                    } else {
+                        $bodyParams[] = ['type' => 'text', 'text' => (string) $value];
+                    }
+                }
+            } else {
+                foreach (array_values($templateVariables) as $value) {
+                    $bodyParams[] = ['type' => 'text', 'text' => (string) $value];
+                }
             }
         } elseif ($placeholderCount === 1) {
-            $parameters[] = ['type' => 'text', 'text' => $subject !== '' ? $subject : $message];
+            $bodyParams[] = ['type' => 'text', 'text' => $subject !== '' ? $subject : $message];
         } elseif ($placeholderCount >= 2) {
-            $parameters[] = ['type' => 'text', 'text' => $subject];
-            $parameters[] = ['type' => 'text', 'text' => $message];
+            $bodyParams[] = ['type' => 'text', 'text' => $subject];
+            $bodyParams[] = ['type' => 'text', 'text' => $message];
 
             for ($i = 2; $i < $placeholderCount; $i++) {
-                $parameters[] = ['type' => 'text', 'text' => ''];
+                $bodyParams[] = ['type' => 'text', 'text' => ''];
             }
         }
 
@@ -353,14 +365,26 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                 'language' => [
                     'code' => $template['language'] ?? 'en_US',
                 ],
+                'components' => [],
             ],
         ];
 
-        if (!empty($parameters)) {
-            $payload['template']['components'] = [[
+        if (!empty($headerParams)) {
+            $payload['template']['components'][] = [
+                'type' => 'header',
+                'parameters' => $headerParams,
+            ];
+        }
+
+        if (!empty($bodyParams)) {
+            $payload['template']['components'][] = [
                 'type' => 'body',
-                'parameters' => $parameters,
-            ]];
+                'parameters' => $bodyParams,
+            ];
+        }
+
+        if (empty($payload['template']['components'])) {
+            unset($payload['template']['components']);
         }
 
         $senderContext = $this->resolveSenderContext($overrideFrom);
@@ -424,7 +448,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         $nextPath = "{$this->businessAccountId}/message_templates";
         $query = [
             'limit' => min(max($pageSize, 1), 100),
-            'fields' => 'name,status,language,category,components',
+            'fields' => 'id,name,status,language,category,components',
         ];
 
         while ($nextPath) {
@@ -559,6 +583,19 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ];
     }
 
+    public function migrateTemplates(string $destinationWabaId, array $templateIds): array
+    {
+        $sourceWabaId = $this->businessAccountId;
+        if (empty($sourceWabaId)) {
+            throw new \RuntimeException('Source WABA ID is missing in active Meta config.');
+        }
+
+        return $this->post("{$destinationWabaId}/migrate_message_templates", [
+            'source_waba_id' => $sourceWabaId,
+            'template_ids' => array_values($templateIds),
+        ]);
+    }
+
     protected function bodyComponent(array $components): array
     {
         return collect($components)
@@ -595,10 +632,15 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         $footer = $this->footerComponent($components);
         $buttons = $this->buttonsComponent($components);
 
-        preg_match_all('/{{(\d+)}}/', (string) ($body['text'] ?? ''), $matches);
         $variables = [];
-        foreach ($matches[1] ?? [] as $index) {
-            $variables[(string) $index] = 'Variable ' . $index;
+        preg_match_all('/{{(\d+)}}/', (string) ($header['text'] ?? ''), $headerMatches);
+        foreach ($headerMatches[1] ?? [] as $index) {
+            $variables['header_' . $index] = 'Header Variable ' . $index;
+        }
+
+        preg_match_all('/{{(\d+)}}/', (string) ($body['text'] ?? ''), $bodyMatches);
+        foreach ($bodyMatches[1] ?? [] as $index) {
+            $variables['body_' . $index] = 'Body Variable ' . $index;
         }
 
         $headerFormat = strtoupper((string) ($header['format'] ?? ''));
@@ -608,6 +650,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         }
 
         return [
+            'meta_id' => $template['id'] ?? null,
             'sid' => $template['name'],
             'friendly_name' => $template['name'],
             'language' => $template['language'] ?? null,

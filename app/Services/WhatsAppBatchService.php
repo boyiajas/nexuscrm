@@ -305,7 +305,14 @@ class WhatsAppBatchService
         }
 
         $keys = array_map('strval', array_keys($templateVariables));
-        usort($keys, fn (string $a, string $b) => (int) $a <=> (int) $b);
+        usort($keys, function ($a, $b) {
+            $prefixA = preg_replace('/\d+/', '', $a);
+            $prefixB = preg_replace('/\d+/', '', $b);
+            if ($prefixA === $prefixB) {
+                return (int) preg_replace('/\D+/', '', $a) <=> (int) preg_replace('/\D+/', '', $b);
+            }
+            return strcmp($prefixA, $prefixB);
+        });
 
         $values = [];
         foreach ($keys as $key) {
@@ -313,7 +320,7 @@ class WhatsAppBatchService
             $source = is_array($entry) ? ($entry['source'] ?? null) : $entry;
             $customValue = is_array($entry) ? ($entry['custom_value'] ?? null) : null;
 
-            $values[] = match ($source) {
+            $values[$key] = match ($source) {
                 'client.name' => (string) ($client?->name ?? ''),
                 'client.phone' => (string) ($this->resolveClientPhone($client) ?? ''),
                 'client.email' => (string) ($client?->email ?? ''),
