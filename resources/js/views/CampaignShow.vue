@@ -568,29 +568,24 @@
                         <i class="bi bi-file-earmark-text text-muted"></i> Template Details
                       </div>
 
-                      <div class="mb-3">
+                      <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem; letter-spacing: 0.05em;">TEMPLATE NAME</div>
-                        <div class="fw-bold text-dark fs-6 mt-1">{{ recipientModal.meta.template_name || 'handed_over_discount' }}</div>
+                        <div class="fw-bold text-dark fs-6">{{ recipientModal.meta.template_name || 'N/A' }}</div>
                       </div>
 
-                      <div class="row g-2 mb-3">
-                        <div class="col-6">
-                          <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem;">CHANNEL</div>
-                          <div class="small fw-semibold text-dark d-flex align-items-center gap-1 mt-1">
-                            <i class="bi bi-whatsapp text-success"></i> WhatsApp API
-                          </div>
-                        </div>
-                        <div class="col-6">
-                          <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem;">SCHEDULED FOR</div>
-                          <div class="small fw-semibold text-dark mt-1">{{ recipientModal.meta.scheduled_at || 'Immediate' }}</div>
+                      <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem;">CHANNEL</div>
+                        <div class="small fw-semibold text-dark d-flex align-items-center gap-1">
+                          <i v-if="recipientModal.channel === 'WhatsApp'" class="bi bi-whatsapp text-success"></i>
+                          <i v-else-if="recipientModal.channel === 'Email'" class="bi bi-envelope-paper text-primary"></i>
+                          <i v-else-if="recipientModal.channel === 'SMS'" class="bi bi-chat-left-text text-info"></i>
+                          {{ recipientModal.channel || 'Unknown' }}
                         </div>
                       </div>
 
-                      <div>
-                        <div class="text-muted small text-uppercase fw-bold mb-1" style="font-size: 0.68rem;">MESSAGE PREVIEW</div>
-                        <div class="p-2 rounded border bg-light text-secondary small fst-italic" style="font-size: 0.78rem; line-height: 1.35;">
-                          "Hi {{1}}, this is a notice regarding your account. We are offering a discount..."
-                        </div>
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem;">SCHEDULED FOR</div>
+                        <div class="small fw-semibold text-dark">{{ recipientModal.meta.scheduled_at || 'Immediate' }}</div>
                       </div>
                     </div>
                   </div>
@@ -604,7 +599,7 @@
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-list-task me-1"></i> TOTAL</div>
                     </div>
-                    <div class="stat-card-number mt-3">{{ recipientSummaryCards[0]?.value || (recipientModal.rows ? recipientModal.rows.length : 2) }}</div>
+                    <div class="stat-card-number mt-3">{{ recipientModal.summary.total || 0 }}</div>
                   </div>
                   <i class="bi bi-people-fill position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
                 </div>
@@ -617,8 +612,8 @@
                       <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED</div>
                     </div>
                     <div>
-                      <div class="stat-card-number mt-3">0</div>
-                      <small class="text-muted" style="font-size: 0.72rem;">0% completion</small>
+                      <div class="stat-card-number mt-3">{{ recipientModal.summary.delivered || 0 }}</div>
+                      <small class="text-muted" style="font-size: 0.72rem;">{{ recipientModal.summary.total ? ((recipientModal.summary.delivered || 0) / recipientModal.summary.total * 100).toFixed(0) : 0 }}% completion</small>
                     </div>
                   </div>
                   <i class="bi bi-check2-all position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
@@ -632,8 +627,8 @@
                       <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> PENDING</div>
                     </div>
                     <div>
-                      <div class="stat-card-number mt-3">{{ (recipientModal.rows ? recipientModal.rows.length : 2) }}</div>
-                      <small class="text-muted" style="font-size: 0.72rem;">100% remaining</small>
+                      <div class="stat-card-number mt-3">{{ recipientModal.summary.pending || 0 }}</div>
+                      <small class="text-muted" style="font-size: 0.72rem;">{{ recipientModal.summary.total ? ((recipientModal.summary.pending || 0) / recipientModal.summary.total * 100).toFixed(0) : 0 }}% remaining</small>
                     </div>
                   </div>
                   <i class="bi bi-three-dots position-absolute text-primary" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
@@ -647,8 +642,8 @@
                       <div class="text-danger small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-exclamation-circle me-1"></i> FAILED</div>
                     </div>
                     <div>
-                      <div class="stat-card-number mt-3">0</div>
-                      <small class="text-muted" style="font-size: 0.72rem;">0% error rate</small>
+                      <div class="stat-card-number mt-3">{{ recipientModal.summary.failed || 0 }}</div>
+                      <small class="text-muted" style="font-size: 0.72rem;">{{ recipientModal.summary.total ? ((recipientModal.summary.failed || 0) / recipientModal.summary.total * 100).toFixed(0) : 0 }}% error rate</small>
                     </div>
                   </div>
                   <i class="bi bi-exclamation-circle position-absolute text-danger" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
