@@ -52,13 +52,14 @@
       </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading export requests...">
-        <table class="table table-striped table-hover mb-0 align-middle">
-          <thead>
-            <tr>
-              <th>#</th>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th class="ps-4">#</th>
               <th>Dataset</th>
               <th>Bank</th>
               <th>Requested By</th>
@@ -66,12 +67,12 @@
               <th>Scope</th>
               <th>Created</th>
               <th>Justification</th>
-              <th class="text-end">Actions</th>
+              <th class="text-end pe-4">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in requests" :key="item.id">
-              <td>#{{ item.id }}</td>
+              <td class="ps-4 py-3">#{{ item.id }}</td>
               <td>
                 <div class="fw-semibold">{{ item.dataset_label }}</div>
                 <small class="text-muted" v-if="item.target_type && item.target_id">
@@ -101,17 +102,17 @@
                   Rejected: {{ item.rejection_reason }}
                 </small>
               </td>
-              <td class="text-end">
+              <td class="text-end pe-4">
                 <div class="btn-group btn-group-sm">
                   <button
-                    class="btn btn-outline-secondary"
+                    class="btn btn-light text-secondary border-0 p-1 px-2"
                     @click="openDetail(item)"
                   >
                     <i class="bi bi-eye"></i>
                   </button>
                   <button
                     v-if="item.download_url"
-                    class="btn btn-outline-success"
+                    class="btn btn-light text-success border-0 p-1 px-2"
                     @click="download(item)"
                     :disabled="rowBusyId === item.id"
                   >
@@ -120,7 +121,7 @@
                   </button>
                   <button
                     v-if="canApprove && item.status === 'pending'"
-                    class="btn btn-outline-primary"
+                    class="btn btn-light text-primary border-0 p-1 px-2"
                     @click="approve(item)"
                     :disabled="rowBusyId === item.id"
                   >
@@ -128,7 +129,7 @@
                   </button>
                   <button
                     v-if="canApprove && item.status === 'pending'"
-                    class="btn btn-outline-danger"
+                    class="btn btn-light text-danger border-0 p-1 px-2"
                     @click="openDetail(item)"
                     :disabled="rowBusyId === item.id"
                   >
@@ -138,10 +139,11 @@
               </td>
             </tr>
             <tr v-if="!loading && requests.length === 0">
-              <td colspan="9" class="text-center text-muted py-4">No export requests found.</td>
+              <td colspan="9" class="text-center text-muted py-5">No export requests found.</td>
             </tr>
           </tbody>
         </table>
+        </div>
         </TableLoadingWrapper>
       </div>
 

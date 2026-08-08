@@ -1,308 +1,309 @@
 <template>
   <div>
-    <h2 class="h4 mb-3" style="background-color:#0087ff0f"><i class="bi bi-gear me-2"></i>Settings</h2>
+    <div class="fade-in-up">
+    <!-- Header -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+      <div>
+        <h1 class="h3 fw-bold text-dark mb-1">Account Settings</h1>
+        <p class="text-muted small mb-0">Manage your profile, security, and preference configurations.</p>
+      </div>
 
-    <ul class="nav nav-tabs mb-3" id="settingsTabs" role="tablist">
+      <div>
+        <span class="badge bg-success-subtle text-success border border-success px-3 py-2 fw-bold" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+          SUPER_ADMIN
+        </span>
+      </div>
+    </div>
+
+    <!-- Main Navigation Tabs -->
+    <ul class="nav nav-pills gap-1 mb-4 p-1 rounded-3 bg-white border shadow-sm flex-wrap" id="settingsTabs" role="tablist">
       <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="account-tab" data-bs-toggle="tab" data-bs-target="#account" type="button">
-          User Account
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button">
-          Security & MFA
-        </button>
-      </li>
-      <li class="nav-item" role="presentation">
-        <button class="nav-link" id="preferences-tab" data-bs-toggle="tab" data-bs-target="#preferences" type="button">
-          Preferences
+        <button class="nav-link active px-3 py-2 fw-semibold" id="account-tab" data-bs-toggle="tab" data-bs-target="#account" type="button">
+          <i class="bi bi-person me-1"></i> User Account
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
-          System Settings
+        <button class="nav-link px-3 py-2 fw-semibold" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
+          <i class="bi bi-cpu me-1"></i> System Settings
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link" id="meta-tab" data-bs-toggle="tab" data-bs-target="#meta" type="button">
-          Meta WhatsApp
+        <button class="nav-link px-3 py-2 fw-semibold" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
+          <i class="bi bi-hdd-network-fill me-1"></i> System
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link" id="whatsapp-profiles-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-profiles" type="button">
-          WhatsApp Profiles
+        <button class="nav-link px-3 py-2 fw-semibold" id="meta-tab" data-bs-toggle="tab" data-bs-target="#meta" type="button">
+          <i class="bi bi-whatsapp me-1"></i> Meta WhatsApp
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link" id="whatsapp-numbers-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-numbers" type="button">
-          WhatsApp Numbers
+        <button class="nav-link px-3 py-2 fw-semibold" id="whatsapp-profiles-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-profiles" type="button">
+          <i class="bi bi-person-lines-fill me-1"></i> WABA Profiles
         </button>
       </li>
       <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link" id="whatsapp-templates-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-templates" type="button">
-          WhatsApp Templates
+        <button class="nav-link px-3 py-2 fw-semibold" id="whatsapp-numbers-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-numbers" type="button">
+          <i class="bi bi-telephone-fill me-1"></i> WABA Numbers
+        </button>
+      </li>
+      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
+        <button class="nav-link px-3 py-2 fw-semibold" id="whatsapp-templates-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-templates" type="button">
+          <i class="bi bi-file-earmark-text-fill me-1"></i> WABA Templates
         </button>
       </li>
     </ul>
 
-    <div class="tab-content p-3 border bg-white rounded shadow-sm">
-
-      <!-- ACCOUNT TAB -->
+    <div class="tab-content">
+      <!-- ACCOUNT TAB (Mockup 5 Two-Column Layout) -->
       <div class="tab-pane fade show active" id="account">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h5 class="mb-0">User Account Information</h5>
-          <div class="form-check form-switch">
-            <label class="form-check-label me-2">Active user</label>
-            <input class="form-check-input" type="checkbox" v-model="form.active">
+        <div class="row g-4">
+          <!-- Left Column (Sub-navigation) -->
+          <div class="col-lg-3">
+            <div class="card border shadow-sm p-2">
+              <div class="nav flex-column nav-pills gap-1">
+                <button 
+                  class="nav-link text-start fw-semibold py-2 px-3 d-flex align-items-center gap-2" 
+                  :class="activeAccountTab === 'personal' ? 'active' : 'text-secondary'" 
+                  @click="activeAccountTab = 'personal'"
+                >
+                  <i class="bi bi-person"></i> Personal Info
+                </button>
+                <button 
+                  class="nav-link text-start fw-semibold py-2 px-3 d-flex align-items-center gap-2" 
+                  :class="activeAccountTab === 'security' ? 'active' : 'text-secondary'" 
+                  @click="activeAccountTab = 'security'"
+                >
+                  <i class="bi bi-shield-lock"></i> Security
+                </button>
+                <button 
+                  class="nav-link text-start fw-semibold py-2 px-3 d-flex align-items-center gap-2" 
+                  :class="activeAccountTab === 'preferences' ? 'active' : 'text-secondary'" 
+                  @click="activeAccountTab = 'preferences'"
+                >
+                  <i class="bi bi-sliders"></i> Preferences
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-        <small class="text-muted d-block mb-3">Basic information and working information for this user.</small>
 
-        <div class="account-layout">
-            <form @submit.prevent="updateAccount">
-              <div class="row g-3 account-row">
-                <div class="col-md-6">
-                  <div class="card h-100 account-card">
-                    <div class="card-body">
-                      <h6 class="mb-3">Contact Information</h6>
-                      <div class="mb-3 d-flex gap-3 align-items-center">
-                        <div class="avatar-placeholder text-center border rounded p-3 text-muted small">
-                          <i class="bi bi-person fs-2 d-block"></i>
-                          Upload available after creating the user.
-                        </div>
-                      </div>
-                      <div class="row g-2 mb-2">
-                        <div class="col-md-5">
-                          <label class="form-label">First Name *</label>
-                          <input v-model="form.first_name" type="text" class="form-control" required />
-                        </div>
-                        <div class="col-md-2">
-                          <label class="form-label">M.I.</label>
-                          <input v-model="form.middle_initial" type="text" class="form-control" maxlength="1" />
-                        </div>
-                        <div class="col-md-5">
-                          <label class="form-label">Last Name *</label>
-                          <input v-model="form.last_name" type="text" class="form-control" required />
-                        </div>
-                      </div>
-
-                      <div class="row g-3">
-                        <div class="col-md-12">
-                          <label class="form-label">Username</label>
-                          <input v-model="form.username" type="text" class="form-control" />
-                        </div>
-                        <div class="col-md-12">
-                          <label class="form-label">Email *</label>
-                          <input v-model="form.email" type="email" class="form-control" required />
-                        </div>
-                        <div class="col-md-6">
-                          <label class="form-label">Primary Phone Number</label>
-                          <input v-model="form.primary_phone" type="text" class="form-control" placeholder="(xxx) xxx-xxxx" />
-                        </div>
-                        <div class="col-md-6">
-                          <label class="form-label">Secondary Phone Number</label>
-                          <input v-model="form.secondary_phone" type="text" class="form-control" placeholder="(xxx) xxx-xxxx" />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+          <!-- Right Column (Profile Header & Form Cards) -->
+          <div class="col-lg-9">
+            <!-- User Profile Banner Card -->
+            <div class="card border shadow-sm mb-4" v-if="activeAccountTab === 'personal'">
+              <div class="card-body p-4 d-flex align-items-center gap-4">
+                <img
+                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop"
+                  alt="Profile Avatar"
+                  class="rounded-circle border"
+                  style="width: 72px; height: 72px; object-fit: cover;"
+                />
+                <div>
+                  <h2 class="h5 fw-bold text-dark mb-1">{{ form.first_name }} {{ form.last_name }}</h2>
+                  <div class="text-muted small mb-2">{{ form.email }}</div>
+                  <span class="badge bg-light text-dark border">
+                    <i class="bi bi-building me-1 text-primary"></i> Standard Bank
+                  </span>
                 </div>
+              </div>
+            </div>
 
-                <div class="col-md-6">
-                  <div class="card h-100 account-card">
-                    <div class="card-body">
-                      <h6 class="mb-3">Working Information</h6>
-                      <div class="row g-3">
-                        <div class="col-md-12">
-                          <label class="form-label">Departments</label>
-                          <vue-multiselect
-                            v-model="selectedDepartments"
-                            :options="departmentOptions"
-                            :multiple="true"
-                            :close-on-select="false"
-                            :clear-on-select="false"
-                            :searchable="true"
-                            :allow-empty="true"
-                            :disabled="isStaffRole"
-                            placeholder="Select one or more departments"
-                            label="name"
-                            track-by="id"
-                            class="mb-2"
-                          >
-                            <template #noResult>No departments found</template>
-                            <template #noOptions>No departments available</template>
-                          </vue-multiselect>
-                          <small class="text-muted d-block mt-1" v-if="isStaffRole">
-                            Users with the STAFF role cannot change their department assignment.
-                          </small>
-                          <small class="text-muted d-block mt-1" v-else>
-                            Hold Ctrl or Cmd to select multiple departments. The first selected department remains the primary department for legacy scoping.
-                          </small>
-                        </div>
-                        <div class="col-md-6">
-                          <label class="form-label">Role</label>
-                          <input v-model="form.role" type="text" class="form-control" disabled />
-                        </div>
-                        <div class="col-md-6">
-                          <label class="form-label">Inactivity Timeout *</label>
-                          <select v-model="form.inactivity_timeout" class="form-select">
-                            <option value="">Select time...</option>
-                            <option value="5">5 minutes</option>
-                            <option value="10">10 minutes</option>
-                            <option value="15">15 minutes</option>
-                            <option value="30">30 minutes</option>
-                          </select>
-                          <small class="text-muted">HIPAA recommends a 10 minute timeout.</small>
-                        </div>
-                        <div class="col-md-6">
-                          <label class="form-label d-block">Is Provider</label>
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" v-model="form.is_provider">
-                            <label class="form-check-label">No / Yes</label>
-                          </div>
-                        </div>
-                        <div class="col-md-6">
-                          <label class="form-label d-block">Time clock user</label>
-                          <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" v-model="form.is_time_clock_user">
-                            <label class="form-check-label">No / Yes</label>
-                          </div>
-                        </div>
-                      </div>
+            <!-- Form -->
+            <form @submit.prevent="updateAccount" v-if="activeAccountTab === 'personal'">
+              <!-- Personal Information Card -->
+              <div class="card border shadow-sm mb-4">
+                <div class="card-header bg-white py-3 px-4 border-bottom">
+                  <h3 class="h6 mb-0 fw-bold text-dark">Personal Information</h3>
+                </div>
+                <div class="card-body p-4">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label small fw-bold text-secondary">First Name *</label>
+                      <input v-model="form.first_name" type="text" class="form-control" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small fw-bold text-secondary">Last Name *</label>
+                      <input v-model="form.last_name" type="text" class="form-control" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small fw-bold text-secondary">Email Address *</label>
+                      <input v-model="form.email" type="email" class="form-control" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small fw-bold text-secondary">Primary Phone</label>
+                      <input v-model="form.primary_phone" type="text" class="form-control" placeholder="+267 71 234 567" />
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="text-end mt-3">
-                <button class="btn btn-primary">Save</button>
-                <button type="button" class="btn btn-outline-secondary ms-2" @click="loadUser">Cancel</button>
+              <!-- Working Information Card -->
+              <div class="card border shadow-sm mb-4">
+                <div class="card-header bg-white py-3 px-4 border-bottom">
+                  <h3 class="h6 mb-0 fw-bold text-dark">Working Information</h3>
+                </div>
+                <div class="card-body p-4">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label small fw-bold text-secondary">Assigned Role</label>
+                      <input type="text" class="form-control" value="Super Administrator" readonly />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label small fw-bold text-secondary">Primary Location</label>
+                      <input type="text" class="form-control" value="Gaborone HQ" />
+                    </div>
+                    <div class="col-md-12">
+                      <label class="form-label small fw-bold text-secondary">Time Zone</label>
+                      <select class="form-select">
+                        <option>(GMT+02:00) Central Africa Time (CAT)</option>
+                        <option>(GMT+00:00) UTC</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action Button -->
+              <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-dark-pill px-4 py-2 shadow-sm" :disabled="savingAccount">
+                  <i class="bi bi-check-circle me-1" v-if="!savingAccount"></i> Save Configuration
+                </button>
               </div>
             </form>
-        </div>
-      </div>
 
-      <!-- SECURITY TAB -->
-      <div class="tab-pane fade" id="security">
-        <h5 class="mb-3">Two-Factor Authentication</h5>
+            <!-- SECURITY SUB-TAB CONTENT -->
+            <div v-if="activeAccountTab === 'security'">
+              <!-- Two-Factor Authentication Card -->
+              <div class="card border shadow-sm mb-4">
+                <div class="card-header bg-white py-3 px-4 border-bottom">
+                  <h3 class="h6 mb-0 fw-bold text-dark">Two-Factor Authentication</h3>
+                </div>
+                <div class="card-body p-4">
+                  <div v-if="mfa.enabled" class="alert alert-success d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-check-circle-fill"></i> MFA Enabled ({{ mfa.type }})
+                  </div>
+                  <div v-else class="alert alert-warning d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-exclamation-triangle-fill"></i> MFA is currently disabled.
+                  </div>
 
-        <div v-if="mfa.enabled" class="alert alert-success">
-          MFA Enabled ({{ mfa.type }})
-        </div>
-        <div v-else class="alert alert-warning">
-          MFA is currently disabled.
-        </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-outline-primary shadow-sm" @click="enableEmailMFA" v-if="!mfa.enabled">
+                      Enable Email OTP
+                    </button>
+                    <button class="btn btn-outline-danger shadow-sm" @click="disableMFA" v-if="mfa.enabled">
+                      Disable MFA
+                    </button>
+                  </div>
 
-        <div class="mt-3 d-flex gap-2">
-          <button
-            class="btn btn-outline-primary"
-            @click="enableEmailMFA"
-            v-if="!mfa.enabled"
-          >
-            Enable Email OTP
-          </button>
+                  <div v-if="showOtpForm" class="mt-4 p-3 border rounded bg-light">
+                    <h6 class="fw-semibold mb-2">Enter the code sent to your email</h6>
+                    <form @submit.prevent="verifyOtp" class="row g-2 align-items-center">
+                      <div class="col-auto">
+                        <input v-model="otpCode" type="text" class="form-control" maxlength="6" placeholder="123456" />
+                      </div>
+                      <div class="col-auto">
+                        <button class="btn btn-success shadow-sm">Verify</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
 
-          <button
-            class="btn btn-outline-danger"
-            @click="disableMFA"
-            v-if="mfa.enabled"
-          >
-            Disable MFA
-          </button>
-        </div>
+              <!-- Recent Sessions Card -->
+              <div class="card border shadow-sm mb-4">
+                <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+                  <div>
+                    <h3 class="h6 mb-0 fw-bold text-dark">Recent Sessions</h3>
+                    <small class="text-muted" style="font-size: 0.75rem;">Track current and recent device access to this account.</small>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-secondary rounded-2 shadow-sm" @click="loadSessions">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                  </button>
+                </div>
+                <div class="card-body p-0">
+                  <div class="p-4 border-bottom bg-light">
+                    <div class="row g-3">
+                      <div class="col-md-4">
+                        <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Last Login</div>
+                        <div class="fw-semibold text-dark mt-1">{{ form.last_login_at || '-' }}</div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Last Login IP</div>
+                        <div class="fw-semibold text-dark mt-1">{{ form.last_login_ip || '-' }}</div>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">Password Updated</div>
+                        <div class="fw-semibold text-dark mt-1">{{ form.password_changed_at || '-' }}</div>
+                      </div>
+                    </div>
+                  </div>
 
-        <div v-if="showOtpForm" class="mt-4">
-          <h6>Enter the code sent to your email</h6>
-          <form @submit.prevent="verifyOtp" class="row g-2">
-            <div class="col-auto">
-              <input v-model="otpCode" type="text" class="form-control" maxlength="6" placeholder="123456" />
+                  <TableLoadingWrapper :loading="sessionsLoading" message="Loading sessions..." min-height="180px">
+                    <div v-if="sessions.length" class="table-responsive">
+                      <table class="table table-hover align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th class="ps-4">Device / Browser</th>
+                            <th>IP</th>
+                            <th>Auth</th>
+                            <th>Authenticated</th>
+                            <th>Last Activity</th>
+                            <th class="pe-4 text-end">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="session in sessions" :key="session.id">
+                            <td class="ps-4 py-3 small">{{ session.user_agent || '-' }}</td>
+                            <td>{{ session.ip_address || '-' }}</td>
+                            <td>{{ session.authentication_method || '-' }}</td>
+                            <td>{{ session.authenticated_at || '-' }}</td>
+                            <td>{{ session.last_activity_at || '-' }}</td>
+                            <td class="pe-4 text-end">
+                              <span v-if="session.is_current" class="badge bg-primary">Current</span>
+                              <span v-else-if="session.logged_out_at" class="badge bg-secondary">{{ session.logout_reason || 'Closed' }}</span>
+                              <span v-else class="badge bg-success">Active</span>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div v-else-if="!sessionsLoading" class="text-center text-muted small p-4">No tracked sessions yet.</div>
+                  </TableLoadingWrapper>
+                </div>
+              </div>
+              <!-- PREFERENCES SUB-TAB CONTENT -->
+              <div v-if="activeAccountTab === 'preferences'">
+                <div class="card border shadow-sm mb-4">
+                  <div class="card-header bg-white py-3 px-4 border-bottom">
+                    <h3 class="h6 mb-0 fw-bold text-dark">User Preferences</h3>
+                  </div>
+                  <div class="card-body p-4">
+                    <div class="form-check form-switch mb-4">
+                      <input class="form-check-input" type="checkbox" v-model="prefs.darkMode" id="prefDarkMode" style="cursor: pointer;">
+                      <label class="form-check-label fw-semibold" for="prefDarkMode" style="cursor: pointer;">Enable Dark Mode</label>
+                      <div class="small text-muted mt-1">Switch the application interface to a darker color palette.</div>
+                    </div>
+
+                    <div class="form-check form-switch mb-4">
+                      <input class="form-check-input" type="checkbox" v-model="prefs.notifications" id="prefNotifications" style="cursor: pointer;">
+                      <label class="form-check-label fw-semibold" for="prefNotifications" style="cursor: pointer;">Enable Notifications</label>
+                      <div class="small text-muted mt-1">Receive alerts for new chats, system updates, and task completions.</div>
+                    </div>
+
+                    <div class="d-flex justify-content-end border-top pt-3 mt-2">
+                      <button class="btn btn-dark-pill px-4 py-2 shadow-sm" @click="savePrefs">
+                        <i class="bi bi-check-circle me-1"></i> Save Preferences
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="col-auto">
-              <button class="btn btn-success">Verify</button>
-            </div>
-          </form>
-        </div>
-
-        <div class="card mt-4">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <div>
-                <h6 class="mb-1">Recent Sessions</h6>
-                <small class="text-muted">Track current and recent device access to this account.</small>
-              </div>
-              <button type="button" class="btn btn-sm btn-outline-secondary" @click="loadSessions">
-                Refresh
-              </button>
-            </div>
-
-            <div class="row g-3 mb-3">
-              <div class="col-md-4">
-                <div class="small text-muted text-uppercase">Last Login</div>
-                <div class="fw-semibold">{{ form.last_login_at || '-' }}</div>
-              </div>
-              <div class="col-md-4">
-                <div class="small text-muted text-uppercase">Last Login IP</div>
-                <div class="fw-semibold">{{ form.last_login_ip || '-' }}</div>
-              </div>
-              <div class="col-md-4">
-                <div class="small text-muted text-uppercase">Password Updated</div>
-                <div class="fw-semibold">{{ form.password_changed_at || '-' }}</div>
-              </div>
-            </div>
-
-            <TableLoadingWrapper :loading="sessionsLoading" message="Loading sessions..." min-height="180px">
-              <div v-if="sessions.length" class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th>Device / Browser</th>
-                      <th>IP</th>
-                      <th>Auth</th>
-                      <th>Authenticated</th>
-                      <th>Last Activity</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="session in sessions" :key="session.id">
-                      <td class="small">{{ session.user_agent || '-' }}</td>
-                      <td>{{ session.ip_address || '-' }}</td>
-                      <td>{{ session.authentication_method || '-' }}</td>
-                      <td>{{ session.authenticated_at || '-' }}</td>
-                      <td>{{ session.last_activity_at || '-' }}</td>
-                      <td>
-                        <span v-if="session.is_current" class="badge bg-primary">Current</span>
-                        <span v-else-if="session.logged_out_at" class="badge bg-secondary">{{ session.logout_reason || 'Closed' }}</span>
-                        <span v-else class="badge bg-success">Active</span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div v-else-if="!sessionsLoading" class="text-muted small">No tracked sessions yet.</div>
-            </TableLoadingWrapper>
           </div>
         </div>
       </div>
 
-      <!-- PREFERENCES TAB -->
-      <div class="tab-pane fade" id="preferences">
-        <h5 class="mb-3">User Preferences</h5>
-
-        <div class="form-check form-switch mb-3">
-          <input class="form-check-input" type="checkbox" v-model="prefs.darkMode">
-          <label class="form-check-label">Enable Dark Mode</label>
-        </div>
-
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" v-model="prefs.notifications">
-          <label class="form-check-label">Enable Notifications</label>
-        </div>
-
-        <div class="mt-3 text-end">
-          <button class="btn btn-primary" @click="savePrefs">Save Preferences</button>
-        </div>
-      </div>
+      <!-- (Security Tab removed, contents moved to Account -> Security sub-tab) -->
 
       <!-- SYSTEM SETTINGS TAB -->
       <div class="tab-pane fade" id="system" v-if="isSuperAdmin">
@@ -723,7 +724,7 @@
           </div>
         </div>
 
-        <div class="card shadow-sm mb-3">
+        <div class="card shadow-sm border mb-4">
           <div class="card-body p-0">
             <div v-if="wp.loading" class="p-4 text-center text-muted">
               <span class="spinner-border spinner-border-sm me-2"></span>
@@ -732,29 +733,30 @@
             <div v-else-if="!wp.profiles.length" class="p-4 text-center text-muted">
               No WhatsApp profiles saved. Add one to get started.
             </div>
-            <table v-else class="table table-hover mb-0 align-middle">
-              <thead class="table-light">
+            <div v-else class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
                 <tr>
-                  <th>Profile Name</th>
+                  <th class="ps-4">Profile Name</th>
                   <th>App ID</th>
                   <th>WABA ID</th>
                   <th>Display Number</th>
-                  <th class="text-end">Actions</th>
+                  <th class="text-end pe-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="profile in wp.profiles" :key="profile.id">
-                  <td class="fw-semibold">
+                  <td class="ps-4 py-3 fw-semibold">
                     {{ profile.name }}
                     <span v-if="profile.waba_id === meta.form.meta_whatsapp_business_account_id" class="badge bg-success ms-2">Active</span>
                   </td>
                   <td class="text-muted small">{{ profile.app_id }}</td>
                   <td class="text-muted small">{{ profile.waba_id }}</td>
                   <td>{{ profile.display_phone_number || profile.phone_number_id }}</td>
-                  <td class="text-end">
-                    <button class="btn btn-sm btn-outline-secondary me-2" @click="editProfile(profile)">Edit</button>
-                    <button class="btn btn-sm btn-outline-danger me-2" @click="deleteProfile(profile)">Delete</button>
-                    <button class="btn btn-sm btn-outline-primary" @click="activateProfile(profile)" :disabled="profile.waba_id === meta.form.meta_whatsapp_business_account_id || wp.activating === profile.id">
+                  <td class="text-end pe-4">
+                    <button class="btn btn-light text-secondary border-0 p-1 px-2 me-2" @click="editProfile(profile)">Edit</button>
+                    <button class="btn btn-light text-danger border-0 p-1 px-2 me-2" @click="deleteProfile(profile)">Delete</button>
+                    <button class="btn btn-light text-primary border-0 p-1 px-2" @click="activateProfile(profile)" :disabled="profile.waba_id === meta.form.meta_whatsapp_business_account_id || wp.activating === profile.id">
                       <span v-if="wp.activating === profile.id" class="spinner-border spinner-border-sm me-1"></span>
                       Set Active
                     </button>
@@ -762,6 +764,7 @@
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
@@ -784,7 +787,7 @@
           </div>
         </div>
 
-        <div class="card shadow-sm">
+        <div class="card shadow-sm border mb-4">
           <div class="card-body p-0">
             <div v-if="wn.loading" class="p-4 text-center text-muted">
               <span class="spinner-border spinner-border-sm me-2"></span>
@@ -793,21 +796,22 @@
             <div v-else-if="!wn.numbers.length" class="p-4 text-center text-muted">
               No WhatsApp phone numbers found for this WABA.
             </div>
-            <table v-else class="table table-hover mb-0 align-middle">
-              <thead class="table-light">
+            <div v-else class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
                 <tr>
-                  <th>Display Number</th>
+                  <th class="ps-4">Display Number</th>
                   <th>Phone Number ID</th>
                   <th>Verified Name</th>
                   <th>Quality Rating</th>
                   <th>Status</th>
                   <th>Messaging Tier</th>
-                  <th class="text-end">Actions</th>
+                  <th class="text-end pe-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="num in wn.numbers" :key="num.id">
-                  <td class="fw-semibold">{{ num.display_phone_number }}</td>
+                  <td class="ps-4 py-3 fw-semibold">{{ num.display_phone_number }}</td>
                   <td class="text-muted small font-monospace">{{ num.id }}</td>
                   <td>{{ num.verified_name || '-' }}</td>
                   <td>
@@ -820,16 +824,16 @@
                     <div class="small text-muted">Name: {{ num.name_status }}</div>
                   </td>
                   <td>{{ num.messaging_limit_tier || '-' }}</td>
-                  <td class="text-end">
+                  <td class="text-end pe-4">
                     <button 
                       v-if="num.code_verification_status === 'UNVERIFIED'"
-                      class="btn btn-sm btn-warning" 
+                      class="btn btn-light text-warning border-0 p-1 px-2" 
                       @click="openVerifyNumberModal(num)">
                       Verify
                     </button>
                     <button
                       v-if="num.code_verification_status === 'VERIFIED' && num.platform_type === 'NOT_APPLICABLE'"
-                      class="btn btn-sm btn-success ms-2"
+                      class="btn btn-light text-success border-0 p-1 px-2 ms-2"
                       @click="registerNumberOnMeta(num)"
                       :disabled="num.registering"
                     >
@@ -840,6 +844,7 @@
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
@@ -919,10 +924,11 @@
               <span class="spinner-border spinner-border-sm me-2"></span>
               Loading templates...
             </div>
-            <table v-else class="table table-hover mb-0 align-middle">
-              <thead class="table-light">
+            <div v-else class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
                 <tr>
-                  <th style="width: 40px;">
+                  <th class="ps-4" style="width: 40px;">
                     <div class="form-check m-0">
                       <input class="form-check-input" type="checkbox" :checked="wa.selected.length > 0 && wa.selected.length === filteredWhatsappTemplates.length" @change="toggleSelectAllTemplates" />
                     </div>
@@ -932,12 +938,12 @@
                   <th>Category</th>
                   <th>Status</th>
                   <th>Preview</th>
-                  <th style="width: 120px;" class="text-end">Actions</th>
+                  <th style="width: 120px;" class="text-end pe-4">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="t in filteredWhatsappTemplates" :key="t.sid">
-                  <td>
+                  <td class="ps-4 py-3">
                     <div class="form-check m-0">
                       <input class="form-check-input" type="checkbox" :value="t.meta_id || t.sid" v-model="wa.selected" />
                     </div>
@@ -955,11 +961,11 @@
                       {{ t.body_preview || 'No preview' }}
                     </small>
                   </td>
-                  <td class="text-end">
+                  <td class="text-end pe-4">
                     <div class="btn-group btn-group-sm" role="group">
                       <button
                         type="button"
-                        class="btn btn-outline-primary"
+                        class="btn btn-light text-primary border-0 p-1 px-2"
                         title="View template details"
                         @click="viewTemplate(t)"
                         :disabled="wa.viewingSid === t.sid"
@@ -971,17 +977,19 @@
                   </td>
                 </tr>
                 <tr v-if="filteredWhatsappTemplates.length === 0">
-                  <td colspan="6" class="text-center text-muted py-3">
+                  <td colspan="6" class="text-center text-muted py-5">
                     No templates match the current filters.
                   </td>
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
 
     </div>
+  </div>
 
     <!-- WhatsApp Template Modal -->
     <div class="modal fade" tabindex="-1" ref="templateModalRef">
@@ -1300,6 +1308,7 @@ export default {
   },
   data() {
     return {
+      activeAccountTab: 'personal',
       form: {
         name: '',
         email: '',
@@ -1662,6 +1671,12 @@ export default {
     },
   },
   methods: {
+    switchToTab(tabId) {
+      const btn = document.getElementById(`${tabId}-tab`);
+      if (btn) {
+        btn.click();
+      }
+    },
     // Load profile
     loadUser() {
       axios.get('/api/user').then((res) => {

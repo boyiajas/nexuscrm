@@ -12,29 +12,28 @@
       </button>
     </div>
 
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h5 class="card-title mb-0">All WhatsApp Flows</h5>
-          <span class="badge bg-secondary">{{ flows.length }}</span>
-        </div>
-
+    <div class="card shadow-sm border mb-4">
+      <div class="card-header bg-transparent border-bottom-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">All WhatsApp Flows</h5>
+        <span class="badge bg-secondary">{{ flows.length }}</span>
+      </div>
+      <div class="card-body p-0">
         <TableLoadingWrapper :loading="loadingFlows" message="Loading WhatsApp flows..." min-height="220px">
           <div v-if="flows.length">
             <div class="table-responsive">
-              <table class="table align-middle">
+              <table class="table table-hover mb-0 align-middle">
                 <thead>
                   <tr>
-                    <th>Name</th>
+                    <th class="ps-4">Name</th>
                     <th>Template</th>
                     <th>Status</th>
                     <th>Created</th>
-                    <th class="text-end">Action</th>
+                    <th class="text-end pe-4">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="flow in flows" :key="flow.id">
-                    <td class="fw-semibold">{{ flow.name }}</td>
+                    <td class="ps-4 py-3 fw-semibold">{{ flow.name }}</td>
                     <td>
                       <div class="small">
                         <div class="fw-semibold">{{ flow.template_name || flow.template_sid }}</div>
@@ -49,15 +48,15 @@
                     <td class="text-muted small">
                       {{ formatDate(flow.created_at) }}
                     </td>
-                    <td class="text-end">
+                    <td class="text-end pe-4">
                       <div class="btn-group btn-group-sm">
-                        <button class="btn btn-outline-secondary" @click="openDiagram(flow)" title="View diagram">
+                        <button class="btn btn-light text-secondary border-0 p-1 px-2" @click="openDiagram(flow)" title="View diagram">
                           <i class="bi bi-diagram-3"></i>
                         </button>
-                        <button class="btn btn-outline-primary" @click="startEdit(flow)" title="Edit" :disabled="!canManageFlows">
+                        <button class="btn btn-light text-secondary border-0 p-1 px-2" @click="startEdit(flow)" title="Edit" :disabled="!canManageFlows">
                           <i class="bi bi-pencil"></i>
                         </button>
-                        <button class="btn btn-outline-danger" @click="deleteFlow(flow)" title="Delete" :disabled="!canManageFlows">
+                        <button class="btn btn-light text-danger border-0 p-1 px-2" @click="deleteFlow(flow)" title="Delete" :disabled="!canManageFlows">
                           <i class="bi bi-trash"></i>
                         </button>
                       </div>
@@ -67,7 +66,7 @@
               </table>
             </div>
           </div>
-          <div v-else-if="!loadingFlows" class="text-center text-muted py-4">
+          <div v-else-if="!loadingFlows" class="text-center text-muted py-5">
             No WhatsApp flows yet. Create your first flow to get started.
           </div>
         </TableLoadingWrapper>

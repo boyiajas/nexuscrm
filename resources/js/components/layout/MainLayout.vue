@@ -2,229 +2,243 @@
   <div class="d-flex min-vh-100 bg-light">
     <!-- SIDEBAR -->
     <nav
-      class="border-end bg-gradient sidebar"
+      class="strauss-sidebar d-flex flex-column justify-content-between border-end shadow-sm"
       :class="{ 'sidebar-collapsed': isSidebarCollapsed }"
-      style="background-color: #070735;"
     >
-      <div class="p-3 border-bottom d-flex align-items-center gap-2">
-        <img
-          :src="publicLogoSrc"
-          alt="Strauss Recovery Solutions"
-          class="sidebar-static-logo"
-          :class="{ 'sidebar-static-logo--collapsed': isSidebarCollapsed }"
-        />
+      <div>
+        <!-- BRAND LOGO HEADER -->
+        <div class="p-3 mb-2 d-flex align-items-center gap-3">
+          <div class="bg-white text-dark rounded-2 fw-black d-flex align-items-center justify-content-center shadow-sm" style="width: 38px; height: 38px; font-weight: 900; font-size: 1.25rem;">
+            S
+          </div>
+          <div>
+            <div class="strauss-sidebar-brand h5 mb-0 fw-bold">STRAUSS</div>
+            <div class="small fw-semibold" style="color: #10b981; font-size: 0.72rem; letter-spacing: 0.05em;">Nexus Recovery</div>
+          </div>
+        </div>
+
+        <!-- OVERVIEW -->
+        <div class="px-3 pt-1 pb-1 small text-muted fw-bold text-uppercase mt-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Overview</div>
+        <ul class="nav nav-pills flex-column px-2 gap-1 mb-2">
+          <li class="nav-item">
+            <router-link :to="{ name: 'dashboard' }" class="nav-link" :class="{ active: isActive('dashboard') }">
+              <i class="bi bi-grid-fill me-2"></i><span class="nav-label">Dashboard</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canViewClients">
+            <router-link :to="{ name: 'clients' }" class="nav-link" :class="{ active: isActive('clients') }">
+              <i class="bi bi-people-fill me-2"></i><span class="nav-label">Clients</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canViewCampaigns">
+            <router-link :to="{ name: 'campaigns' }" class="nav-link" :class="{ active: isActive('campaigns') }">
+              <i class="bi bi-megaphone-fill me-2"></i><span class="nav-label">Campaigns</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canViewImportUploads">
+            <router-link :to="{ name: 'import-uploads' }" class="nav-link" :class="{ active: isActive('import-uploads') }">
+              <i class="bi bi-cloud-arrow-up-fill me-2"></i><span class="nav-label">Import Data</span>
+            </router-link>
+          </li>
+        </ul>
+
+        <!-- COMMUNICATIONS & AUTOMATION -->
+        <div class="px-3 pt-1 pb-1 small text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Communications</div>
+        <ul class="nav nav-pills flex-column px-2 gap-1 mb-2">
+          <li class="nav-item" v-if="canViewChat">
+            <router-link :to="{ name: 'chat' }" class="nav-link" :class="{ active: isActive('chat') }">
+              <i class="bi bi-chat-dots-fill me-2"></i><span class="nav-label">Live Chat</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canViewAutomation">
+            <router-link :to="{ name: 'whatsapp-replies' }" class="nav-link" :class="{ active: isActive('whatsapp-replies') }">
+              <i class="bi bi-reply-fill me-2"></i><span class="nav-label">Auto Replies</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canViewAutomation">
+            <router-link :to="{ name: 'whatsapp-flows' }" class="nav-link" :class="{ active: isActive('whatsapp-flows') }">
+              <i class="bi bi-diagram-3-fill me-2"></i><span class="nav-label">WhatsApp Flows</span>
+            </router-link>
+          </li>
+        </ul>
+
+        <!-- SECURITY & ANALYTICS -->
+        <div class="px-3 pt-1 pb-1 small text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Security & Analytics</div>
+        <ul class="nav nav-pills flex-column px-2 gap-1 mb-2">
+          <li class="nav-item" v-if="canViewAuditLog">
+            <router-link :to="{ name: 'audit-log' }" class="nav-link" :class="{ active: isActive('audit-log') }">
+              <i class="bi bi-bar-chart-fill me-2"></i><span class="nav-label">Audit Log</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canViewSecurityIncidents">
+            <router-link :to="{ name: 'security-incidents' }" class="nav-link" :class="{ active: isActive('security-incidents') }">
+              <i class="bi bi-shield-exclamation me-2"></i><span class="nav-label">Incidents</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canViewComplianceConsole">
+            <router-link :to="{ name: 'compliance-console' }" class="nav-link" :class="{ active: isActive('compliance-console') }">
+              <i class="bi bi-clipboard-check-fill me-2"></i><span class="nav-label">Compliance</span>
+            </router-link>
+          </li>
+          <li class="nav-item">
+            <router-link :to="{ name: 'export-requests' }" class="nav-link" :class="{ active: isActive('export-requests') }">
+              <i class="bi bi-download me-2"></i><span class="nav-label">Exports</span>
+            </router-link>
+          </li>
+        </ul>
+
+        <!-- ADMINISTRATION -->
+        <div class="px-3 pt-1 pb-1 small text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;" v-if="canViewAdminSection">Administration</div>
+        <ul class="nav nav-pills flex-column px-2 gap-1 mb-2" v-if="canViewAdminSection">
+          <li class="nav-item" v-if="canManageBanks">
+            <router-link :to="{ name: 'banks' }" class="nav-link" :class="{ active: isActive('banks') }">
+              <i class="bi bi-bank2 me-2"></i><span class="nav-label">Banks</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canManageDepartments">
+            <router-link :to="{ name: 'departments' }" class="nav-link" :class="{ active: isActive('departments') }">
+              <i class="bi bi-building me-2"></i><span class="nav-label">Departments</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canManageUsers">
+            <router-link :to="{ name: 'users' }" class="nav-link" :class="{ active: isActive('users') }">
+              <i class="bi bi-person-lines-fill me-2"></i><span class="nav-label">Users</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canManageRoles">
+            <router-link :to="{ name: 'roles' }" class="nav-link" :class="{ active: isActive('roles') }">
+              <i class="bi bi-shield-lock-fill me-2"></i><span class="nav-label">Roles</span>
+            </router-link>
+          </li>
+          <li class="nav-item" v-if="canManageSettings">
+            <router-link :to="{ name: 'settings' }" class="nav-link" :class="{ active: isActive('settings') }">
+              <i class="bi bi-gear-fill me-2"></i><span class="nav-label">Settings</span>
+            </router-link>
+          </li>
+        </ul>
       </div>
 
-      <ul class="nav nav-pills flex-column p-2">
-        <li class="nav-item" v-if="canViewClients">
-          <router-link
-            :to="{ name: 'dashboard' }"
-            class="nav-link"
-            :class="{ active: isActive('dashboard') }"
-          >
-            <i class="bi bi-speedometer2 me-2"></i>
-            <span class="nav-label">Dashboard</span>
-          </router-link>
-        </li>
+      <!-- SIDEBAR FOOTER & CTA BUTTON -->
+      <div class="px-3 pb-3 pt-2 d-flex flex-column gap-3 border-top border-secondary border-opacity-25">
+        <button class="btn btn-sidebar-cta w-100 d-flex align-items-center justify-content-center gap-2 shadow-sm" @click="$router.push({ name: 'campaigns' })">
+          <i class="bi bi-plus-lg"></i> New Campaign
+        </button>
 
-        <li class="nav-item" v-if="canViewCampaigns">
-          <router-link
-            :to="{ name: 'clients' }"
-            class="nav-link"
-            :class="{ active: isActive('clients') }"
-          >
-            <i class="bi bi-people me-2"></i>
-            <span class="nav-label">Clients</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item" v-if="canViewChat">
-          <router-link
-            :to="{ name: 'campaigns' }"
-            class="nav-link"
-            :class="{ active: isActive('campaigns') }"
-          >
-            <i class="bi bi-bullseye me-2"></i>
-            <span class="nav-label">Campaigns</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item" v-if="canViewAuditLog">
-          <router-link
-            :to="{ name: 'chat' }"
-            class="nav-link"
-            :class="{ active: isActive('chat') }"
-          >
-            <i class="bi bi-chat-dots me-2"></i>
-            <span class="nav-label">Live Chat</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item" v-if="canViewImportUploads">
-          <router-link
-            :to="{ name: 'import-uploads' }"
-            class="nav-link"
-            :class="{ active: isActive('import-uploads') }"
-          >
-            <i class="bi bi-file-earmark-medical me-2"></i>
-            <span class="nav-label">Import Uploads</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item">
-          <router-link
-            :to="{ name: 'audit-log' }"
-            class="nav-link"
-            :class="{ active: isActive('audit-log') }"
-          >
-            <i class="bi bi-activity me-2"></i>
-            <span class="nav-label">Audit Log</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item">
-          <router-link
-            :to="{ name: 'security-incidents' }"
-            class="nav-link"
-            :class="{ active: isActive('security-incidents') }"
-            v-if="canViewSecurityIncidents"
-          >
-            <i class="bi bi-shield-exclamation me-2"></i>
-            <span class="nav-label">Security Incidents</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item" v-if="canViewComplianceConsole">
-          <router-link
-            :to="{ name: 'compliance-console' }"
-            class="nav-link"
-            :class="{ active: isActive('compliance-console') }"
-          >
-            <i class="bi bi-journal-check me-2"></i>
-            <span class="nav-label">Compliance Console</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item">
-          <router-link
-            :to="{ name: 'export-requests' }"
-            class="nav-link"
-            :class="{ active: isActive('export-requests') }"
-          >
-            <i class="bi bi-shield-lock me-2"></i>
-            <span class="nav-label">Export Requests</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item mt-2" v-if="canViewAutomation">
-          <div class="small text-uppercase text-white px-3 mb-1 sidebar-section-title">
-            Automation
-          </div>
-        </li>
-        <li class="nav-item nav-item-sub" v-if="canViewAutomation">
-          <router-link
-            :to="{ name: 'whatsapp-flows' }"
-            class="nav-link"
-            :class="{ active: isActive('whatsapp-flows') }"
-          >
-            <i class="bi bi-robot me-2"></i>
-            <span class="nav-label">WhatsApp Flows</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item mt-2" v-if="canViewAdminSection">
-          <div class="small text-uppercase text-white px-3 mb-1 sidebar-section-title">
-            Admin
-          </div>
-        </li>
-
-        <li class="nav-item" v-if="canManageBanks">
-          <router-link
-            :to="{ name: 'banks' }"
-            class="nav-link"
-            :class="{ active: isActive('banks') }"
-          >
-            <i class="bi bi-bank me-2"></i>
-            <span class="nav-label">Banks</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item" v-if="canManageDepartments">
-          <router-link
-            :to="{ name: 'departments' }"
-            class="nav-link"
-            :class="{ active: isActive('departments') }"
-          >
-            <i class="bi bi-diagram-3 me-2"></i>
-            <span class="nav-label">Departments</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item" v-if="canManageUsers">
-          <router-link
-            :to="{ name: 'users' }"
-            class="nav-link"
-            :class="{ active: isActive('users') }"
-          >
-            <i class="bi bi-person-gear me-2"></i>
-            <span class="nav-label">Users</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item" v-if="canManageRoles">
-          <router-link
-            :to="{ name: 'roles' }"
-            class="nav-link"
-            :class="{ active: isActive('roles') }"
-          >
-            <i class="bi bi-person-badge me-2"></i>
-            <span class="nav-label">Roles</span>
-          </router-link>
-        </li>
-
-        <li class="nav-item" v-if="canManageSettings">
-          <router-link
-            :to="{ name: 'settings' }"
-            class="nav-link"
-            :class="{ active: isActive('settings') }"
-          >
-            <i class="bi bi-gear me-2"></i>
-            <span class="nav-label">Settings</span>
-          </router-link>
-        </li>
-      </ul>
+        <div class="d-flex flex-column gap-1">
+          <a href="#" class="nav-link py-1 px-2 text-muted small d-flex align-items-center gap-2 text-decoration-none" style="color: #94a3b8 !important;" @click.prevent>
+            <i class="bi bi-question-circle"></i> Help Center
+          </a>
+          <button class="btn btn-link p-0 text-start nav-link py-1 px-2 text-muted small d-flex align-items-center gap-2 text-decoration-none border-0 bg-transparent" style="color: #94a3b8 !important;" @click="logout">
+            <i class="bi bi-box-arrow-right"></i> Logout
+          </button>
+        </div>
+      </div>
     </nav>
 
     <!-- MAIN CONTENT AREA -->
-    <div class="flex-grow-1 d-flex flex-column">
-      <!-- TOP NAVBAR -->
-      <header class="navbar navbar-light bg-white border-bottom px-3">
-        <div class="d-flex align-items-center gap-2">
+    <div class="flex-grow-1 d-flex flex-column min-w-0">
+      <!-- TOP UTILITY NAVBAR -->
+      <header class="top-utility-header px-4 d-flex align-items-center justify-content-between shadow-sm">
+        <div class="d-flex align-items-center gap-3">
           <button
-            class="btn btn-sm btn-outline-secondary"
+            class="btn btn-sm btn-light border-0 d-md-none"
             type="button"
             @click="toggleSidebar"
           >
-            <i :class="isSidebarCollapsed ? 'bi bi-arrow-bar-right' : 'bi bi-arrow-bar-left'"></i>
+            <i class="bi bi-list fs-5"></i>
           </button>
-          <span class="fw-semibold">Welcome, {{ user?.name || 'User' }}</span>
+
+          <!-- Centered Title / Brand Header -->
+          <div class="d-none d-lg-block fw-bold h4 mb-0 text-dark" style="letter-spacing: -0.02em;">
+            STRAUSS
+          </div>
         </div>
 
+        <!-- SEARCH BAR -->
+        <div class="header-search-bar">
+          <i class="bi bi-search text-muted"></i>
+          <input
+            type="text"
+            class="header-search-input"
+            placeholder="Search clients, campaigns..."
+          />
+        </div>
+
+        <!-- UTILITY ICONS & USER AVATAR -->
         <div class="d-flex align-items-center gap-3">
-          <small class="text-muted d-none d-sm-inline">
-            Role: {{ user?.role || 'AGENT' }}
-          </small>
-          <button class="btn btn-sm btn-outline-danger" @click="logout">
-            <i class="bi bi-box-arrow-right me-1"></i> Logout
+          <button
+            class="btn btn-sm btn-light rounded-circle p-2 text-secondary border-0"
+            type="button"
+            @click="toggleTheme"
+            :title="currentTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'"
+          >
+            <i :class="currentTheme === 'dark' ? 'bi bi-sun-fill text-warning' : 'bi bi-moon-stars-fill text-primary'" class="fs-6"></i>
           </button>
+
+          <div class="dropdown">
+            <button class="btn btn-sm btn-light rounded-circle p-2 text-secondary border-0 position-relative" type="button" id="notificationDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications">
+              <i class="bi bi-bell fs-6"></i>
+              <span v-if="unreadWhatsappRepliesCount > 0" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem;">
+                {{ unreadWhatsappRepliesCount }}
+                <span class="visually-hidden">unread messages</span>
+              </span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0" aria-labelledby="notificationDropdown" style="width: 320px;">
+              <li><h6 class="dropdown-header fw-bold text-dark border-bottom pb-2 mb-1">Notifications</h6></li>
+              <template v-if="unreadWhatsappRepliesCount > 0">
+                <li v-for="reply in unreadWhatsappReplies.slice(0, 5)" :key="reply.id">
+                  <a class="dropdown-item py-3 d-flex align-items-start gap-3 border-bottom" href="#" @click.prevent="openWhatsappReplies">
+                    <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 mt-1 shadow-sm" style="width: 38px; height: 38px;">
+                      <i class="bi bi-whatsapp fs-5"></i>
+                    </div>
+                    <div>
+                      <div class="fw-bold text-dark small mb-1">{{ reply.client_name || 'Unknown Client' }} <span class="badge bg-danger ms-1" v-if="reply.unread_count > 1">{{ reply.unread_count }}</span></div>
+                      <div class="text-muted text-wrap text-truncate" style="font-size: 0.8rem; line-height: 1.3; max-width: 220px;">
+                        {{ reply.last_response || 'New message received.' }}
+                      </div>
+                      <div class="text-primary mt-2 fw-semibold" style="font-size: 0.75rem;">
+                        View Chat <i class="bi bi-arrow-right"></i>
+                      </div>
+                    </div>
+                  </a>
+                </li>
+              </template>
+              <li v-else>
+                <div class="dropdown-item py-4 text-center text-muted small">
+                  <i class="bi bi-bell-slash fs-4 d-block mb-2 text-black-50"></i>
+                  No new notifications
+                </div>
+              </li>
+              <li>
+                <a class="dropdown-item text-center py-2 text-primary fw-semibold small bg-light" href="#" @click.prevent="markAllAsRead">
+                  Mark all as read
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          <button class="btn btn-sm btn-light rounded-circle p-2 text-secondary border-0 d-none d-sm-inline" title="History">
+            <i class="bi bi-clock-history fs-6"></i>
+          </button>
+
+          <button class="btn btn-sm btn-light rounded-circle p-2 text-secondary border-0 d-none d-sm-inline" title="Apps">
+            <i class="bi bi-grid-3x3-gap fs-6"></i>
+          </button>
+
+          <div class="d-flex align-items-center gap-2 ms-1">
+            <img
+              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=150&auto=format&fit=crop"
+              alt="User Avatar"
+              class="header-user-avatar border"
+            />
+          </div>
         </div>
       </header>
 
       <!-- PAGE CONTENT -->
       <main
-        class="flex-grow-1 p-3 position-relative"
+        class="flex-grow-1 p-3 position-relative main-content-bg"
         :class="{ 'sensitive-surface': showSensitiveWatermark }"
-        style="background-color:#0087ff0f"
         @contextmenu="handleSensitiveContextMenu"
       >
         <div
@@ -243,6 +257,14 @@
         <div v-if="showSensitiveWatermark" class="print-security-notice">
           Confidential debtor data. Printing and uncontrolled capture are restricted and attributable to the current user.
         </div>
+
+        <!-- PAGE BACKGROUND ICON WATERMARK -->
+        <i
+          v-if="$route.meta.pageIcon"
+          :class="['bi', $route.meta.pageIcon, 'position-absolute', 'text-secondary']"
+          style="top: -20px; right: -20px; font-size: 14rem; opacity: 0.04; z-index: 0; pointer-events: none;"
+        ></i>
+
         <div class="page-content-shell">
           <router-view />
         </div>
@@ -284,7 +306,9 @@ export default {
   data() {
     return {
       user: null,
+      unreadWhatsappReplies: [],
       isSidebarCollapsed: false,
+      currentTheme: localStorage.getItem('nexus_theme') || 'light',
       branding: {
         app_name: 'NexusCRM',
         app_short_name: 'NC',
@@ -299,6 +323,7 @@ export default {
     };
   },
   created() {
+    this.applyTheme(this.currentTheme);
     // Load user from localStorage if present
     const stored = localStorage.getItem('nexus_user');
     if (stored) {
@@ -317,6 +342,7 @@ export default {
     window.addEventListener('auth-user-updated', this.handleAuthUserUpdated);
   },
   async mounted() {
+    this.fetchUnreadReplies();
     try {
       const user = await syncAuthenticatedUser();
       if (user) {
@@ -335,6 +361,9 @@ export default {
     }
   },
   computed: {
+    unreadWhatsappRepliesCount() {
+      return this.unreadWhatsappReplies.length;
+    },
     currentRole() {
       return this.user?.role || 'AGENT';
     },
@@ -422,6 +451,30 @@ export default {
     },
   },
   methods: {
+    fetchUnreadReplies() {
+      axios.get('/api/dashboard/whatsapp-replies')
+        .then(res => {
+          this.unreadWhatsappReplies = res.data || [];
+        })
+        .catch(err => {
+          console.error('Failed to load unread replies:', err);
+        });
+    },
+    openWhatsappReplies() {
+      this.unreadWhatsappReplies = [];
+      this.$router.push({ name: 'whatsapp-replies' });
+    },
+    markAllAsRead() {
+      this.unreadWhatsappReplies = [];
+    },
+    toggleTheme() {
+      this.currentTheme = this.currentTheme === 'dark' ? 'light' : 'dark';
+      this.applyTheme(this.currentTheme);
+    },
+    applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('nexus_theme', theme);
+    },
     hasAnyRole(roles = []) {
       return this.currentRoleCodes.some((role) => roles.includes(role));
     },

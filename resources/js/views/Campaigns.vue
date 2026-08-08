@@ -1,37 +1,41 @@
 <template>
   <div>
+    <div class="fade-in-up">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4" style="background-color:#0087ff0f">
-      <h2 class="h4 mb-0"><i class="bi bi-bullseye me-2"></i>Campaigns</h2>
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-2 p-3 rounded-3 bg-body border shadow-sm">
+      <h2 class="h4 mb-0 text-dark fw-bold d-flex align-items-center">
+        <i class="bi bi-bullseye me-2 text-primary"></i>Campaigns
+      </h2>
       <button
         v-if="canManage"
-        class="btn btn-primary btn-sm"
+        class="btn btn-primary btn-sm shadow-sm"
         @click="openCreateModal"
       >
-        + New Campaign
+        <i class="bi bi-plus-circle me-1"></i> New Campaign
       </button>
     </div>
 
     <!-- Campaigns table -->
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading campaigns..." min-height="260px">
-        <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th class="ps-4">Name</th>
               <th>Bank</th>
               <th>Department</th>
               <th>Channels</th>
               <th>Status</th>
               <th>Recipients</th>
               <th>Created</th>
-              <th class="text-end">Actions</th>
+              <th class="text-end pe-4">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="c in campaigns" :key="c.id">
-              <td>
+              <td class="ps-4 py-3">
                 <router-link
                   :to="{ name: 'campaign.show', params: { id: c.id } }"
                   class="fw-semibold text-decoration-none"
@@ -74,10 +78,10 @@
               </td>
               <td>{{ c.total_recipients || 0 }}</td>
               <td>{{ c.created_at }}</td>
-              <td class="text-end">
+              <td class="text-end pe-4">
                 <div class="btn-group btn-group-sm" role="group">
                   <button
-                    class="btn btn-outline-primary"
+                    class="btn btn-light text-secondary border-0 p-1 px-2"
                     title="Edit"
                     @click="openEditModal(c)"
                     :disabled="!canManage"
@@ -85,7 +89,7 @@
                     <i class="bi bi-pencil-square"></i>
                   </button>
                   <button
-                    class="btn btn-outline-success"
+                    class="btn btn-light text-success border-0 p-1 px-2"
                     title="Send"
                     @click="sendCampaign(c)"
                     :disabled="!canSend(c)"
@@ -93,7 +97,7 @@
                     <i class="bi bi-send-check"></i>
                   </button>
                   <button
-                    class="btn btn-outline-danger"
+                    class="btn btn-light text-danger border-0 p-1 px-2"
                     title="Delete"
                     @click="deleteCampaign(c)"
                     :disabled="!canManage"
@@ -105,12 +109,13 @@
             </tr>
 
             <tr v-if="!loading && campaigns.length === 0">
-              <td colspan="8" class="text-center py-4 text-muted">
+              <td colspan="8" class="text-center py-5 text-muted">
                 No campaigns.
               </td>
             </tr>
           </tbody>
         </table>
+        </div>
         </TableLoadingWrapper>
       </div>
 
@@ -147,6 +152,7 @@
         </ul>
       </div>
     </div>
+  </div>
 
     <!-- Create / Edit Campaign Modal -->
     <div class="modal fade" tabindex="-1" ref="modalRef">

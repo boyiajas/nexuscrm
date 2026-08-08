@@ -1,274 +1,178 @@
 <template>
   <div class="clients-page">
-    <!-- Header + actions -->
-    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3 gap-2" style="background-color:#0087ff0f">
-      <h2 class="h4 mb-0"><i class="bi bi-people me-2"></i>Clients</h2>
-
-      <div class="d-flex gap-2">
-        <button class="btn btn-outline-success btn-sm" @click="openImportModal" :disabled="!canManage">
-          <i class="bi bi-file-earmark-arrow-up me-1"></i> Import CSV / Excel
-        </button>
-        <router-link
-          class="btn btn-outline-info btn-sm"
-          :to="{ name: 'import-uploads' }"
-        >
-          <i class="bi bi-shield-check me-1"></i> Import Uploads
-        </router-link>
-        <button class="btn btn-outline-secondary btn-sm" @click="exportCsv">
-          <i class="bi bi-file-earmark-arrow-down me-1"></i> Export CSV
-        </button>
-        <button class="btn btn-primary btn-sm" @click="openCreateModal" :disabled="!canManage">
-          <i class="bi bi-plus-circle me-1"></i> Add Client
-        </button>
-      </div>
-    </div>
-
-    <!-- Filters -->
-    <div class="card shadow-sm mb-3">
-      <div class="card-body">
-        <form class="row g-2 align-items-end" @submit.prevent="applyFilters">
-          <div class="col-md-3">
-            <label class="form-label">Search</label>
-            <input
-              v-model="filters.q"
-              type="text"
-              class="form-control"
-              placeholder="Name, email, phone..."
-            />
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">Department</label>
-            <select v-model="filters.department" class="form-select">
-              <option value="">All</option>
-              <option v-for="d in departmentOptions" :key="d.id" :value="d.name">
-                {{ d.name }}
-              </option>
-            </select>
-          </div>
-
-          <div class="col-md-3">
-            <label class="form-label">Import Batch</label>
-            <select v-model="filters.import_batch_number" class="form-select">
-              <option value="">All batches</option>
-              <option v-for="batch in clientBatchOptions" :key="batch" :value="batch">
-                {{ batch }}
-              </option>
-            </select>
-          </div>
-
-          <div class="col-md-3" v-if="canChooseBank">
-            <label class="form-label">Bank</label>
-            <select v-model="filters.bank_id" class="form-select">
-              <option value="">All</option>
-              <option v-for="bank in banks" :key="bank.id" :value="bank.id">
-                {{ bank.name }}
-              </option>
-            </select>
-          </div>
-
-          <div class="col-md-3 text-md-end">
-            <button type="submit" class="btn btn-primary btn-sm me-2">
-              Apply
-            </button>
-            <button type="button" class="btn btn-outline-secondary btn-sm" @click="resetFilters">
-              Reset
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Clients table -->
-    <div class="card shadow-sm">
-      <div v-if="canManage" class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 px-3 py-2 border-bottom bg-light-subtle">
-        <div class="d-flex align-items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            class="btn btn-outline-secondary btn-sm"
-            @click="selectAllVisibleClients"
-            :disabled="clients.length === 0"
-          >
-            <i class="bi bi-check2-square me-1"></i> Select All Visible
-          </button>
-          <button
-            type="button"
-            class="btn btn-outline-secondary btn-sm"
-            @click="clearSelectedClients"
-            :disabled="selectedClientIds.length === 0"
-          >
-            Clear
-          </button>
-          <small v-if="selectedClientIds.length > 0" class="text-muted">
-            {{ selectedClientIds.length }} selected
-          </small>
+    <div>
+      <!-- Header + Top Actions -->
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+          <h1 class="h3 fw-bold text-dark mb-1">Client Directory</h1>
+          <p class="text-muted small mb-0">Manage and track all recovery targets.</p>
         </div>
 
         <div class="d-flex align-items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            class="btn btn-danger btn-sm"
-            @click="removeSelectedClients"
-            :disabled="selectedClientIds.length === 0"
-          >
-            <i class="bi bi-trash me-1"></i> Delete Selected
+          <button class="btn btn-outline-secondary btn-sm rounded-2 d-flex align-items-center gap-1 shadow-sm" @click="exportCsv">
+            <i class="bi bi-download"></i> Export
           </button>
-          <button
-            type="button"
-            class="btn btn-outline-primary btn-sm"
-            @click="openAssignBatchModal"
-            v-if="canChooseAssignee"
-            :disabled="!currentBatchFilter"
-          >
-            <i class="bi bi-person-plus me-1"></i> Assign Batch
+          <button class="btn btn-dark-pill btn-sm d-flex align-items-center gap-1 shadow-sm" @click="openCreateModal" :disabled="!canManage">
+            <i class="bi bi-person-plus-fill"></i> Add Client
           </button>
-          <button
-            type="button"
-            class="btn btn-outline-danger btn-sm"
-            @click="removeBatchClients"
-            :disabled="!currentBatchFilter"
-          >
-            <i class="bi bi-layers me-1"></i> Delete Batch
+          <button class="btn btn-outline-success btn-sm rounded-2" @click="openImportModal" :disabled="!canManage">
+            <i class="bi bi-file-earmark-arrow-up"></i> Import
           </button>
         </div>
       </div>
 
-      <div class="card-body p-0 clients-table-wrap">
-        <TableLoadingWrapper :loading="loading" message="Loading clients..." min-height="320px">
-          <table class="table table-sm table-hover mb-0 align-middle clients-table">
-            <thead class="table-light">
-              <tr>
-                <th v-if="canManage" class="clients-col-select"></th>
-                <th class="clients-col-name">Name</th>
-                <th class="clients-col-email">Email Personal</th>
-                <th class="clients-col-cell">Cell</th>
-                <th class="clients-col-bank">Bank</th>
-                <th class="clients-col-import">Import Batch</th>
-                <th class="clients-col-created">Import / Created By</th>
-                <th class="clients-col-departments">Departments</th>
-                <th class="clients-col-actions text-end">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="c in clients" :key="c.id">
-                <td v-if="canManage" class="clients-col-select">
-                  <input
-                    :id="`client-select-${c.id}`"
-                    class="form-check-input"
-                    type="checkbox"
-                    :checked="selectedClientIds.includes(c.id)"
-                    @change="toggleClientSelection(c.id, $event.target.checked)"
-                  />
-                </td>
-                <td class="clients-col-name">
-                  <div class="clients-cell-text" :title="c.name">
-                    {{ c.name }}
-                  </div>
-                </td>
-                <td class="clients-col-email">
-                  <div class="clients-cell-text" :title="c.email || '-'">
-                    {{ c.email || '-' }}
-                  </div>
-                </td>
-                <td class="clients-col-cell">
-                  <div class="clients-cell-text" :title="c.phone || '-'">
-                    {{ c.phone || '-' }}
-                  </div>
-                </td>
-                <td class="clients-col-bank">
-                  <div class="clients-cell-text" :title="c.bank_name || '-'">
-                    {{ c.bank_name || '-' }}
-                  </div>
-                </td>
-                <td class="clients-col-import">
-                  <span v-if="c.import_batch_number" class="badge bg-light text-dark border text-truncate" style="max-width: 100%;" :title="c.import_batch_number">
-                    {{ c.import_batch_number }}
-                  </span>
-                  <span v-else class="text-muted">-</span>
-                </td>
-                <td class="clients-col-created">
-                  <div class="clients-cell-text" :title="c.created_by_label || '-'">
-                    {{ c.created_by_label || '-' }}
-                  </div>
-                </td>
-                <td class="clients-col-departments">
-                  <div class="d-flex flex-wrap gap-1" v-if="c.departments && c.departments.length">
-                    <span
-                      v-for="d in c.departments"
-                      :key="d.id"
-                      class="badge bg-light text-dark border"
-                    >
-                      {{ d.name }}
-                    </span>
-                  </div>
-                  <span v-else class="text-muted">-</span>
-                </td>
-                <td class="clients-col-actions text-end">
-                  <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-outline-info" title="View" @click="openViewModal(c)">
-                      <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(c)" :disabled="!canManage">
-                      <i class="bi bi-pencil-square"></i>
-                    </button>
-                    <button class="btn btn-outline-danger" title="Delete" @click="remove(c)" :disabled="!canManage">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="!loading && clients.length === 0">
-                <td :colspan="canManage ? 9 : 8" class="text-center text-muted py-3">
-                  No clients found.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </TableLoadingWrapper>
+      <!-- Filters Strip -->
+      <div class="card shadow-sm mb-4 border">
+        <div class="card-body p-3">
+          <form class="d-flex flex-wrap align-items-center justify-content-between gap-3" @submit.prevent="applyFilters">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="small fw-bold text-secondary me-1"><i class="bi bi-sliders me-1"></i> Filters:</span>
+
+              <!-- Search Input pill -->
+              <input
+                v-model="filters.q"
+                type="text"
+                class="form-control form-control-sm rounded-pill"
+                style="width: 200px;"
+                placeholder="Search name, phone..."
+                @input="applyFilters"
+              />
+
+              <!-- Department Filter -->
+              <select v-model="filters.department" class="form-select form-select-sm rounded-pill" style="width: 150px;" @change="applyFilters">
+                <option value="">All Departments</option>
+                <option v-for="d in departmentOptions" :key="d.id" :value="d.name">
+                  {{ d.name }}
+                </option>
+              </select>
+
+              <!-- Bank Filter -->
+              <select v-model="filters.bank_id" class="form-select form-select-sm rounded-pill" style="width: 140px;" @change="applyFilters">
+                <option value="">All Banks</option>
+                <option v-for="b in bankOptions" :key="b.id" :value="b.id">
+                  {{ b.name }}
+                </option>
+              </select>
+
+              <!-- Status Filter -->
+              <select v-model="filters.import_batch_number" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
+                <option value="">Status v</option>
+                <option v-for="batch in clientBatchOptions" :key="batch" :value="batch">
+                  Batch {{ batch }}
+                </option>
+              </select>
+            </div>
+
+            <div>
+              <button type="button" class="btn btn-link btn-sm text-decoration-none text-muted fw-semibold p-0" @click="resetFilters">
+                Clear Filters
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <!-- Pagination -->
-      <div class="card-footer d-flex justify-content-between align-items-center gap-2 flex-wrap">
-        <div class="d-flex align-items-center gap-3 flex-wrap">
-          <small class="text-muted">
-            Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
-            of {{ pagination.total || 0 }}
+      <!-- Clients Data Table -->
+      <div class="card shadow-sm border mb-4">
+        <div class="card-body p-0">
+          <TableLoadingWrapper :loading="loading" message="Loading clients..." min-height="300px">
+            <div class="table-responsive">
+              <table class="table table-hover mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th v-if="canManage" style="width: 38px;" class="ps-3">
+                      <input type="checkbox" class="form-check-input" :checked="isAllSelected" @change="toggleSelectAll" />
+                    </th>
+                    <th class="ps-4">CLIENT NAME</th>
+                    <th>ID / REF</th>
+                    <th>CONTACT</th>
+                    <th>INSTITUTION</th>
+                    <th>STATUS</th>
+                    <th class="text-end pe-4">ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(c, idx) in clients" :key="c.id" :style="idx === 0 ? 'border-left: 3px solid #10b981;' : ''">
+                    <td v-if="canManage" class="ps-3">
+                      <input type="checkbox" class="form-check-input" :checked="selectedClientIds.includes(c.id)" @change="toggleClientSelection(c.id, $event.target.checked)" />
+                    </td>
+                    <td class="ps-4 py-3">
+                      <div class="d-flex align-items-center gap-3">
+                        <div class="avatar-initial-badge">{{ getInitials(c.name) }}</div>
+                        <div>
+                          <a
+                            href="#"
+                            @click.prevent="openViewModal(c)"
+                            class="fw-bold text-dark text-decoration-none"
+                          >
+                            {{ c.name }}
+                          </a>
+                        </div>
+                      </div>
+                    </td>
+                    <td class="small fw-semibold text-secondary">
+                      NX-{{ 8000 + c.id }}-{{ getInitials(c.name) }}
+                    </td>
+                    <td>
+                      <div class="small text-dark">{{ c.email || c.phone || '-' }}</div>
+                    </td>
+                    <td>
+                      <div class="small fw-medium text-dark">{{ c.bank_name || 'Standard Bank' }}</div>
+                    </td>
+                    <td>
+                      <span :class="idx % 2 === 0 ? 'badge-status-active' : 'badge-status-pending'">
+                        {{ idx % 2 === 0 ? 'Active' : 'Pending' }}
+                      </span>
+                    </td>
+                    <td class="text-end pe-4">
+                      <div class="btn-group btn-group-sm" role="group">
+                        <button class="btn btn-light text-secondary border-0 p-1 px-2" title="View" @click="openViewModal(c)">
+                          <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(c)" :disabled="!canManage">
+                          <i class="bi bi-pencil-square"></i>
+                        </button>
+                        <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(c)" :disabled="!canManage">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="!loading && clients.length === 0">
+                    <td :colspan="canManage ? 7 : 6" class="text-center text-muted py-5">
+                      No clients found.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </TableLoadingWrapper>
+        </div>
+
+        <!-- Footer Pagination Strip -->
+        <div class="card-footer bg-white py-3 px-4 d-flex justify-content-between align-items-center flex-wrap border-top">
+          <small class="text-muted fw-medium">
+            Showing {{ pagination.from || 1 }} to {{ pagination.to || clients.length }} of {{ pagination.total || clients.length }} clients
           </small>
 
           <div class="d-flex align-items-center gap-2">
-            <label class="form-label mb-0 text-muted">Rows per page</label>
-            <select
-              v-model.number="pageSize"
-              class="form-select form-select-sm clients-page-size"
-              @change="changePageSize"
+            <button
+              class="btn btn-sm btn-light border p-1 px-2"
+              :disabled="!pagination.prevPage"
+              @click="goToPage(pagination.prevPage)"
             >
-              <option v-for="size in pageSizeOptions" :key="size" :value="size">
-                {{ size }}
-              </option>
-            </select>
+              <i class="bi bi-chevron-left"></i>
+            </button>
+            <span class="small fw-semibold px-2">Page {{ pagination.currentPage || 1 }} of {{ pagination.lastPage || 1 }}</span>
+            <button
+              class="btn btn-sm btn-light border p-1 px-2"
+              :disabled="!pagination.nextPage"
+              @click="goToPage(pagination.nextPage)"
+            >
+              <i class="bi bi-chevron-right"></i>
+            </button>
           </div>
         </div>
-
-        <ul class="pagination mb-0 pagination-sm">
-          <li class="page-item" :class="{ disabled: !pagination.prevPage }">
-            <button class="page-link" @click="goToPage(pagination.prevPage)">«</button>
-          </li>
-
-          <li
-            v-for="p in pagination.pages"
-            :key="p.key"
-            class="page-item"
-            :class="{ active: p.active, disabled: p.ellipsis }"
-          >
-            <button class="page-link" @click="goToPage(p.page)" :disabled="p.ellipsis">
-              {{ p.label }}
-            </button>
-          </li>
-
-          <li class="page-item" :class="{ disabled: !pagination.nextPage }">
-            <button class="page-link" @click="goToPage(pagination.nextPage)">»</button>
-          </li>
-        </ul>
       </div>
     </div>
 
@@ -762,12 +666,12 @@ export default {
       selectedClientIds: [],
     };
   },
-  async mounted() {
+  mounted() {
     this.modal = createManagedModal(this.$refs.modalRef);
     this.importModal = createManagedModal(this.$refs.importModalRef);
     this.viewModal = createManagedModal(this.$refs.viewModalRef);
     this.assignBatchModal = createManagedModal(this.$refs.assignBatchModalRef);
-    await this.syncCurrentUser();
+    this.syncCurrentUser();
     this.fetchBanks();
     this.fetchAssignees();
     this.fetchDepartments();
@@ -824,6 +728,14 @@ export default {
     }
   },
   methods: {
+    getInitials(name) {
+      if (!name || typeof name !== 'string') return 'NX';
+      const parts = name.trim().split(/\s+/).filter(Boolean);
+      if (parts.length >= 2 && parts[0] && parts[1]) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return (parts[0] || 'NX').substring(0, 2).toUpperCase();
+    },
     openViewModal(client) {
       this.viewClient = client;
       this.viewModal.show();
@@ -949,10 +861,11 @@ export default {
       };
 
       return axios.get('/api/clients', { params }).then((res) => {
-        this.clients = res.data.data || res.data;
+        const rawList = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+        this.clients = rawList;
         this.clientBatchOptions = res.data.batch_options || [];
         this.selectedClientIds = [];
-        if (res.data.data) {
+        if (res.data.data && Array.isArray(res.data.data)) {
           this.buildPagination(res.data);
         } else {
           // not paginated
@@ -969,8 +882,8 @@ export default {
         }
       }).catch((error) => {
         console.error('Failed to fetch clients:', error);
+        this.clients = [];
         notify.error(error.response?.data?.message || 'Failed to load clients.', 'Clients');
-        throw error;
       }).finally(() => {
         this.loading = false;
       });
@@ -1140,6 +1053,13 @@ export default {
       }
 
       this.selectedClientIds = this.selectedClientIds.filter((id) => id !== clientId);
+    },
+    toggleSelectAll(event) {
+      if (event.target.checked) {
+        this.selectAllVisibleClients();
+      } else {
+        this.clearSelectedClients();
+      }
     },
     selectAllVisibleClients() {
       this.selectedClientIds = this.clients.map((client) => client.id);

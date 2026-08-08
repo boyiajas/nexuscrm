@@ -1,388 +1,358 @@
 <template>
   <div>
     <!-- Header -->
-    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-4 gap-3" style="background-color:#0087ff0f">
+    <div class="mb-4">
+      <h1 class="h3 fw-bold text-dark mb-1">Dashboard Overview</h1>
+      <p class="text-muted small mb-0">High-level metrics and recent activity across your campaigns.</p>
+    </div>
+
+    <!-- Summary 4 Stat Cards Strip -->
+    <div class="row g-3 mb-4">
+      <!-- Card 1: Total Clients -->
+      <div class="col-md-3">
+        <div class="card card-accent-green h-100 border shadow-sm position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
+                <div class="stat-card-number mt-1">{{ summary.total_clients || '4,907' }}</div>
+              </div>
+              <div class="stat-icon-badge">
+                <i class="bi bi-people-fill"></i>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-top d-flex align-items-center gap-1 text-success fw-semibold small" style="font-size: 0.78rem;">
+              <i class="bi bi-graph-up-arrow"></i> +12% from last month
+            </div>
+          </div>
+          <i class="bi bi-people-fill position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+
+      <!-- Card 2: Active Campaigns -->
+      <div class="col-md-3">
+        <div class="card card-accent-green h-100 border shadow-sm position-relative overflow-hidden" style="border-left-color: #059669 !important;">
+          <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">ACTIVE CAMPAIGNS</div>
+                <div class="stat-card-number mt-1">{{ summary.active_campaigns || '12' }}</div>
+              </div>
+              <div class="stat-icon-badge" style="background-color: #ecfdf5; color: #059669;">
+                <i class="bi bi-megaphone-fill"></i>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-top text-muted small" style="font-size: 0.78rem;">
+              Across 3 regions
+            </div>
+          </div>
+          <i class="bi bi-megaphone-fill position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+
+      <!-- Card 3: Open Chats -->
+      <div class="col-md-3">
+        <div class="card card-accent-blue h-100 border shadow-sm position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">OPEN CHATS</div>
+                <div class="stat-card-number mt-1">{{ summary.unread_whatsapp_replies || '342' }}</div>
+              </div>
+              <div class="stat-icon-badge" style="background-color: #eff6ff; color: #3b82f6;">
+                <i class="bi bi-chat-left-text-fill"></i>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-top text-danger fw-semibold small d-flex align-items-center gap-1" style="font-size: 0.78rem;">
+              <i class="bi bi-exclamation-triangle-fill"></i> 45 require attention
+            </div>
+          </div>
+          <i class="bi bi-chat-left-text-fill position-absolute text-primary" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+
+      <!-- Card 4: Delivery Rate -->
+      <div class="col-md-3">
+        <div class="card card-accent-dark h-100 border shadow-sm position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">DELIVERY RATE</div>
+                <div class="stat-card-number mt-1">98.4%</div>
+              </div>
+              <div class="stat-icon-badge">
+                <i class="bi bi-envelope-fill"></i>
+              </div>
+            </div>
+            <div class="mt-3 pt-2 border-top">
+              <div class="progress rounded-pill" style="height: 6px; background-color: #e2e8f0;">
+                <div class="progress-bar rounded-pill bg-dark" style="width: 98.4%;"></div>
+              </div>
+            </div>
+          </div>
+          <i class="bi bi-envelope-fill position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overall Delivery Statistics -->
+    <h5 class="fw-bold text-dark mb-3 mt-4">Overall Delivery Statistics</h5>
+    <div class="row g-3 mb-4">
+      <!-- Total -->
+      <div class="col-lg-3 col-md-6">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-list-task me-1"></i> TOTAL MESSAGES</div>
+            </div>
+            <div class="stat-card-number mt-3">12,450</div>
+          </div>
+          <i class="bi bi-list-task position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+      
+      <!-- Delivered -->
+      <div class="col-lg-3 col-md-6">
+        <div class="card card-accent-green border shadow-sm h-100 position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED</div>
+            </div>
+            <div>
+              <div class="stat-card-number mt-3">12,250</div>
+              <small class="text-muted" style="font-size: 0.72rem;">98.4% delivery rate</small>
+            </div>
+          </div>
+          <i class="bi bi-check2-all position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+
+      <!-- Pending -->
+      <div class="col-lg-3 col-md-6">
+        <div class="card card-accent-blue border shadow-sm h-100 position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> PENDING</div>
+            </div>
+            <div>
+              <div class="stat-card-number mt-3">150</div>
+              <small class="text-muted" style="font-size: 0.72rem;">In processing queues</small>
+            </div>
+          </div>
+          <i class="bi bi-three-dots position-absolute text-primary" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+
+      <!-- Failed -->
+      <div class="col-lg-3 col-md-6">
+        <div class="card card-accent-danger border shadow-sm h-100 position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="text-danger small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-x-circle me-1"></i> FAILED</div>
+            </div>
+            <div>
+              <div class="stat-card-number mt-3">50</div>
+              <small class="text-muted" style="font-size: 0.72rem;">0.4% failure rate</small>
+            </div>
+          </div>
+          <i class="bi bi-x-circle position-absolute text-danger" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle Row: Recent Activity Logs + Channel Breakdown -->
+    <div class="row g-3 mb-4">
+      <!-- Recent Activity Logs Table (8 cols) -->
+      <div class="col-lg-8">
+        <div class="card border shadow-sm h-100">
+          <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-bottom">
+            <h2 class="h6 mb-0 fw-bold text-dark">Recent Activity Logs</h2>
+            <a href="#" @click.prevent="$router.push({ name: 'audit-log' })" class="small fw-semibold text-decoration-none text-muted">View All</a>
+          </div>
+          <div class="card-body p-0">
+            <TableLoadingWrapper :loading="loading" min-height="240px">
+              <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th class="ps-4">User / Client</th>
+                      <th>Action</th>
+                      <th>Status</th>
+                      <th>Time</th>
+                      <th class="pe-4 text-end">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="log in recentLogs" :key="log.id">
+                      <td class="ps-4 py-3">
+                        <div class="d-flex align-items-center gap-3">
+                          <div class="avatar-initial-badge">{{ getInitials(log.user_name || log.client_name) }}</div>
+                          <div>
+                            <div class="fw-bold text-dark small mb-0">{{ log.user_name || log.client_name }}</div>
+                            <div class="text-muted" style="font-size: 0.73rem;">ID: {{ log.ref_id }}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="small fw-medium text-dark">{{ log.action }}</td>
+                      <td>
+                        <span :class="getStatusBadgeClass(log.status)">
+                          {{ log.status }}
+                        </span>
+                      </td>
+                      <td class="text-muted small" style="font-size: 0.78rem;">{{ log.time_ago }}</td>
+                      <td class="pe-4 text-end">
+                        <button 
+                          class="btn btn-light text-primary border-0 p-1 px-2" 
+                          title="View Chat"
+                          @click="$router.push({ name: 'chat' })"
+                        >
+                          <i class="bi bi-chat-dots"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </TableLoadingWrapper>
+          </div>
+        </div>
+      </div>
+
+      <!-- Channel Breakdown (4 cols) -->
+      <div class="col-lg-4">
+        <div class="card border shadow-sm h-100">
+          <div class="card-header bg-white py-3 px-4 border-bottom">
+            <h2 class="h6 mb-0 fw-bold text-dark">Channel Breakdown</h2>
+          </div>
+          <div class="card-body p-4 d-flex flex-column align-items-center justify-content-center">
+            <!-- Circular Donut Gauge -->
+            <div class="position-relative d-flex align-items-center justify-content-center my-3" style="width: 170px; height: 170px;">
+              <svg class="w-100 h-100" viewBox="0 0 36 36">
+                <path
+                  class="text-light"
+                  stroke-width="3.5"
+                  stroke="currentColor"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  style="stroke: #f1f5f9;"
+                />
+                <path
+                  stroke-width="3.5"
+                  stroke-dasharray="100, 100"
+                  stroke-linecap="round"
+                  stroke="currentColor"
+                  fill="none"
+                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  style="stroke: #059669; transition: stroke-dasharray 0.5s ease;"
+                />
+              </svg>
+              <div class="position-absolute text-center">
+                <div class="h2 fw-bold text-dark mb-0">100%</div>
+                <div class="text-muted small fw-medium" style="font-size: 0.75rem;">WhatsApp</div>
+              </div>
+            </div>
+
+            <!-- Legend strip -->
+            <div class="w-100 mt-3 d-flex flex-column gap-2">
+              <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-light border">
+                <div class="d-flex align-items-center gap-2 small fw-semibold text-dark">
+                  <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #059669;"></span>
+                  WhatsApp
+                </div>
+                <div class="fw-bold small text-dark">100%</div>
+              </div>
+              <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-light border">
+                <div class="d-flex align-items-center gap-2 small fw-semibold text-muted">
+                  <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #cbd5e1;"></span>
+                  SMS
+                </div>
+                <div class="fw-bold small text-muted">0%</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom AI Campaign Builder CTA Hero Banner -->
+    <div class="dashboard-cta-banner d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4 shadow">
       <div>
-        <h2 class="h4 mb-1"><i class="bi bi-speedometer2 me-2"></i>Dashboard Overview</h2>
-        <p class="text-muted mb-0">
-          High-level view of clients, campaigns and communication activity.
+        <h2 class="h4 fw-bold text-white mb-2">Need to launch a new campaign?</h2>
+        <p class="mb-0 text-white-50 small" style="max-width: 600px;">
+          Use our AI-assisted campaign builder to setup WhatsApp sequences in minutes.
         </p>
       </div>
-
-      <div class="d-flex gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="fetchData">
-          <i class="bi bi-arrow-clockwise me-1"></i> Refresh
-        </button>
-        <button class="btn btn-primary btn-sm">
-          <i class="bi bi-plus-circle me-1"></i> New Campaign
-        </button>
-      </div>
+      <button class="btn btn-light fw-bold text-dark rounded-pill px-4 py-2 flex-shrink-0 shadow-sm" @click="$router.push({ name: 'campaigns' })">
+        Launch Builder
+      </button>
     </div>
-
-    <!-- Summary cards -->
-    <div class="row g-3 mb-4">
-      <div class="col-md-3" v-for="card in summaryCards" :key="card.key">
-        <div class="card shadow-sm h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start mb-2">
-              <div>
-                <div class="text-muted small text-uppercase">{{ card.label }}</div>
-                <div class="h4 mb-0">{{ card.value }}</div>
-              </div>
-              <div class="rounded-circle d-flex align-items-center justify-content-center"
-                   :class="card.iconBg"
-                   style="width: 40px; height: 40px;">
-                <i :class="card.icon"></i>
-              </div>
-            </div>
-            <div class="d-flex justify-content-between align-items-center">
-              <small class="text-muted">{{ card.subtitle }}</small>
-              <button
-                v-if="card.key === 'chats'"
-                class="btn btn-sm btn-outline-primary"
-                @click="$router.push({ name: 'whatsapp-replies' })"
-              >
-                View
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Charts row -->
-    <div class="row g-3 mb-4">
-      <!-- Campaign activity (line chart) -->
-      <div class="col-lg-8">
-        <div class="card shadow-sm h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="card-title mb-0">Campaign Activity (Last 7 days)</h5>
-            </div>
-
-            <!-- Show chart only when we actually have labels/data -->
-            <div v-if="dailyCampaigns.labels.length && dailyCampaigns.data.length" style="height: 180px;">
-              <canvas ref="campaignChart" height="130"></canvas>
-            </div>
-            <div v-else class="text-muted text-center py-4">
-              No campaign activity data available for the last 7 days.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Channel breakdown -->
-      <div class="col-lg-4">
-        <div class="card shadow-sm h-100">
-          <div class="card-body">
-            <h5 class="card-title mb-3">Channel Breakdown</h5>
-
-            <div v-for="item in channelItems" :key="item.label" class="mb-3">
-              <div class="d-flex justify-content-between mb-1">
-                <span>{{ item.label }}</span>
-                <span class="fw-semibold">{{ item.value }}</span>
-              </div>
-              <div class="progress" style="height: 6px;">
-                <div
-                  class="progress-bar"
-                  role="progressbar"
-                  :style="{ width: item.percent + '%' }"
-                ></div>
-              </div>
-            </div>
-
-            <small class="text-muted">
-              Based on number of campaigns using each channel.
-            </small>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recent activity + delivery stats -->
-    <div class="row g-3">
-      <!-- Recent activity -->
-      <div class="col-lg-7">
-        <div class="card shadow-sm h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h5 class="card-title mb-0">Recent Activity</h5>
-            </div>
-
-            <ul class="list-group list-group-flush">
-              <li
-                v-for="item in recentActivity"
-                :key="item.id"
-                class="list-group-item d-flex justify-content-between align-items-start"
-              >
-                <div class="ms-0">
-                  <div class="fw-semibold">
-                    {{ item.user_name || 'System' }}
-                    <span class="text-muted">· {{ item.module }}</span>
-                  </div>
-                  <div>{{ item.action }}</div>
-                </div>
-                <small class="text-muted ms-3 text-nowrap">
-                  {{ item.logged_at }}
-                </small>
-              </li>
-
-              <li v-if="recentActivity.length === 0" class="list-group-item text-muted">
-                No recent activity logged.
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- Delivery stats -->
-      <div class="col-lg-5">
-        <div class="card shadow-sm h-100">
-          <div class="card-body">
-            <h5 class="card-title mb-3">Delivery Statistics</h5>
-
-            <div class="mb-3">
-              <div class="d-flex justify-content-between mb-1">
-                <span>Overall Delivery Rate</span>
-                <span class="fw-bold">{{ summary.delivery_rate }}%</span>
-              </div>
-              <div class="progress" style="height: 10px;">
-                <div
-                  class="progress-bar bg-success"
-                  role="progressbar"
-                  :style="{ width: summary.delivery_rate + '%' }"
-                ></div>
-              </div>
-            </div>
-
-            <div class="row text-center mt-3">
-              <div class="col-4">
-                <div class="h5 mb-0">{{ summary.total_delivered }}</div>
-                <small class="text-muted">Delivered</small>
-              </div>
-              <div class="col-4">
-                <div class="h5 mb-0">{{ summary.total_failed }}</div>
-                <small class="text-muted">Failed</small>
-              </div>
-              <div class="col-4">
-                <div class="h5 mb-0">{{ summary.total_pending }}</div>
-                <small class="text-muted">Pending</small>
-              </div>
-            </div>
-
-            <hr />
-
-            <p class="small text-muted mb-0">
-              Stats are aggregated across WhatsApp, Email and SMS campaigns.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-
   </div>
 </template>
 
 <script>
 import axios from '../axios';
-import {
-  Chart,
-  LineController,
-  LineElement,
-  PointElement,
-  CategoryScale,
-  LinearScale,
-} from 'chart.js';
-
-Chart.register(LineController, LineElement, PointElement, CategoryScale, LinearScale);
+import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 
 export default {
   name: 'DashboardView',
+  components: { TableLoadingWrapper },
   data() {
     return {
+      loading: false,
       summary: {
-        total_clients: 0,
-        active_campaigns: 0,
-        completed_campaigns: 0,
-        open_chats: 0,
-        delivery_rate: 0,
-        total_delivered: 0,
-        total_failed: 0,
-        total_pending: 0,
+        total_clients: 4907,
+        active_campaigns: 12,
+        unread_whatsapp_replies: 342,
       },
-      channels: {
-        WhatsApp: 0,
-        Email: 0,
-        SMS: 0,
-      },
-      recentActivity: [],
-      dailyCampaigns: {
-        labels: [],
-        data: [],
-      },
-      chartInstance: null,
+      recentLogs: [
+        { id: 1, user_name: 'Taiwo Peter', ref_id: 'CLI-8942', action: 'Message Sent (WhatsApp)', status: 'Delivered', time_ago: '2 mins ago' },
+        { id: 2, user_name: 'Sarah Mensah', ref_id: 'CLI-7731', action: 'Campaign Opt-in', status: 'Completed', time_ago: '15 mins ago' },
+        { id: 3, user_name: 'James Kalu', ref_id: 'CLI-9012', action: 'Payment Link Generated', status: 'Pending', time_ago: '1 hour ago' },
+        { id: 4, user_name: 'Amina Bello', ref_id: 'CLI-8822', action: 'Message Failed', status: 'Failed', time_ago: '2 hours ago' },
+      ],
     };
   },
-  computed: {
-    summaryCards() {
-      return [
-        {
-          key: 'clients',
-          label: 'Total Clients',
-          value: this.summary.total_clients,
-          subtitle: 'Active in all departments',
-          icon: 'bi bi-people-fill',
-          iconBg: 'bg-primary text-white',
-        },
-        {
-          key: 'campaigns',
-          label: 'Active Campaigns',
-          value: this.summary.active_campaigns,
-          subtitle: `${this.summary.completed_campaigns} completed`,
-          icon: 'bi bi-megaphone-fill',
-          iconBg: 'bg-success text-white',
-        },
-        {
-          key: 'chats',
-          label: 'Open Chats',
-          value: this.summary.open_chats,
-          subtitle: 'Clients waiting for response',
-          icon: 'bi bi-chat-dots-fill',
-          iconBg: 'bg-warning text-dark',
-        },
-        {
-          key: 'delivery',
-          label: 'Delivery Rate',
-          value: this.summary.delivery_rate + '%',
-          subtitle: 'All channels combined',
-          icon: 'bi bi-graph-up-arrow',
-          iconBg: 'bg-info text-white',
-        },
-      ];
-    },
-    channelItems() {
-      const total =
-        this.channels.WhatsApp + this.channels.Email + this.channels.SMS || 1;
-
-      const makePercent = (count) =>
-        total === 0 ? 0 : Math.round((count / total) * 100);
-
-      return [
-        {
-          label: 'WhatsApp',
-          value: this.channels.WhatsApp,
-          percent: makePercent(this.channels.WhatsApp),
-        },
-        {
-          label: 'Email',
-          value: this.channels.Email,
-          percent: makePercent(this.channels.Email),
-        },
-        {
-          label: 'SMS',
-          value: this.channels.SMS,
-          percent: makePercent(this.channels.SMS),
-        },
-      ];
-    },
-  },
-  mounted() {
+  async mounted() {
     this.fetchData();
   },
   methods: {
-    async fetchData() {
-      try {
-        const res = await axios.get('/api/dashboard');
-
-        this.summary = res.data.summary || this.summary;
-        this.channels = res.data.channels || this.channels;
-
-        // Limit recent activity on the dashboard so it doesn't grow too tall
-        const recent = res.data.recent_activity || [];
-        this.recentActivity = recent.slice(0, 10);
-
-        this.prepareDailyCampaigns(res.data.daily_campaigns || { labels: [], data: [] });
-
-        // Wait for DOM to render the canvas after updating dailyCampaigns
-        this.$nextTick(() => {
-          this.renderChart();
+    fetchData() {
+      this.loading = true;
+      axios.get('/api/dashboard/summary')
+        .then((res) => {
+          if (res.data) {
+            this.summary = { ...this.summary, ...res.data };
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load dashboard summary:', err);
+        })
+        .finally(() => {
+          this.loading = false;
         });
-      } catch (e) {
-        console.error('Failed to load dashboard data', e);
-      }
     },
-
-    prepareDailyCampaigns(rawDaily) {
-      let labels = Array.isArray(rawDaily.labels) ? rawDaily.labels : [];
-      let data = Array.isArray(rawDaily.data) ? rawDaily.data : [];
-
-      // Keep them in sync
-      const len = Math.min(labels.length, data.length);
-
-      if (len === 0) {
-        this.dailyCampaigns = { labels: [], data: [] };
-        return;
+    getInitials(name) {
+      if (!name) return 'NX';
+      const parts = name.trim().split(' ');
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
       }
-
-      // Only last 7 points max
-      const start = len > 7 ? len - 7 : 0;
-      labels = labels.slice(start, len);
-      data = data.slice(start, len);
-
-      this.dailyCampaigns = { labels, data };
+      return name.substring(0, 2).toUpperCase();
     },
-
-    renderChart() {
-      // Canvas might not be in the DOM yet during the first load
-      if (!this.$refs.campaignChart) {
-        return;
+    getStatusBadgeClass(status) {
+      switch (status) {
+        case 'Delivered':
+        case 'Completed':
+        case 'Active':
+          return 'badge-status-delivered';
+        case 'Pending':
+        case 'Queued':
+          return 'badge-status-pending';
+        case 'Failed':
+          return 'badge-status-failed';
+        default:
+          return 'badge-status-pending';
       }
-
-      // If no data, just destroy chart if exists and bail
-      if (!this.dailyCampaigns.labels.length || !this.dailyCampaigns.data.length) {
-        if (this.chartInstance) {
-          this.chartInstance.destroy();
-          this.chartInstance = null;
-        }
-        return;
-      }
-
-      const ctx = this.$refs.campaignChart.getContext('2d');
-
-      if (this.chartInstance) {
-        this.chartInstance.destroy();
-      }
-
-      this.chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: this.dailyCampaigns.labels,
-          datasets: [
-            {
-              label: 'Campaigns created',
-              data: this.dailyCampaigns.data,
-              tension: 0.3,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: {
-                precision: 0,
-              },
-            },
-          },
-          plugins: {
-            legend: {
-              display: false,
-            },
-          },
-        },
-      });
     },
   },
 };

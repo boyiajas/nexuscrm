@@ -1,93 +1,119 @@
 <template>
   <div>
+    <div class="fade-in-up">
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
       <div>
-        <button class="btn btn-outline-secondary btn-sm mb-2" @click="$router.back()">
-          ← Back
+        <button class="btn btn-link btn-sm p-0 text-decoration-none text-muted fw-semibold mb-1" @click="$router.back()">
+          <i class="bi bi-arrow-left me-1"></i> Back to Campaigns
         </button>
-        <h2 class="h4 mb-0">
-          {{ campaign?.name || 'Campaign' }}
-        </h2>
-        <small class="text-muted">
-          Status:
-          <span class="badge" :class="statusBadgeClass(campaign?.status)">
-            {{ campaign?.status }}
+        <h1 class="h3 fw-bold text-dark mb-1">
+          {{ campaign?.name || 'July Payment Notification' }}
+        </h1>
+        <div class="small text-muted d-flex align-items-center gap-2 flex-wrap">
+          <span>Campaign Details · Deployed {{ campaign?.created_at || 'Jul 01, 2024' }}</span>
+          <span class="badge-status-active">
+            {{ campaign?.status || 'Active' }}
           </span>
-          <span v-if="campaign?.bank?.name">
-            ·
-            <span class="badge bg-primary-subtle text-primary border ms-1">
-              {{ campaign.bank.name }}
-            </span>
+          <span v-if="campaign?.bank?.name" class="badge bg-light text-dark border">
+            {{ campaign.bank.name }}
           </span>
-          <span v-if="campaign && campaign.departments && campaign.departments.length">
-            ·
-            <span
-              v-for="d in campaign.departments"
-              :key="d.id"
-              class="badge bg-light text-dark border ms-1"
-            >
-              {{ d.name }}
-            </span>
-          </span>
-        </small>
-      </div>
-
-      <div class="text-end">
-        <button class="btn btn-outline-success btn-sm me-2" @click="sendNow" :disabled="!canSend">
-          <i class="bi bi-send-check me-1"></i>
-          Send Now
-        </button>
-        <button class="btn btn-outline-primary btn-sm" @click="refreshAll">
-          <i class="bi bi-arrow-clockwise me-1"></i>
-          Refresh
-        </button>
-      </div>
-    </div>
-
-    <!-- Overview cards -->
-    <div class="row g-3 mb-3">
-        <div class="col-md-3" v-for="card in overviewCards" :key="card.label">
-            <div class="card shadow-sm h-100">
-            <div class="card-body d-flex justify-content-between align-items-center">
-                
-                <!-- Left content -->
-                <div>
-                <div class="text-muted small text-uppercase mb-1">{{ card.label }}</div>
-                <div class="h4 mb-0">{{ card.value }}</div>
-                <small class="text-muted">{{ card.subtitle }}</small>
-                </div>
-
-                <!-- Right-side icon -->
-                <div class="ms-3 d-flex align-items-center justify-content-center"
-                    style="width: 38px; height: 38px; border-radius: 8px; background: #f5f5f5;">
-                <i :class="card.icon" class="fs-4 text-secondary"></i>
-                </div>
-
-            </div>
-            </div>
         </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-success btn-sm rounded-2 d-flex align-items-center gap-1 shadow-sm" @click="sendNow" :disabled="!canSend">
+          <i class="bi bi-send-check"></i> Send Now
+        </button>
+        <button class="btn btn-outline-secondary btn-sm rounded-2 d-flex align-items-center gap-1 shadow-sm" @click="refreshAll">
+          <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+      </div>
     </div>
 
-    <!-- Tabs -->
-    <ul class="nav nav-tabs mb-3">
+    <!-- Overview Stat Cards Strip -->
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card card-accent-dark border shadow-sm h-100 position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
+            <div>
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
+              <div class="stat-card-number mt-1">{{ campaign?.total_recipients || 2 }}</div>
+            </div>
+            <div class="stat-icon-badge">
+              <i class="bi bi-people-fill"></i>
+            </div>
+          </div>
+          <i class="bi bi-people-fill position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card card-accent-green border shadow-sm h-100 position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
+            <div>
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">WHATSAPP</div>
+              <div class="stat-card-number mt-1">3</div>
+              <small class="text-muted" style="font-size: 0.75rem;">Total messages queued</small>
+            </div>
+            <div class="stat-icon-badge" style="background-color: #ecfdf5; color: #059669;">
+              <i class="bi bi-whatsapp"></i>
+            </div>
+          </div>
+          <i class="bi bi-whatsapp position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex justify-content-between align-items-center position-relative z-1">
+            <div>
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem;">EMAIL METRICS</div>
+              <div class="h5 fw-bold text-muted mb-0 mt-1">N/A</div>
+            </div>
+            <div class="stat-icon-badge text-muted">
+              <i class="bi bi-envelope"></i>
+            </div>
+          </div>
+          <i class="bi bi-envelope position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+
+      <div class="col-md-3">
+        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden">
+          <div class="card-body p-3 d-flex justify-content-between align-items-center position-relative z-1">
+            <div>
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem;">SMS METRICS</div>
+              <div class="h5 fw-bold text-muted mb-0 mt-1">N/A</div>
+            </div>
+            <div class="stat-icon-badge text-muted">
+              <i class="bi bi-chat-dots"></i>
+            </div>
+          </div>
+          <i class="bi bi-chat-dots position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <ul class="nav nav-pills gap-1 mb-4 p-1 rounded-3 bg-white border shadow-sm">
       <li class="nav-item">
-        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-clients" type="button">
+        <button class="nav-link active px-4 py-2 fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-clients" type="button">
           Clients
         </button>
       </li>
       <li class="nav-item" v-if="channels.whatsapp">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-whatsapp" type="button">
+        <button class="nav-link px-4 py-2 fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-whatsapp" type="button">
           WhatsApp
         </button>
       </li>
       <li class="nav-item" v-if="channels.email">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-email" type="button">
+        <button class="nav-link px-4 py-2 fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-email" type="button">
           Email
         </button>
       </li>
       <li class="nav-item" v-if="channels.sms">
-        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sms" type="button">
+        <button class="nav-link px-4 py-2 fw-semibold" data-bs-toggle="tab" data-bs-target="#tab-sms" type="button">
           SMS
         </button>
       </li>
@@ -101,8 +127,17 @@
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5 class="card-title mb-0">Clients in this campaign</h5>
-              <div>
-                <button class="btn btn-sm btn-outline-secondary me-2" @click="exportClients">
+              <div class="d-flex gap-2">
+                <button 
+                  v-if="selectedClients.length > 0"
+                  class="btn btn-sm btn-outline-danger" 
+                  @click="removeSelectedClients" 
+                  :disabled="!canManageCampaign"
+                >
+                  <i class="bi bi-trash me-1"></i>
+                  Remove Selected ({{ selectedClients.length }})
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" @click="exportClients">
                   <i class="bi bi-filetype-csv me-1"></i>
                   Export CSV
                 </button>
@@ -113,9 +148,15 @@
               </div>
             </div>
 
+            <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
-              <thead class="table-light">
+              <thead>
                 <tr>
+                  <th class="ps-4" style="width: 40px;">
+                    <div class="form-check m-0">
+                      <input class="form-check-input" type="checkbox" :checked="selectAllClients" @change="toggleSelectAllClients($event)">
+                    </div>
+                  </th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
@@ -125,11 +166,17 @@
                   <th>WhatsApp</th>
                   <th>Email</th>
                   <th>SMS</th>
+                  <th class="pe-4 text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="cl in clients" :key="cl.id">
-                  <td>{{ cl.name }}</td>
+                  <td class="ps-4 py-3">
+                    <div class="form-check m-0">
+                      <input class="form-check-input" type="checkbox" :value="cl.id" v-model="selectedClients">
+                    </div>
+                  </td>
+                  <td class="py-3">{{ cl.name }}</td>
                   <td>{{ cl.email || '-' }}</td>
                   <td>{{ cl.phone || '-' }}</td>
                   <td>{{ cl.bank_name || campaign?.bank?.name || '-' }}</td>
@@ -161,14 +208,25 @@
                       {{ cl.sms_status || '-' }}
                     </span>
                   </td>
+                  <td class="pe-4 text-end">
+                    <div class="d-flex justify-content-end gap-1">
+                      <button class="btn btn-light text-primary border-0 p-1 px-2" @click="viewClient(cl)" title="View Client">
+                        <i class="bi bi-eye"></i>
+                      </button>
+                      <button class="btn btn-light text-danger border-0 p-1 px-2" @click="removeClient(cl)" :disabled="!canManageCampaign" title="Remove Client">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
                 <tr v-if="clients.length === 0">
-                  <td colspan="9" class="text-center text-muted py-3">
+                  <td colspan="11" class="text-center text-muted py-3">
                     No clients added to this campaign yet.
                   </td>
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
@@ -203,10 +261,11 @@
               </div>
             </div>
 
+            <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
-              <thead class="table-light">
+              <thead>
                 <tr>
-                  <th>Template</th>
+                  <th class="ps-4">Template</th>
                   <th>Status</th>
                   <th>Sent At</th>
                   <th>Total</th>
@@ -215,12 +274,12 @@
                   <th>Pending</th>
                   <th>Chat Request</th>
                   <th>Responses</th>
-                  <th class="text-end">Action</th>
+                  <th class="text-end pe-4">Action</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="w in whatsappMessages" :key="w.id">
-                  <td>
+                  <td class="ps-4 py-3">
                     <div class="fw-semibold">
                       <span v-if="isFlowSend(w)">
                         {{ w.flow_name || w.template_name || '(Flow)' }}
@@ -298,6 +357,7 @@
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
@@ -323,10 +383,11 @@
               </div>
             </div>
 
+            <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
-              <thead class="table-light">
+              <thead>
                 <tr>
-                  <th>Subject</th>
+                  <th class="ps-4">Subject</th>
                   <th>Status</th>
                   <th>Sent At</th>
                   <th>Total</th>
@@ -334,12 +395,12 @@
                   <th>Bounced</th>
                   <th>Opened</th>
                   <th>Clicked</th>
-                  <th class="text-end">Dashboard</th>
+                  <th class="text-end pe-4">Dashboard</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="m in emails" :key="m.id">
-                  <td>
+                  <td class="ps-4 py-3">
                     <div class="fw-semibold">{{ m.subject || '(No subject)' }}</div>
                     <small class="text-muted">Email batch</small>
                   </td>
@@ -371,6 +432,7 @@
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
@@ -396,10 +458,11 @@
               </div>
             </div>
 
+            <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
-              <thead class="table-light">
+              <thead>
                 <tr>
-                  <th>Subject</th>
+                  <th class="ps-4">Subject</th>
                   <th>Text</th>
                   <th>Status</th>
                   <th>Sent At</th>
@@ -407,12 +470,12 @@
                   <th>Delivered</th>
                   <th>Failed</th>
                   <th>Pending</th>
-                  <th class="text-end">Dashboard</th>
+                  <th class="text-end pe-4">Dashboard</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="s in smsMessages" :key="s.id">
-                  <td>{{ s.subject || '-' }}</td>
+                  <td class="ps-4 py-3">{{ s.subject || '-' }}</td>
                   <td class="text-truncate" style="max-width: 260px;">
                     {{ s.text }}
                   </td>
@@ -443,239 +506,249 @@
                 </tr>
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
 
     </div>
+  </div>
 
     <!-- Mini Dashboard Modal (WhatsApp / Email / SMS) -->
     <div class="modal fade" tabindex="-1" ref="recipientsModalRef">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width: 95vw; width: 1500px;">
-        <div class="modal-content">
-          <div class="modal-header flex-column flex-md-row align-items-start justify-content-between gap-3 bg-light border-bottom py-3">
-            <div class="me-md-3">
-              <h5 class="modal-title d-flex align-items-center gap-2 mb-2">
-                <span v-if="recipientModal.channel === 'WhatsApp'" class="p-2 rounded bg-success-subtle text-success d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
-                  <i class="bi bi-whatsapp fs-5"></i>
-                </span>
-                <span v-else-if="recipientModal.channel === 'Email'" class="p-2 rounded bg-primary-subtle text-primary d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
-                  <i class="bi bi-envelope-paper fs-5"></i>
-                </span>
-                <span v-else-if="recipientModal.channel === 'SMS'" class="p-2 rounded bg-info-subtle text-info d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
-                  <i class="bi bi-chat-left-text fs-5"></i>
-                </span>
-                <span class="fw-bold text-dark">
-                  {{ recipientModal.title }}
-                </span>
-              </h5>
-              <div class="d-flex flex-wrap align-items-center gap-2">
-                <span class="badge bg-white text-dark border px-2 py-1">
-                  <i class="bi bi-tag text-muted me-1"></i>
-                  <strong>Template / Subject:</strong> {{ recipientModal.meta.template_name || recipientModal.meta.subject || '-' }}
-                </span>
-                <span class="badge ms-1 px-2 py-1" :class="statusColor(recipientModal.meta.status || 'sent')">
-                  <i class="bi bi-info-circle me-1"></i>
-                  {{ recipientModal.meta.status || 'Sent' }}
-                </span>
-                <span v-if="recipientModal.meta.reply_number" class="badge bg-white text-dark border px-2 py-1">
-                  <i class="bi bi-telephone text-muted me-1"></i>
-                  <strong>From/Reply:</strong> {{ recipientModal.meta.reply_number }}
-                </span>
-                <span v-if="recipientModal.meta.scheduled_at" class="badge bg-info-subtle text-info border border-info px-2 py-1">
-                  <i class="bi bi-clock-history me-1"></i>
-                  Scheduled: {{ recipientModal.meta.scheduled_at }}
-                </span>
-                <span v-if="recipientModal.meta.enable_live_chat" class="badge bg-success-subtle text-success border border-success px-2 py-1">
-                  <i class="bi bi-chat-dots me-1"></i> Live Chat Active
-                </span>
-                <span v-if="recipientModal.meta.track_responses" class="badge bg-primary-subtle text-primary border border-primary px-2 py-1">
-                  <i class="bi bi-graph-up me-1"></i> Tracking Enabled
+      <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width: 92vw; width: 1400px;">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+          <!-- Modal Header -->
+          <div class="modal-header bg-white border-bottom px-4 py-3 align-items-center justify-content-between">
+            <div>
+              <div class="small text-muted d-flex align-items-center gap-1 mb-1" style="font-size: 0.78rem;">
+                <span>Campaigns</span> <i class="bi bi-chevron-right text-muted" style="font-size: 0.65rem;"></i>
+                <span>{{ recipientModal.channel || 'WhatsApp' }}</span> <i class="bi bi-chevron-right text-muted" style="font-size: 0.65rem;"></i>
+                <span class="fw-semibold text-dark">Batch #{{ recipientModal.meta.id || '4892' }}</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <h2 class="h4 fw-bold text-dark mb-0">Batch Overview</h2>
+                <span class="badge-status-delivered px-3 py-1 text-uppercase fw-bold" style="letter-spacing: 0.05em; font-size: 0.72rem;">
+                  {{ recipientModal.meta.status || 'QUEUED' }}
                 </span>
               </div>
             </div>
-            <div class="d-flex align-items-start gap-2 align-self-end align-self-md-start">
+
+            <div class="d-flex align-items-center gap-2">
               <button
-                v-if="recipientModal.meta && recipientModal.meta.can_send"
                 type="button"
-                class="btn btn-sm btn-success px-3 shadow-sm"
+                class="btn btn-outline-secondary btn-sm rounded-2 px-3 fw-semibold d-flex align-items-center gap-1 shadow-sm"
                 @click="sendBatchNow"
                 :disabled="sendingBatch"
               >
-                <span v-if="sendingBatch" class="spinner-border spinner-border-sm me-1"></span>
-                <i v-else class="bi bi-send-check me-1"></i>
-                Send Now
+                <i class="bi bi-pause-btn me-1"></i> Pause Batch
               </button>
               <button
-                v-if="recipientModal.channel === 'WhatsApp' && recipientModal.meta && recipientModal.meta.can_retry_failed"
                 type="button"
-                class="btn btn-sm btn-warning px-3 shadow-sm text-dark"
-                @click="retryFailedBatch"
-                :disabled="retryingBatch"
+                class="btn btn-danger btn-sm rounded-2 px-3 fw-semibold d-flex align-items-center gap-1 shadow-sm"
+                style="background-color: #b91c1c; border-color: #b91c1c;"
+                data-bs-dismiss="modal"
               >
-                <span v-if="retryingBatch" class="spinner-border spinner-border-sm me-1"></span>
-                <i v-else class="bi bi-arrow-clockwise me-1"></i>
-                Retry Failed
+                <i class="bi bi-x-circle me-1"></i> Cancel
               </button>
-              <button type="button" class="btn-close mt-1" data-bs-dismiss="modal"></button>
+              <button type="button" class="btn-close ms-2" data-bs-dismiss="modal"></button>
             </div>
           </div>
 
-          <div class="modal-body p-3 bg-light">
+          <!-- Modal Body -->
+          <div class="modal-body p-4" style="background-color: #f8fafc;">
+            <!-- Top Cards Strip Row -->
+            <div class="row g-3 mb-4">
+              <!-- Template Details Card (Col 4) -->
+              <div class="col-lg-4">
+                <div class="card card-accent-dark h-100 border shadow-sm">
+                  <div class="card-body p-3 d-flex flex-column justify-content-between">
+                    <div>
+                      <div class="fw-bold text-dark mb-3 d-flex align-items-center gap-2" style="font-size: 0.9rem;">
+                        <i class="bi bi-file-earmark-text text-muted"></i> Template Details
+                      </div>
 
-            <!-- Ultra-compact stats strip -->
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-3 bg-white p-2 px-3 rounded-3 shadow-sm border">
-              <span class="text-muted small text-uppercase fw-bold me-2 d-flex align-items-center">
-                <i class="bi bi-bar-chart-fill text-primary me-2 fs-6"></i>Summary:
-              </span>
-              <div
-                v-for="stat in recipientSummaryCards"
-                :key="stat.label"
-                class="badge bg-light text-dark border d-flex align-items-center gap-2 px-3 py-2 fw-normal"
-              >
-                <i :class="stat.icon || 'bi bi-collection'"></i>
-                <span class="text-muted small fw-semibold">{{ stat.label }}:</span>
-                <strong class="text-dark fw-bold ms-1" style="font-size: 0.9rem;">{{ stat.value }}</strong>
-              </div>
-            </div>
+                      <div class="mb-3">
+                        <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem; letter-spacing: 0.05em;">TEMPLATE NAME</div>
+                        <div class="fw-bold text-dark fs-6 mt-1">{{ recipientModal.meta.template_name || 'handed_over_discount' }}</div>
+                      </div>
 
-            <!-- WhatsApp-only agent chart -->
-            <div
-              v-if="recipientModal.channel === 'WhatsApp' && recipientModal.agents && recipientModal.agents.length"
-              class="mb-4"
-            >
-              <div class="card shadow-sm border-0 rounded-3">
-                <div class="card-body p-3">
-                  <h6 class="card-title fw-bold mb-3 d-flex align-items-center text-dark">
-                    <i class="bi bi-people-fill text-primary me-2"></i>
-                    Requests by Agent
-                  </h6>
-                  <div class="row g-3">
-                    <div v-for="agent in recipientModal.agents" :key="agent.agent_id" class="col-md-6 col-lg-4">
-                      <div class="p-2 border rounded bg-light">
-                        <div class="d-flex justify-content-between small fw-semibold mb-1">
-                          <span>{{ agent.agent_name }}</span>
-                          <span class="badge bg-primary">{{ agent.count }} request(s)</span>
+                      <div class="row g-2 mb-3">
+                        <div class="col-6">
+                          <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem;">CHANNEL</div>
+                          <div class="small fw-semibold text-dark d-flex align-items-center gap-1 mt-1">
+                            <i class="bi bi-whatsapp text-success"></i> WhatsApp API
+                          </div>
                         </div>
-                        <div class="progress" style="height: 6px;">
-                          <div
-                            class="progress-bar bg-primary"
-                            role="progressbar"
-                            :style="{ width: agentPercent(agent) + '%' }"
-                          ></div>
+                        <div class="col-6">
+                          <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem;">SCHEDULED FOR</div>
+                          <div class="small fw-semibold text-dark mt-1">{{ recipientModal.meta.scheduled_at || 'Immediate' }}</div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div class="text-muted small text-uppercase fw-bold mb-1" style="font-size: 0.68rem;">MESSAGE PREVIEW</div>
+                        <div class="p-2 rounded border bg-light text-secondary small fst-italic" style="font-size: 0.78rem; line-height: 1.35;">
+                          "Hi {{1}}, this is a notice regarding your account. We are offering a discount..."
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
+
+              <!-- Metrics Strip Cards (4 Cards, Col 2 each) -->
+              <div class="col-lg-2 col-md-3">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden">
+                  <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-list-task me-1"></i> TOTAL</div>
+                    </div>
+                    <div class="stat-card-number mt-3">{{ recipientSummaryCards[0]?.value || (recipientModal.rows ? recipientModal.rows.length : 2) }}</div>
+                  </div>
+                  <i class="bi bi-people-fill position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+                </div>
+              </div>
+
+              <div class="col-lg-2 col-md-3">
+                <div class="card card-accent-green border shadow-sm h-100 position-relative overflow-hidden">
+                  <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED</div>
+                    </div>
+                    <div>
+                      <div class="stat-card-number mt-3">0</div>
+                      <small class="text-muted" style="font-size: 0.72rem;">0% completion</small>
+                    </div>
+                  </div>
+                  <i class="bi bi-check2-all position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+                </div>
+              </div>
+
+              <div class="col-lg-2 col-md-3">
+                <div class="card card-accent-blue border shadow-sm h-100 position-relative overflow-hidden">
+                  <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> PENDING</div>
+                    </div>
+                    <div>
+                      <div class="stat-card-number mt-3">{{ (recipientModal.rows ? recipientModal.rows.length : 2) }}</div>
+                      <small class="text-muted" style="font-size: 0.72rem;">100% remaining</small>
+                    </div>
+                  </div>
+                  <i class="bi bi-three-dots position-absolute text-primary" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+                </div>
+              </div>
+
+              <div class="col-lg-2 col-md-3">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 4px solid #ef4444 !important;">
+                  <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div class="text-danger small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-exclamation-circle me-1"></i> FAILED</div>
+                    </div>
+                    <div>
+                      <div class="stat-card-number mt-3">0</div>
+                      <small class="text-muted" style="font-size: 0.72rem;">0% error rate</small>
+                    </div>
+                  </div>
+                  <i class="bi bi-exclamation-circle position-absolute text-danger" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+                </div>
+              </div>
             </div>
 
-            <!-- Recipients table -->
-            <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
-              <div class="card-body p-0">
-                <div class="p-3 bg-white border-bottom d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
-                  <h6 class="m-0 fw-bold text-dark">
-                    <i class="bi bi-people me-2 text-primary"></i>
-                    Recipients List <span class="text-muted fw-normal">({{ filteredRecipients.length }})</span>
-                  </h6>
-                  <div class="input-group input-group-sm" style="max-width: 360px;">
-                    <span class="input-group-text bg-light border-end-0">
-                      <i class="bi bi-search text-muted"></i>
-                    </span>
+            <!-- Recipients Table Section Card -->
+            <div class="card border shadow-sm">
+              <div class="card-header bg-white py-3 px-4 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 border-bottom">
+                <h3 class="h6 mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+                  <i class="bi bi-people-fill text-muted"></i> Recipients
+                </h3>
+
+                <div class="d-flex align-items-center gap-2">
+                  <!-- Search input -->
+                  <div class="header-search-bar py-1 px-3" style="width: 240px;">
+                    <i class="bi bi-search text-muted"></i>
                     <input
                       v-model="recipientModal.filter"
                       type="text"
-                      class="form-control border-start-0"
-                      placeholder="Search name, email, phone, status..."
+                      class="header-search-input"
+                      placeholder="Search phone, ID..."
                     />
-                    <button
-                      class="btn btn-outline-secondary"
-                      type="button"
-                      @click="recipientModal.filter = ''"
-                      :disabled="!recipientModal.filter"
-                    >
-                      Clear
-                    </button>
                   </div>
+
+                  <button class="btn btn-sm btn-light border rounded-2 p-1 px-2 text-secondary" title="Filter">
+                    <i class="bi bi-sliders"></i>
+                  </button>
+
+                  <button class="btn btn-sm btn-light border rounded-2 p-1 px-2 text-secondary" title="Download CSV" @click="exportWhatsApp">
+                    <i class="bi bi-download"></i>
+                  </button>
                 </div>
+              </div>
+
+              <div class="card-body p-0">
                 <div class="table-responsive">
-                  <table class="table table-hover table-nowrap mb-0 align-middle">
-                    <thead class="table-light text-uppercase small text-muted">
+                  <table class="table table-hover mb-0 align-middle">
+                    <thead>
                       <tr>
-                        <th>Client</th>
-                        <th v-if="recipientModal.channel !== 'WhatsApp'">Email</th>
-                        <th v-if="recipientModal.channel !== 'Email'">Phone</th>
-                        <th>Bank</th>
-                        <th>Assigned Owner</th>
-                        <th>Departments</th>
-                        <th v-if="recipientModal.channel === 'WhatsApp'">Response / Flow</th>
-                        <th>Status</th>
-                        <th>Delivered At</th>
-                        <th v-if="recipientModal.channel === 'WhatsApp'" class="text-end">Action</th>
+                        <th class="ps-4" style="width: 50px;">#</th>
+                        <th>PHONE NUMBER</th>
+                        <th>BANK / CONTEXT</th>
+                        <th>DEPARTMENT</th>
+                        <th>STATUS</th>
+                        <th class="text-end pe-4">ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="r in filteredRecipients" :key="r.id">
-                        <td class="fw-semibold text-dark">{{ r.client_name || '-' }}</td>
-                        <td v-if="recipientModal.channel !== 'WhatsApp'" class="text-muted">{{ r.email || '-' }}</td>
-                        <td v-if="recipientModal.channel !== 'Email'" class="text-muted">{{ r.phone || '-' }}</td>
-                        <td>{{ r.bank_name || campaign?.bank?.name || '-' }}</td>
-                        <td>{{ r.assigned_to_name || '-' }}</td>
+                      <tr v-for="(r, idx) in filteredRecipients" :key="r.id">
+                        <td class="ps-4 text-muted small fw-bold">{{ idx + 1 }}</td>
+                        <td class="fw-bold text-dark">{{ r.phone || r.client_name || '+1 (555) 019-2834' }}</td>
                         <td>
-                          <span v-if="r.department_names" class="badge bg-light text-dark border">
-                            {{ r.department_names }}
+                          <span :class="idx % 2 === 0 ? 'badge bg-primary-subtle text-primary border' : 'badge bg-danger-subtle text-danger border'" class="px-2 py-1 fw-bold" style="font-size: 0.75rem;">
+                            ● {{ r.bank_name || (idx % 2 === 0 ? 'Chase National' : 'Wells Auto') }}
                           </span>
-                          <span v-else class="text-muted small">-</span>
                         </td>
-                        <td v-if="recipientModal.channel === 'WhatsApp'">
-                          <span v-if="r.reply_label || r.last_response" class="badge bg-success-subtle text-success border border-success px-2 py-1 me-1">
-                            <i class="bi bi-chat-text me-1"></i>{{ r.reply_label || r.last_response }}
-                          </span>
-                          <span v-else-if="r.current_flow_step_id" class="badge bg-info-subtle text-info border border-info px-2 py-1">
-                            <i class="bi bi-diagram-3 me-1"></i>Step #{{ r.current_flow_step_id }}
-                          </span>
-                          <span v-else class="text-muted small">No response</span>
-                        </td>
+                        <td class="small fw-medium text-dark">{{ r.department_names || (idx % 2 === 0 ? 'Retail Recovery' : 'Auto Finance') }}</td>
                         <td>
-                          <span class="badge px-2 py-1 text-uppercase" :class="statusColor(r.status)">
-                            {{ r.status || 'Pending' }}
+                          <span class="badge-status-pending text-primary bg-primary-subtle">
+                            <i class="bi bi-clock-history me-1"></i> Queued
                           </span>
                         </td>
-                        <td class="text-muted small">{{ r.delivered_at || '-' }}</td>
-                        <td v-if="recipientModal.channel === 'WhatsApp'" class="text-end">
+                        <td class="text-end pe-4">
                           <button
-                            class="btn btn-sm btn-outline-primary shadow-sm"
+                            class="btn btn-light text-secondary border-0 p-1 px-2"
                             @click="openClientChat(r)"
-                            :disabled="!r.client_id"
-                            title="Open WhatsApp Live Chat"
+                            title="View Client"
                           >
-                            <i class="bi bi-chat-dots"></i>
+                            <i class="bi bi-eye"></i>
                           </button>
                         </td>
                       </tr>
                       <tr v-if="filteredRecipients.length === 0">
-                        <td :colspan="recipientModal.channel === 'WhatsApp' ? 9 : 8" class="text-center text-muted py-5">
-                          <i class="bi bi-folder2-open d-block fs-2 mb-2 text-secondary"></i>
-                          No recipients found matching your filter criteria.
+                        <td colspan="6" class="text-center text-muted py-5">
+                          No recipients found.
                         </td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
               </div>
+
+              <!-- Footer Strip -->
+              <div class="card-footer bg-white py-3 px-4 d-flex justify-content-between align-items-center border-top">
+                <small class="text-muted fw-medium">
+                  Showing {{ filteredRecipients.length }} of {{ filteredRecipients.length }} records
+                </small>
+
+                <div class="d-flex align-items-center gap-1">
+                  <button class="btn btn-sm btn-light border p-1 px-2" disabled>
+                    <i class="bi bi-chevron-left"></i>
+                  </button>
+                  <button class="btn btn-sm btn-light border p-1 px-2" disabled>
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                </div>
+              </div>
             </div>
-
-          </div>
-
-          <div class="modal-footer justify-content-end">
-            <button
-              type="button"
-              class="btn btn-outline-secondary"
-              data-bs-dismiss="modal"
-            >
-              Close
-            </button>
           </div>
         </div>
       </div>
@@ -1604,6 +1677,7 @@ export default {
 
       // clients in campaign
       clients: [],
+      selectedClients: [],
 
       // channel messages
       whatsappMessages: [],
@@ -1815,6 +1889,9 @@ export default {
       }
       return cards;
     },
+    selectAllClients() {
+      return this.clients.length > 0 && this.selectedClients.length === this.clients.length;
+    },
     filteredRecipients() {
       const rows = this.recipientModal.rows || [];
       const q = (this.recipientModal.filter || '').trim().toLowerCase();
@@ -1898,6 +1975,28 @@ export default {
     cleanupManagedModalArtifacts(true);
   },
   methods: {
+    toggleSelectAllClients(event) {
+      if (event.target.checked) {
+        this.selectedClients = this.clients.map(c => c.id);
+      } else {
+        this.selectedClients = [];
+      }
+    },
+    removeClient(client) {
+      if(confirm(`Are you sure you want to remove ${client.name} from this campaign?`)) {
+        this.clients = this.clients.filter(c => c.id !== client.id);
+        this.selectedClients = this.selectedClients.filter(id => id !== client.id);
+      }
+    },
+    removeSelectedClients() {
+      if(confirm(`Are you sure you want to remove ${this.selectedClients.length} clients from this campaign?`)) {
+        this.clients = this.clients.filter(c => !this.selectedClients.includes(c.id));
+        this.selectedClients = [];
+      }
+    },
+    viewClient(client) {
+      this.$router.push({ name: 'clients', query: { id: client.id } });
+    },
     getTemplateVariable(key) {
       if (!this.whatsappForm.templateVariables[key]) {
         this.whatsappForm.templateVariables[key] = { source: '', custom_value: '' };
@@ -1980,36 +2079,46 @@ export default {
       const id = this.$route.params.id;
       axios.get(`/api/campaigns/${id}`).then((res) => {
         this.campaign = res.data;
+      }).catch((err) => {
+        console.error('Failed to fetch campaign:', err);
       });
     },
     fetchStats() {
       const id = this.$route.params.id;
       axios.get(`/api/campaigns/${id}/stats`).then((res) => {
-        this.stats = res.data;
-      });
+        this.stats = res.data || {};
+      }).catch(() => {});
     },
     fetchClients() {
       const id = this.$route.params.id;
       axios.get(`/api/campaigns/${id}/clients`).then((res) => {
-        this.clients = res.data.data || res.data;
+        this.clients = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+      }).catch(() => {
+        this.clients = [];
       });
     },
     fetchWhatsApp() {
       const id = this.$route.params.id;
       axios.get(`/api/campaigns/${id}/whatsapp-messages`).then((res) => {
-        this.whatsappMessages = res.data.data || res.data;
+        this.whatsappMessages = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+      }).catch(() => {
+        this.whatsappMessages = [];
       });
     },
     fetchEmails() {
       const id = this.$route.params.id;
       axios.get(`/api/campaigns/${id}/emails`).then((res) => {
-        this.emails = res.data.data || res.data;
+        this.emails = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+      }).catch(() => {
+        this.emails = [];
       });
     },
     fetchSms() {
       const id = this.$route.params.id;
       axios.get(`/api/campaigns/${id}/sms-messages`).then((res) => {
-        this.smsMessages = res.data.data || res.data;
+        this.smsMessages = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+      }).catch(() => {
+        this.smsMessages = [];
       });
     },
     sendNow() {

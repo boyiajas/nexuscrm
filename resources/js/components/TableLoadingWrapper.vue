@@ -12,9 +12,19 @@
         aria-live="polite"
         aria-busy="true"
       >
-        <div class="table-loading-indicator">
-          <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
-          <span>{{ message }}</span>
+        <div class="w-100 px-3">
+          <div class="table-loading-indicator mb-3">
+            <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
+            <span>{{ message }}</span>
+          </div>
+
+          <!-- Skeleton Lines -->
+          <div class="skeleton-table-wrapper w-100 d-flex flex-column gap-2 opacity-75">
+            <div class="skeleton-shimmer" style="height: 24px; width: 100%; border-radius: 4px;"></div>
+            <div class="skeleton-shimmer" style="height: 18px; width: 85%; border-radius: 4px;"></div>
+            <div class="skeleton-shimmer" style="height: 18px; width: 92%; border-radius: 4px;"></div>
+            <div class="skeleton-shimmer" style="height: 18px; width: 78%; border-radius: 4px;"></div>
+          </div>
         </div>
       </div>
     </transition>
@@ -48,12 +58,12 @@ export default {
 }
 
 .table-loading-content {
-  transition: opacity 0.18s ease, filter 0.18s ease;
+  transition: opacity 0.2s ease, filter 0.2s ease;
 }
 
 .table-loading-content.is-loading {
-  opacity: 0.35;
-  filter: saturate(0.8);
+  opacity: 0.25;
+  filter: blur(1px);
   pointer-events: none;
   user-select: none;
 }
@@ -62,34 +72,34 @@ export default {
   position: absolute;
   inset: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.74) 0%,
-    rgba(247, 251, 255, 0.88) 100%
-  );
+  padding: 1.5rem;
+  background: var(--bg-surface);
+  opacity: 0.92;
   z-index: 5;
+  border-radius: var(--radius-md);
 }
 
 .table-loading-indicator {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid #d8e7ff;
-  border-radius: 0.8rem;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 0.35rem 1rem rgba(31, 61, 122, 0.12);
-  color: #35507a;
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--border-medium);
+  border-radius: 9999px;
+  background: var(--bg-surface-elevated);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
   font-weight: 600;
+  font-size: 0.85rem;
   white-space: nowrap;
 }
 
 .table-loading-fade-enter-active,
 .table-loading-fade-leave-active {
-  transition: opacity 0.18s ease;
+  transition: opacity 0.2s ease;
 }
 
 .table-loading-fade-enter-from,

@@ -7,22 +7,23 @@
       </button>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading departments...">
+        <div class="table-responsive">
         <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
+          <thead>
             <tr>
-              <th>Name</th>
+              <th class="ps-4">Name</th>
               <th>Description</th>
               <th>WhatsApp Numbers</th>
-              <th style="width: 120px;" class="text-end">Actions</th>
+              <th style="width: 120px;" class="text-end pe-4">Actions</th>
             </tr>
           </thead>
 
           <tbody>
             <tr v-for="d in departments" :key="d.id">
-              <td>{{ d.name }}</td>
+              <td class="ps-4 py-3">{{ d.name }}</td>
               <td>{{ d.description || '-' }}</td>
               <td>
                 <div v-if="d.primary_whatsapp_number">
@@ -38,15 +39,15 @@
                 </div>
                 <span v-else class="text-muted">Default</span>
               </td>
-              <td class="text-end">
+              <td class="text-end pe-4">
                 <div class="btn-group btn-group-sm" role="group">
-                  <button class="btn btn-outline-info" title="Stats" @click="$refs.statsModal.open(d)">
+                  <button class="btn btn-light text-info border-0 p-1 px-2" title="Stats" @click="$refs.statsModal.open(d)">
                     <i class="bi bi-bar-chart"></i>
                   </button>
-                  <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(d)">
+                  <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(d)">
                     <i class="bi bi-pencil-square"></i>
                   </button>
-                  <button class="btn btn-outline-danger" title="Delete" @click="remove(d)">
+                  <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(d)">
                     <i class="bi bi-trash"></i>
                   </button>
                 </div>
@@ -54,12 +55,13 @@
             </tr>
 
             <tr v-if="!loading && departments.length === 0">
-              <td colspan="3" class="text-center text-muted py-3">
+              <td colspan="4" class="text-center text-muted py-5">
                 No departments found.
               </td>
             </tr>
           </tbody>
         </table>
+        </div>
         </TableLoadingWrapper>
       </div>
 

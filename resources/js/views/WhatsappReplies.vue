@@ -7,24 +7,25 @@
       </button>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading WhatsApp replies...">
+        <div class="table-responsive">
         <table class="table table-hover mb-0 align-middle">
-          <thead class="table-light">
+          <thead>
             <tr>
-              <th>Client</th>
+              <th class="ps-4">Client</th>
               <th>Phone</th>
               <th>Departments</th>
               <th>Unread</th>
               <th>Last Message</th>
               <th>Updated</th>
-              <th class="text-end">Action</th>
+              <th class="text-end pe-4">Action</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="r in replies" :key="r.id">
-              <td>{{ r.client_name }}</td>
+              <td class="ps-4 py-3">{{ r.client_name }}</td>
               <td>{{ r.phone || '-' }}</td>
               <td>{{ r.departments || '-' }}</td>
               <td>
@@ -39,9 +40,9 @@
                 {{ r.last_response || r.last_message || '-' }}
               </td>
               <td>{{ r.last_response_at || '-' }}</td>
-              <td class="text-end">
+              <td class="text-end pe-4">
                 <button
-                  class="btn btn-sm btn-outline-primary"
+                  class="btn btn-light text-secondary border-0 p-1 px-2"
                   title="Open chat"
                   @click="openChat(r)"
                   :disabled="!r.client_id"
@@ -51,12 +52,13 @@
               </td>
             </tr>
             <tr v-if="!loading && replies.length === 0">
-              <td colspan="7" class="text-center text-muted py-3">
+              <td colspan="7" class="text-center text-muted py-5">
                 No replies yet.
               </td>
             </tr>
           </tbody>
         </table>
+        </div>
         </TableLoadingWrapper>
       </div>
     </div>

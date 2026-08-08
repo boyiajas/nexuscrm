@@ -74,24 +74,25 @@
     </div>
 
     <!-- Table -->
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading audit log...">
-        <table class="table table-striped table-hover mb-0 align-middle">
-          <thead>
-            <tr>
-              <th style="width: 5%;">ID</th>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th class="ps-4" style="width: 5%;">ID</th>
               <th style="width: 20%;">User</th>
               <th style="width: 15%;">Module</th>
               <th>Action</th>
               <th style="width: 15%;">IP Address</th>
               <th style="width: 18%;">Logged At</th>
-              <th style="width: 6%;" class="text-end">View</th>
+              <th style="width: 6%;" class="text-end pe-4">View</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="item in logs" :key="item.id">
-              <td>#{{ item.id }}</td>
+              <td class="ps-4 py-3">#{{ item.id }}</td>
               <td>{{ item.user_name || 'System' }}</td>
               <td>{{ item.module }}</td>
               <td class="text-truncate" style="max-width: 260px;">
@@ -99,9 +100,9 @@
               </td>
               <td>{{ item.ip_address || '-' }}</td>
               <td>{{ item.logged_at }}</td>
-              <td class="text-end">
+              <td class="text-end pe-4">
                 <button
-                  class="btn btn-sm btn-outline-primary"
+                  class="btn btn-light text-primary border-0 p-1 px-2"
                   @click="openDetail(item)"
                 >
                   <i class="bi bi-eye"></i>
@@ -109,12 +110,13 @@
               </td>
             </tr>
             <tr v-if="!loading && logs.length === 0">
-              <td colspan="7" class="text-center text-muted py-3">
+              <td colspan="7" class="text-center text-muted py-5">
                 No audit entries for this filter.
               </td>
             </tr>
           </tbody>
         </table>
+        </div>
         </TableLoadingWrapper>
       </div>
 

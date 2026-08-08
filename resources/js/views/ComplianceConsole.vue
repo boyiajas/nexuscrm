@@ -79,29 +79,29 @@
         </div>
       </div>
 
-      <div class="card shadow-sm">
+      <div class="card shadow-sm border mb-4">
         <TableLoadingWrapper :loading="loadingOverview" message="Loading compliance data..." min-height="180px">
           <div class="table-responsive">
-            <table class="table table-striped mb-0 align-middle">
-              <thead><tr><th>#</th><th>Bank</th><th>Type</th><th>Requester</th><th>Status</th><th>Due</th><th>Assigned</th><th>Actions</th></tr></thead>
+            <table class="table table-hover mb-0 align-middle">
+              <thead><tr><th class="ps-4">#</th><th>Bank</th><th>Type</th><th>Requester</th><th>Status</th><th>Due</th><th>Assigned</th><th class="pe-4">Actions</th></tr></thead>
               <tbody>
                 <tr v-for="row in overview.data_subject_requests" :key="`dsr-${row.id}`">
-                  <td>#{{ row.id }}</td>
+                  <td class="ps-4 py-3">#{{ row.id }}</td>
                   <td>{{ row.bank?.name || 'Global / Shared' }}</td>
                   <td>{{ humanize(row.request_type) }}</td>
                   <td>{{ row.requester_name }}<div class="small text-muted">{{ row.requester_email || row.requester_phone || '-' }}</div></td>
                   <td><span class="badge bg-secondary">{{ row.status }}</span></td>
                   <td>{{ formatDateTime(row.due_at) || '-' }}</td>
                   <td>{{ row.assignee?.name || 'Unassigned' }}</td>
-                  <td>
+                  <td class="pe-4">
                     <div class="btn-group btn-group-sm" v-if="canManage">
-                      <button class="btn btn-outline-primary" @click="updateDsr(row, 'in_progress')">Start</button>
-                      <button class="btn btn-outline-warning" @click="updateDsr(row, 'waiting_bank')">Waiting Bank</button>
-                      <button class="btn btn-outline-success" @click="updateDsr(row, 'resolved')">Resolve</button>
+                      <button class="btn btn-light text-primary border-0 p-1 px-2" @click="updateDsr(row, 'in_progress')">Start</button>
+                      <button class="btn btn-light text-warning border-0 p-1 px-2" @click="updateDsr(row, 'waiting_bank')">Waiting Bank</button>
+                      <button class="btn btn-light text-success border-0 p-1 px-2" @click="updateDsr(row, 'resolved')">Resolve</button>
                     </div>
                   </td>
                 </tr>
-                <tr v-if="!loadingOverview && !overview.data_subject_requests.length"><td colspan="8" class="text-center text-muted py-4">No data subject requests.</td></tr>
+                <tr v-if="!loadingOverview && !overview.data_subject_requests.length"><td colspan="8" class="text-center text-muted py-5">No data subject requests.</td></tr>
               </tbody>
             </table>
           </div>
@@ -170,30 +170,30 @@
           </form>
         </div>
       </div>
-      <div class="card shadow-sm">
+      <div class="card shadow-sm border mb-4">
         <TableLoadingWrapper :loading="loadingOverview" message="Loading compliance data..." min-height="180px">
           <div class="table-responsive">
-            <table class="table table-striped mb-0 align-middle">
-              <thead><tr><th>#</th><th>Bank</th><th>Title</th><th>Type</th><th>Severity</th><th>Status</th><th>Assigned</th><th>Actions</th></tr></thead>
+            <table class="table table-hover mb-0 align-middle">
+              <thead><tr><th class="ps-4">#</th><th>Bank</th><th>Title</th><th>Type</th><th>Severity</th><th>Status</th><th>Assigned</th><th class="pe-4">Actions</th></tr></thead>
               <tbody>
                 <tr v-for="row in overview.complaints" :key="`cmp-${row.id}`">
-                  <td>#{{ row.id }}</td>
+                  <td class="ps-4 py-3">#{{ row.id }}</td>
                   <td>{{ row.bank?.name || 'Global / Shared' }}</td>
                   <td>{{ row.title }}</td>
                   <td>{{ humanize(row.complaint_type) }}</td>
                   <td><span class="badge" :class="severityBadge(row.severity)">{{ row.severity }}</span></td>
                   <td><span class="badge bg-secondary">{{ row.status }}</span></td>
                   <td>{{ row.assignee?.name || 'Unassigned' }}</td>
-                  <td>
+                  <td class="pe-4">
                     <div class="btn-group btn-group-sm" v-if="canManage">
-                      <button class="btn btn-outline-primary" @click="updateComplaint(row, 'investigating')">Investigate</button>
-                      <button class="btn btn-outline-warning" @click="updateComplaint(row, 'escalated')">Escalate</button>
-                      <button class="btn btn-outline-success" @click="updateComplaint(row, 'resolved')">Resolve</button>
-                      <button class="btn btn-outline-dark" @click="updateComplaint(row, 'closed')">Close</button>
+                      <button class="btn btn-light text-primary border-0 p-1 px-2" @click="updateComplaint(row, 'investigating')">Investigate</button>
+                      <button class="btn btn-light text-warning border-0 p-1 px-2" @click="updateComplaint(row, 'escalated')">Escalate</button>
+                      <button class="btn btn-light text-success border-0 p-1 px-2" @click="updateComplaint(row, 'resolved')">Resolve</button>
+                      <button class="btn btn-light text-secondary border-0 p-1 px-2" @click="updateComplaint(row, 'closed')">Close</button>
                     </div>
                   </td>
                 </tr>
-                <tr v-if="!loadingOverview && !overview.complaints.length"><td colspan="8" class="text-center text-muted py-4">No complaint cases.</td></tr>
+                <tr v-if="!loadingOverview && !overview.complaints.length"><td colspan="8" class="text-center text-muted py-5">No complaint cases.</td></tr>
               </tbody>
             </table>
           </div>
@@ -228,22 +228,22 @@
           </form>
         </div>
       </div>
-      <div class="card shadow-sm">
+      <div class="card shadow-sm border mb-4">
         <TableLoadingWrapper :loading="loadingOverview" message="Loading compliance data..." min-height="180px">
           <div class="table-responsive">
-            <table class="table table-striped mb-0 align-middle">
-              <thead><tr><th>#</th><th>Bank</th><th>Type</th><th>Name</th><th>Contact</th><th>Status</th><th>Actions</th></tr></thead>
+            <table class="table table-hover mb-0 align-middle">
+              <thead><tr><th class="ps-4">#</th><th>Bank</th><th>Type</th><th>Name</th><th>Contact</th><th>Status</th><th class="pe-4">Actions</th></tr></thead>
               <tbody>
                 <tr v-for="row in overview.information_officers" :key="`off-${row.id}`">
-                  <td>#{{ row.id }}</td>
+                  <td class="ps-4 py-3">#{{ row.id }}</td>
                   <td>{{ row.bank?.name || 'Global / Shared' }}</td>
                   <td>{{ humanize(row.officer_type) }}</td>
                   <td>{{ row.name }}<div class="small text-muted">{{ row.title || '-' }}</div></td>
                   <td>{{ row.email }}<div class="small text-muted">{{ row.phone || '-' }}</div></td>
                   <td><span class="badge" :class="row.status === 'active' ? 'bg-success' : 'bg-secondary'">{{ row.status }}</span></td>
-                  <td><button v-if="canManage" class="btn btn-outline-secondary btn-sm" @click="toggleOfficer(row)">{{ row.status === 'active' ? 'Deactivate' : 'Activate' }}</button></td>
+                  <td class="pe-4"><button v-if="canManage" class="btn btn-light text-secondary border-0 p-1 px-2" @click="toggleOfficer(row)">{{ row.status === 'active' ? 'Deactivate' : 'Activate' }}</button></td>
                 </tr>
-                <tr v-if="!loadingOverview && !overview.information_officers.length"><td colspan="7" class="text-center text-muted py-4">No information officers configured.</td></tr>
+                <tr v-if="!loadingOverview && !overview.information_officers.length"><td colspan="7" class="text-center text-muted py-5">No information officers configured.</td></tr>
               </tbody>
             </table>
           </div>
@@ -279,17 +279,17 @@
             </div>
             <TableLoadingWrapper :loading="loadingOverview" message="Loading compliance data..." min-height="180px">
               <div class="table-responsive">
-                <table class="table table-striped mb-0">
-                  <thead><tr><th>Bank</th><th>Dataset</th><th>Retention</th><th>Status</th><th>Action</th></tr></thead>
+                <table class="table table-hover mb-0 align-middle">
+                  <thead><tr><th class="ps-4">Bank</th><th>Dataset</th><th>Retention</th><th>Status</th><th class="pe-4">Action</th></tr></thead>
                   <tbody>
                     <tr v-for="row in overview.retention_policies" :key="`pol-${row.id}`">
-                      <td>{{ row.bank?.name || 'Global / Shared' }}</td>
+                      <td class="ps-4 py-3">{{ row.bank?.name || 'Global / Shared' }}</td>
                       <td>{{ row.dataset }}</td>
                       <td>{{ row.retention_days }}d<div class="small text-muted">Archive {{ row.archive_after_days || '-' }} / Delete {{ row.delete_after_days || '-' }}</div></td>
                       <td><span class="badge" :class="row.status === 'active' ? 'bg-success' : 'bg-secondary'">{{ row.status }}</span></td>
-                      <td><button v-if="canManage" class="btn btn-outline-secondary btn-sm" @click="togglePolicy(row)">{{ row.status === 'active' ? 'Deactivate' : 'Activate' }}</button></td>
+                      <td class="pe-4"><button v-if="canManage" class="btn btn-light text-secondary border-0 p-1 px-2" @click="togglePolicy(row)">{{ row.status === 'active' ? 'Deactivate' : 'Activate' }}</button></td>
                     </tr>
-                    <tr v-if="!loadingOverview && !overview.retention_policies.length"><td colspan="5" class="text-center text-muted py-4">No retention policies.</td></tr>
+                    <tr v-if="!loadingOverview && !overview.retention_policies.length"><td colspan="5" class="text-center text-muted py-5">No retention policies.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -317,22 +317,22 @@
             </div>
             <TableLoadingWrapper :loading="loadingOverview" message="Loading compliance data..." min-height="180px">
               <div class="table-responsive">
-                <table class="table table-striped mb-0">
-                  <thead><tr><th>Dataset</th><th>Type</th><th>Status</th><th>Scope</th><th>Actions</th></tr></thead>
+                <table class="table table-hover mb-0 align-middle">
+                  <thead><tr><th class="ps-4">Dataset</th><th>Type</th><th>Status</th><th>Scope</th><th class="pe-4">Actions</th></tr></thead>
                   <tbody>
                     <tr v-for="row in overview.retention_actions" :key="`act-${row.id}`">
-                      <td>{{ row.dataset }}</td>
+                      <td class="ps-4 py-3">{{ row.dataset }}</td>
                       <td>{{ row.action_type }}</td>
                       <td><span class="badge bg-secondary">{{ row.status }}</span></td>
                       <td class="small">{{ scopeSummary(row.scope_summary) }}</td>
-                      <td>
+                      <td class="pe-4">
                         <div class="btn-group btn-group-sm" v-if="canManage">
-                          <button v-if="row.status === 'pending'" class="btn btn-outline-primary" @click="approveRetentionAction(row)">Approve</button>
-                          <button v-if="row.status === 'approved'" class="btn btn-outline-success" @click="completeRetentionAction(row)">Complete</button>
+                          <button v-if="row.status === 'pending'" class="btn btn-light text-primary border-0 p-1 px-2" @click="approveRetentionAction(row)">Approve</button>
+                          <button v-if="row.status === 'approved'" class="btn btn-light text-success border-0 p-1 px-2" @click="completeRetentionAction(row)">Complete</button>
                         </div>
                       </td>
                     </tr>
-                    <tr v-if="!loadingOverview && !overview.retention_actions.length"><td colspan="5" class="text-center text-muted py-4">No retention actions.</td></tr>
+                    <tr v-if="!loadingOverview && !overview.retention_actions.length"><td colspan="5" class="text-center text-muted py-5">No retention actions.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -367,14 +367,14 @@
           </form>
         </div>
       </div>
-      <div class="card shadow-sm">
+      <div class="card shadow-sm border mb-4">
         <TableLoadingWrapper :loading="loadingOverview" message="Loading compliance data..." min-height="180px">
           <div class="table-responsive">
-            <table class="table table-striped mb-0 align-middle">
-              <thead><tr><th>Bank</th><th>Profile</th><th>Endpoint</th><th>Status</th><th>Last Test</th><th>Recent Runs</th><th>Actions</th></tr></thead>
+            <table class="table table-hover mb-0 align-middle">
+              <thead><tr><th class="ps-4">Bank</th><th>Profile</th><th>Endpoint</th><th>Status</th><th>Last Test</th><th>Recent Runs</th><th class="pe-4">Actions</th></tr></thead>
               <tbody>
                 <tr v-for="row in overview.bank_transfer_profiles" :key="`trf-${row.id}`">
-                  <td>{{ row.bank?.name || 'Global / Shared' }}</td>
+                  <td class="ps-4 py-3">{{ row.bank?.name || 'Global / Shared' }}</td>
                   <td>{{ row.name }}<div class="small text-muted">{{ row.environment }} • {{ row.protocol }}</div></td>
                   <td>{{ row.host }}:{{ row.port }}<div class="small text-muted">{{ row.remote_path || '.' }}</div></td>
                   <td><span class="badge" :class="row.status === 'active' ? 'bg-success' : 'bg-secondary'">{{ row.status }}</span></td>
@@ -384,15 +384,15 @@
                       {{ run.run_type }}: {{ run.status }}<span v-if="run.result_message"> • {{ run.result_message }}</span>
                     </div>
                   </td>
-                  <td>
+                  <td class="pe-4">
                     <div class="btn-group btn-group-sm" v-if="canManage">
-                      <button class="btn btn-outline-secondary" @click="toggleTransferProfile(row)">{{ row.status === 'active' ? 'Deactivate' : 'Activate' }}</button>
-                      <button class="btn btn-outline-primary" @click="testTransferProfile(row)">Test</button>
-                      <button class="btn btn-outline-success" @click="syncTransferProfile(row)">Sync</button>
+                      <button class="btn btn-light text-secondary border-0 p-1 px-2" @click="toggleTransferProfile(row)">{{ row.status === 'active' ? 'Deactivate' : 'Activate' }}</button>
+                      <button class="btn btn-light text-primary border-0 p-1 px-2" @click="testTransferProfile(row)">Test</button>
+                      <button class="btn btn-light text-success border-0 p-1 px-2" @click="syncTransferProfile(row)">Sync</button>
                     </div>
                   </td>
                 </tr>
-                <tr v-if="!loadingOverview && !overview.bank_transfer_profiles.length"><td colspan="7" class="text-center text-muted py-4">No bank transfer profiles.</td></tr>
+                <tr v-if="!loadingOverview && !overview.bank_transfer_profiles.length"><td colspan="7" class="text-center text-muted py-5">No bank transfer profiles.</td></tr>
               </tbody>
             </table>
           </div>

@@ -58,25 +58,26 @@
       </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading security incidents...">
-        <table class="table table-striped table-hover mb-0 align-middle">
-          <thead>
-            <tr>
-              <th>Reference</th>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th class="ps-4">Reference</th>
               <th>Bank</th>
               <th>Type</th>
               <th>Severity</th>
               <th>Status</th>
               <th>Assigned</th>
               <th>Created</th>
-              <th class="text-end">Actions</th>
+              <th class="text-end pe-4">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="incident in incidents" :key="incident.id">
-              <td>
+              <td class="ps-4 py-3">
                 <div class="fw-semibold">{{ incident.reference }}</div>
                 <small class="text-muted">{{ incident.title }}</small>
               </td>
@@ -86,17 +87,18 @@
               <td><span class="badge" :class="statusBadge(incident.status)">{{ incident.status }}</span></td>
               <td>{{ incident.assignee?.name || 'Unassigned' }}</td>
               <td>{{ formatDateTime(incident.created_at) }}</td>
-              <td class="text-end">
-                <button class="btn btn-outline-secondary btn-sm" @click="openDetail(incident)">
+              <td class="text-end pe-4">
+                <button class="btn btn-light text-secondary border-0 p-1 px-2" @click="openDetail(incident)">
                   <i class="bi bi-eye"></i>
                 </button>
               </td>
             </tr>
             <tr v-if="!loading && !incidents.length">
-              <td colspan="8" class="text-center text-muted py-4">No security incidents found.</td>
+              <td colspan="8" class="text-center text-muted py-5">No security incidents found.</td>
             </tr>
           </tbody>
         </table>
+        </div>
         </TableLoadingWrapper>
       </div>
       <div class="card-footer d-flex justify-content-between align-items-center">

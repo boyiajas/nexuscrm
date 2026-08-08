@@ -46,25 +46,26 @@
       </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading import uploads...">
-        <table class="table table-striped table-hover mb-0 align-middle">
+        <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
           <thead>
             <tr>
-              <th>File</th>
+              <th class="ps-4">File</th>
               <th>Batch</th>
               <th>Bank</th>
               <th>Uploaded By</th>
               <th>Scan</th>
               <th>Import</th>
               <th>Summary</th>
-              <th>Created</th>
+              <th class="pe-4">Created</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="upload in uploads" :key="upload.id">
-              <td>
+              <td class="ps-4 py-3">
                 <div class="fw-semibold">{{ upload.original_filename }}</div>
                 <small class="text-muted">#{{ upload.id }} • {{ formatSize(upload.size_bytes) }}</small>
               </td>
@@ -105,10 +106,11 @@
               </td>
             </tr>
             <tr v-if="!loading && !uploads.length">
-              <td colspan="8" class="text-center text-muted py-4">No import uploads found.</td>
+              <td colspan="8" class="text-center text-muted py-5">No import uploads found.</td>
             </tr>
           </tbody>
         </table>
+        </div>
         </TableLoadingWrapper>
       </div>
       <div class="card-footer d-flex justify-content-between align-items-center">

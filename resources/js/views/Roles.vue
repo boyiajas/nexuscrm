@@ -35,24 +35,25 @@
       </div>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading roles...">
-          <table class="table table-hover mb-0 align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>Name</th>
+          <div class="table-responsive">
+            <table class="table table-hover mb-0 align-middle">
+              <thead>
+                <tr>
+                  <th class="ps-4">Name</th>
                 <th>Code</th>
                 <th>WhatsApp Daily Limit</th>
                 <th>Watermark</th>
                 <th>Status</th>
                 <th>Assigned Users</th>
-                <th style="width: 120px;" class="text-end">Actions</th>
+                <th style="width: 120px;" class="text-end pe-4">Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="role in roles" :key="role.id">
-                <td>
+                <td class="ps-4 py-3">
                   <div class="fw-semibold">{{ role.name }}</div>
                   <small v-if="role.description" class="text-muted">{{ role.description }}</small>
                 </td>
@@ -64,7 +65,7 @@
                       {{ role.watermark_enabled ? 'Enabled' : 'Disabled' }}
                     </span>
                     <button
-                      class="btn btn-outline-secondary btn-sm"
+                      class="btn btn-light text-secondary border-0 p-1 px-2"
                       :title="role.watermark_enabled ? 'Disable watermark' : 'Enable watermark'"
                       @click="toggleWatermark(role)"
                     >
@@ -78,22 +79,23 @@
                   </span>
                 </td>
                 <td>{{ role.users_count || 0 }}</td>
-                <td class="text-end">
+                <td class="text-end pe-4">
                   <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(role)">
+                    <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(role)">
                       <i class="bi bi-pencil-square"></i>
                     </button>
-                    <button class="btn btn-outline-danger" title="Delete" @click="remove(role)">
+                    <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(role)">
                       <i class="bi bi-trash"></i>
                     </button>
                   </div>
                 </td>
               </tr>
               <tr v-if="!loading && roles.length === 0">
-                <td colspan="7" class="text-center text-muted py-3">No roles found.</td>
+                <td colspan="7" class="text-center text-muted py-5">No roles found.</td>
               </tr>
             </tbody>
           </table>
+          </div>
         </TableLoadingWrapper>
       </div>
 

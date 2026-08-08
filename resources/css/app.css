@@ -9,3 +9,340 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+/* ==========================================================================
+   STRAUSS NEXUS RECOVERY DESIGN SYSTEM - MATCHING REFERENCE MOCKUPS
+   ========================================================================== */
+
+:root {
+  --bg-canvas: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-sidebar: #090d16;
+  --bg-sidebar-active: #000000;
+  --bg-muted: #f1f5f9;
+  --border-subtle: #e2e8f0;
+  --border-medium: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+  --accent-primary: #2563eb;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-danger: #ef4444;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07);
+  --radius-sm: 0.375rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+}
+
+[data-theme="dark"] {
+  --bg-canvas: #0b0f19;
+  --bg-surface: #111827;
+  --bg-sidebar: #050811;
+  --bg-sidebar-active: #111827;
+  --bg-muted: #1e293b;
+  --border-subtle: #1f2937;
+  --border-medium: #374151;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --accent-primary: #3b82f6;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
+  --accent-danger: #f87171;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+}
+
+body {
+  background-color: var(--bg-canvas) !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-sans);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Sidebar Specific Mockup Styling */
+.strauss-sidebar {
+  background-color: var(--bg-sidebar) !important;
+  width: 250px;
+  min-width: 250px;
+  max-width: 250px;
+  flex: 0 0 250px;
+  transition: width 0.2s ease;
+}
+
+.strauss-sidebar-brand {
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+}
+
+.strauss-sidebar .nav-link {
+  color: #94a3b8 !important;
+  font-size: 0.84rem;
+  font-weight: 500;
+  padding: 0.45rem 0.8rem;
+  border-radius: 0.4rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.15s ease;
+}
+
+.strauss-sidebar .nav-link:hover {
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.strauss-sidebar .nav-link.active {
+  color: #ffffff !important;
+  background-color: var(--bg-sidebar-active) !important;
+  font-weight: 600;
+  border-left: 3px solid #10b981;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+/* Sidebar Green CTA Button */
+.btn-sidebar-cta {
+  background-color: #10b981 !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 0.85rem;
+  border-radius: 0.5rem;
+  padding: 0.65rem 1rem;
+  border: none;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+.btn-sidebar-cta:hover {
+  background-color: #059669 !important;
+  transform: translateY(-1px);
+}
+
+/* Top Utility Header */
+.top-utility-header {
+  background-color: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  height: 64px;
+}
+
+.header-search-bar {
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  padding: 0.45rem 1rem;
+  width: 320px;
+  max-width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-search-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  width: 100%;
+}
+.header-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.header-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+/* Mockup Left Colored Accent Stat Cards */
+.card-accent-green {
+  border-left: 4px solid #10b981 !important;
+}
+.card-accent-blue {
+  border-left: 4px solid #3b82f6 !important;
+}
+.card-accent-dark {
+  border-left: 4px solid #1e293b !important;
+}
+
+.stat-card-number {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.stat-icon-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 0.6rem;
+  background-color: var(--bg-muted);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.15rem;
+}
+
+/* Initial Avatar Badges (AM, AK, AS, etc.) */
+.avatar-initial-badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background-color: #e2e8f0;
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-theme="dark"] .avatar-initial-badge {
+  background-color: #334155;
+  color: #f1f5f9;
+}
+
+/* Status Pills */
+.badge-status-active, .badge-status-delivered, .badge-status-completed {
+  background-color: #dcfce7 !important;
+  color: #15803d !important;
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 0.3em 0.7em;
+  border-radius: 9999px;
+}
+
+.badge-status-pending, .badge-status-queued {
+  background-color: #f1f5f9 !important;
+  color: #475569 !important;
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 0.3em 0.7em;
+  border-radius: 9999px;
+}
+
+.badge-status-failed {
+  background-color: #fee2e2 !important;
+  color: #b91c1c !important;
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 0.3em 0.7em;
+  border-radius: 9999px;
+}
+
+/* Dark Pill Primary Button */
+.btn-dark-pill {
+  background-color: #0f172a !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 0.84rem;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border: none;
+  transition: opacity 0.15s ease;
+}
+.btn-dark-pill:hover {
+  opacity: 0.9;
+}
+
+/* AI Hero Banner at Bottom of Dashboard */
+.dashboard-cta-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  border-radius: var(--radius-lg);
+  color: #ffffff;
+  padding: 1.75rem 2rem;
+}
+
+/* Card aesthetics */
+.card {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-sm);
+}
+
+.card-header {
+  background-color: var(--bg-surface) !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Modal System */
+.modal {
+  z-index: 1060 !important;
+}
+.modal-backdrop {
+  z-index: 1050 !important;
+}
+.modal-content {
+  background-color: var(--bg-surface) !important;
+  border: 1px solid var(--border-medium) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2) !important;
+}
+.modal-header {
+  background-color: var(--bg-muted) !important;
+  border-bottom: 1px solid var(--border-medium) !important;
+  padding: 1.15rem 1.5rem !important;
+  border-top-left-radius: calc(var(--radius-lg) - 1px);
+  border-top-right-radius: calc(var(--radius-lg) - 1px);
+}
+.modal-title {
+  font-weight: 700 !important;
+  color: var(--text-primary) !important;
+  font-size: 1.15rem !important;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.modal-title i {
+  color: var(--accent-primary);
+}
+.modal-footer {
+  background-color: var(--bg-muted) !important;
+  border-top: 1px solid var(--border-medium) !important;
+  padding: 1.15rem 1.5rem !important;
+  border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+  border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+}
+.btn-close {
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+.btn-close:hover {
+  opacity: 1;
+}
+.modal-backdrop.show {
+  opacity: 0.65;
+  backdrop-filter: blur(4px);
+}
+
+/* Form Controls & Inputs */
+.form-control, .form-select {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-medium) !important;
+  border-radius: var(--radius-sm) !important;
+}
+.form-control:focus, .form-select:focus {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+/* Table styling */
+.table th {
+  background-color: var(--bg-muted) !important;
+  color: var(--text-secondary) !important;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border-medium) !important;
+}

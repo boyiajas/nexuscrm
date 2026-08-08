@@ -7,25 +7,26 @@
       </button>
     </div>
 
-    <div class="card shadow-sm">
+    <div class="card shadow-sm border mb-4">
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loading" message="Loading users...">
-          <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-              <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Roles</th>
-                <th>Bank</th>
-                <th>Department</th>
-                <th>Status</th>
-                <th style="width: 120px;" class="text-end">Actions</th>
-              </tr>
-            </thead>
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th class="ps-4">Name</th>
+                  <th>Email</th>
+                  <th>Roles</th>
+                  <th>Bank</th>
+                  <th>Department</th>
+                  <th>Status</th>
+                  <th style="width: 120px;" class="text-end pe-4">Actions</th>
+                </tr>
+              </thead>
 
-            <tbody>
+              <tbody>
               <tr v-for="u in users" :key="u.id">
-                <td>{{ u.name }}</td>
+                <td class="ps-4 py-3">{{ u.name }}</td>
                 <td>{{ u.email }}</td>
                 <td>
                   <div class="d-flex flex-wrap gap-1">
@@ -47,15 +48,15 @@
                     {{ u.status }}
                   </span>
                 </td>
-                <td class="text-end">
+                <td class="text-end pe-4">
                   <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-outline-secondary" title="View" @click="openProfileModal(u)">
+                    <button class="btn btn-light text-secondary border-0 p-1 px-2" title="View" @click="openProfileModal(u)">
                       <i class="bi bi-eye"></i>
                     </button>
-                    <button class="btn btn-outline-primary" title="Edit" @click="openEditModal(u)">
+                    <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(u)">
                       <i class="bi bi-pencil-square"></i>
                     </button>
-                    <button class="btn btn-outline-danger" title="Delete" @click="remove(u)">
+                    <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(u)">
                       <i class="bi bi-trash"></i>
                     </button>
                   </div>
@@ -63,12 +64,13 @@
               </tr>
 
               <tr v-if="!loading && users.length === 0">
-                <td colspan="7" class="text-center text-muted py-3">
+                <td colspan="7" class="text-center text-muted py-5">
                   No users found.
                 </td>
               </tr>
             </tbody>
           </table>
+          </div>
         </TableLoadingWrapper>
       </div>
 
