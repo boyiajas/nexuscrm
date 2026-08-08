@@ -866,7 +866,7 @@
 
     <!-- Add WhatsApp Template Modal -->
     <div class="modal fade" tabindex="-1" ref="addWhatsappModalRef">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable" style="max-width: 80vw; width: 1200px;">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">
