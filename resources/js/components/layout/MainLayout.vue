@@ -462,7 +462,7 @@ export default {
       this.applyTheme(this.currentTheme);
     },
     applyTheme(theme) {
-      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.setAttribute('data-bs-theme', theme);
       localStorage.setItem('nexus_theme', theme);
     },
     hasAnyRole(roles = []) {

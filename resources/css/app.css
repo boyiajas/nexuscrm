@@ -36,7 +36,7 @@
   --radius-lg: 1rem;
 }
 
-[data-theme="dark"] {
+[data-bs-theme="dark"] {
   --bg-canvas: #0b0f19;
   --bg-surface: #111827;
   --bg-sidebar: #050811;
@@ -231,7 +231,7 @@ body {
   justify-content: center;
 }
 
-[data-theme="dark"] .avatar-initial-badge {
+[data-bs-theme="dark"] .avatar-initial-badge {
   background-color: #334155;
   color: #f1f5f9;
 }

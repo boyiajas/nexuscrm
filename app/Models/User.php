@@ -62,6 +62,8 @@ class User extends Authenticatable
         'deactivated_by_user_id',
         'is_provider',
         'is_time_clock_user',
+        'avatar_path',
+        'preferences',
     ];
 
     protected $hidden = [
@@ -72,6 +74,7 @@ class User extends Authenticatable
     protected $appends = [
         'role_codes',
         'role_names',
+        'avatar_url',
     ];
 
     protected $casts = [
@@ -84,6 +87,7 @@ class User extends Authenticatable
         'deactivated_at' => 'datetime',
         'is_provider' => 'boolean',
         'is_time_clock_user' => 'boolean',
+        'preferences' => 'array',
     ];
 
     public function department()
@@ -402,5 +406,13 @@ class User extends Authenticatable
         }
 
         return [];
+    }
+
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if ($this->avatar_path) {
+            return '/storage/' . $this->avatar_path;
+        }
+        return null;
     }
 }

@@ -82,7 +82,15 @@ class UserProfileController extends Controller
             'is_time_clock_user' => ['sometimes', 'boolean'],
             'department_ids' => ['sometimes', 'array'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
+            'preferences' => ['nullable', 'array'],
+            'avatar' => ['nullable', 'image', 'max:2048'],
         ]);
+
+        if ($request->hasFile('avatar')) {
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $data['avatar_path'] = $path;
+            unset($data['avatar']);
+        }
 
         $selectedDepartmentIds = null;
         if (array_key_exists('department_ids', $data)) {

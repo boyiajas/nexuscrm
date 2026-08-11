@@ -92,12 +92,19 @@
             <!-- User Profile Banner Card -->
             <div class="card border shadow-sm mb-4" v-if="activeAccountTab === 'personal'">
               <div class="card-body p-4 d-flex align-items-center gap-4">
-                <img
-                  src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop"
-                  alt="Profile Avatar"
-                  class="rounded-circle border"
-                  style="width: 72px; height: 72px; object-fit: cover;"
-                />
+                <div class="position-relative">
+                  <img
+                    :src="avatarPreview || form.avatar_url || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop'"
+                    alt="Profile Avatar"
+                    class="rounded-circle border"
+                    style="width: 72px; height: 72px; object-fit: cover; cursor: pointer;"
+                    @click="$refs.avatarInput.click()"
+                  />
+                  <input type="file" ref="avatarInput" class="d-none" accept="image/*" @change="onAvatarSelected" />
+                  <div class="position-absolute bottom-0 end-0 bg-primary rounded-circle border border-white d-flex align-items-center justify-content-center" style="width: 24px; height: 24px; cursor: pointer;" @click="$refs.avatarInput.click()">
+                    <i class="bi bi-camera-fill text-white" style="font-size: 0.75rem;"></i>
+                  </div>
+                </div>
                 <div>
                   <h2 class="h5 fw-bold text-dark mb-1">{{ form.first_name }} {{ form.last_name }}</h2>
                   <div class="text-muted small mb-2">{{ form.email }}</div>
@@ -1340,7 +1347,10 @@ export default {
         last_login_at: null,
         last_login_ip: null,
         password_changed_at: null,
+        avatar_url: null,
       },
+      avatarFile: null,
+      avatarPreview: null,
       mfa: {
         enabled: false,
         type: null,
@@ -1698,7 +1708,11 @@ export default {
         this.form = Object.assign(fallback, user, {
           department_ids: Array.isArray(user.departments) ? user.departments.map((department) => department.id) : [],
           active: user.status ? user.status === 'Active' : fallback.active,
+          avatar_url: user.avatar_url || null,
         });
+        if (user.preferences) {
+          this.prefs = Object.assign({}, this.prefs, user.preferences);
+        }
         this.syncSelectedDepartments();
       });
     },
@@ -1729,6 +1743,12 @@ export default {
         this.sessionsLoading = false;
       });
     },
+    onAvatarSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      this.avatarFile = file;
+      this.avatarPreview = URL.createObjectURL(file);
+    },
     updateAccount() {
       const payload = {
         name: this.form.name,
@@ -1745,7 +1765,27 @@ export default {
         department_ids: this.form.department_ids,
       };
 
-      axios.put('/api/user', payload).then((res) => {
+      const formData = new FormData();
+      formData.append('_method', 'PUT');
+      Object.keys(payload).forEach(key => {
+        if (payload[key] !== null && payload[key] !== undefined) {
+          if (Array.isArray(payload[key])) {
+            payload[key].forEach(val => formData.append(`${key}[]`, val));
+          } else if (typeof payload[key] === 'boolean') {
+            formData.append(key, payload[key] ? 1 : 0);
+          } else {
+            formData.append(key, payload[key]);
+          }
+        }
+      });
+
+      if (this.avatarFile) {
+        formData.append('avatar', this.avatarFile);
+      }
+
+      axios.post('/api/user', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      }).then((res) => {
         const updatedUser = res.data || {};
         const stored = localStorage.getItem('nexus_user');
         if (stored) {
@@ -1775,6 +1815,22 @@ export default {
       });
     },
 
+    savePrefs() {
+      const payload = {
+        preferences: this.prefs,
+      };
+      
+      const formData = new FormData();
+      formData.append('_method', 'PUT');
+      
+      // Need to stringify preferences for multipart, or we can just send as JSON if we don't have avatar
+      // Let's just use axios.put since there's no file
+      axios.put('/api/user', payload).then((res) => {
+        notify.success('Preferences saved.', 'Settings');
+      }).catch((err) => {
+        notify.error('Failed to save preferences.', 'Settings');
+      });
+    },
     enableEmailMFA() {
       axios.post('/api/mfa/setup-email').then(() => {
         this.showOtpForm = true;
