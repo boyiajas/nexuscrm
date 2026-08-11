@@ -34,7 +34,7 @@
     <!-- Overview Stat Cards Strip -->
     <div class="row g-3 mb-4">
       <div class="col-md-3">
-        <div class="card card-accent-dark border shadow-sm h-100 position-relative overflow-hidden">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #64748b !important;">
           <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
@@ -49,7 +49,7 @@
       </div>
 
       <div class="col-md-3">
-        <div class="card card-accent-green border shadow-sm h-100 position-relative overflow-hidden">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important;">
           <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">WHATSAPP</div>
@@ -65,7 +65,7 @@
       </div>
 
       <div class="col-md-3">
-        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden">
+        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
           <div class="card-body p-3 d-flex justify-content-between align-items-center position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem;">EMAIL METRICS</div>
@@ -80,7 +80,7 @@
       </div>
 
       <div class="col-md-3">
-        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden">
+        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden" style="border-left: 3px solid #8b5cf6 !important;">
           <div class="card-body p-3 d-flex justify-content-between align-items-center position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem;">SMS METRICS</div>
@@ -594,7 +594,7 @@
 
               <!-- Metrics Strip Cards (4 Cards, Col 2 each) -->
               <div class="col-lg-2 col-md-3">
-                <div class="card border shadow-sm h-100 position-relative overflow-hidden">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #64748b !important;">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-list-task me-1"></i> TOTAL</div>
@@ -606,7 +606,7 @@
               </div>
 
               <div class="col-lg-2 col-md-3">
-                <div class="card card-accent-green border shadow-sm h-100 position-relative overflow-hidden">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important;">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED</div>
@@ -621,7 +621,7 @@
               </div>
 
               <div class="col-lg-2 col-md-3">
-                <div class="card card-accent-blue border shadow-sm h-100 position-relative overflow-hidden">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> PENDING</div>
@@ -636,7 +636,7 @@
               </div>
 
               <div class="col-lg-2 col-md-3">
-                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 4px solid #ef4444 !important;">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #ef4444 !important;">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-danger small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-exclamation-circle me-1"></i> FAILED</div>
@@ -710,11 +710,18 @@
                         </td>
                         <td class="text-end pe-4">
                           <button
-                            class="btn btn-light text-secondary border-0 p-1 px-2"
-                            @click="openClientChat(r)"
-                            title="View Client"
+                            class="btn btn-light text-secondary border-0 p-1 px-2 me-1"
+                            @click="previewClientMessage(r)"
+                            title="Preview Message"
                           >
                             <i class="bi bi-eye"></i>
+                          </button>
+                          <button
+                            class="btn btn-light text-success border-0 p-1 px-2"
+                            @click="openClientChat(r)"
+                            title="Open Chat"
+                          >
+                            <i class="bi bi-whatsapp"></i>
                           </button>
                         </td>
                       </tr>
@@ -1158,10 +1165,26 @@
                         </div>
                       </div>
                     </div>
-                    <div class="card-body p-4" style="background-color: #e5ddd5; position: relative;">
-                      <div style="opacity: 0.05; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cGF0aCBkPSJNMCAwaDQwMHY0MDBIMHoiIGZpbGw9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjM1IiBmaWxsPSIjMDAwIi8+PC9zdmc+'); background-size: 200px; pointer-events: none;"></div>
-                      
-                      <div class="bg-white rounded position-relative shadow-sm" style="max-width: 85%; border-top-left-radius: 0 !important; padding: 0.5rem; margin-left: 10px; z-index: 1;">
+                    <div class="card-body p-0 d-flex flex-column" style="background-color: #e5ddd5; position: relative;">
+                      <!-- WhatsApp Header -->
+                      <div class="bg-white d-flex align-items-center px-3 py-2 shadow-sm position-relative" style="z-index: 2;">
+                        <i class="bi bi-arrow-left me-3 text-secondary"></i>
+                        <div class="bg-secondary bg-opacity-10 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                          <i class="bi bi-person-fill text-secondary fs-4"></i>
+                        </div>
+                        <div class="lh-1">
+                          <div class="fw-bold text-dark d-flex align-items-center gap-1 mb-1" style="font-size: 0.95rem;">
+                            {{ campaign?.whatsapp_profile_name || 'Strauss Recovery Solutions' }}
+                            <i class="bi bi-patch-check-fill text-success" style="font-size: 0.85rem;" title="Official business account"></i>
+                          </div>
+                          <div class="text-muted" style="font-size: 0.75rem;">{{ campaign?.whatsapp_from || '+27 82 123 4567' }}</div>
+                        </div>
+                      </div>
+
+                      <div class="p-4 flex-grow-1 position-relative">
+                        <div style="opacity: 0.05; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cGF0aCBkPSJNMCAwaDQwMHY0MDBIMHoiIGZpbGw9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjM1IiBmaWxsPSIjMDAwIi8+PC9zdmc+'); background-size: 200px; pointer-events: none;"></div>
+                        
+                        <div class="bg-white rounded position-relative shadow-sm" style="max-width: 85%; border-top-left-radius: 0 !important; padding: 0.5rem; margin-left: 10px; z-index: 1;">
                         <svg viewBox="0 0 8 13" width="8" height="13" style="position: absolute; top: 0; left: -8px; color: white;">
                           <path opacity="1" fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"></path>
                         </svg>
@@ -1229,6 +1252,7 @@
                           <i v-if="button.type === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
                           {{ button.text || 'Button' }}
                         </div>
+                      </div>
                       </div>
                     </div>
                   </div>
@@ -1638,6 +1662,53 @@
     <ExportRequestModal ref="exportRequestModal" />
     <ConfirmationModal ref="confirmModal" />
 
+    <!-- Recipient Message Preview Modal -->
+    <div class="modal fade" id="recipientMessagePreviewModal" tabindex="-1" aria-hidden="true" ref="recipientMessagePreviewModalRef">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-chat-left-text me-2"></i> Message Preview
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-0 d-flex flex-column" style="background-color: #e5ddd5; position: relative;">
+            <!-- WhatsApp Header -->
+            <div class="bg-white d-flex align-items-center px-3 py-2 shadow-sm position-relative" style="z-index: 2;">
+              <i class="bi bi-arrow-left me-3 text-secondary"></i>
+              <div class="bg-secondary bg-opacity-10 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="bi bi-person-fill text-secondary fs-4"></i>
+              </div>
+              <div class="lh-1">
+                <div class="fw-bold text-dark d-flex align-items-center gap-1 mb-1" style="font-size: 0.95rem;">
+                  {{ campaign?.whatsapp_profile_name || 'Strauss Recovery Solutions' }}
+                  <i class="bi bi-patch-check-fill text-success" style="font-size: 0.85rem;" title="Official business account"></i>
+                </div>
+                <div class="text-muted" style="font-size: 0.75rem;">{{ campaign?.whatsapp_from || '+27 82 123 4567' }}</div>
+              </div>
+            </div>
+            
+            <div class="p-4 position-relative">
+              <div style="opacity: 0.05; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cGF0aCBkPSJNMCAwaDQwMHY0MDBIMHoiIGZpbGw9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjM1IiBmaWxsPSIjMDAwIi8+PC9zdmc+'); background-size: 200px; pointer-events: none;"></div>
+              
+              <div class="bg-white rounded position-relative shadow-sm" style="max-width: 85%; border-top-left-radius: 0 !important; padding: 0.5rem; margin-left: 10px; z-index: 1;">
+                <svg viewBox="0 0 8 13" width="8" height="13" style="position: absolute; top: 0; left: -8px; color: white;">
+                  <path opacity="1" fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"></path>
+                </svg>
+
+                <div class="text-dark" style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">{{ previewRecipientMessage }}<span class="d-inline-block" style="width: 40px;"></span></div>
+                
+                <div class="d-flex justify-content-between align-items-end mt-1">
+                    <div class="text-muted text-end w-100" style="font-size: 0.65rem; margin-top: -15px; margin-right: 4px;">
+                        {{ previewRecipientTime }}
+                    </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1659,6 +1730,9 @@ export default {
   },
   data() {
     return {
+      previewRecipientMessage: '',
+      previewRecipientTime: '',
+      recipientPreviewModal: null,
       campaign: null,
       stats: {
         total_clients: 0,
@@ -1959,6 +2033,7 @@ export default {
     this.addWhatsappModal = createManagedModal(this.$refs.addWhatsappModalRef);
     this.addEmailModal = createManagedModal(this.$refs.addEmailModalRef);
     this.addSmsModal = createManagedModal(this.$refs.addSmsModalRef);
+    this.recipientPreviewModal = createManagedModal(this.$refs.recipientMessagePreviewModalRef);
     this.refreshAll();
   },
   beforeUnmount() {
@@ -1967,6 +2042,7 @@ export default {
     disposeManagedModal(this.addWhatsappModal);
     disposeManagedModal(this.addEmailModal);
     disposeManagedModal(this.addSmsModal);
+    disposeManagedModal(this.recipientPreviewModal);
     cleanupManagedModalArtifacts(true);
   },
   methods: {
@@ -2265,6 +2341,13 @@ export default {
 
       // Fallback in case Bootstrap does not emit hidden before navigation timing changes.
       window.setTimeout(done, 250);
+    },
+    previewClientMessage(recipient) {
+      this.previewRecipientMessage = recipient.message_body || recipient.body || recipient.message || 'Template message content not available.';
+      const d = new Date();
+      this.previewRecipientTime = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+      
+      this.recipientPreviewModal.show();
     },
     openClientChat(recipient) {
       if (!recipient.client_id) return;

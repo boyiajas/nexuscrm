@@ -13,12 +13,12 @@
           </div>
           <div>
             <div class="strauss-sidebar-brand h5 mb-0 fw-bold">STRAUSS</div>
-            <div class="small fw-semibold" style="color: #10b981; font-size: 0.72rem; letter-spacing: 0.05em;">Nexus Recovery</div>
+            <div class="small fw-semibold" style="color: #60a5fa; font-size: 0.72rem; letter-spacing: 0.05em;">Nexus Recovery</div>
           </div>
         </div>
 
         <!-- OVERVIEW -->
-        <div class="px-3 pt-1 pb-1 small text-muted fw-bold text-uppercase mt-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Overview</div>
+        <div class="px-3 pt-1 pb-1 small sidebar-section-title fw-bold text-uppercase mt-1" style="font-size: 0.65rem; letter-spacing: 0.05em;">Overview</div>
         <ul class="nav nav-pills flex-column px-2 gap-1 mb-2">
           <li class="nav-item">
             <router-link :to="{ name: 'dashboard' }" class="nav-link" :class="{ active: isActive('dashboard') }">
@@ -43,7 +43,7 @@
         </ul>
 
         <!-- COMMUNICATIONS & AUTOMATION -->
-        <div class="px-3 pt-1 pb-1 small text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Communications</div>
+        <div class="px-3 pt-1 pb-1 small sidebar-section-title fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Communications</div>
         <ul class="nav nav-pills flex-column px-2 gap-1 mb-2">
           <li class="nav-item" v-if="canViewChat">
             <router-link :to="{ name: 'chat' }" class="nav-link" :class="{ active: isActive('chat') }">
@@ -63,7 +63,7 @@
         </ul>
 
         <!-- SECURITY & ANALYTICS -->
-        <div class="px-3 pt-1 pb-1 small text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Security & Analytics</div>
+        <div class="px-3 pt-1 pb-1 small sidebar-section-title fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Security & Analytics</div>
         <ul class="nav nav-pills flex-column px-2 gap-1 mb-2">
           <li class="nav-item" v-if="canViewAuditLog">
             <router-link :to="{ name: 'audit-log' }" class="nav-link" :class="{ active: isActive('audit-log') }">
@@ -88,7 +88,7 @@
         </ul>
 
         <!-- ADMINISTRATION -->
-        <div class="px-3 pt-1 pb-1 small text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;" v-if="canViewAdminSection">Administration</div>
+        <div class="px-3 pt-1 pb-1 small sidebar-section-title fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;" v-if="canViewAdminSection">Administration</div>
         <ul class="nav nav-pills flex-column px-2 gap-1 mb-2" v-if="canViewAdminSection">
           <li class="nav-item" v-if="canManageBanks">
             <router-link :to="{ name: 'banks' }" class="nav-link" :class="{ active: isActive('banks') }">
@@ -154,16 +154,6 @@
           </div>
         </div>
 
-        <!-- SEARCH BAR -->
-        <div class="header-search-bar">
-          <i class="bi bi-search text-muted"></i>
-          <input
-            type="text"
-            class="header-search-input"
-            placeholder="Search clients, campaigns..."
-          />
-        </div>
-
         <!-- UTILITY ICONS & USER AVATAR -->
         <div class="d-flex align-items-center gap-3">
           <button
@@ -217,7 +207,7 @@
             </ul>
           </div>
 
-          <button class="btn btn-sm btn-light rounded-circle p-2 text-secondary border-0 d-none d-sm-inline" title="History">
+          <button class="btn btn-sm btn-light rounded-circle p-2 text-secondary border-0 d-none d-sm-inline" title="History" @click="$router.push({ name: 'audit-log' })">
             <i class="bi bi-clock-history fs-6"></i>
           </button>
 

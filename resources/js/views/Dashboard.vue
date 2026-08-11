@@ -10,7 +10,7 @@
     <div class="row g-3 mb-4">
       <!-- Card 1: Total Clients -->
       <div class="col-md-3">
-        <div class="card card-accent-green h-100 border shadow-sm position-relative overflow-hidden">
+        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important;">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div>
@@ -31,7 +31,7 @@
 
       <!-- Card 2: Active Campaigns -->
       <div class="col-md-3">
-        <div class="card card-accent-green h-100 border shadow-sm position-relative overflow-hidden" style="border-left-color: #059669 !important;">
+        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #059669 !important;">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div>
@@ -52,7 +52,7 @@
 
       <!-- Card 3: Open Chats -->
       <div class="col-md-3">
-        <div class="card card-accent-blue h-100 border shadow-sm position-relative overflow-hidden">
+        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div>
@@ -73,7 +73,7 @@
 
       <!-- Card 4: Delivery Rate -->
       <div class="col-md-3">
-        <div class="card card-accent-dark h-100 border shadow-sm position-relative overflow-hidden">
+        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #64748b !important;">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div>
@@ -100,7 +100,7 @@
     <div class="row g-3 mb-4">
       <!-- Total -->
       <div class="col-lg-3 col-md-6">
-        <div class="card border shadow-sm h-100 position-relative overflow-hidden">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #64748b !important;">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-list-task me-1"></i> TOTAL MESSAGES</div>
@@ -113,7 +113,7 @@
       
       <!-- Delivered -->
       <div class="col-lg-3 col-md-6">
-        <div class="card card-accent-green border shadow-sm h-100 position-relative overflow-hidden">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important;">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED</div>
@@ -129,7 +129,7 @@
 
       <!-- Pending -->
       <div class="col-lg-3 col-md-6">
-        <div class="card card-accent-blue border shadow-sm h-100 position-relative overflow-hidden">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> PENDING</div>
@@ -145,7 +145,7 @@
 
       <!-- Failed -->
       <div class="col-lg-3 col-md-6">
-        <div class="card card-accent-danger border shadow-sm h-100 position-relative overflow-hidden">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #ef4444 !important;">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div class="text-danger small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-x-circle me-1"></i> FAILED</div>
