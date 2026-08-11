@@ -114,7 +114,20 @@
         </TableLoadingWrapper>
       </div>
       <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-muted">Showing {{ pagination.from || 0 }}-{{ pagination.to || 0 }} of {{ pagination.total || 0 }}</small>
+        <div class="d-flex align-items-center gap-3">
+          <small class="text-muted">Showing {{ pagination.from || 0 }}-{{ pagination.to || 0 }} of {{ pagination.total || 0 }}</small>
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-muted">Rows:</small>
+            <select class="form-select form-select-sm w-auto" v-model="perPage" @change="fetchUploads(1)">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+          </div>
+        </div>
         <div class="btn-group btn-group-sm">
           <button class="btn btn-outline-secondary" :disabled="!pagination.prevPage" @click="fetchUploads(pagination.prevPage)">Prev</button>
           <button class="btn btn-outline-secondary" :disabled="!pagination.nextPage" @click="fetchUploads(pagination.nextPage)">Next</button>
@@ -146,6 +159,7 @@ export default {
       },
       importStatuses: ['uploaded', 'scanning', 'scan_passed', 'rejected_invalid', 'rejected_malware', 'scanner_error', 'imported', 'import_failed'],
       scanStatuses: ['skipped', 'clean', 'infected', 'error'],
+      perPage: 25,
       pagination: {
         from: 0,
         to: 0,
@@ -180,6 +194,7 @@ export default {
         const { data } = await axios.get('/api/import-uploads', {
           params: {
             page,
+            per_page: this.perPage,
             q: this.filters.q || undefined,
             import_status: this.filters.import_status,
             scan_status: this.filters.scan_status,

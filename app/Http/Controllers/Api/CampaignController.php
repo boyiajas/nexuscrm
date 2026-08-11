@@ -1724,16 +1724,30 @@ class CampaignController extends Controller
         $recipientModels = $recipientModelsQuery->get();
 
         // Map to shape expected by the Vue modal
-        $recipients = $recipientModels->map(function ($r) {
+        $recipients = $recipientModels->map(function ($r) use ($message, $campaign) {
             $client          = $r->client;
             $departments     = $client && $client->relationLoaded('departments')
                 ? $client->departments
                 : collect();
             $replyMeta = $this->extractWhatsappReplyMeta($r);
 
+            $resolvedVars = app(\App\Services\WhatsAppBatchService::class)->resolveTemplateVariableValues(
+                $message->template_variables ?? [],
+                $client,
+                $campaign
+            );
+            $previewBody = $message->preview_body ?? '';
+            foreach ($resolvedVars as $key => $val) {
+                $num = preg_replace('/[^0-9]/', '', $key);
+                if ($num) {
+                    $previewBody = str_replace('{{' . $num . '}}', $val, $previewBody);
+                }
+            }
+
             return [
                 'id'               => $r->id,
                 'client_id'        => $client?->id,
+                'resolved_preview_body' => $previewBody,
                 'client_name'      => $client?->name,
                 'email'            => $client?->email,
                 'phone'            => $r->phone ?: ($client?->phone ?? null),

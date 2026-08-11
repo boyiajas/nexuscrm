@@ -49,6 +49,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('clients/import', [ClientController::class, 'import']);
     Route::delete('clients/delete-batch', [ClientController::class, 'destroyBatch']);
     Route::post('clients/assign-batch', [ClientController::class, 'assignBatch']);
+    Route::post('clients/bulk-assign', [ClientController::class, 'bulkAssign']);
+    Route::post('clients/bulk-status', [ClientController::class, 'bulkUpdateStatus']);
+    Route::delete('clients/bulk-delete', [ClientController::class, 'bulkDestroy']);
     Route::get('import-uploads', [ImportUploadController::class, 'index']);
     Route::get('clients/export', [ClientController::class, 'export']);
     Route::apiResource('clients', ClientController::class);
@@ -60,6 +63,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/whatsapp-templates', [WhatsAppTemplateController::class, 'index']);
     Route::post('/whatsapp-templates', [WhatsAppTemplateController::class, 'store']);
     Route::post('/whatsapp-templates/migrate', [WhatsAppTemplateController::class, 'migrate']);
+    Route::delete('/whatsapp-templates/bulk-delete', [WhatsAppTemplateController::class, 'bulkDestroy']);
     Route::get('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'show']);
     Route::put('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'update']);
     Route::delete('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'destroy']);

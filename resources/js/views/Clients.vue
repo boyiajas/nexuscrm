@@ -72,6 +72,31 @@
         </div>
       </div>
 
+      <!-- Bulk Actions Bar -->
+      <div v-if="selectedClientIds.length > 0" class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-primary bg-opacity-10 rounded border border-primary border-opacity-25 shadow-sm">
+        <div>
+          <span class="fw-bold text-primary">{{ selectedClientIds.length }}</span> <span class="text-secondary small fw-medium">client(s) selected</span>
+        </div>
+        <div class="d-flex gap-2">
+          <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary bg-white fw-medium shadow-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" :disabled="bulkActionLoading">
+              <i class="bi bi-tag"></i> Status
+            </button>
+            <ul class="dropdown-menu shadow-sm">
+              <li><a class="dropdown-item fw-medium text-success" href="#" @click.prevent="bulkUpdateStatus('Active')">Active</a></li>
+              <li><a class="dropdown-item fw-medium text-warning" href="#" @click.prevent="bulkUpdateStatus('Pending')">Pending</a></li>
+              <li><a class="dropdown-item fw-medium text-secondary" href="#" @click.prevent="bulkUpdateStatus('Inactive')">Inactive</a></li>
+            </ul>
+          </div>
+          <button class="btn btn-sm btn-outline-primary bg-white fw-medium shadow-sm" @click="openBulkAssignModal" :disabled="bulkActionLoading">
+            <i class="bi bi-person-lines-fill"></i> Assign
+          </button>
+          <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkDeleteClients" :disabled="bulkActionLoading">
+            <i class="bi bi-trash"></i> Delete
+          </button>
+        </div>
+      </div>
+
       <!-- Clients Data Table -->
       <div class="card shadow-sm border mb-4">
         <div class="card-body p-0">
@@ -120,8 +145,8 @@
                       <div class="small fw-medium text-dark">{{ c.bank_name || 'Standard Bank' }}</div>
                     </td>
                     <td>
-                      <span :class="idx % 2 === 0 ? 'badge-status-active' : 'badge-status-pending'">
-                        {{ idx % 2 === 0 ? 'Active' : 'Pending' }}
+                      <span class="badge" :class="getStatusBadgeClass(c.status || 'Active')">
+                        {{ c.status || 'Active' }}
                       </span>
                     </td>
                     <td class="text-end pe-4">
@@ -151,9 +176,22 @@
 
         <!-- Footer Pagination Strip -->
         <div class="card-footer bg-white py-3 px-4 d-flex justify-content-between align-items-center flex-wrap border-top">
-          <small class="text-muted fw-medium">
-            Showing {{ pagination.from || 1 }} to {{ pagination.to || clients.length }} of {{ pagination.total || clients.length }} clients
-          </small>
+          <div class="d-flex align-items-center gap-3">
+            <small class="text-muted fw-medium">
+              Showing {{ pagination.from || 1 }} to {{ pagination.to || clients.length }} of {{ pagination.total || clients.length }} clients
+            </small>
+            <div class="d-flex align-items-center gap-2">
+              <small class="text-muted">Rows:</small>
+              <select class="form-select form-select-sm w-auto" v-model="pageSize" @change="changePageSize">
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+              </select>
+            </div>
+          </div>
 
           <div class="d-flex align-items-center gap-2">
             <button
@@ -498,6 +536,40 @@
       </div>
     </div>
 
+    <!-- Bulk Assign Selected Modal -->
+    <div class="modal fade" tabindex="-1" ref="assignSelectedModalRef">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Assign Selected Clients</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Select a user to assign the <strong>{{ selectedClientIds.length }}</strong> selected client(s).</p>
+            <div class="mb-3">
+              <label class="form-label">Assign To</label>
+              <select v-model="assignSelectedForm.assigned_to_id" class="form-select">
+                <option value="">Unassigned</option>
+                <option v-for="assignee in assignees" :key="assignee.id" :value="assignee.id">
+                  {{ assignee.name }} ({{ assignee.role }})
+                </option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="bulkActionLoading">
+              Cancel
+            </button>
+            <button type="button" class="btn btn-primary" @click="submitBulkAssign" :disabled="bulkActionLoading">
+              <span v-if="bulkActionLoading" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-check2 me-1"></i>
+              Assign
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- View Client Modal -->
     <div class="modal fade" tabindex="-1" ref="viewModalRef">
       <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -657,6 +729,11 @@ export default {
         assigned_to_id: '',
         submitting: false,
       },
+      assignSelectedModal: null,
+      assignSelectedForm: {
+        assigned_to_id: '',
+      },
+      bulkActionLoading: false,
       importForm: {
         file: null,
         bank_id: '',
@@ -671,6 +748,7 @@ export default {
     this.importModal = createManagedModal(this.$refs.importModalRef);
     this.viewModal = createManagedModal(this.$refs.viewModalRef);
     this.assignBatchModal = createManagedModal(this.$refs.assignBatchModalRef);
+    this.assignSelectedModal = createManagedModal(this.$refs.assignSelectedModalRef);
     this.syncCurrentUser();
     this.fetchBanks();
     this.fetchAssignees();
@@ -682,6 +760,7 @@ export default {
     disposeManagedModal(this.importModal);
     disposeManagedModal(this.viewModal);
     disposeManagedModal(this.assignBatchModal);
+    disposeManagedModal(this.assignSelectedModal);
   },
   computed: {
     currentUser() {
@@ -1119,6 +1198,84 @@ export default {
       this.assignBatchForm.assigned_to_id = '';
       this.assignBatchForm.submitting = false;
       this.assignBatchModal.show();
+    },
+    getStatusBadgeClass(status) {
+      const lower = status.toLowerCase();
+      if (lower === 'active') return 'bg-success bg-opacity-10 text-success border border-success border-opacity-25';
+      if (lower === 'pending') return 'bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25';
+      if (lower === 'inactive') return 'bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25';
+      return 'bg-light text-dark border';
+    },
+    async bulkUpdateStatus(newStatus) {
+      if (this.selectedClientIds.length === 0) return;
+      this.bulkActionLoading = true;
+      try {
+        const payload = {
+          client_ids: this.selectedClientIds,
+          status: newStatus,
+        };
+        const response = await axios.post('/api/clients/bulk-status', payload);
+        notify.success(response.data.message || 'Status updated successfully.', 'Clients');
+        this.selectedClientIds = [];
+        this.fetchClients(this.pagination.currentPage);
+      } catch (err) {
+        notify.error(err.response?.data?.message || 'Failed to update client status.', 'Clients');
+      } finally {
+        this.bulkActionLoading = false;
+      }
+    },
+    openBulkAssignModal() {
+      if (!this.canChooseAssignee) {
+        notify.warning('You do not have permission to assign clients.', 'Clients');
+        return;
+      }
+      this.assignSelectedForm.assigned_to_id = '';
+      this.assignSelectedModal.show();
+    },
+    async submitBulkAssign() {
+      if (this.selectedClientIds.length === 0) return;
+      this.bulkActionLoading = true;
+      try {
+        const payload = {
+          client_ids: this.selectedClientIds,
+          assigned_to_id: this.assignSelectedForm.assigned_to_id || null,
+        };
+        const response = await axios.post('/api/clients/bulk-assign', payload);
+        notify.success(response.data.message || 'Clients assigned successfully.', 'Clients');
+        this.assignSelectedModal.hide();
+        this.selectedClientIds = [];
+        this.fetchClients(this.pagination.currentPage);
+      } catch (err) {
+        notify.error(err.response?.data?.message || 'Failed to bulk assign clients.', 'Clients');
+      } finally {
+        this.bulkActionLoading = false;
+      }
+    },
+    bulkDeleteClients() {
+      if (this.selectedClientIds.length === 0) return;
+      
+      this.$refs.confirmModal.open({
+        title: 'Delete Selected Clients',
+        message: `Are you sure you want to delete ${this.selectedClientIds.length} selected client(s)? This action cannot be undone.`,
+        confirmText: 'Delete Selected',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          this.bulkActionLoading = true;
+          try {
+            const response = await axios.delete('/api/clients/bulk-delete', {
+              data: { client_ids: this.selectedClientIds },
+            });
+            notify.success(response.data.message || 'Clients deleted successfully.', 'Clients');
+            this.selectedClientIds = [];
+            this.fetchClients(this.pagination.currentPage);
+          } catch (error) {
+            console.error('Error during bulk deletion:', error);
+            notify.error(error.response?.data?.message || 'Failed to delete selected clients.', 'Clients');
+          } finally {
+            this.bulkActionLoading = false;
+          }
+        },
+      });
     },
     async submitAssignBatch() {
       if (this.assignBatchForm.submitting) return;

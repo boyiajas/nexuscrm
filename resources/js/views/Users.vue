@@ -26,7 +26,12 @@
 
               <tbody>
               <tr v-for="u in users" :key="u.id">
-                <td class="ps-4 py-3">{{ u.name }}</td>
+                <td class="ps-4 py-3">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="avatar-initial-badge">{{ getInitials(u.name) }}</div>
+                    <div class="fw-bold text-dark">{{ u.name }}</div>
+                  </div>
+                </td>
                 <td>{{ u.email }}</td>
                 <td>
                   <div class="d-flex flex-wrap gap-1">
@@ -76,10 +81,23 @@
 
       <!-- Pagination -->
       <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-muted">
-          Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
-          of {{ pagination.total || 0 }}
-        </small>
+        <div class="d-flex align-items-center gap-3">
+          <small class="text-muted">
+            Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
+            of {{ pagination.total || 0 }}
+          </small>
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-muted">Rows:</small>
+            <select class="form-select form-select-sm w-auto" v-model="perPage" @change="fetchUsers(1)">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+          </div>
+        </div>
 
         <ul class="pagination mb-0 pagination-sm">
           <li class="page-item" :class="{ disabled: !pagination.prevPage }">
@@ -122,9 +140,8 @@
                   <div class="card-body">
                     <h6 class="mb-3">Contact Information</h6>
                     <div class="d-flex align-items-center gap-3 mb-3">
-                      <div class="avatar-placeholder text-center border rounded p-3 text-muted small">
-                        <i class="bi bi-person fs-2 d-block"></i>
-                        Profile photo
+                      <div class="avatar-initial-badge d-flex align-items-center justify-content-center shadow-sm" style="width: 64px; height: 64px; font-size: 1.5rem;">
+                        {{ getInitials(profile.name) }}
                       </div>
                       <div>
                         <div class="fw-semibold">{{ profile.name || 'Name' }}</div>
@@ -439,6 +456,7 @@ export default {
         is_time_clock_user: false,
       },
 
+      perPage: 25,
       pagination: {
         currentPage: 1,
         lastPage: 1,
@@ -529,6 +547,14 @@ export default {
   },
 
   methods: {
+    getInitials(name) {
+      if (!name) return 'NX';
+      const parts = name.trim().split(' ');
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+      }
+      return name.substring(0, 2).toUpperCase();
+    },
     roleLabel(code) {
       const role = this.roles.find((item) => item.code === code);
       if (role?.name) return role.name;
@@ -604,7 +630,7 @@ export default {
     // -------------------------
     fetchUsers(page = 1) {
       this.loading = true;
-      axios.get("/api/users", { params: { page } }).then((res) => {
+      axios.get("/api/users", { params: { page, per_page: this.perPage } }).then((res) => {
         this.users = res.data.data;
         this.buildPagination(res.data);
       }).finally(() => {

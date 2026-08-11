@@ -244,7 +244,7 @@ export default {
       logs: [],
       loading: false,
       pageSize: 25,
-      pageSizeOptions: [25, 50, 100, 200, 300, 500, 1000],
+      pageSizeOptions: [25, 50, 100, 200, 500, 1000],
       filters: {
         module: 'all',
         user_id: 'all',

@@ -66,10 +66,23 @@
       </div>
 
       <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-muted">
-          Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
-          of {{ pagination.total || 0 }}
-        </small>
+        <div class="d-flex align-items-center gap-3">
+          <small class="text-muted">
+            Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
+            of {{ pagination.total || 0 }}
+          </small>
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-muted">Rows:</small>
+            <select class="form-select form-select-sm w-auto" v-model="perPage" @change="fetchDepartments(1)">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+          </div>
+        </div>
 
         <ul class="pagination mb-0 pagination-sm">
           <li class="page-item" :class="{ disabled: !pagination.prevPage }">
@@ -194,6 +207,7 @@ export default {
       senders: [],
       newNumber: '',
 
+      perPage: 25,
       pagination: {
         currentPage: 1,
         lastPage: 1,
@@ -244,7 +258,7 @@ export default {
 
     fetchDepartments(page = 1) {
       this.loading = true;
-      axios.get("/api/departments", { params: { page } }).then((res) => {
+      axios.get("/api/departments", { params: { page, per_page: this.perPage } }).then((res) => {
         this.departments = res.data.data;
         this.buildPagination(res.data);
       }).finally(() => {

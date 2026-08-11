@@ -148,9 +148,22 @@
       </div>
 
       <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-muted">
-          Showing {{ pagination.from || 0 }}-{{ pagination.to || 0 }} of {{ pagination.total || 0 }}
-        </small>
+        <div class="d-flex align-items-center gap-3">
+          <small class="text-muted">
+            Showing {{ pagination.from || 0 }}-{{ pagination.to || 0 }} of {{ pagination.total || 0 }}
+          </small>
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-muted">Rows:</small>
+            <select class="form-select form-select-sm w-auto" v-model="perPage" @change="fetchRequests(1)">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+          </div>
+        </div>
         <div class="btn-group btn-group-sm">
           <button class="btn btn-outline-secondary" :disabled="!pagination.prevPage" @click="fetchRequests(pagination.prevPage)">Prev</button>
           <button class="btn btn-outline-secondary" :disabled="!pagination.nextPage" @click="fetchRequests(pagination.nextPage)">Next</button>
@@ -295,6 +308,7 @@ export default {
         date_from: '',
         date_to: '',
       },
+      perPage: 25,
       pagination: {
         currentPage: 1,
         prevPage: null,
@@ -339,7 +353,7 @@ export default {
       axios.get('/api/export-requests', {
         params: {
           page,
-          per_page: 20,
+          per_page: this.perPage,
           dataset: this.filters.dataset,
           status: this.filters.status,
           q: this.filters.q || undefined,

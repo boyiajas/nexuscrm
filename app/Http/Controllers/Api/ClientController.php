@@ -879,6 +879,67 @@ class ClientController extends Controller
         }
     }
 
+    public function bulkUpdateStatus(Request $request)
+    {
+        $user = Auth::user();
+        $this->authorizeManage($user, 'update clients');
+
+        $validated = $request->validate([
+            'client_ids' => ['required', 'array'],
+            'client_ids.*' => ['integer'],
+            'status' => ['required', 'string', 'max:50'],
+        ]);
+
+        $query = Client::query()->whereIn('id', $validated['client_ids']);
+        $this->applyBankScope($query, $user);
+        $this->applyPortfolioScope($query, $user);
+
+        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
+        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
+                $q->whereIn('departments.id', $userDepartmentIds);
+            });
+        }
+
+        $clients = $query->get();
+
+        if ($clients->isEmpty()) {
+            return response()->json([
+                'message' => 'No authorized clients found for update.',
+            ], 404);
+        }
+
+        $updatedCount = 0;
+        DB::beginTransaction();
+        try {
+            foreach ($clients as $client) {
+                $client->status = $validated['status'];
+                $client->save();
+                $updatedCount++;
+            }
+            DB::commit();
+
+            $this->audit(
+                action: "Bulk updated status to {$validated['status']} for {$updatedCount} clients",
+                module: 'Clients',
+                meta: [
+                    'updated_count' => $updatedCount,
+                    'status' => $validated['status'],
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Clients status updated successfully.',
+                'updated_count' => $updatedCount,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to update clients: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
     public function destroyBatch(Request $request)
     {
         $user = Auth::user();
@@ -948,6 +1009,129 @@ class ClientController extends Controller
 
             return response()->json([
                 'message' => 'Failed to delete clients for batch: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function bulkAssign(Request $request)
+    {
+        $user = Auth::user();
+        $this->authorizeManage($user, 'update clients');
+
+        $validated = $request->validate([
+            'client_ids' => ['required', 'array'],
+            'client_ids.*' => ['integer'],
+            'assigned_to_id' => ['nullable', 'integer', 'exists:users,id'],
+        ]);
+
+        $assignedToId = $this->resolveAssignedUserId($user, null, $validated['assigned_to_id'] ?? null);
+
+        $query = Client::query()->whereIn('id', $validated['client_ids']);
+        $this->applyBankScope($query, $user);
+        $this->applyPortfolioScope($query, $user);
+
+        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
+        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
+                $q->whereIn('departments.id', $userDepartmentIds);
+            });
+        }
+
+        $clients = $query->get();
+
+        if ($clients->isEmpty()) {
+            return response()->json([
+                'message' => 'No authorized clients found for assignment.',
+            ], 404);
+        }
+
+        $updatedCount = 0;
+        DB::beginTransaction();
+        try {
+            foreach ($clients as $client) {
+                $client->assigned_to_id = $assignedToId;
+                $client->save();
+                $updatedCount++;
+            }
+            DB::commit();
+
+            $this->audit(
+                action: "Bulk assigned {$updatedCount} clients to user " . ($assignedToId ?? 'Unassigned'),
+                module: 'Clients',
+                meta: [
+                    'updated_count' => $updatedCount,
+                    'assigned_to_id' => $assignedToId,
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Clients assigned successfully.',
+                'updated_count' => $updatedCount,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to assign clients: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $user = Auth::user();
+        $this->authorizeManage($user, 'delete clients');
+
+        $validated = $request->validate([
+            'client_ids' => ['required', 'array'],
+            'client_ids.*' => ['integer'],
+        ]);
+
+        $query = Client::query()->with('departments')->whereIn('id', $validated['client_ids']);
+        $this->applyBankScope($query, $user);
+        $this->applyPortfolioScope($query, $user);
+
+        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
+        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
+                $q->whereIn('departments.id', $userDepartmentIds);
+            });
+        }
+
+        $clients = $query->get();
+
+        if ($clients->isEmpty()) {
+            return response()->json([
+                'message' => 'No authorized clients found for deletion.',
+            ], 404);
+        }
+
+        $deletedCount = 0;
+        DB::beginTransaction();
+        try {
+            foreach ($clients as $client) {
+                $client->departments()->detach();
+                $client->campaigns()->detach();
+                $client->delete();
+                $deletedCount++;
+            }
+            DB::commit();
+
+            $this->audit(
+                action: "Bulk deleted {$deletedCount} clients",
+                module: 'Clients',
+                meta: [
+                    'deleted_count' => $deletedCount,
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Clients deleted successfully.',
+                'deleted_count' => $deletedCount,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to delete clients: ' . $e->getMessage(),
             ], 500);
         }
     }

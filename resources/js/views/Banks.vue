@@ -86,10 +86,23 @@
       </div>
 
       <div class="card-footer d-flex justify-content-between align-items-center">
-        <small class="text-muted">
-          Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
-          of {{ pagination.total || 0 }}
-        </small>
+        <div class="d-flex align-items-center gap-3">
+          <small class="text-muted">
+            Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
+            of {{ pagination.total || 0 }}
+          </small>
+          <div class="d-flex align-items-center gap-2">
+            <small class="text-muted">Rows:</small>
+            <select class="form-select form-select-sm w-auto" v-model="perPage" @change="fetchBanks(1)">
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="200">200</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+          </div>
+        </div>
 
         <ul class="pagination mb-0 pagination-sm">
           <li class="page-item" :class="{ disabled: !pagination.prevPage }">
@@ -178,6 +191,7 @@ export default {
         search: '',
         status: 'All',
       },
+      perPage: 25,
       pagination: {
         currentPage: 1,
         lastPage: 1,
@@ -228,7 +242,7 @@ export default {
       axios.get('/api/banks', {
         params: {
           page,
-          per_page: 20,
+          per_page: this.perPage,
           search: this.filters.search || undefined,
           status: this.filters.status || undefined,
         },

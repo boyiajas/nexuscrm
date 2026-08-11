@@ -114,6 +114,31 @@ class WhatsAppTemplateController extends Controller
         return response()->json([], 204);
     }
 
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $this->authorizeAdmin();
+
+        $data = $request->validate([
+            'template_ids' => ['required', 'array'],
+            'template_ids.*' => ['string'],
+        ]);
+
+        $deletedCount = 0;
+        foreach ($data['template_ids'] as $id) {
+            try {
+                $this->whatsApp->deleteWhatsAppTemplate($id);
+                $deletedCount++;
+            } catch (\Exception $e) {
+                // Log or ignore errors for individual templates to continue deleting others
+            }
+        }
+
+        return response()->json([
+            'message' => 'Templates deleted successfully.',
+            'deleted_count' => $deletedCount,
+        ]);
+    }
+
     public function submitForApproval(Request $request, string $id): JsonResponse
     {
         $this->authorizeAdmin();

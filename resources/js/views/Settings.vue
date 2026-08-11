@@ -924,6 +924,18 @@
               <span class="spinner-border spinner-border-sm me-2"></span>
               Loading templates...
             </div>
+            <!-- Bulk Actions Bar -->
+            <div v-if="wa.selected.length > 0" class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-primary bg-opacity-10 rounded border border-primary border-opacity-25 shadow-sm mx-3 mt-3">
+              <div>
+                <span class="fw-bold text-primary">{{ wa.selected.length }}</span> <span class="text-secondary small fw-medium">template(s) selected</span>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkDeleteTemplates" :disabled="wa.bulkActionLoading">
+                  <i class="bi bi-trash"></i> Delete Templates
+                </button>
+              </div>
+            </div>
+
             <div v-else class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
               <thead>
@@ -1432,6 +1444,7 @@ export default {
         selected: [],
         loading: false,
         saving: false,
+        bulkActionLoading: false,
         migrating: false,
         migrateModal: null,
         migrateForm: {
@@ -1932,6 +1945,32 @@ export default {
         .finally(() => {
           this.wa.loading = false;
         });
+    },
+    bulkDeleteTemplates() {
+      if (this.wa.selected.length === 0) return;
+
+      this.$refs.confirmModal.open({
+        title: 'Delete Selected Templates',
+        message: `Are you sure you want to delete ${this.wa.selected.length} template(s)? This will also attempt to delete them from Meta. This action cannot be undone.`,
+        confirmText: 'Delete Templates',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          this.wa.bulkActionLoading = true;
+          try {
+            await axios.delete('/api/whatsapp-templates/bulk-delete', {
+              data: { template_ids: this.wa.selected },
+            });
+            notify.success('Templates deleted successfully.', 'Settings');
+            this.wa.selected = [];
+            this.fetchWhatsappTemplates();
+          } catch (error) {
+            console.error('Error during bulk deletion:', error);
+            notify.error(error.response?.data?.message || 'Failed to delete selected templates.', 'Settings');
+          } finally {
+            this.wa.bulkActionLoading = false;
+          }
+        },
+      });
     },
     toggleSelectAllTemplates(event) {
       if (event.target.checked) {

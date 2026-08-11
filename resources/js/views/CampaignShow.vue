@@ -147,6 +147,17 @@
                 </button>
               </div>
             </div>
+            <!-- Bulk Actions Bar -->
+            <div v-if="selectedClients.length > 0" class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-primary bg-opacity-10 rounded border border-primary border-opacity-25 shadow-sm">
+              <div>
+                <span class="fw-bold text-primary">{{ selectedClients.length }}</span> <span class="text-secondary small fw-medium">client(s) selected</span>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkRemoveClients" :disabled="bulkActionLoading">
+                  <i class="bi bi-person-dash"></i> Remove from Campaign
+                </button>
+              </div>
+            </div>
 
             <div class="table-responsive">
             <table class="table table-hover mb-0 align-middle">
@@ -562,31 +573,34 @@
               <!-- Template Details Card (Col 4) -->
               <div class="col-lg-4">
                 <div class="card card-accent-dark h-100 border shadow-sm">
-                  <div class="card-body p-3 d-flex flex-column justify-content-between">
-                    <div>
-                      <div class="fw-bold text-dark mb-3 d-flex align-items-center gap-2" style="font-size: 0.9rem;">
-                        <i class="bi bi-file-earmark-text text-muted"></i> Template Details
-                      </div>
+                  <div class="card-body p-2 d-flex flex-column justify-content-center">
+                    <div class="fw-bold text-dark mb-2 d-flex align-items-center gap-2" style="font-size: 0.85rem;">
+                      <i class="bi bi-file-earmark-text text-muted"></i> Template Details
+                    </div>
 
-                      <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem; letter-spacing: 0.05em;">TEMPLATE NAME</div>
-                        <div class="fw-bold text-dark fs-6">{{ recipientModal.meta.template_name || 'N/A' }}</div>
-                      </div>
+                    <div class="d-flex justify-content-between align-items-center mb-0">
+                      <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.65rem; letter-spacing: 0.05em;">TEMPLATE NAME</div>
+                      <div class="fw-bold text-dark" style="font-size: 0.85rem;">{{ recipientModal.meta.template_name || 'N/A' }}</div>
+                    </div>
 
-                      <div class="d-flex justify-content-between align-items-center mb-2">
-                        <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem;">CHANNEL</div>
-                        <div class="small fw-semibold text-dark d-flex align-items-center gap-1">
-                          <i v-if="recipientModal.channel === 'WhatsApp'" class="bi bi-whatsapp text-success"></i>
-                          <i v-else-if="recipientModal.channel === 'Email'" class="bi bi-envelope-paper text-primary"></i>
-                          <i v-else-if="recipientModal.channel === 'SMS'" class="bi bi-chat-left-text text-info"></i>
-                          {{ recipientModal.channel || 'Unknown' }}
-                        </div>
+                    <div class="d-flex justify-content-between align-items-center mb-0">
+                      <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.65rem;">CHANNEL</div>
+                      <div class="fw-semibold text-dark d-flex align-items-center gap-1" style="font-size: 0.8rem;">
+                        <i v-if="recipientModal.channel === 'WhatsApp'" class="bi bi-whatsapp text-success"></i>
+                        <i v-else-if="recipientModal.channel === 'Email'" class="bi bi-envelope-paper text-primary"></i>
+                        <i v-else-if="recipientModal.channel === 'SMS'" class="bi bi-chat-left-text text-info"></i>
+                        {{ recipientModal.channel || 'Unknown' }}
                       </div>
+                    </div>
 
-                      <div class="d-flex justify-content-between align-items-center">
-                        <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.68rem;">SCHEDULED FOR</div>
-                        <div class="small fw-semibold text-dark">{{ recipientModal.meta.scheduled_at || 'Immediate' }}</div>
-                      </div>
+                    <div class="d-flex justify-content-between align-items-center mb-0" v-if="recipientModal.channel === 'WhatsApp'">
+                      <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.65rem;">SENDER / FROM</div>
+                      <div class="fw-semibold text-dark" style="font-size: 0.8rem;">{{ recipientModal.meta.reply_number || '-' }}</div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.65rem;">SCHEDULED FOR</div>
+                      <div class="fw-semibold text-dark" style="font-size: 0.8rem;">{{ recipientModal.meta.scheduled_at || 'Immediate' }}</div>
                     </div>
                   </div>
                 </div>
@@ -704,8 +718,11 @@
                         </td>
                         <td class="small fw-medium text-dark">{{ r.department_names || (idx % 2 === 0 ? 'Retail Recovery' : 'Auto Finance') }}</td>
                         <td>
-                          <span class="badge-status-pending text-primary bg-primary-subtle">
-                            <i class="bi bi-clock-history me-1"></i> Queued
+                          <span :class="getStatusBadgeClass(r.status)">
+                            <i v-if="getStatusBadgeClass(r.status).includes('pending')" class="bi bi-clock-history me-1"></i>
+                            <i v-else-if="getStatusBadgeClass(r.status).includes('delivered')" class="bi bi-check2-all me-1"></i>
+                            <i v-else-if="getStatusBadgeClass(r.status).includes('failed')" class="bi bi-exclamation-circle me-1"></i>
+                            {{ r.status || 'Queued' }}
                           </span>
                         </td>
                         <td class="text-end pe-4">
@@ -1684,7 +1701,7 @@
                   {{ campaign?.whatsapp_profile_name || 'Strauss Recovery Solutions' }}
                   <i class="bi bi-patch-check-fill text-success" style="font-size: 0.85rem;" title="Official business account"></i>
                 </div>
-                <div class="text-muted" style="font-size: 0.75rem;">{{ campaign?.whatsapp_from || '+27 82 123 4567' }}</div>
+                <div class="text-muted" style="font-size: 0.75rem;">{{ recipientModal.meta.reply_number || campaign?.whatsapp_from || '+27 82 123 4567' }}</div>
               </div>
             </div>
             
@@ -2234,6 +2251,7 @@ export default {
       this.recipientModal.meta = {
         id: sendRow.id,
         template_name: sendRow.template_name || null,
+        preview_body: sendRow.preview_body || null,
         subject: sendRow.subject || null,
         status: sendRow.status || 'Sent',
         can_send: !!sendRow.can_send,
@@ -2343,7 +2361,7 @@ export default {
       window.setTimeout(done, 250);
     },
     previewClientMessage(recipient) {
-      this.previewRecipientMessage = recipient.message_body || recipient.body || recipient.message || 'Template message content not available.';
+      this.previewRecipientMessage = recipient.resolved_preview_body || recipient.message_body || recipient.body || recipient.message || this.recipientModal.meta.preview_body || this.recipientModal.meta.template_name || 'Template message content not available.';
       const d = new Date();
       this.previewRecipientTime = d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
       
@@ -2357,6 +2375,13 @@ export default {
           query: { client_id: recipient.client_id },
         });
       });
+    },
+    getStatusBadgeClass(status) {
+      if (!status) return 'badge-status-pending text-primary bg-primary-subtle';
+      const s = status.toLowerCase();
+      if (s === 'delivered' || s === 'sent' || s === 'completed' || s === 'active') return 'badge-status-delivered text-success bg-success-subtle';
+      if (s === 'failed' || s === 'error') return 'badge-status-failed text-danger bg-danger-subtle';
+      return 'badge-status-pending text-primary bg-primary-subtle';
     },
 
     // Export helpers
@@ -2397,6 +2422,33 @@ export default {
           { label: 'Current Totals', value: `${this.stats.total_clients || 0} clients` },
         ],
         fallbackName: `${dataset}.csv`,
+      });
+    },
+
+    bulkRemoveClients() {
+      if (this.selectedClients.length === 0) return;
+
+      this.$refs.confirmModal.open({
+        title: 'Remove Selected Clients',
+        message: `Are you sure you want to remove ${this.selectedClients.length} client(s) from this campaign?`,
+        confirmText: 'Remove Clients',
+        confirmClass: 'btn-danger',
+        onConfirm: async () => {
+          this.bulkActionLoading = true;
+          try {
+            await axios.post(`/api/campaigns/${this.$route.params.id}/detach-clients`, {
+              client_ids: this.selectedClients,
+            });
+            notify.success('Clients removed successfully', 'Campaigns');
+            this.selectedClients = [];
+            this.fetchCampaign();
+            this.fetchClients(this.clientsPagination.currentPage);
+          } catch (err) {
+            notify.error(err.response?.data?.message || 'Failed to remove clients', 'Campaigns');
+          } finally {
+            this.bulkActionLoading = false;
+          }
+        },
       });
     },
 
