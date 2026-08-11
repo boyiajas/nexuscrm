@@ -28,7 +28,8 @@
               <tr v-for="u in users" :key="u.id">
                 <td class="ps-4 py-3">
                   <div class="d-flex align-items-center gap-3">
-                    <div class="avatar-initial-badge">{{ getInitials(u.name) }}</div>
+                    <img v-if="u.avatar_url" :src="u.avatar_url" alt="Avatar" class="rounded-circle border" style="width: 32px; height: 32px; object-fit: cover;" />
+                    <div v-else class="avatar-initial-badge">{{ getInitials(u.name) }}</div>
                     <div class="fw-bold text-dark">{{ u.name }}</div>
                   </div>
                 </td>

@@ -217,7 +217,18 @@
 
           <div class="d-flex align-items-center gap-2 ms-1">
             <img
-              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=150&auto=format&fit=crop"
+              v-if="user && user.avatar_url"
+              :src="user.avatar_url"
+              alt="User Avatar"
+              class="header-user-avatar border"
+              style="object-fit: cover;"
+            />
+            <div v-else-if="user && user.name" class="avatar-initial-badge border border-secondary" style="width: 32px; height: 32px; font-size: 0.85rem;">
+              {{ user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() }}
+            </div>
+            <img
+              v-else
+              src="https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff"
               alt="User Avatar"
               class="header-user-avatar border"
             />
