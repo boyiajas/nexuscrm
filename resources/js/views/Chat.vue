@@ -34,7 +34,7 @@
           :key="session.id"
           class="chat-list-item d-flex p-3 border-bottom position-relative"
           :class="{ 'active-chat': activeSession && activeSession.id === session.id }"
-          @click="openSession(session)"
+          @click="openSession(session, $event)"
         >
           <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0">
             <i class="bi bi-person-fill"></i>
@@ -51,7 +51,7 @@
               </small>
               <div class="d-flex align-items-center gap-2">
                 <span v-if="session.unread_count > 0" class="badge rounded-pill bg-success unread-badge">{{ session.unread_count }}</span>
-                <div class="dropdown chat-list-dropdown" @click.stop>
+                <div class="dropdown chat-list-dropdown">
                   <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
                   <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
                     <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-archive text-muted me-3"></i>Archive chat</a></li>
@@ -200,7 +200,10 @@ export default {
           this.sessions = res.data.data || res.data;
         });
     },
-    openSession(session) {
+    openSession(session, event = null) {
+      if (event && event.target.closest('.chat-list-dropdown')) {
+        return;
+      }
       axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
         this.activeSession = res.data;
         this.messages = res.data.messages || [];
