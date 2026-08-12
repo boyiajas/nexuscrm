@@ -74,7 +74,9 @@
             </small>
           </div>
           <div class="ms-auto text-muted d-flex gap-3 fs-5">
+            <i class="bi bi-search" style="cursor: pointer;" title="Search"></i>
             <i class="bi bi-trash text-danger" style="cursor: pointer;" @click="deleteSession(activeSession)" title="Delete Chat Session"></i>
+            <i class="bi bi-three-dots-vertical" style="cursor: pointer;" title="More options"></i>
           </div>
         </div>
 
