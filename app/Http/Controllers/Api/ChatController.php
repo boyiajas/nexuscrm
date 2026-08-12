@@ -151,13 +151,40 @@ class ChatController extends Controller
 
         $chatMessages = $session->messages;
 
-        $campaignMessages = \App\Models\CampaignWhatsappRecipient::with('message')
+        $batchService = app(\App\Services\WhatsAppBatchService::class);
+        $campaignMessages = \App\Models\CampaignWhatsappRecipient::with(['message.campaign', 'message.autoReplies', 'client'])
             ->where('client_id', $session->client_id)
             ->get();
 
-        $mappedCampaignMessages = $campaignMessages->map(function ($recipient) use ($session) {
+        $mappedCampaignMessages = $campaignMessages->map(function ($recipient) use ($session, $batchService) {
             $content = $recipient->message ? $recipient->message->preview_body : 'Campaign Message';
             $sentAt = $recipient->delivered_at ?? $recipient->queued_at ?? $recipient->created_at;
+
+            if ($recipient->message && $recipient->client && $recipient->message->campaign) {
+                $values = $batchService->resolveTemplateVariableValues(
+                    $recipient->message->template_variables ?? [],
+                    $recipient->client,
+                    $recipient->message->campaign
+                );
+
+                foreach ($values as $key => $val) {
+                    if (str_starts_with($key, 'body_')) {
+                        $index = str_replace('body_', '', $key);
+                        $content = str_replace('{{' . $index . '}}', $val, $content);
+                    }
+                }
+            }
+
+            $buttons = [];
+            if ($recipient->message && $recipient->message->autoReplies && $recipient->message->autoReplies->isNotEmpty()) {
+                foreach ($recipient->message->autoReplies as $reply) {
+                    $buttons[] = "🔘 " . $reply->trigger_keyword;
+                }
+            }
+
+            if (!empty($buttons)) {
+                $content .= "\n\n" . implode("  ", $buttons);
+            }
 
             $msg = new ChatMessage([
                 'chat_session_id' => $session->id,
