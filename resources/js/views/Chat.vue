@@ -45,11 +45,25 @@
               <small class="text-muted timestamp">{{ session.updated_at ? session.updated_at.split('T')[0] : '' }}</small>
             </div>
             <div class="d-flex justify-content-between align-items-center">
-              <small class="text-muted text-truncate d-block w-100 me-2">
+              <small class="text-muted text-truncate d-block w-100 pe-2">
                 <i v-if="session.last_message === 'quick reply'" class="bi bi-reply-fill text-muted me-1"></i>
                 {{ session.last_message || 'No messages yet' }}
               </small>
-              <span v-if="session.unread_count > 0" class="badge rounded-pill bg-success unread-badge">{{ session.unread_count }}</span>
+              <div class="d-flex align-items-center gap-2">
+                <span v-if="session.unread_count > 0" class="badge rounded-pill bg-success unread-badge">{{ session.unread_count }}</span>
+                <div class="dropdown chat-list-dropdown" @click.stop>
+                  <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
+                  <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-archive text-muted me-3"></i>Archive chat</a></li>
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-bell-slash text-muted me-3"></i>Mute notifications</a></li>
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-pin-angle text-muted me-3"></i>Pin chat</a></li>
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-envelope-exclamation text-muted me-3"></i>Mark as unread</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-eraser text-muted me-3"></i>Clear chat</a></li>
+                    <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(session)"><i class="bi bi-trash text-danger me-3"></i>Delete chat</a></li>
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -73,10 +87,20 @@
               {{ activeSession.platform }} <span v-if="activeSession.agent">• Assigned to {{ activeSession.agent.name }}</span>
             </small>
           </div>
-          <div class="ms-auto text-muted d-flex gap-3 fs-5">
+          <div class="ms-auto text-muted d-flex gap-3 fs-5 align-items-center">
             <i class="bi bi-search" style="cursor: pointer;" title="Search"></i>
-            <i class="bi bi-trash text-danger" style="cursor: pointer;" @click="deleteSession(activeSession)" title="Delete Chat Session"></i>
-            <i class="bi bi-three-dots-vertical" style="cursor: pointer;" title="More options"></i>
+            <div class="dropdown">
+              <i class="bi bi-three-dots-vertical" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" title="Menu"></i>
+              <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 200px;">
+                <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-person-lines-fill me-2 text-muted"></i>Contact info</a></li>
+                <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-search me-2 text-muted"></i>Search</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-eraser me-2 text-muted"></i>Clear chat</a></li>
+                <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(activeSession)"><i class="bi bi-trash text-danger me-2"></i>Delete chat</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent><i class="bi bi-slash-circle text-danger me-2"></i>Block</a></li>
+              </ul>
+            </div>
           </div>
         </div>
 
