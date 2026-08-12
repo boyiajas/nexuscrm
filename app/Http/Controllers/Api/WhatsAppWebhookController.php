@@ -50,6 +50,7 @@ class WhatsAppWebhookController extends Controller
         $this->validateWebhookSignature($request);
 
         $payload = $request->all();
+        Log::info('Raw WhatsApp Webhook Payload:', $payload);
 
         foreach (($payload['entry'] ?? []) as $entry) {
             foreach (($entry['changes'] ?? []) as $change) {
@@ -324,6 +325,7 @@ class WhatsAppWebhookController extends Controller
             'client_name' => $client?->name ?? $session->client_name ?? $from,
             'phone' => $session->phone ?: ($client?->phone ?? $from),
             'bank_id' => $session->bank_id ?: ($client?->bank_id ?? null),
+            'status' => 'active',
         ]);
 
         Log::info('Meta WhatsApp inbound reply routed to live chat.', [

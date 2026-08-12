@@ -1,5 +1,5 @@
 <template>
-  <div class="row g-3">
+  <div class="row g-3" style="height: calc(100vh - 120px);">
     <!-- Sessions list -->
     <div class="col-md-4">
       <div class="card shadow-sm h-100">
@@ -11,7 +11,7 @@
             <option value="closed">Closed</option>
           </select>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body p-0 overflow-auto">
           <ul class="list-group list-group-flush">
             <li
               v-for="session in sessions"
