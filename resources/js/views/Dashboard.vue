@@ -10,12 +10,12 @@
     <div class="row g-3 mb-4">
       <!-- Card 1: Total Clients -->
       <div class="col-md-3">
-        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important;">
+        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important; cursor: pointer;" @click="$router.push({ name: 'clients' })">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div>
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
-                <div class="stat-card-number mt-1">{{ summary.total_clients || '4,907' }}</div>
+                <div class="stat-card-number mt-1">{{ summary.total_clients || 0 }}</div>
               </div>
               <div class="stat-icon-badge">
                 <i class="bi bi-people-fill"></i>
@@ -31,12 +31,12 @@
 
       <!-- Card 2: Active Campaigns -->
       <div class="col-md-3">
-        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #059669 !important;">
+        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #059669 !important; cursor: pointer;" @click="$router.push({ name: 'campaigns' })">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div>
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">ACTIVE CAMPAIGNS</div>
-                <div class="stat-card-number mt-1">{{ summary.active_campaigns || '12' }}</div>
+                <div class="stat-card-number mt-1">{{ summary.active_campaigns || 0 }}</div>
               </div>
               <div class="stat-icon-badge" style="background-color: #ecfdf5; color: #059669;">
                 <i class="bi bi-megaphone-fill"></i>
@@ -52,12 +52,12 @@
 
       <!-- Card 3: Open Chats -->
       <div class="col-md-3">
-        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
+        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important; cursor: pointer;" @click="$router.push({ name: 'whatsapp-replies' })">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div>
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">OPEN CHATS</div>
-                <div class="stat-card-number mt-1">{{ summary.unread_whatsapp_replies || '342' }}</div>
+                <div class="stat-card-number mt-1">{{ summary.open_chats || 0 }}</div>
               </div>
               <div class="stat-icon-badge" style="background-color: #eff6ff; color: #3b82f6;">
                 <i class="bi bi-chat-left-text-fill"></i>
@@ -73,12 +73,12 @@
 
       <!-- Card 4: Delivery Rate -->
       <div class="col-md-3">
-        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #64748b !important;">
+        <div class="card h-100 border shadow-sm position-relative overflow-hidden" style="border-left: 3px solid #64748b !important; cursor: pointer;" @click="$router.push({ name: 'campaigns' })">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div>
                 <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">DELIVERY RATE</div>
-                <div class="stat-card-number mt-1">98.4%</div>
+                <div class="stat-card-number mt-1">{{ summary.delivery_rate || 0 }}%</div>
               </div>
               <div class="stat-icon-badge">
                 <i class="bi bi-envelope-fill"></i>
@@ -86,7 +86,7 @@
             </div>
             <div class="mt-3 pt-2 border-top">
               <div class="progress rounded-pill" style="height: 6px; background-color: #e2e8f0;">
-                <div class="progress-bar rounded-pill bg-dark" style="width: 98.4%;"></div>
+                <div class="progress-bar rounded-pill bg-dark" :style="{ width: (summary.delivery_rate || 0) + '%' }"></div>
               </div>
             </div>
           </div>
@@ -100,12 +100,12 @@
     <div class="row g-3 mb-4">
       <!-- Total -->
       <div class="col-lg-3 col-md-6">
-        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #64748b !important;">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #64748b !important; cursor: pointer;" @click="$router.push({ name: 'campaigns' })">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-list-task me-1"></i> TOTAL MESSAGES</div>
             </div>
-            <div class="stat-card-number mt-3">12,450</div>
+            <div class="stat-card-number mt-3">{{ summary.total_messages || 0 }}</div>
           </div>
           <i class="bi bi-list-task position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
         </div>
@@ -113,14 +113,14 @@
       
       <!-- Delivered -->
       <div class="col-lg-3 col-md-6">
-        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important;">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important; cursor: pointer;" @click="$router.push({ name: 'campaigns' })">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED</div>
             </div>
             <div>
-              <div class="stat-card-number mt-3">12,250</div>
-              <small class="text-muted" style="font-size: 0.72rem;">98.4% delivery rate</small>
+              <div class="stat-card-number mt-3">{{ summary.total_delivered || 0 }}</div>
+              <small class="text-muted" style="font-size: 0.72rem;">{{ summary.delivery_rate || 0 }}% delivery rate</small>
             </div>
           </div>
           <i class="bi bi-check2-all position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
@@ -129,13 +129,13 @@
 
       <!-- Pending -->
       <div class="col-lg-3 col-md-6">
-        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important; cursor: pointer;" @click="$router.push({ name: 'campaigns' })">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> PENDING</div>
             </div>
             <div>
-              <div class="stat-card-number mt-3">150</div>
+              <div class="stat-card-number mt-3">{{ summary.total_pending || 0 }}</div>
               <small class="text-muted" style="font-size: 0.72rem;">In processing queues</small>
             </div>
           </div>
@@ -145,14 +145,14 @@
 
       <!-- Failed -->
       <div class="col-lg-3 col-md-6">
-        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #ef4444 !important;">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #ef4444 !important; cursor: pointer;" @click="$router.push({ name: 'campaigns' })">
           <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
             <div class="d-flex justify-content-between align-items-start">
               <div class="text-danger small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-x-circle me-1"></i> FAILED</div>
             </div>
             <div>
-              <div class="stat-card-number mt-3">50</div>
-              <small class="text-muted" style="font-size: 0.72rem;">0.4% failure rate</small>
+              <div class="stat-card-number mt-3">{{ summary.total_failed || 0 }}</div>
+              <small class="text-muted" style="font-size: 0.72rem;">{{ summary.total_messages > 0 ? ((summary.total_failed / summary.total_messages) * 100).toFixed(1) : 0 }}% failure rate</small>
             </div>
           </div>
           <i class="bi bi-x-circle position-absolute text-danger" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
@@ -300,9 +300,14 @@ export default {
     return {
       loading: false,
       summary: {
-        total_clients: 4907,
-        active_campaigns: 12,
-        unread_whatsapp_replies: 342,
+        total_clients: 0,
+        active_campaigns: 0,
+        open_chats: 0,
+        delivery_rate: 0,
+        total_delivered: 0,
+        total_failed: 0,
+        total_pending: 0,
+        total_messages: 0,
       },
       recentLogs: [
         { id: 1, user_name: 'Taiwo Peter', ref_id: 'CLI-8942', action: 'Message Sent (WhatsApp)', status: 'Delivered', time_ago: '2 mins ago' },
@@ -318,10 +323,17 @@ export default {
   methods: {
     fetchData() {
       this.loading = true;
-      axios.get('/api/dashboard/summary')
+      axios.get('/api/dashboard')
         .then((res) => {
-          if (res.data) {
-            this.summary = { ...this.summary, ...res.data };
+          if (res.data && res.data.summary) {
+            this.summary = { ...this.summary, ...res.data.summary };
+          }
+          if (res.data && res.data.recent_activity) {
+            this.recentLogs = res.data.recent_activity.map(log => ({
+              ...log,
+              time_ago: log.logged_at,
+              status: 'Completed', // Audit logs are implicit complete actions
+            }));
           }
         })
         .catch((err) => {

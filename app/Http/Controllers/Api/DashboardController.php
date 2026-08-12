@@ -160,7 +160,7 @@ class DashboardController extends Controller
         // Recent audit logs (limit to user's department for non-super admins)
         $auditQuery = AuditLog::with('user')
             ->orderBy('created_at', 'desc')
-            ->limit(20);
+            ->limit(5);
 
         if (!$user->canAccessAllBanks() && $userBankId) {
             $auditQuery->where('bank_id', $userBankId);
@@ -220,6 +220,7 @@ class DashboardController extends Controller
                 'total_delivered' => (int) $delivered,
                 'total_failed' => (int) $failed,
                 'total_pending' => (int) $pending,
+                'total_messages' => (int) $totalSends,
             ],
             'channels' => [
                 'WhatsApp' => (int) ($channelBreakdown['whatsapp_count'] ?? 0),

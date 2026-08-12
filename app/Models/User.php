@@ -411,7 +411,10 @@ class User extends Authenticatable
     public function getAvatarUrlAttribute(): ?string
     {
         if ($this->avatar_path) {
-            return '/storage/' . $this->avatar_path;
+            if (config('filesystems.disks.public.driver') === 's3') {
+                return \Illuminate\Support\Facades\Storage::disk('public')->url($this->avatar_path);
+            }
+            return asset('storage/' . $this->avatar_path);
         }
         return null;
     }

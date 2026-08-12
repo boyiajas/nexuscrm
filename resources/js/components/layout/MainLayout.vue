@@ -319,6 +319,7 @@ export default {
       publicLogoSrc: `${window.location.origin}/images/strauss%20recovery%20solution%20logo-dark.png`,
       watermarkTimestamp: '',
       watermarkTimer: null,
+      repliesTimer: null,
       toasts: [],
       toastRefs: {},
     };
@@ -344,6 +345,7 @@ export default {
   },
   async mounted() {
     this.fetchUnreadReplies();
+    this.repliesTimer = window.setInterval(this.fetchUnreadReplies, 15000);
     try {
       const user = await syncAuthenticatedUser();
       if (user) {
@@ -359,6 +361,9 @@ export default {
     window.removeEventListener('auth-user-updated', this.handleAuthUserUpdated);
     if (this.watermarkTimer) {
       window.clearInterval(this.watermarkTimer);
+    }
+    if (this.repliesTimer) {
+      window.clearInterval(this.repliesTimer);
     }
   },
   computed: {
@@ -455,7 +460,19 @@ export default {
     fetchUnreadReplies() {
       axios.get('/api/dashboard/whatsapp-replies')
         .then(res => {
-          this.unreadWhatsappReplies = res.data || [];
+          const newData = res.data || [];
+          const oldLength = this.unreadWhatsappReplies.length;
+          const newLength = newData.length;
+          
+          this.unreadWhatsappReplies = newData;
+          
+          if (newLength > oldLength) {
+             const prefs = this.user?.preferences || {};
+             if (prefs.notifications !== false) {
+                 const audio = new Audio('/audio/notification.mp3');
+                 audio.play().catch(e => console.log('Audio playback prevented by browser'));
+             }
+          }
         })
         .catch(err => {
           console.error('Failed to load unread replies:', err);

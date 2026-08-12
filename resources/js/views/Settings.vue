@@ -278,7 +278,9 @@
                   </TableLoadingWrapper>
                 </div>
               </div>
-              <!-- PREFERENCES SUB-TAB CONTENT -->
+            </div>
+            
+            <!-- PREFERENCES SUB-TAB CONTENT -->
               <div v-if="activeAccountTab === 'preferences'">
                 <div class="card border shadow-sm mb-4">
                   <div class="card-header bg-white py-3 px-4 border-bottom">
@@ -305,7 +307,6 @@
                   </div>
                 </div>
               </div>
-            </div>
           </div>
         </div>
       </div>
