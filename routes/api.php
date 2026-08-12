@@ -108,6 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('chat/sessions', [ChatController::class, 'index']);
     Route::get('chat/sessions/{session}', [ChatController::class, 'show']);
     Route::post('chat/sessions/{session}/messages', [ChatController::class, 'storeMessage']);
+    Route::delete('chat/sessions/{session}', [ChatController::class, 'destroy']);
     Route::post('chat/session-for-client', [ChatController::class, 'sessionForClient']);
 
     Route::get('audit-logs', [AuditLogController::class, 'index']);

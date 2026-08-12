@@ -96,6 +96,16 @@ class ChatController extends Controller
         return response()->json($message, 201);
     }
 
+    public function destroy(ChatSession $session)
+    {
+        $this->authorizeManage();
+        $this->authorizeSessionScope(Auth::user(), $session);
+        
+        $session->delete();
+        
+        return response()->json(['message' => 'Chat session deleted successfully.']);
+    }
+
     // Reserved for future manual webhook entry points if needed:
     public function receiveFromClient(Request $request)
     {

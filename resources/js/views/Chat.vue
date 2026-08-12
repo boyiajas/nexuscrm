@@ -74,8 +74,7 @@
             </small>
           </div>
           <div class="ms-auto text-muted d-flex gap-3 fs-5">
-            <i class="bi bi-search" style="cursor: pointer;"></i>
-            <i class="bi bi-three-dots-vertical" style="cursor: pointer;"></i>
+            <i class="bi bi-trash text-danger" style="cursor: pointer;" @click="deleteSession(activeSession)" title="Delete Chat Session"></i>
           </div>
         </div>
 
@@ -254,6 +253,21 @@ export default {
       const el = this.$refs.messagesContainer;
       if (el) {
         el.scrollTop = el.scrollHeight;
+      }
+    },
+    deleteSession(session) {
+      if (!this.canManageChat || !session) return;
+      if (confirm(`Are you sure you want to delete the chat session with ${session.client_name}? This will permanently remove the chat history.`)) {
+        axios.delete(`/api/chat/sessions/${session.id}`).then(() => {
+          if (this.activeSession && this.activeSession.id === session.id) {
+            this.activeSession = null;
+            this.messages = [];
+          }
+          this.fetchSessions();
+        }).catch((err) => {
+          console.error('Failed to delete session', err);
+          alert('Failed to delete chat session.');
+        });
       }
     },
     formatTime(datetimeString) {
