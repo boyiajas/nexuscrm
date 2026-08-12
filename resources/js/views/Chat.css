@@ -63,6 +63,10 @@
   color: #111b21;
 }
 
+.message-content {
+  white-space: pre-wrap;
+}
+
 .bubble-in {
   background-color: #ffffff;
   border-top-left-radius: 0;

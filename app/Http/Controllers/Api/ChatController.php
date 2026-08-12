@@ -60,7 +60,7 @@ class ChatController extends Controller
             $session->update(['unread_count' => 0]);
         }
 
-        return $session;
+        return $this->appendCampaignMessages($session);
     }
 
     public function storeMessage(Request $request, ChatSession $session)
@@ -140,7 +140,45 @@ class ChatController extends Controller
 
         $session->update(['unread_count' => 0]);
 
-        return response()->json($session);
+        return response()->json($this->appendCampaignMessages($session));
+    }
+
+    protected function appendCampaignMessages(ChatSession $session)
+    {
+        if ($session->platform !== 'whatsapp') {
+            return $session;
+        }
+
+        $chatMessages = $session->messages;
+
+        $campaignMessages = \App\Models\CampaignWhatsappRecipient::with('message')
+            ->where('client_id', $session->client_id)
+            ->get();
+
+        $mappedCampaignMessages = $campaignMessages->map(function ($recipient) use ($session) {
+            $content = $recipient->message ? $recipient->message->preview_body : 'Campaign Message';
+            $sentAt = $recipient->delivered_at ?? $recipient->queued_at ?? $recipient->created_at;
+
+            $msg = new ChatMessage([
+                'chat_session_id' => $session->id,
+                'sender' => 'agent',
+                'content' => "📄 [Template Sent]\n" . $content,
+                'is_template' => true,
+            ]);
+            
+            // Force the ID and timestamps
+            $msg->setAttribute('id', 'camp_' . $recipient->id);
+            $msg->setAttribute('sent_at', $sentAt);
+            $msg->setAttribute('created_at', $recipient->created_at);
+
+            return $msg;
+        });
+
+        $allMessages = $chatMessages->concat($mappedCampaignMessages)->sortBy('sent_at')->values();
+
+        $session->setRelation('messages', $allMessages);
+
+        return $session;
     }
 
     protected function authorizeView()
