@@ -1,114 +1,132 @@
 <template>
-  <div class="row g-3" style="height: calc(100vh - 120px);">
+  <div class="row g-0 rounded overflow-hidden shadow-sm chat-wrapper" style="height: calc(100vh - 120px); border: 1px solid #dee2e6;">
     <!-- Sessions list -->
-    <div class="col-md-4">
-      <div class="card shadow-sm h-100">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <span><i class="bi bi-chat-dots me-2"></i> Live Chats</span>
-          <select v-model="filterStatus" class="form-select form-select-sm w-auto" @change="fetchSessions">
-            <option value="all">All</option>
-            <option value="active">Active</option>
-            <option value="closed">Closed</option>
-          </select>
+    <div class="col-md-4 border-end d-flex flex-column bg-white h-100">
+      <!-- Sidebar Header -->
+      <div class="sidebar-header d-flex justify-content-between align-items-center p-3">
+        <div class="d-flex align-items-center">
+          <div class="avatar bg-secondary text-white rounded-circle d-flex align-items-center justify-content-center me-2">
+            <i class="bi bi-chat-text-fill"></i>
+          </div>
+          <span class="fw-semibold">Live Chats</span>
         </div>
-        <div class="card-body p-0 overflow-auto">
-          <ul class="list-group list-group-flush">
-            <li
-              v-for="session in sessions"
-              :key="session.id"
-              class="list-group-item list-group-item-action"
-              :class="{ 'bg-light': activeSession && activeSession.id === session.id }"
-              @click="openSession(session)"
-              style="cursor: pointer;"
-            >
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <div class="fw-semibold">
-                    {{ session.client_name }}
-                    <span v-if="session.status === 'active'" class="badge bg-success ms-1">Active</span>
-                    <span v-else class="badge bg-secondary ms-1">Closed</span>
-                  </div>
-                  <small class="text-muted">
-                    {{ session.platform }} ·
-                    {{ session.agent ? session.agent.name : 'Unassigned' }}
-                  </small>
-                  <div class="small mt-1 text-truncate">
-                    {{ session.last_message || 'No messages yet' }}
-                  </div>
-                </div>
-                <div class="text-end">
-                  <span v-if="session.unread_count > 0" class="badge bg-danger">
-                    {{ session.unread_count }}
-                  </span>
-                </div>
-              </div>
-            </li>
-            <li v-if="sessions.length === 0" class="list-group-item text-muted">
-              No chat sessions.
-            </li>
-          </ul>
+        <select v-model="filterStatus" class="form-select form-select-sm w-auto shadow-none border-0 bg-transparent fw-semibold text-muted" @change="fetchSessions">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="closed">Closed</option>
+        </select>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="p-2 border-bottom sidebar-search">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white border-end-0 text-muted">
+            <i class="bi bi-search"></i>
+          </span>
+          <input type="text" class="form-control border-start-0 shadow-none bg-white" placeholder="Search or start new chat">
+        </div>
+      </div>
+
+      <!-- Chat List -->
+      <div class="chat-list flex-grow-1 overflow-auto">
+        <div
+          v-for="session in sessions"
+          :key="session.id"
+          class="chat-list-item d-flex p-3 border-bottom position-relative"
+          :class="{ 'active-chat': activeSession && activeSession.id === session.id }"
+          @click="openSession(session)"
+        >
+          <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0">
+            <i class="bi bi-person-fill"></i>
+          </div>
+          <div class="flex-grow-1 overflow-hidden">
+            <div class="d-flex justify-content-between align-items-baseline mb-1">
+              <span class="fw-semibold text-truncate">{{ session.client_name }}</span>
+              <small class="text-muted timestamp">{{ session.updated_at ? session.updated_at.split('T')[0] : '' }}</small>
+            </div>
+            <div class="d-flex justify-content-between align-items-center">
+              <small class="text-muted text-truncate d-block w-100 me-2">
+                <i v-if="session.last_message === 'quick reply'" class="bi bi-reply-fill text-muted me-1"></i>
+                {{ session.last_message || 'No messages yet' }}
+              </small>
+              <span v-if="session.unread_count > 0" class="badge rounded-pill bg-success unread-badge">{{ session.unread_count }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="sessions.length === 0" class="p-4 text-center text-muted small">
+          No chat sessions found.
         </div>
       </div>
     </div>
 
     <!-- Chat window -->
-    <div class="col-md-8">
-      <div class="card shadow-sm h-100 d-flex flex-column">
-        <div class="card-header d-flex justify-content-between align-items-center">
-          <div v-if="activeSession">
+    <div class="col-md-8 d-flex flex-column bg-chat h-100">
+      <div v-if="activeSession" class="d-flex flex-column h-100">
+        <!-- Chat Header -->
+        <div class="chat-header p-3 d-flex align-items-center border-bottom shadow-sm z-index-1">
+          <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3">
+            <i class="bi bi-person-fill"></i>
+          </div>
+          <div>
             <div class="fw-semibold">{{ activeSession.client_name }}</div>
             <small class="text-muted">
-              {{ activeSession.platform }} ·
-              Agent: {{ activeSession.agent ? activeSession.agent.name : 'Unassigned' }}
+              {{ activeSession.platform }} <span v-if="activeSession.agent">• Assigned to {{ activeSession.agent.name }}</span>
             </small>
           </div>
-          <div v-else>
-            <span class="text-muted">Select a chat session</span>
+          <div class="ms-auto text-muted d-flex gap-3 fs-5">
+            <i class="bi bi-search" style="cursor: pointer;"></i>
+            <i class="bi bi-three-dots-vertical" style="cursor: pointer;"></i>
           </div>
         </div>
 
-        <div class="card-body flex-grow-1 overflow-auto" ref="messagesContainer">
-          <div v-if="!activeSession" class="text-muted text-center mt-5">
-            No session selected.
-          </div>
-
-          <div v-else>
-            <div
-              v-for="msg in messages"
-              :key="msg.id"
-              class="mb-1 d-flex"
-              :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
-            >
-              <div
-                class="chat-bubble"
-                :class="msg.sender === 'agent' ? 'bubble-agent' : 'bubble-client'"
-              >
-                <div class="small fw-semibold mb-1">
-                  {{ msg.sender === 'agent' ? 'You' : (msg.sender === 'system' ? 'System' : activeSession.client_name) }}
-                </div>
-                <div class="small">{{ msg.content }}</div>
-                <div class="text-muted mt-1 timestamp">
-                  {{ msg.sent_at || msg.created_at }}
-                </div>
+        <!-- Messages Area -->
+        <div class="chat-messages flex-grow-1 overflow-auto p-4" ref="messagesContainer">
+          <div
+            v-for="msg in messages"
+            :key="msg.id"
+            class="message-wrapper d-flex mb-1"
+            :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
+          >
+            <div class="chat-bubble position-relative shadow-sm" :class="msg.sender === 'agent' ? 'bubble-out' : 'bubble-in'">
+              <div class="message-content">
+                {{ msg.content }}
+              </div>
+              <div class="message-meta d-flex justify-content-end align-items-center mt-1">
+                <small class="timestamp text-muted ms-3">
+                  {{ formatTime(msg.sent_at || msg.created_at) }}
+                </small>
+                <i v-if="msg.sender === 'agent'" class="bi bi-check-all ms-1 text-primary" style="font-size: 1.1em;"></i>
               </div>
             </div>
           </div>
         </div>
 
         <!-- Composer -->
-        <div class="card-footer">
-          <form @submit.prevent="sendMessage" class="d-flex gap-2">
+        <div class="chat-composer p-3 border-top">
+          <form @submit.prevent="sendMessage" class="d-flex align-items-center">
+            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none"><i class="bi bi-emoji-smile"></i></button>
+            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none"><i class="bi bi-paperclip"></i></button>
             <input
               v-model="newMessage"
               type="text"
-              class="form-control"
-              placeholder="Type a message or choose a template..."
+              class="form-control rounded-pill border-0 shadow-none py-2 px-4 flex-grow-1 me-3"
+              style="background-color: #ffffff;"
+              placeholder="Type a message"
               :disabled="!activeSession || !canManageChat"
             />
-            <button class="btn btn-primary" type="submit" :disabled="!activeSession || !newMessage.trim() || !canManageChat">
-              Send
+            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || !newMessage.trim() || !canManageChat">
+              <i class="bi bi-send-fill" :class="{'text-primary': newMessage.trim()}"></i>
             </button>
           </form>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else class="h-100 d-flex flex-column align-items-center justify-content-center bg-chat text-muted">
+        <div class="text-center">
+          <i class="bi bi-whatsapp" style="font-size: 5rem; color: #d1d7db;"></i>
+          <h4 class="mt-4 fw-light text-secondary">WhatsApp Web</h4>
+          <p class="small text-muted mt-2">Select a chat session to start messaging.</p>
         </div>
       </div>
     </div>
@@ -202,6 +220,11 @@ export default {
         el.scrollTop = el.scrollHeight;
       }
     },
+    formatTime(datetimeString) {
+      if (!datetimeString) return '';
+      const date = new Date(datetimeString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
   },
 };
 </script>

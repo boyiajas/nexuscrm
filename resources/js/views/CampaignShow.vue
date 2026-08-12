@@ -2659,7 +2659,7 @@ export default {
         flowId: isFlow ? (message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow?.id || '') : '',
         templateVariables: parsedVariables,
         selectedClients: [],
-        trackResponses: false,
+        trackResponses: true,
         enableLiveChat: !!message.enable_live_chat,
         sending: false,
         action: null,
