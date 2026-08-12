@@ -51,9 +51,9 @@ class ChatController extends Controller
         $user = $this->authorizeView();
         $this->authorizeSessionScope($user, $session);
 
-        $session->load(['client', 'agent', 'messages' => function ($q) {
-            $q->orderBy('created_at');
-        }]);
+        $session->load(['messages' => function ($q) {
+            $q->orderBy('sent_at', 'asc');
+        }, 'agent', 'client']);
 
         // Keep review-only roles read-only by skipping unread-count mutation.
         if (!$user->isReadOnlyRole()) {
@@ -151,6 +151,36 @@ class ChatController extends Controller
         $session->update(['unread_count' => 0]);
 
         return response()->json($this->appendCampaignMessages($session));
+    }
+
+    public function clear(ChatSession $session)
+    {
+        $this->authorizeManage();
+        $this->authorizeSessionScope(Auth::user(), $session);
+        
+        $session->messages()->delete();
+        $session->update(['last_message' => null, 'last_message_at' => null, 'unread_count' => 0]);
+        
+        return response()->json(['message' => 'Chat cleared successfully.']);
+    }
+
+    public function block(ChatSession $session)
+    {
+        $this->authorizeManage();
+        $this->authorizeSessionScope(Auth::user(), $session);
+        
+        $client = \App\Models\Client::find($session->client_id);
+        if ($client) {
+            $client->update([
+                'whatsapp_opted_out_at' => now(),
+                'whatsapp_opt_out_reason' => 'Blocked via Live Chat interface',
+                'status' => 'Blocked',
+            ]);
+        }
+        
+        $session->delete();
+        
+        return response()->json(['message' => 'Client blocked and chat session removed.']);
     }
 
     protected function appendCampaignMessages(ChatSession $session)

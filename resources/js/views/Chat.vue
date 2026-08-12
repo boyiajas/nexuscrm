@@ -54,13 +54,13 @@
                 <div class="dropdown chat-list-dropdown">
                   <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
                   <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-archive text-muted me-3"></i>Archive chat</a></li>
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-bell-slash text-muted me-3"></i>Mute notifications</a></li>
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-pin-angle text-muted me-3"></i>Pin chat</a></li>
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-envelope-exclamation text-muted me-3"></i>Mark as unread</a></li>
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-lines-fill text-muted me-3"></i>Contact info</a></li>
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search text-muted me-3"></i>Search</a></li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-eraser text-muted me-3"></i>Clear chat</a></li>
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent="clearChat(session)"><i class="bi bi-eraser text-muted me-3"></i>Clear chat</a></li>
                     <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(session)"><i class="bi bi-trash text-danger me-3"></i>Delete chat</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="blockClient(session)"><i class="bi bi-slash-circle text-danger me-3"></i>Block</a></li>
                   </ul>
                 </div>
               </div>
@@ -92,22 +92,29 @@
             <div class="dropdown">
               <i class="bi bi-three-dots-vertical" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" title="Menu"></i>
               <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 200px;">
-                <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-person-lines-fill me-2 text-muted"></i>Contact info</a></li>
-                <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-search me-2 text-muted"></i>Search</a></li>
+                <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(activeSession)"><i class="bi bi-person-lines-fill me-2 text-muted"></i>Contact info</a></li>
+                <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search me-2 text-muted"></i>Search</a></li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item py-2" href="#" @click.prevent><i class="bi bi-eraser me-2 text-muted"></i>Clear chat</a></li>
+                <li><a class="dropdown-item py-2" href="#" @click.prevent="clearChat(activeSession)"><i class="bi bi-eraser me-2 text-muted"></i>Clear chat</a></li>
                 <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(activeSession)"><i class="bi bi-trash text-danger me-2"></i>Delete chat</a></li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent><i class="bi bi-slash-circle text-danger me-2"></i>Block</a></li>
+                <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="blockClient(activeSession)"><i class="bi bi-slash-circle text-danger me-2"></i>Block</a></li>
               </ul>
             </div>
           </div>
         </div>
 
+        <!-- Search Bar Overlay -->
+        <div v-if="isSearching" class="p-2 border-bottom bg-white d-flex align-items-center" style="z-index: 2;">
+          <i class="bi bi-search text-muted ms-2"></i>
+          <input type="text" class="form-control border-0 shadow-none ms-2" placeholder="Search messages..." v-model="searchQuery" ref="searchInput">
+          <i class="bi bi-x-lg text-muted ms-2" style="cursor:pointer;" @click="closeSearch()"></i>
+        </div>
+
         <!-- Messages Area -->
         <div class="chat-messages flex-grow-1 overflow-auto p-4" ref="messagesContainer">
           <div
-            v-for="msg in messages"
+            v-for="msg in filteredMessages"
             :key="msg.id"
             class="message-wrapper d-flex mb-1"
             :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
@@ -155,6 +162,30 @@
         </div>
       </div>
     </div>
+    
+    <!-- Contact Info Modal -->
+    <div class="modal fade" id="contactInfoModal" tabindex="-1" ref="contactInfoModal">
+      <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+          <div class="modal-header border-0 pb-0">
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body text-center pt-0" v-if="contactInfoSession">
+            <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 120px; height: 120px; font-size: 4rem;">
+              <i class="bi bi-person-fill"></i>
+            </div>
+            <h4 class="mb-1">{{ contactInfoSession.client_name }}</h4>
+            <p class="text-muted mb-4">{{ contactInfoSession.client?.phone || 'No phone number' }}</p>
+            <div class="text-start">
+              <p v-if="contactInfoSession.client?.email"><strong>Email:</strong> {{ contactInfoSession.client.email }}</p>
+              <p v-if="contactInfoSession.client?.status"><strong>Status:</strong> <span class="badge bg-secondary">{{ contactInfoSession.client.status }}</span></p>
+              <p v-if="contactInfoSession.client?.id_number"><strong>ID Number:</strong> {{ contactInfoSession.client.id_number }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
   </div>
 </template>
 
@@ -172,6 +203,10 @@ export default {
       newMessage: '',
       filterStatus: 'active',
       pollingInterval: null,
+      isSearching: false,
+      searchQuery: '',
+      contactInfoSession: null,
+      modalInstance: null,
     };
   },
   computed: {
@@ -182,6 +217,11 @@ export default {
       const role = JSON.parse(stored)?.role;
       return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
     },
+    filteredMessages() {
+      if (!this.searchQuery) return this.messages;
+      const query = this.searchQuery.toLowerCase();
+      return this.messages.filter(msg => msg.content && msg.content.toLowerCase().includes(query));
+    }
   },
   mounted() {
     this.fetchSessions().then(() => {
@@ -298,6 +338,55 @@ export default {
           alert('Failed to delete chat session.');
         });
       }
+    },
+    clearChat(session) {
+      if (!this.canManageChat || !session) return;
+      if (confirm(`Are you sure you want to clear the chat history for ${session.client_name}?`)) {
+        axios.post(`/api/chat/sessions/${session.id}/clear`).then(() => {
+          if (this.activeSession && this.activeSession.id === session.id) {
+            this.messages = [];
+          }
+          this.fetchSessions();
+        }).catch((err) => {
+          console.error('Failed to clear chat', err);
+          alert('Failed to clear chat session.');
+        });
+      }
+    },
+    blockClient(session) {
+      if (!this.canManageChat || !session) return;
+      if (confirm(`Are you sure you want to block ${session.client_name}? They will be opted out of WhatsApp communications.`)) {
+        axios.post(`/api/chat/sessions/${session.id}/block`).then(() => {
+          if (this.activeSession && this.activeSession.id === session.id) {
+            this.activeSession = null;
+            this.messages = [];
+          }
+          this.fetchSessions();
+        }).catch((err) => {
+          console.error('Failed to block client', err);
+          alert('Failed to block client.');
+        });
+      }
+    },
+    showContactInfo(session) {
+      if (!session) return;
+      this.contactInfoSession = session;
+      if (!this.modalInstance) {
+        this.modalInstance = new bootstrap.Modal(this.$refs.contactInfoModal);
+      }
+      this.modalInstance.show();
+    },
+    toggleSearch() {
+      this.isSearching = true;
+      this.$nextTick(() => {
+        if (this.$refs.searchInput) {
+          this.$refs.searchInput.focus();
+        }
+      });
+    },
+    closeSearch() {
+      this.isSearching = false;
+      this.searchQuery = '';
     },
     formatTime(datetimeString) {
       if (!datetimeString) return '';
