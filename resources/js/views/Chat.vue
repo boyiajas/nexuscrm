@@ -146,6 +146,7 @@ export default {
       messages: [],
       newMessage: '',
       filterStatus: 'active',
+      pollingInterval: null,
     };
   },
   computed: {
@@ -161,6 +162,10 @@ export default {
     this.fetchSessions().then(() => {
       this.handleQueryClient();
     });
+    this.startPolling();
+  },
+  beforeUnmount() {
+    this.stopPolling();
   },
   methods: {
     fetchSessions() {
@@ -176,6 +181,37 @@ export default {
         this.messages = res.data.messages || [];
         this.$nextTick(this.scrollToBottom);
       });
+    },
+    startPolling() {
+      this.stopPolling();
+      this.pollingInterval = setInterval(() => {
+        this.pollData();
+      }, 5000);
+    },
+    stopPolling() {
+      if (this.pollingInterval) {
+        clearInterval(this.pollingInterval);
+        this.pollingInterval = null;
+      }
+    },
+    pollData() {
+      // Soft refresh sidebar
+      axios
+        .get('/api/chat/sessions', { params: { status: this.filterStatus } })
+        .then((res) => {
+          this.sessions = res.data.data || res.data;
+        });
+
+      // Soft refresh active session messages
+      if (this.activeSession) {
+        axios.get(`/api/chat/sessions/${this.activeSession.id}`).then((res) => {
+          const fetchedMessages = res.data.messages || [];
+          if (fetchedMessages.length > this.messages.length) {
+            this.messages = fetchedMessages;
+            this.$nextTick(this.scrollToBottom);
+          }
+        });
+      }
     },
     handleQueryClient() {
       const clientId = this.$route.query.client_id;
