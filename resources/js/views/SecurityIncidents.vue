@@ -77,7 +77,7 @@
           </thead>
           <tbody>
             <tr v-for="incident in incidents" :key="incident.id">
-              <td class="ps-4 py-3">
+              <td class="ps-4 py-1">
                 <div class="fw-semibold">{{ incident.reference }}</div>
                 <small class="text-muted">{{ incident.title }}</small>
               </td>

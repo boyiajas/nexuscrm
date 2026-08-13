@@ -86,7 +86,7 @@
               <thead><tr><th class="ps-4">#</th><th>Bank</th><th>Type</th><th>Requester</th><th>Status</th><th>Due</th><th>Assigned</th><th class="pe-4">Actions</th></tr></thead>
               <tbody>
                 <tr v-for="row in overview.data_subject_requests" :key="`dsr-${row.id}`">
-                  <td class="ps-4 py-3">#{{ row.id }}</td>
+                  <td class="ps-4 py-1">#{{ row.id }}</td>
                   <td>{{ row.bank?.name || 'Global / Shared' }}</td>
                   <td>{{ humanize(row.request_type) }}</td>
                   <td>{{ row.requester_name }}<div class="small text-muted">{{ row.requester_email || row.requester_phone || '-' }}</div></td>
@@ -177,7 +177,7 @@
               <thead><tr><th class="ps-4">#</th><th>Bank</th><th>Title</th><th>Type</th><th>Severity</th><th>Status</th><th>Assigned</th><th class="pe-4">Actions</th></tr></thead>
               <tbody>
                 <tr v-for="row in overview.complaints" :key="`cmp-${row.id}`">
-                  <td class="ps-4 py-3">#{{ row.id }}</td>
+                  <td class="ps-4 py-1">#{{ row.id }}</td>
                   <td>{{ row.bank?.name || 'Global / Shared' }}</td>
                   <td>{{ row.title }}</td>
                   <td>{{ humanize(row.complaint_type) }}</td>
@@ -235,7 +235,7 @@
               <thead><tr><th class="ps-4">#</th><th>Bank</th><th>Type</th><th>Name</th><th>Contact</th><th>Status</th><th class="pe-4">Actions</th></tr></thead>
               <tbody>
                 <tr v-for="row in overview.information_officers" :key="`off-${row.id}`">
-                  <td class="ps-4 py-3">#{{ row.id }}</td>
+                  <td class="ps-4 py-1">#{{ row.id }}</td>
                   <td>{{ row.bank?.name || 'Global / Shared' }}</td>
                   <td>{{ humanize(row.officer_type) }}</td>
                   <td>{{ row.name }}<div class="small text-muted">{{ row.title || '-' }}</div></td>
@@ -283,7 +283,7 @@
                   <thead><tr><th class="ps-4">Bank</th><th>Dataset</th><th>Retention</th><th>Status</th><th class="pe-4">Action</th></tr></thead>
                   <tbody>
                     <tr v-for="row in overview.retention_policies" :key="`pol-${row.id}`">
-                      <td class="ps-4 py-3">{{ row.bank?.name || 'Global / Shared' }}</td>
+                      <td class="ps-4 py-1">{{ row.bank?.name || 'Global / Shared' }}</td>
                       <td>{{ row.dataset }}</td>
                       <td>{{ row.retention_days }}d<div class="small text-muted">Archive {{ row.archive_after_days || '-' }} / Delete {{ row.delete_after_days || '-' }}</div></td>
                       <td><span class="badge" :class="row.status === 'active' ? 'bg-success' : 'bg-secondary'">{{ row.status }}</span></td>
@@ -321,7 +321,7 @@
                   <thead><tr><th class="ps-4">Dataset</th><th>Type</th><th>Status</th><th>Scope</th><th class="pe-4">Actions</th></tr></thead>
                   <tbody>
                     <tr v-for="row in overview.retention_actions" :key="`act-${row.id}`">
-                      <td class="ps-4 py-3">{{ row.dataset }}</td>
+                      <td class="ps-4 py-1">{{ row.dataset }}</td>
                       <td>{{ row.action_type }}</td>
                       <td><span class="badge bg-secondary">{{ row.status }}</span></td>
                       <td class="small">{{ scopeSummary(row.scope_summary) }}</td>
@@ -374,7 +374,7 @@
               <thead><tr><th class="ps-4">Bank</th><th>Profile</th><th>Endpoint</th><th>Status</th><th>Last Test</th><th>Recent Runs</th><th class="pe-4">Actions</th></tr></thead>
               <tbody>
                 <tr v-for="row in overview.bank_transfer_profiles" :key="`trf-${row.id}`">
-                  <td class="ps-4 py-3">{{ row.bank?.name || 'Global / Shared' }}</td>
+                  <td class="ps-4 py-1">{{ row.bank?.name || 'Global / Shared' }}</td>
                   <td>{{ row.name }}<div class="small text-muted">{{ row.environment }} • {{ row.protocol }}</div></td>
                   <td>{{ row.host }}:{{ row.port }}<div class="small text-muted">{{ row.remote_path || '.' }}</div></td>
                   <td><span class="badge" :class="row.status === 'active' ? 'bg-success' : 'bg-secondary'">{{ row.status }}</span></td>

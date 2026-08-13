@@ -182,7 +182,7 @@
               </thead>
               <tbody>
                 <tr v-for="cl in clients" :key="cl.id">
-                  <td class="ps-4 py-3">
+                  <td class="ps-4 py-1">
                     <div class="form-check m-0">
                       <input class="form-check-input" type="checkbox" :value="cl.id" v-model="selectedClients">
                     </div>
@@ -290,7 +290,7 @@
               </thead>
               <tbody>
                 <tr v-for="w in whatsappMessages" :key="w.id">
-                  <td class="ps-4 py-3">
+                  <td class="ps-4 py-1">
                     <div class="fw-semibold">
                       <span v-if="isFlowSend(w)">
                         {{ w.flow_name || w.template_name || '(Flow)' }}
@@ -411,7 +411,7 @@
               </thead>
               <tbody>
                 <tr v-for="m in emails" :key="m.id">
-                  <td class="ps-4 py-3">
+                  <td class="ps-4 py-1">
                     <div class="fw-semibold">{{ m.subject || '(No subject)' }}</div>
                     <small class="text-muted">Email batch</small>
                   </td>
@@ -486,7 +486,7 @@
               </thead>
               <tbody>
                 <tr v-for="s in smsMessages" :key="s.id">
-                  <td class="ps-4 py-3">{{ s.subject || '-' }}</td>
+                  <td class="ps-4 py-1">{{ s.subject || '-' }}</td>
                   <td class="text-truncate" style="max-width: 260px;">
                     {{ s.text }}
                   </td>

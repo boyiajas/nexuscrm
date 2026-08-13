@@ -22,8 +22,8 @@ class AuditLogController extends Controller
 
         $query = AuditLog::with('user');
 
-        if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
-            $query->where('bank_id', $user->resolvedBankId());
+        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+            $query->whereIn('bank_id', $user->resolvedBankIds());
         }
 
         // Filters
@@ -134,8 +134,8 @@ class AuditLogController extends Controller
 
             $query = AuditLog::with('user');
 
-            if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
-                $query->where('bank_id', $user->resolvedBankId());
+            if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+                $query->whereIn('bank_id', $user->resolvedBankIds());
             }
 
             // same filters as index()
@@ -203,8 +203,8 @@ class AuditLogController extends Controller
     {
         $user = Auth::user();
 
-        if ($user && !$user->canAccessAllBanks() && $user->resolvedBankId() && (int) $auditLog->bank_id !== $user->resolvedBankId()) {
-            abort(403, 'You are not allowed to access this audit log.');
+        if ($user && !$user->canAccessAllBanks() && !empty($user->resolvedBankIds()) && !in_array((int) $auditLog->bank_id, $user->resolvedBankIds(), true)) {
+            abort(403, 'You do not have permission to access this log.');
         }
     }
 }

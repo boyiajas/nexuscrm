@@ -26,7 +26,7 @@
 
               <tbody>
               <tr v-for="u in users" :key="u.id">
-                <td class="ps-4 py-3">
+                <td class="ps-4 py-1">
                   <div class="d-flex align-items-center gap-3">
                     <img v-if="u.avatar_url" :src="u.avatar_url" alt="Avatar" class="rounded-circle border" style="width: 32px; height: 32px; object-fit: cover;" />
                     <div v-else class="avatar-initial-badge">{{ getInitials(u.name) }}</div>
@@ -255,10 +255,6 @@
           <div class="modal-body">
             <form @submit.prevent="save">
 
-              <div class="mb-3">
-                <label class="form-label">Name</label>
-                <input v-model="form.name" type="text" class="form-control" required />
-              </div>
 
               <div class="row g-3 mb-3">
                 <div class="col-md-4">
@@ -275,9 +271,15 @@
                 </div>
               </div>
 
-              <div class="mb-3">
-                <label class="form-label">Email</label>
-                <input v-model="form.email" type="email" class="form-control" required />
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">Email</label>
+                  <input v-model="form.email" type="email" class="form-control" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Username</label>
+                  <input v-model="form.username" type="text" class="form-control" />
+                </div>
               </div>
 
               <!-- Password only required when creating -->
@@ -285,11 +287,6 @@
                 <label class="form-label">Password</label>
                 <input v-model="form.password" type="password" class="form-control" required minlength="12" />
                 <small class="text-muted">At least 12 characters with upper/lowercase letters, a number, and a symbol.</small>
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label">Username</label>
-                <input v-model="form.username" type="text" class="form-control" />
               </div>
 
               <div class="mb-3">
@@ -326,24 +323,53 @@
                 </small>
               </div>
 
-              <div class="mb-3">
-                <label class="form-label">Bank</label>
-                <select v-model="form.bank_id" class="form-select" :disabled="!canChooseBankForForm">
-                  <option value="">None</option>
-                  <option v-for="bank in banks" :key="bank.id" :value="bank.id">
-                    {{ bank.name }}
-                  </option>
-                </select>
-              </div>
-
-              <div class="mb-3">
-                <label class="form-label">Department</label>
-                <select v-model="form.department" class="form-select">
-                  <option value="">None</option>
-                  <option v-for="d in departments" :key="d.id" :value="d.name">
-                    {{ d.name }}
-                  </option>
-                </select>
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label">Departments</label>
+                  <vue-multiselect
+                    v-model="selectedDepartments"
+                    :options="departments"
+                    :multiple="true"
+                    :close-on-select="false"
+                    :clear-on-select="false"
+                    :searchable="true"
+                    placeholder="Select departments"
+                    label="name"
+                    track-by="id"
+                  >
+                    <template #tag="{ option, remove }">
+                      <span class="multiselect__tag">
+                        <span>{{ option.name }}</span>
+                        <i class="multiselect__tag-icon" @click="remove(option)"></i>
+                      </span>
+                    </template>
+                  </vue-multiselect>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Banks</label>
+                  <vue-multiselect
+                    v-model="selectedBanks"
+                    :options="filteredBanksForForm"
+                    :multiple="true"
+                    :close-on-select="false"
+                    :clear-on-select="false"
+                    :searchable="true"
+                    placeholder="Select banks"
+                    label="name"
+                    track-by="id"
+                    :disabled="!canChooseBankForForm"
+                  >
+                    <template #tag="{ option, remove }">
+                      <span class="multiselect__tag">
+                        <span>{{ option.name }}</span>
+                        <i class="multiselect__tag-icon" @click="remove(option)"></i>
+                      </span>
+                    </template>
+                  </vue-multiselect>
+                  <small class="text-muted d-block mt-1">
+                    Shows banks mapped to the selected departments.
+                  </small>
+                </div>
               </div>
 
               <div class="row g-3 mb-3">
@@ -423,6 +449,8 @@ export default {
       banks: [],
       roles: [],
       selectedRoles: [],
+      selectedDepartments: [],
+      selectedBanks: [],
       isEdit: false,
       rolePriority: [
         'SUPER_ADMIN',
@@ -443,8 +471,8 @@ export default {
         password: "",
         role: "AGENT",
         role_ids: [],
-        bank_id: "",
-        department: "",
+        department_ids: [],
+        bank_ids: [],
         status: "Active",
         first_name: "",
         middle_initial: "",
@@ -528,6 +556,19 @@ export default {
     canChooseBankForForm() {
       return this.currentUserRoleCodes.some((role) => ['SUPER_ADMIN', 'ADMIN'].includes(role));
     },
+    filteredBanksForForm() {
+      if (!this.selectedDepartments || this.selectedDepartments.length === 0) {
+        return [];
+      }
+      
+      const selectedDeptIds = this.selectedDepartments.map((d) => d.id);
+      return this.banks.filter((bank) => {
+        if (!bank.departments || bank.departments.length === 0) {
+          return false;
+        }
+        return bank.departments.some((d) => selectedDeptIds.includes(d.id));
+      });
+    },
     primarySelectedRoleCode() {
       return this.resolvePrimaryRoleCode(
         this.selectedRoles.map((role) => role.code)
@@ -542,6 +583,25 @@ export default {
         this.form.role = this.resolvePrimaryRoleCode(
           Array.isArray(newValue) ? newValue.map((role) => role.code) : []
         );
+      },
+      deep: true,
+    },
+    selectedDepartments: {
+      handler(newValue) {
+        this.form.department_ids = Array.isArray(newValue) ? newValue.map((d) => d.id) : [];
+      },
+      deep: true,
+    },
+    filteredBanksForForm(newBanks) {
+      if (this.selectedBanks && this.selectedBanks.length > 0) {
+        this.selectedBanks = this.selectedBanks.filter(b => 
+          newBanks.some(nb => nb.id === b.id)
+        );
+      }
+    },
+    selectedBanks: {
+      handler(newValue) {
+        this.form.bank_ids = Array.isArray(newValue) ? newValue.map((b) => b.id) : [];
       },
       deep: true,
     },
@@ -602,6 +662,44 @@ export default {
       this.selectedRoles = this.roles.filter((role) => codes.includes(role.code));
       this.form.role_ids = this.selectedRoles.map((role) => role.id);
       this.form.role = this.resolvePrimaryRoleCode(codes);
+    },
+    syncSelectedDepartmentsFromUser(user = null) {
+      if (!user) {
+        this.selectedDepartments = [];
+        return;
+      }
+      if (Array.isArray(user.departments) && user.departments.length) {
+        this.selectedDepartments = user.departments.map(d => ({
+          id: d.id,
+          name: d.name
+        }));
+      } else if (user.department_id) {
+        const dept = this.departments.find(d => d.id === user.department_id);
+        if (dept) {
+          this.selectedDepartments = [{ id: dept.id, name: dept.name }];
+        }
+      } else {
+        this.selectedDepartments = [];
+      }
+    },
+    syncSelectedBanksFromUser(user = null) {
+      if (!user) {
+        this.selectedBanks = [];
+        return;
+      }
+      if (Array.isArray(user.banks) && user.banks.length) {
+        this.selectedBanks = user.banks.map(b => ({
+          id: b.id,
+          name: b.name
+        }));
+      } else if (user.bank_id) {
+        const bank = this.banks.find(b => b.id === user.bank_id);
+        if (bank) {
+          this.selectedBanks = [{ id: bank.id, name: bank.name }];
+        }
+      } else {
+        this.selectedBanks = [];
+      }
     },
     // -------------------------
     // Pagination Helpers
@@ -678,8 +776,8 @@ export default {
         password: "",
         role: "AGENT",
         role_ids: [],
-        bank_id: "",
-        department: "",
+        department_ids: [],
+        bank_ids: [],
         status: "Active",
         first_name: "",
         middle_initial: "",
@@ -692,6 +790,8 @@ export default {
         is_time_clock_user: false,
       };
       this.selectedRoles = this.roles.filter((role) => role.code === 'AGENT');
+      this.selectedDepartments = [];
+      this.selectedBanks = [];
       this.modal.show();
     },
 
@@ -704,8 +804,8 @@ export default {
         password: "",
         role: u.role || "AGENT",
         role_ids: [],
-        bank_id: u.bank_id || "",
-        department: u.department || "",
+        department_ids: [],
+        bank_ids: [],
         status: u.status || "Active",
         first_name: u.first_name || "",
         middle_initial: u.middle_initial || "",
@@ -718,6 +818,8 @@ export default {
         is_time_clock_user: !!u.is_time_clock_user,
       };
       this.syncSelectedRolesFromUser(u);
+      this.syncSelectedDepartmentsFromUser(u);
+      this.syncSelectedBanksFromUser(u);
       this.modal.show();
     },
 
@@ -727,13 +829,18 @@ export default {
         return;
       }
 
-      if (!['SUPER_ADMIN', 'ADMIN'].includes(this.primarySelectedRoleCode) && !this.form.bank_id) {
-        notify.warning('Please assign a bank to this user.', 'Users');
+      if (!['SUPER_ADMIN', 'ADMIN'].includes(this.primarySelectedRoleCode) && !this.selectedBanks.length) {
+        notify.warning('Please assign at least one bank to this user.', 'Users');
         return;
       }
 
+      const nameParts = [this.form.first_name];
+      if (this.form.middle_initial) nameParts.push(this.form.middle_initial);
+      if (this.form.last_name) nameParts.push(this.form.last_name);
+
       const payload = {
         ...this.form,
+        name: nameParts.filter(Boolean).join(' ').trim() || this.form.name,
         role: this.primarySelectedRoleCode,
         role_ids: this.selectedRoles.map((role) => role.id),
       };

@@ -92,7 +92,7 @@
           </thead>
           <tbody>
             <tr v-for="item in logs" :key="item.id">
-              <td class="ps-4 py-3">#{{ item.id }}</td>
+              <td class="ps-4 py-1">#{{ item.id }}</td>
               <td>{{ item.user_name || 'System' }}</td>
               <td>{{ item.module }}</td>
               <td class="text-truncate" style="max-width: 260px;">

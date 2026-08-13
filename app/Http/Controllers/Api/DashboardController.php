@@ -19,13 +19,13 @@ class DashboardController extends Controller
         // Get counts with proper department scoping for non-super admins
         $user = auth()->user();
         $userDeptIds = $user?->resolvedDepartmentIds() ?? [];
-        $userBankId = $user?->resolvedBankId();
+        $userBankIds = $user?->resolvedBankIds() ?? [];
         $campaignPortfolioScoped = $user?->hasRole(User::ROLE_AGENT) ?? false;
         
         // Total clients (department-scoped)
         $totalClientsQuery = Client::query();
-        if (!$user->canAccessAllBanks() && $userBankId) {
-            $totalClientsQuery->where('bank_id', $userBankId);
+        if (!$user->canAccessAllBanks() && !empty($userBankIds)) {
+            $totalClientsQuery->whereIn('bank_id', $userBankIds);
         }
         if (!$user->canManageSystemSettings() && !empty($userDeptIds)) {
             $totalClientsQuery->whereHas('departments', function ($q) use ($userDeptIds) {
@@ -39,8 +39,8 @@ class DashboardController extends Controller
 
         // Campaign counts (department-scoped)
         $campaignQuery = Campaign::query();
-        if (!$user->canAccessAllBanks() && $userBankId) {
-            $campaignQuery->where('bank_id', $userBankId);
+        if (!$user->canAccessAllBanks() && !empty($userBankIds)) {
+            $campaignQuery->whereIn('bank_id', $userBankIds);
         }
         if (!$user->canManageSystemSettings()) {
             $campaignQuery->where(function ($q) use ($userDeptIds) {
@@ -245,8 +245,8 @@ class DashboardController extends Controller
         $dailyCampaigns = Campaign::query()
             ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
             ->where('created_at', '>=', Carbon::now()->subDays(30))
-            ->when(!$user?->canAccessAllBanks() && $user?->resolvedBankId(), function ($q) use ($user) {
-                $q->where('bank_id', $user->resolvedBankId());
+            ->when(!$user?->canAccessAllBanks() && !empty($user?->resolvedBankIds()), function ($q) use ($user) {
+                $q->whereIn('bank_id', $user->resolvedBankIds());
             })
             ->when($user && !$user->canManageSystemSettings(), function ($q) use ($userDeptIds) {
                 $q->where(function ($inner) use ($userDeptIds) {
@@ -290,8 +290,8 @@ class DashboardController extends Controller
         $replies = ChatSession::with(['client.departments'])
             ->where('unread_count', '>', 0)
             ->where('platform', 'whatsapp')
-            ->when(!auth()->user()?->canAccessAllBanks() && auth()->user()?->resolvedBankId(), function ($q) {
-                $q->where('bank_id', auth()->user()->resolvedBankId());
+            ->when(!auth()->user()?->canAccessAllBanks() && !empty(auth()->user()?->resolvedBankIds()), function ($q) {
+                $q->whereIn('bank_id', auth()->user()->resolvedBankIds());
             })
             ->when(auth()->user()?->isPortfolioScoped(), function ($q) {
                 $q->whereHas('client', function ($qq) {

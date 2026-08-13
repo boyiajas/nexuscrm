@@ -15,6 +15,11 @@ class Bank extends Model
         'status',
     ];
 
+    public function departments()
+    {
+        return $this->belongsToMany(Department::class, 'bank_department')->withTimestamps();
+    }
+
     public function users()
     {
         return $this->hasMany(User::class);

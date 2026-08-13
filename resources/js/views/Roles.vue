@@ -53,7 +53,7 @@
             </thead>
             <tbody>
               <tr v-for="role in roles" :key="role.id">
-                <td class="ps-4 py-3">
+                <td class="ps-4 py-1">
                   <div class="fw-semibold">{{ role.name }}</div>
                   <small v-if="role.description" class="text-muted">{{ role.description }}</small>
                 </td>

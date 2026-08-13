@@ -67,6 +67,10 @@ class UserController extends Controller
             'role'              => ['required', Rule::in(User::ALL_ROLES)],
             'role_ids'          => ['sometimes', 'array', 'min:1'],
             'role_ids.*'        => ['integer', 'exists:roles,id'],
+            'bank_ids'          => ['sometimes', 'array'],
+            'bank_ids.*'        => ['integer', 'exists:banks,id'],
+            'department_ids'    => ['sometimes', 'array'],
+            'department_ids.*'  => ['integer', 'exists:departments,id'],
             'department'        => ['nullable', 'string', 'max:255'],
             'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
             'status'            => ['required', Rule::in(['Active', 'Inactive'])],
@@ -78,17 +82,27 @@ class UserController extends Controller
         $data['password_changed_at'] = now();
         $data['password_reset_required'] = true;
         $this->syncDepartmentFields($data);
-        $data['bank_id'] = $this->resolveRequestedBankId($data['role'], $data['bank_id'] ?? null);
+        $requestedBankId = array_key_exists('bank_ids', $data) ? ($data['bank_ids'][0] ?? null) : ($data['bank_id'] ?? null);
+        $data['bank_id'] = $this->resolveRequestedBankId($data['role'], $requestedBankId);
         if (($data['status'] ?? 'Active') === 'Inactive') {
             $data['deactivated_at'] = now();
             $data['deactivated_by_user_id'] = auth()->id();
         }
 
         $user = User::create($data);
-        $this->syncDepartmentMembership($user, $data['department_id'] ?? null);
+        if (array_key_exists('bank_ids', $data)) {
+            $this->syncBankMembership($user, $data['bank_ids']);
+        } else {
+            $this->syncBankMembership($user, $data['bank_id'] ?? null);
+        }
+        if (array_key_exists('department_ids', $data)) {
+            $this->syncDepartmentMembership($user, $data['department_ids']);
+        } else {
+            $this->syncDepartmentMembership($user, $data['department_id'] ?? null);
+        }
         $this->syncUserRoles($user, $roleIds);
 
-        return response()->json($user->load(['bank', 'roles:id,code,name,whatsapp_daily_limit']), 201);
+        return response()->json($user->load(['bank', 'banks', 'roles:id,code,name,whatsapp_daily_limit', 'departments']), 201);
     }
 
     public function update(Request $request, User $user)
@@ -111,6 +125,10 @@ class UserController extends Controller
             'role'              => ['sometimes', Rule::in(User::ALL_ROLES)],
             'role_ids'          => ['sometimes', 'array', 'min:1'],
             'role_ids.*'        => ['integer', 'exists:roles,id'],
+            'bank_ids'          => ['sometimes', 'array'],
+            'bank_ids.*'        => ['integer', 'exists:banks,id'],
+            'department_ids'    => ['sometimes', 'array'],
+            'department_ids.*'  => ['integer', 'exists:departments,id'],
             'department'        => ['nullable', 'string', 'max:255'],
             'department_id'     => ['nullable', 'integer', 'exists:departments,id'],
             'status'            => ['sometimes', Rule::in(['Active', 'Inactive'])],
@@ -133,7 +151,8 @@ class UserController extends Controller
 
         $this->syncDepartmentFields($data);
         $role = $data['role'] ?? $user->role;
-        $data['bank_id'] = $this->resolveRequestedBankId($role, $data['bank_id'] ?? $user->bank_id);
+        $requestedBankId = array_key_exists('bank_ids', $data) ? ($data['bank_ids'][0] ?? null) : ($data['bank_id'] ?? $user->bank_id);
+        $data['bank_id'] = $this->resolveRequestedBankId($role, $requestedBankId);
 
         if (array_key_exists('status', $data)) {
             if ($data['status'] === 'Inactive') {
@@ -151,11 +170,18 @@ class UserController extends Controller
         if (is_array($roleIds)) {
             $this->syncUserRoles($user, $roleIds);
         }
-        if (array_key_exists('department_id', $data) || array_key_exists('department', $data)) {
+        if (array_key_exists('bank_ids', $data)) {
+            $this->syncBankMembership($user, $data['bank_ids']);
+        } elseif (array_key_exists('bank_id', $data)) {
+            $this->syncBankMembership($user, $data['bank_id'] ?? $user->bank_id);
+        }
+        if (array_key_exists('department_ids', $data)) {
+            $this->syncDepartmentMembership($user, $data['department_ids']);
+        } elseif (array_key_exists('department_id', $data) || array_key_exists('department', $data)) {
             $this->syncDepartmentMembership($user, $data['department_id'] ?? $user->department_id);
         }
 
-        return $user->load(['bank', 'roles:id,code,name,whatsapp_daily_limit']);
+        return $user->load(['bank', 'banks', 'roles:id,code,name,whatsapp_daily_limit', 'departments']);
     }
 
     public function destroy(User $user)
@@ -174,6 +200,18 @@ class UserController extends Controller
 
     protected function syncDepartmentFields(array &$data): void
     {
+        if (array_key_exists('department_ids', $data)) {
+            if (empty($data['department_ids'])) {
+                $data['department_id'] = null;
+                $data['department'] = null;
+            } else {
+                $data['department_id'] = $data['department_ids'][0];
+                $department = Department::find($data['department_id']);
+                $data['department'] = $department?->name;
+            }
+            return;
+        }
+
         if (array_key_exists('department_id', $data)) {
             if (empty($data['department_id'])) {
                 $data['department_id'] = null;
@@ -199,14 +237,26 @@ class UserController extends Controller
         }
     }
 
-    protected function syncDepartmentMembership(User $user, $departmentId): void
+    protected function syncBankMembership(User $user, $bankIds): void
     {
-        if (empty($departmentId)) {
+        if (empty($bankIds)) {
+            $user->banks()->sync([]);
+            return;
+        }
+
+        $ids = is_array($bankIds) ? $bankIds : [(int) $bankIds];
+        $user->banks()->sync($ids);
+    }
+
+    protected function syncDepartmentMembership(User $user, $departmentIds): void
+    {
+        if (empty($departmentIds)) {
             $user->departments()->sync([]);
             return;
         }
 
-        $user->departments()->sync([(int) $departmentId]);
+        $ids = is_array($departmentIds) ? $departmentIds : [(int) $departmentIds];
+        $user->departments()->sync($ids);
     }
 
     protected function authorizeManageUsers(): void

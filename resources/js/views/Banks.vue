@@ -46,6 +46,7 @@
                 <tr>
                   <th class="ps-4">Name</th>
                 <th>Code</th>
+                <th>Departments</th>
                 <th>Status</th>
                 <th>Created</th>
                 <th style="width: 120px;" class="text-end pe-4">Actions</th>
@@ -54,8 +55,16 @@
 
             <tbody>
               <tr v-for="bank in banks" :key="bank.id">
-                <td class="ps-4 py-3">{{ bank.name }}</td>
+                <td class="ps-4 py-1">{{ bank.name }}</td>
                 <td><code>{{ bank.code }}</code></td>
+                <td>
+                  <span v-if="!bank.departments || bank.departments.length === 0" class="text-muted small">None</span>
+                  <div v-else class="d-flex gap-1 flex-wrap">
+                    <span v-for="d in bank.departments" :key="d.id" class="badge bg-light text-dark border">
+                      {{ d.name }}
+                    </span>
+                  </div>
+                </td>
                 <td>
                   <span class="badge" :class="bank.status === 'Active' ? 'bg-success' : 'bg-secondary'">
                     {{ bank.status }}
@@ -75,7 +84,7 @@
               </tr>
 
               <tr v-if="!loading && banks.length === 0">
-                <td colspan="5" class="text-center text-muted py-5">
+                <td colspan="6" class="text-center text-muted py-5">
                   No banks found.
                 </td>
               </tr>
@@ -147,6 +156,19 @@
               </div>
 
               <div class="mb-3">
+                <label class="form-label">Departments</label>
+                <VueMultiselect
+                  v-model="form.department_ids"
+                  :options="departments.map(d => d.id)"
+                  :custom-label="(id) => (departments.find(d => d.id === id) || {}).name || id"
+                  :multiple="true"
+                  :close-on-select="false"
+                  :clear-on-select="false"
+                  placeholder="Select departments"
+                />
+              </div>
+
+              <div class="mb-3">
                 <label class="form-label">Status</label>
                 <select v-model="form.status" class="form-select">
                   <option value="Active">Active</option>
@@ -172,6 +194,7 @@
 
 <script>
 import axios from '../axios';
+import VueMultiselect from 'vue-multiselect';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
@@ -182,10 +205,12 @@ export default {
   components: {
     ConfirmationModal,
     TableLoadingWrapper,
+    VueMultiselect,
   },
   data() {
     return {
       banks: [],
+      departments: [],
       loading: false,
       filters: {
         search: '',
@@ -207,6 +232,7 @@ export default {
         name: '',
         code: '',
         status: 'Active',
+        department_ids: [],
       },
       isEdit: false,
       modal: null,
@@ -215,11 +241,21 @@ export default {
   mounted() {
     this.modal = createManagedModal(this.$refs.modalRef);
     this.fetchBanks();
+    this.fetchDepartments();
   },
   beforeUnmount() {
     disposeManagedModal(this.modal);
   },
   methods: {
+    fetchDepartments() {
+      axios.get('/api/departments', { params: { per_page: 100 } })
+        .then((res) => {
+          this.departments = res.data.data || [];
+        })
+        .catch((error) => {
+          console.error('Failed to load departments', error);
+        });
+    },
     buildPagination(data) {
       this.pagination.currentPage = data.current_page;
       this.pagination.lastPage = data.last_page;
@@ -268,7 +304,7 @@ export default {
     },
     openCreateModal() {
       this.isEdit = false;
-      this.form = { id: null, name: '', code: '', status: 'Active' };
+      this.form = { id: null, name: '', code: '', status: 'Active', department_ids: [] };
       this.modal.show();
     },
     openEditModal(bank) {
@@ -278,6 +314,7 @@ export default {
         name: bank.name,
         code: bank.code,
         status: bank.status || 'Active',
+        department_ids: (bank.departments || []).map(d => d.id),
       };
       this.modal.show();
     },

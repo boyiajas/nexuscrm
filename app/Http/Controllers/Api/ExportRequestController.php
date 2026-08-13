@@ -30,8 +30,8 @@ class ExportRequestController extends Controller
             ->latest();
 
         if ($user->canApproveExportRequests()) {
-            if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
-                $query->where('bank_id', $user->resolvedBankId());
+            if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+                $query->whereIn('bank_id', $user->resolvedBankIds());
             }
         } else {
             $query->where('requested_by_user_id', $user->id);
@@ -344,7 +344,7 @@ class ExportRequestController extends Controller
             return;
         }
 
-        if ($user->resolvedBankId() && (int) $exportRequest->bank_id !== $user->resolvedBankId()) {
+        if (!empty($user->resolvedBankIds()) && !in_array((int) $exportRequest->bank_id, $user->resolvedBankIds(), true)) {
             abort(403, 'You are not allowed to act on this export request.');
         }
     }
@@ -376,7 +376,7 @@ class ExportRequestController extends Controller
             ->when($exportRequest->bank_id, function ($query) use ($exportRequest) {
                 $query->where(function ($builder) use ($exportRequest) {
                     $builder->whereNull('bank_id')
-                        ->orWhere('bank_id', $exportRequest->bank_id);
+                        ->orWhereIn('bank_id', [$exportRequest->bank_id]);
                 });
             })
             ->pluck('email')

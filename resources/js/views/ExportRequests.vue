@@ -72,7 +72,7 @@
           </thead>
           <tbody>
             <tr v-for="item in requests" :key="item.id">
-              <td class="ps-4 py-3">#{{ item.id }}</td>
+              <td class="ps-4 py-1">#{{ item.id }}</td>
               <td>
                 <div class="fw-semibold">{{ item.dataset_label }}</div>
                 <small class="text-muted" v-if="item.target_type && item.target_id">

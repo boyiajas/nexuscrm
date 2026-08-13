@@ -490,8 +490,8 @@ class ComplianceController extends Controller
 
     protected function scopedQuery(Builder $query, User $user): Builder
     {
-        if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
-            $query->where('bank_id', $user->resolvedBankId());
+        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+            $query->whereIn('bank_id', $user->resolvedBankIds());
         }
 
         return $query;
@@ -503,7 +503,7 @@ class ComplianceController extends Controller
             return;
         }
 
-        abort_if($bankId && $user->resolvedBankId() !== (int) $bankId, 403, 'You are not allowed to access records for this bank.');
+        abort_if($bankId && !empty($user->resolvedBankIds()) && !in_array((int) $bankId, $user->resolvedBankIds(), true), 403, 'You are not allowed to access records for this bank.');
     }
 
     protected function resolveBankId(User $user, ?int $requestedBankId): ?int
@@ -512,7 +512,8 @@ class ComplianceController extends Controller
             return $requestedBankId;
         }
 
-        return $user->resolvedBankId();
+        $ids = $user->resolvedBankIds();
+        return !empty($ids) ? $ids[0] : null;
     }
 
     protected function resolveAssigneeId(User $user, ?int $bankId, ?int $assignedToUserId): ?int
@@ -523,11 +524,11 @@ class ComplianceController extends Controller
 
         $assignee = User::query()->findOrFail($assignedToUserId);
 
-        if (!$user->canAccessAllBanks() && $assignee->resolvedBankId() !== $user->resolvedBankId()) {
+        if (!$user->canAccessAllBanks() && empty(array_intersect($assignee->resolvedBankIds(), $user->resolvedBankIds()))) {
             abort(422, 'Assignee must belong to the same bank scope.');
         }
 
-        if ($bankId && $assignee->resolvedBankId() && $assignee->resolvedBankId() !== (int) $bankId) {
+        if ($bankId && !empty($assignee->resolvedBankIds()) && !in_array((int) $bankId, $assignee->resolvedBankIds(), true)) {
             abort(422, 'Assignee must belong to the same bank.');
         }
 

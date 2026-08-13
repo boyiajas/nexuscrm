@@ -35,7 +35,7 @@
           </thead>
           <tbody>
             <tr v-for="c in campaigns" :key="c.id">
-              <td class="ps-4 py-3">
+              <td class="ps-4 py-1">
                 <router-link
                   :to="{ name: 'campaign.show', params: { id: c.id } }"
                   class="fw-semibold text-decoration-none"

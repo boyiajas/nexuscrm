@@ -65,7 +65,7 @@
           </thead>
           <tbody>
             <tr v-for="upload in uploads" :key="upload.id">
-              <td class="ps-4 py-3">
+              <td class="ps-4 py-1">
                 <div class="fw-semibold">{{ upload.original_filename }}</div>
                 <small class="text-muted">#{{ upload.id }} • {{ formatSize(upload.size_bytes) }}</small>
               </td>

@@ -184,7 +184,7 @@
                   </thead>
                   <tbody>
                     <tr v-for="log in recentLogs" :key="log.id">
-                      <td class="ps-4 py-3">
+                      <td class="ps-4 py-1">
                         <div class="d-flex align-items-center gap-3">
                           <div class="avatar-initial-badge">{{ getInitials(log.user_name || log.client_name) }}</div>
                           <div>

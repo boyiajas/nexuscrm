@@ -271,17 +271,17 @@ class SecurityIncidentController extends Controller
             return;
         }
 
-        if ($incident->bank_id && $user->resolvedBankId() && (int) $incident->bank_id !== $user->resolvedBankId()) {
-            abort(403, 'You are not allowed to access this incident.');
+        if ($incident->bank_id && !empty($user->resolvedBankIds()) && !in_array((int) $incident->bank_id, $user->resolvedBankIds(), true)) {
+            abort(403, 'You do not have permission to access this incident.');
         }
     }
 
     protected function applyBankScope($query, User $user): void
     {
-        if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
-            $query->where(function ($inner) use ($user) {
-                $inner->whereNull('bank_id')
-                    ->orWhere('bank_id', $user->resolvedBankId());
+        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+            $query->where(function ($q) use ($user) {
+                $q->whereNull('bank_id')
+                    ->orWhereIn('bank_id', $user->resolvedBankIds());
             });
         }
     }
@@ -292,7 +292,8 @@ class SecurityIncidentController extends Controller
             return $requestedBankId;
         }
 
-        return $user->resolvedBankId();
+        $ids = $user->resolvedBankIds();
+        return !empty($ids) ? $ids[0] : null;
     }
 
     protected function resolveAssigneeId(User $user, ?int $bankId, ?int $requestedAssigneeId): ?int

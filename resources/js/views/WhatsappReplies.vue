@@ -25,7 +25,7 @@
           </thead>
           <tbody>
             <tr v-for="r in replies" :key="r.id">
-              <td class="ps-4 py-3">{{ r.client_name }}</td>
+              <td class="ps-4 py-1">{{ r.client_name }}</td>
               <td>{{ r.phone || '-' }}</td>
               <td>{{ r.departments || '-' }}</td>
               <td>

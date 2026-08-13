@@ -129,7 +129,7 @@
                     <td v-if="canManage" class="ps-3">
                       <input type="checkbox" class="form-check-input" :checked="selectedClientIds.includes(c.id)" @change="toggleClientSelection(c.id, $event.target.checked)" />
                     </td>
-                    <td class="ps-4 py-3">
+                    <td class="ps-4 py-1">
                       <div class="d-flex align-items-center gap-3">
                         <div class="avatar-initial-badge">{{ getInitials(c.name) }}</div>
                         <div>

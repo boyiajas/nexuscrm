@@ -27,8 +27,8 @@ class ChatController extends Controller
         $query = ChatSession::with('client', 'agent')
             ->orderByDesc('updated_at');
 
-        if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
-            $query->where('bank_id', $user->resolvedBankId());
+        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+            $query->whereIn('bank_id', $user->resolvedBankIds());
         }
 
         if ($user->isPortfolioScoped()) {
@@ -270,8 +270,8 @@ class ChatController extends Controller
 
     protected function authorizeSessionScope($user, ChatSession $session): void
     {
-        if (!$user->canAccessAllBanks() && $user->resolvedBankId() && (int) $session->bank_id !== $user->resolvedBankId()) {
-            abort(403, 'You are not allowed to access this chat session.');
+        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds()) && !in_array((int) $session->bank_id, $user->resolvedBankIds(), true)) {
+            abort(403, 'You do not have permission to act on this chat session.');
         }
 
         if ($user->isPortfolioScoped() && $session->client && (int) $session->client->assigned_to_id !== (int) $user->id) {
@@ -281,8 +281,8 @@ class ChatController extends Controller
 
     protected function authorizeClientScope($user, Client $client): void
     {
-        if (!$user->canAccessAllBanks() && $user->resolvedBankId() && (int) $client->bank_id !== $user->resolvedBankId()) {
-            abort(403, 'You are not allowed to access this client chat.');
+        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds()) && !in_array((int) $client->bank_id, $user->resolvedBankIds(), true)) {
+            abort(403, 'You do not have permission to start a chat with this client.');
         }
 
         if ($user->isPortfolioScoped() && (int) $client->assigned_to_id !== (int) $user->id) {

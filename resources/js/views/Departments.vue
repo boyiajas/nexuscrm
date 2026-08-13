@@ -23,7 +23,7 @@
 
           <tbody>
             <tr v-for="d in departments" :key="d.id">
-              <td class="ps-4 py-3">{{ d.name }}</td>
+              <td class="ps-4 py-1">{{ d.name }}</td>
               <td>{{ d.description || '-' }}</td>
               <td>
                 <div v-if="d.primary_whatsapp_number">

@@ -22,6 +22,11 @@ class Department extends Model
         'secondary_whatsapp_numbers' => 'array',
     ];
 
+    public function banks()
+    {
+        return $this->belongsToMany(Bank::class, 'bank_department')->withTimestamps();
+    }
+
     public function users()
     {
         return $this->belongsToMany(User::class, 'department_user')

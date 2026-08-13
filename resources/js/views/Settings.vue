@@ -963,7 +963,7 @@
               </thead>
               <tbody>
                 <tr v-for="t in filteredWhatsappTemplates" :key="t.sid">
-                  <td class="ps-4 py-3">
+                  <td class="ps-4 py-1">
                     <div class="form-check m-0">
                       <input class="form-check-input" type="checkbox" :value="t.meta_id || t.sid" v-model="wa.selected" />
                     </div>

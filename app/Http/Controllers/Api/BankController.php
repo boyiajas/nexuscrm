@@ -13,10 +13,10 @@ class BankController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $query = Bank::query()->orderBy('name');
+        $query = Bank::with('departments')->orderBy('name');
 
-        if ($user && !$user->canAccessAllBanks() && $user->resolvedBankId()) {
-            $query->where('id', $user->resolvedBankId());
+        if ($user && !$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+            $query->whereIn('id', $user->resolvedBankIds());
         }
 
         if ($search = trim((string) $request->get('search', ''))) {
@@ -48,9 +48,17 @@ class BankController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:banks,name'],
             'code' => ['required', 'string', 'max:255', 'unique:banks,code'],
             'status' => ['required', 'string', 'in:Active,Inactive'],
+            'department_ids' => ['nullable', 'array'],
+            'department_ids.*' => ['exists:departments,id'],
         ]);
 
         $bank = Bank::create($data);
+
+        if ($request->has('department_ids')) {
+            $bank->departments()->sync($request->input('department_ids', []));
+        }
+
+        $bank->load('departments');
 
         return response()->json($bank, 201);
     }
@@ -63,9 +71,15 @@ class BankController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:banks,name,' . $bank->id],
             'code' => ['required', 'string', 'max:255', 'unique:banks,code,' . $bank->id],
             'status' => ['required', 'string', 'in:Active,Inactive'],
+            'department_ids' => ['nullable', 'array'],
+            'department_ids.*' => ['exists:departments,id'],
         ]);
 
         $bank->update($data);
+
+        if ($request->has('department_ids')) {
+            $bank->departments()->sync($request->input('department_ids', []));
+        }
 
         return response()->json($bank->fresh());
     }

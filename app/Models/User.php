@@ -111,6 +111,12 @@ class User extends Authenticatable
         return $this->belongsTo(Bank::class);
     }
 
+    public function banks()
+    {
+        return $this->belongsToMany(Bank::class, 'bank_user')
+            ->withTimestamps();
+    }
+
     public function loginSessions()
     {
         return $this->hasMany(UserLoginSession::class);
@@ -303,7 +309,29 @@ class User extends Authenticatable
 
     public function resolvedBankId(): ?int
     {
-        return $this->bank_id ? (int) $this->bank_id : null;
+        $ids = $this->resolvedBankIds();
+        return !empty($ids) ? $ids[0] : null;
+    }
+
+    public function resolvedBankIds(): array
+    {
+        if ($this->relationLoaded('banks')) {
+            $ids = $this->banks->pluck('id')->map(fn ($id) => (int) $id)->all();
+            if (!empty($ids)) {
+                return array_values(array_unique($ids));
+            }
+        }
+
+        $pivotIds = $this->banks()->pluck('banks.id')->map(fn ($id) => (int) $id)->all();
+        if (!empty($pivotIds)) {
+            return array_values(array_unique($pivotIds));
+        }
+
+        if ($this->bank_id) {
+            return [(int) $this->bank_id];
+        }
+
+        return [];
     }
 
     public function canAccessAllBanks(): bool

@@ -1385,8 +1385,8 @@ class ClientController extends Controller
 
     protected function applyBankScope($query, $user): void
     {
-        if ($user && !$user->canAccessAllBanks() && $user->resolvedBankId()) {
-            $query->where('bank_id', $user->resolvedBankId());
+        if ($user && !$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+            $query->whereIn('bank_id', $user->resolvedBankIds());
         }
     }
 
@@ -1403,8 +1403,8 @@ class ClientController extends Controller
             return;
         }
 
-        if ($user->resolvedBankId() && (int) $client->bank_id !== $user->resolvedBankId()) {
-            abort(403, "You are not allowed to {$action} this client.");
+        if (!empty($user->resolvedBankIds()) && !in_array((int) $client->bank_id, $user->resolvedBankIds(), true)) {
+            abort(403, 'You do not have permission to act on this client.');
         }
     }
 
@@ -1425,11 +1425,19 @@ class ClientController extends Controller
             if (!$requestedBankId) {
                 abort(422, 'A bank is required for this action.');
             }
-
             return (int) $requestedBankId;
         }
 
-        return $user->resolvedBankId();
+        $ids = $user->resolvedBankIds();
+        if (empty($ids)) {
+            abort(422, 'Your user account is not assigned to a bank.');
+        }
+
+        if ($requestedBankId && in_array((int) $requestedBankId, $ids, true)) {
+            return (int) $requestedBankId;
+        }
+
+        return $ids[0];
     }
 
     protected function resolveAssignedUserId($user, ?int $bankId, $requestedAssignedUserId): ?int

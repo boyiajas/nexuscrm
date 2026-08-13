@@ -57,8 +57,8 @@ class CampaignController extends Controller
             ->withCount('clients as total_recipients')
             ->orderByDesc('created_at');
 
-        if ($user && !$user->canAccessAllBanks() && $user->resolvedBankId()) {
-            $query->where('bank_id', $user->resolvedBankId());
+        if ($user && !$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+            $query->whereIn('bank_id', $user->resolvedBankIds());
         }
 
         // Department scoping (same logic as before)
@@ -2118,8 +2118,8 @@ class CampaignController extends Controller
             return;
         }
 
-        if ($user->resolvedBankId() && (int) $campaign->bank_id !== $user->resolvedBankId()) {
-            abort(403, 'You are not allowed to view this campaign.');
+        if (!empty($user->resolvedBankIds()) && !in_array((int) $campaign->bank_id, $user->resolvedBankIds(), true)) {
+            abort(403, 'You do not have permission to act on this campaign.');
         }
 
         $campaign->loadMissing('departments');
@@ -2156,11 +2156,16 @@ class CampaignController extends Controller
             return (int) $requestedBankId;
         }
 
-        if (!$user->resolvedBankId()) {
+        $ids = $user->resolvedBankIds();
+        if (empty($ids)) {
             abort(422, 'Your user account is not assigned to a bank.');
         }
 
-        return $user->resolvedBankId();
+        if ($requestedBankId && in_array((int) $requestedBankId, $ids, true)) {
+            return (int) $requestedBankId;
+        }
+
+        return $ids[0];
     }
 
     protected function resolveWhatsappSenderContext(?string $overrideFrom = null): array
