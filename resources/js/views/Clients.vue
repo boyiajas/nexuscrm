@@ -63,7 +63,15 @@
               </select>
             </div>
 
-            <div>
+            <div class="d-flex align-items-center gap-3">
+              <div v-if="filters.import_batch_number" class="btn-group btn-group-sm">
+                <button type="button" class="btn btn-outline-primary shadow-sm" @click="openAssignBatchModal" :disabled="!canManage">
+                  <i class="bi bi-person-lines-fill"></i> Assign Batch
+                </button>
+                <button type="button" class="btn btn-outline-danger shadow-sm" @click="removeBatchClients" :disabled="!canManage">
+                  <i class="bi bi-trash"></i> Delete Batch
+                </button>
+              </div>
               <button type="button" class="btn btn-link btn-sm text-decoration-none text-muted fw-semibold p-0" @click="resetFilters">
                 Clear Filters
               </button>
@@ -322,9 +330,17 @@
           <div class="modal-body">
             <form @submit.prevent="save">
               <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                  <label class="form-label">Name <span class="text-danger">*</span></label>
-                  <input v-model="form.name" type="text" class="form-control" required />
+                <div class="col-md-2">
+                  <label class="form-label">Title</label>
+                  <input v-model="form.title" type="text" class="form-control" />
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label">First Name</label>
+                  <input v-model="form.first_name" type="text" class="form-control" />
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label">Surname</label>
+                  <input v-model="form.surname" type="text" class="form-control" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Email</label>
@@ -376,6 +392,22 @@
                 <div class="col-md-6">
                   <label class="form-label">Branch Code</label>
                   <input v-model="form.branch_code" type="text" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Easy Pay Number</label>
+                  <input v-model="form.easy_pay_number" type="text" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Outstanding Balance</label>
+                  <input v-model="form.outstanding_balance" type="number" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Arrears Amount</label>
+                  <input v-model="form.arrears_amount" type="number" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Installment Amount</label>
+                  <input v-model="form.installment_amount" type="number" step="0.01" class="form-control" />
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Assigned Portfolio Owner</label>
@@ -987,6 +1019,9 @@ export default {
       this.form = {
         id: null,
         name: '',
+        title: '',
+        first_name: '',
+        surname: '',
         email: '',
         phone: '',
         bank_id: this.canChooseBank ? '' : (this.currentUser?.bank_id || ''),
@@ -994,6 +1029,10 @@ export default {
         bank_name: '',
         account_number: '',
         branch_code: '',
+        easy_pay_number: '',
+        outstanding_balance: '',
+        arrears_amount: '',
+        installment_amount: '',
         assigned_to_id: this.canChooseAssignee ? '' : (this.currentUser?.id || ''),
         department_ids: [],
         tags: [],
@@ -1020,6 +1059,9 @@ export default {
         this.form = {
           id: fullClient.id,
           name: fullClient.name,
+          title: fullClient.title || '',
+          first_name: fullClient.first_name || '',
+          surname: fullClient.surname || '',
           email: fullClient.email || '',
           phone: fullClient.phone || '',
           bank_id: fullClient.bank_id || '',
@@ -1027,6 +1069,10 @@ export default {
           bank_name: fullClient.bank_name || '',
           account_number: fullClient.account_number || '',
           branch_code: fullClient.branch_code || '',
+          easy_pay_number: fullClient.easy_pay_number || '',
+          outstanding_balance: fullClient.outstanding_balance || '',
+          arrears_amount: fullClient.arrears_amount || '',
+          installment_amount: fullClient.installment_amount || '',
           assigned_to_id: fullClient.assigned_to_id || '',
           department_ids: fullClient.departments ? fullClient.departments.map(d => d.id) : [],
           tags: fullClient.tags || [],

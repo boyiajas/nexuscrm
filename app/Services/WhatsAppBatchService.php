@@ -322,10 +322,17 @@ class WhatsAppBatchService
 
             $values[$key] = match ($source) {
                 'client.name' => (string) ($client?->name ?? ''),
+                'client.title' => (string) ($client?->title ?? ''),
+                'client.first_name' => (string) ($client?->first_name ?? ''),
+                'client.surname' => (string) ($client?->surname ?? ''),
                 'client.phone' => (string) ($this->resolveClientPhone($client) ?? ''),
                 'client.email' => (string) ($client?->email ?? ''),
                 'client.id_number' => (string) ($client?->id_number ?? ''),
                 'client.account_number' => (string) ($client?->account_number ?? ''),
+                'client.easy_pay_number' => (string) ($client?->easy_pay_number ?? ''),
+                'client.outstanding_balance' => (string) ($client?->outstanding_balance ?? ''),
+                'client.arrears_amount' => (string) ($client?->arrears_amount ?? ''),
+                'client.installment_amount' => (string) ($client?->installment_amount ?? ''),
                 'client.bank_name' => (string) ($client?->bank_name ?? $campaign->bank?->name ?? ''),
                 'client.branch_code' => (string) ($client?->branch_code ?? ''),
                 'campaign.name' => (string) ($campaign->name ?? ''),

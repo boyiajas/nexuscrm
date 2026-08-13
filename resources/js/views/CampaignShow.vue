@@ -1304,13 +1304,19 @@
                                 style="max-width: 320px; background-color: #ffffff;"
                               >
                                 <option value="">-- Select mapping --</option>
-                                <option value="client.name">Client Name</option>
+                                <option value="client.title">Client Title</option>
+                                <option value="client.first_name">Client First Name</option>
+                                <option value="client.surname">Client Surname</option>
                                 <option value="client.phone">Client Phone</option>
                                 <option value="client.email">Client Email</option>
                                 <option value="client.id_number">Client ID Number</option>
                                 <option value="client.account_number">Client Account Number</option>
+                                <option value="client.easy_pay_number">Client Easy Pay Number</option>
                                 <option value="client.bank_name">Client Bank</option>
                                 <option value="client.branch_code">Client Branch Code</option>
+                                <option value="client.outstanding_balance">Client Outstanding Balance</option>
+                                <option value="client.arrears_amount">Client Arrears Amount</option>
+                                <option value="client.installment_amount">Client Installment Amount</option>
                                 <option value="campaign.name">Campaign Name</option>
                                 <option value="campaign.status">Campaign Status</option>
                                 <option value="custom">Custom Value...</option>
