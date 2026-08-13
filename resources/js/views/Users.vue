@@ -285,7 +285,10 @@
               <!-- Password only required when creating -->
               <div class="mb-3" v-if="!isEdit">
                 <label class="form-label">Password</label>
-                <input v-model="form.password" type="password" class="form-control" required minlength="12" />
+                <div class="input-group">
+                  <input v-model="form.password" type="text" class="form-control" required minlength="12" />
+                  <button class="btn btn-outline-secondary" type="button" @click="generatePassword">Generate</button>
+                </div>
                 <small class="text-muted">At least 12 characters with upper/lowercase letters, a number, and a symbol.</small>
               </div>
 
@@ -615,6 +618,25 @@ export default {
         return (parts[0][0] + parts[1][0]).toUpperCase();
       }
       return name.substring(0, 2).toUpperCase();
+    },
+    generatePassword() {
+      const uppers = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const lowers = "abcdefghijklmnopqrstuvwxyz";
+      const numbers = "0123456789";
+      const symbols = "!@#$%^&*()_+~`|}{[]:;?><,./-=";
+      const all = uppers + lowers + numbers + symbols;
+
+      let password = "";
+      password += uppers[Math.floor(Math.random() * uppers.length)];
+      password += lowers[Math.floor(Math.random() * lowers.length)];
+      password += numbers[Math.floor(Math.random() * numbers.length)];
+      password += symbols[Math.floor(Math.random() * symbols.length)];
+
+      for (let i = 0; i < 12; i++) {
+        password += all[Math.floor(Math.random() * all.length)];
+      }
+
+      this.form.password = password.split('').sort(() => 0.5 - Math.random()).join('');
     },
     roleLabel(code) {
       const role = this.roles.find((item) => item.code === code);

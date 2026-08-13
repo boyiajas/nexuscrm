@@ -10,8 +10,10 @@ use App\Models\User;
 use App\Services\UserSessionTracker;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use App\Mail\UserAccountCreated;
 
 class UserController extends Controller
 {
@@ -101,6 +103,12 @@ class UserController extends Controller
             $this->syncDepartmentMembership($user, $data['department_id'] ?? null);
         }
         $this->syncUserRoles($user, $roleIds);
+
+        try {
+            Mail::to($user->email)->send(new UserAccountCreated($user, $request->password));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to send account creation email: ' . $e->getMessage());
+        }
 
         return response()->json($user->load(['bank', 'banks', 'roles:id,code,name,whatsapp_daily_limit', 'departments']), 201);
     }
