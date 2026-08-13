@@ -203,23 +203,28 @@ class SettingsController extends Controller
             'meta_daily_whatsapp_limit' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100000000'],
         ]);
 
-        $metaEnvironment = $data['meta_environment'] ?? SystemSetting::query()->first()?->meta_environment ?? env('META_ENVIRONMENT', 'production');
-        if (
-            $metaEnvironment === 'production'
-            && (
-                empty($data['meta_access_token'] ?? null)
-                || empty($data['meta_whatsapp_business_account_id'] ?? null)
-                || empty($data['meta_whatsapp_phone_number_id'] ?? null)
-                || empty($data['meta_token_expires_at'] ?? null)
-                || empty(trim((string) ($data['meta_token_rotation_notes'] ?? '')))
-            )
-        ) {
-            return response()->json([
-                'message' => 'Production Meta configuration requires an access token, business account ID, phone number ID, token expiry date, and rotation notes.',
-            ], 422);
+        $settings = SystemSetting::firstOrCreate([]);
+        $isMetaUpdate = array_key_exists('meta_access_token', $data) || array_key_exists('meta_environment', $data);
+
+        if ($isMetaUpdate) {
+            $metaEnvironment = $data['meta_environment'] ?? $settings->meta_environment ?? env('META_ENVIRONMENT', 'production');
+            if (
+                $metaEnvironment === 'production'
+                && (
+                    empty($data['meta_access_token'] ?? null)
+                    || empty($data['meta_whatsapp_business_account_id'] ?? null)
+                    || empty($data['meta_whatsapp_phone_number_id'] ?? null)
+                    || empty($data['meta_token_expires_at'] ?? null)
+                    || empty(trim((string) ($data['meta_token_rotation_notes'] ?? '')))
+                )
+            ) {
+                return response()->json([
+                    'message' => 'Production Meta configuration requires an access token, business account ID, phone number ID, token expiry date, and rotation notes.',
+                ], 422);
+            }
         }
 
-        $settings = SystemSetting::firstOrCreate([]);
+
         $previousMetaToken = $settings->meta_access_token;
         $logoRemoved = false;
         $logoUploaded = false;

@@ -92,7 +92,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             throw new \RuntimeException('Meta app ID, app secret, and access token are required to validate token permissions.');
         }
 
-        $response = Http::get("{$this->baseUrl}/debug_token", [
+        $response = Http::timeout(15)->get("{$this->baseUrl}/debug_token", [
             'input_token' => $this->accessToken,
             'access_token' => "{$this->appId}|{$this->appSecret}",
         ]);
@@ -672,13 +672,13 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     protected function get(string $path, array $query = []): array
     {
         $url = str_starts_with($path, 'http') ? $path : "{$this->baseUrl}/{$path}";
-        $response = Http::withToken($this->accessToken)->get($url, $query);
+        $response = Http::withToken($this->accessToken)->timeout(15)->get($url, $query);
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
     }
 
     protected function post(string $path, array $payload): array
     {
-        $response = Http::withToken($this->accessToken)->post("{$this->baseUrl}/{$path}", $payload);
+        $response = Http::withToken($this->accessToken)->timeout(15)->post("{$this->baseUrl}/{$path}", $payload);
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
     }
 

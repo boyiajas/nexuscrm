@@ -8,12 +8,13 @@
       <div>
         <!-- BRAND LOGO HEADER -->
         <div class="p-3 mb-2 d-flex align-items-center gap-3">
-          <div class="bg-white text-dark rounded-2 fw-black d-flex align-items-center justify-content-center shadow-sm" style="width: 38px; height: 38px; font-weight: 900; font-size: 1.25rem;">
-            S
+          <div class="bg-white text-dark rounded-2 fw-black d-flex align-items-center justify-content-center shadow-sm" style="width: 38px; height: 38px; font-weight: 900; font-size: 1.25rem; flex-shrink: 0;">
+            <img v-if="branding.app_logo_url" :src="branding.app_logo_url" alt="Logo" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px;" />
+            <span v-else>{{ collapsedBrandInitials }}</span>
           </div>
-          <div>
-            <div class="strauss-sidebar-brand h5 mb-0 fw-bold">STRAUSS</div>
-            <div class="small fw-semibold" style="color: #60a5fa; font-size: 0.72rem; letter-spacing: 0.05em;">Nexus Recovery</div>
+          <div class="sidebar-brand-text text-truncate">
+            <div class="strauss-sidebar-brand h5 mb-0 fw-bold text-truncate">{{ branding.app_name }}</div>
+            <div class="small fw-semibold text-truncate" style="color: #60a5fa; font-size: 0.72rem; letter-spacing: 0.05em;">{{ branding.app_tagline }}</div>
           </div>
         </div>
 
@@ -150,7 +151,7 @@
 
           <!-- Centered Title / Brand Header -->
           <div class="d-none d-lg-block fw-bold h4 mb-0 text-dark" style="letter-spacing: -0.02em;">
-            STRAUSS
+            {{ branding.app_name }}
           </div>
         </div>
 
@@ -655,7 +656,8 @@ export default {
   padding-left: 0.75rem;
 }
 .sidebar-collapsed .nav-label,
-.sidebar-collapsed .sidebar-section-title {
+.sidebar-collapsed .sidebar-section-title,
+.sidebar-collapsed .sidebar-brand-text {
   display: none;
 }
 .sidebar-collapsed .nav-link i {
