@@ -193,6 +193,7 @@ class UserController extends Controller
 
         $user->tokens()->delete();
         UserSessionTracker::closeAllForUser($user, 'user_deleted');
+        \App\Models\AuditLog::where('user_id', $user->id)->update(['user_id' => null]);
         $user->delete();
 
         return response()->noContent();
