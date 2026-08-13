@@ -1,9 +1,9 @@
 <x-mail::message>
-# Welcome to NexusCRM!
+# Welcome to {{ $appName }}!
 
 Hi {{ $user->first_name ?? $user->name }},
 
-An account has been created for you on NexusCRM. Below are your login credentials:
+An account has been created for you on {{ $appName }}. Below are your login credentials:
 
 **URL:** {{ url('/') }}
 **Username:** {{ $user->username ?: 'N/A' }}
@@ -17,5 +17,5 @@ Login Now
 Please log in and change your password as soon as possible.
 
 Thanks,<br>
-{{ config('app.name') }}
+{{ $appName }}
 </x-mail::message>

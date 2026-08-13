@@ -3,6 +3,7 @@
 namespace App\Mail;
 
 use App\Models\User;
+use App\Models\SystemSetting;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -14,12 +15,14 @@ class UserAccountCreated extends Mailable
 {
     use Queueable, SerializesModels;
 
+    public string $appName;
+
     /**
      * Create a new message instance.
      */
     public function __construct(public User $user, public string $rawPassword)
     {
-        //
+        $this->appName = SystemSetting::first()?->app_name ?: 'NexusCRM';
     }
 
     /**
@@ -28,7 +31,7 @@ class UserAccountCreated extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your NexusCRM Account Has Been Created',
+            subject: "Your {$this->appName} Account Has Been Created",
         );
     }
 
@@ -39,6 +42,9 @@ class UserAccountCreated extends Mailable
     {
         return new Content(
             markdown: 'emails.users.account_created',
+            with: [
+                'appName' => $this->appName,
+            ],
         );
     }
 
