@@ -208,8 +208,8 @@ class ClientController extends Controller
         $user = Auth::user();
         
         // Authorization check
-        if (!$user || !$user->canManageOperationalData()) {
-            abort(403, 'You are not allowed to manage clients.');
+        if (!$user || !$user->canCreateClients()) {
+            abort(403, 'You do not have permission to create clients.');
         }
 
         $data = $request->validate([
@@ -306,8 +306,8 @@ class ClientController extends Controller
         $user = Auth::user();
         
         // Authorization check
-        if (!$user || !$user->canManageOperationalData()) {
-            abort(403, 'You are not allowed to manage clients.');
+        if (!$user || !$user->canEditClients()) {
+            abort(403, 'You do not have permission to edit clients.');
         }
 
         // Department-based access control for non-super admins
@@ -434,7 +434,7 @@ class ClientController extends Controller
         $user = Auth::user();
         $this->extendImportExecutionLimits();
         
-        if (!$user || !$user->canManageOperationalData()) {
+        if (!$user || !$user->canImportClients()) {
             abort(403, 'You are not allowed to import clients.');
         }
 
@@ -874,7 +874,9 @@ class ClientController extends Controller
     public function destroy(Client $client)
     {
         $user = Auth::user();
-        $this->authorizeManage($user, 'delete clients');
+        if (!$user || !$user->canDeleteClients()) {
+            abort(403, 'You are not allowed to delete clients.');
+        }
 
         // Department-based access control for non-super admins
         $this->authorizeClientBank($user, $client, 'delete');
@@ -917,7 +919,9 @@ class ClientController extends Controller
     public function bulkUpdateStatus(Request $request)
     {
         $user = Auth::user();
-        $this->authorizeManage($user, 'update clients');
+        if (!$user || !$user->canEditClients()) {
+            abort(403, 'You are not allowed to update clients.');
+        }
 
         $validated = $request->validate([
             'client_ids' => ['required', 'array'],
@@ -978,7 +982,9 @@ class ClientController extends Controller
     public function destroyBatch(Request $request)
     {
         $user = Auth::user();
-        $this->authorizeManage($user, 'delete clients');
+        if (!$user || !$user->canDeleteClients()) {
+            abort(403, 'You are not allowed to delete clients.');
+        }
 
         $validated = $request->validate([
             'import_batch_number' => ['required', 'string', 'max:255'],
@@ -1051,7 +1057,9 @@ class ClientController extends Controller
     public function bulkAssign(Request $request)
     {
         $user = Auth::user();
-        $this->authorizeManage($user, 'update clients');
+        if (!$user || !$user->canEditClients()) {
+            abort(403, 'You are not allowed to update clients.');
+        }
 
         $validated = $request->validate([
             'client_ids' => ['required', 'array'],
@@ -1114,7 +1122,9 @@ class ClientController extends Controller
     public function bulkDestroy(Request $request)
     {
         $user = Auth::user();
-        $this->authorizeManage($user, 'delete clients');
+        if (!$user || !$user->canDeleteClients()) {
+            abort(403, 'You are not allowed to delete clients.');
+        }
 
         $validated = $request->validate([
             'client_ids' => ['required', 'array'],

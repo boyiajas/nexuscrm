@@ -200,7 +200,7 @@ class User extends Authenticatable
 
     public function hasPermission(string|array $permissions): bool
     {
-        if ($this->hasRole(self::ROLE_SUPER_ADMIN)) {
+        if ($this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN])) {
             return true;
         }
 
@@ -218,87 +218,62 @@ class User extends Authenticatable
 
     public function canManageSystemSettings(): bool
     {
-        return $this->hasPermission('manage_system_settings') || $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
+        return $this->hasPermission('manage_system_settings');
     }
 
     public function canManageUsersAndDepartments(): bool
     {
-        return $this->hasPermission(['manage_users', 'manage_roles', 'manage_departments']) || $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
+        return $this->hasPermission(['manage_users', 'manage_roles', 'manage_departments']);
     }
 
     public function canManageOperationalData(): bool
     {
-        return $this->hasPermission([
-            'view_clients', 'create_clients', 'edit_clients', 'delete_clients', 'import_clients',
-            'view_campaigns', 'create_campaigns', 'edit_campaigns', 'delete_campaigns', 'send_whatsapp', 'view_live_chat',
-        ]) || $this->hasRole([
-            self::ROLE_SUPER_ADMIN,
-            self::ROLE_ADMIN,
-            self::ROLE_MANAGER,
-            self::ROLE_CALL_CENTRE_MANAGER,
-            self::ROLE_TEAM_LEADER,
-            self::ROLE_AGENT,
-            self::ROLE_STAFF_LEGACY,
-        ]);
+        return $this->canViewClients() || $this->canViewCampaigns();
     }
 
     public function canViewCampaigns(): bool
     {
-        return $this->hasPermission('view_campaigns') || $this->canManageOperationalData();
+        return $this->hasPermission('view_campaigns');
     }
 
     public function canCreateCampaigns(): bool
     {
-        return $this->hasPermission('create_campaigns') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER, self::ROLE_TEAM_LEADER
-        ]);
+        return $this->hasPermission('create_campaigns');
     }
 
     public function canEditCampaigns(): bool
     {
-        return $this->hasPermission('edit_campaigns') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER, self::ROLE_TEAM_LEADER, self::ROLE_STAFF_LEGACY
-        ]);
+        return $this->hasPermission('edit_campaigns');
     }
 
     public function canDeleteCampaigns(): bool
     {
-        return $this->hasPermission('delete_campaigns') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN
-        ]);
+        return $this->hasPermission('delete_campaigns');
     }
 
     public function canViewClients(): bool
     {
-        return $this->hasPermission('view_clients') || $this->canManageOperationalData();
+        return $this->hasPermission('view_clients');
     }
 
     public function canCreateClients(): bool
     {
-        return $this->hasPermission('create_clients') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER, self::ROLE_TEAM_LEADER
-        ]);
+        return $this->hasPermission('create_clients');
     }
 
     public function canEditClients(): bool
     {
-        return $this->hasPermission('edit_clients') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER, self::ROLE_TEAM_LEADER, self::ROLE_AGENT, self::ROLE_STAFF_LEGACY
-        ]);
+        return $this->hasPermission('edit_clients');
     }
 
     public function canDeleteClients(): bool
     {
-        return $this->hasPermission('delete_clients') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN
-        ]);
+        return $this->hasPermission('delete_clients');
     }
 
     public function canImportClients(): bool
     {
-        return $this->hasPermission('import_clients') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER
-        ]);
+        return $this->hasPermission('import_clients');
     }
 
     public function canViewOperationalData(): bool

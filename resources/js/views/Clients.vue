@@ -12,10 +12,10 @@
           <button class="btn btn-outline-secondary btn-sm rounded-2 d-flex align-items-center gap-1 shadow-sm" @click="exportCsv">
             <i class="bi bi-download"></i> Export
           </button>
-          <button class="btn btn-dark-pill btn-sm d-flex align-items-center gap-1 shadow-sm" @click="openCreateModal" :disabled="!canManage">
+          <button class="btn btn-dark-pill btn-sm d-flex align-items-center gap-1 shadow-sm" @click="openCreateModal" :disabled="!canCreate">
             <i class="bi bi-person-plus-fill"></i> Add Client
           </button>
-          <button class="btn btn-outline-success btn-sm rounded-2" @click="openImportModal" :disabled="!canManage">
+          <button class="btn btn-outline-success btn-sm rounded-2" @click="openImportModal" :disabled="!canImport">
             <i class="bi bi-file-earmark-arrow-up"></i> Import
           </button>
         </div>
@@ -162,10 +162,10 @@
                         <button class="btn btn-light text-secondary border-0 p-1 px-2" title="View" @click="openViewModal(c)">
                           <i class="bi bi-eye"></i>
                         </button>
-                        <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(c)" :disabled="!canManage">
+                        <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(c)" :disabled="!canEdit">
                           <i class="bi bi-pencil-square"></i>
                         </button>
-                        <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(c)" :disabled="!canManage">
+                        <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(c)" :disabled="!canDelete">
                           <i class="bi bi-trash"></i>
                         </button>
                       </div>
@@ -804,12 +804,20 @@ export default {
         return null;
       }
     },
+    canCreate() {
+      return this.hasPermission('create_clients');
+    },
+    canEdit() {
+      return this.hasPermission('edit_clients');
+    },
+    canDelete() {
+      return this.hasPermission('delete_clients');
+    },
+    canImport() {
+      return this.hasPermission('import_clients');
+    },
     canManage() {
-      if (this.hasPermission('view_clients') || this.hasPermission('create_clients') || this.hasPermission('edit_clients') || this.hasPermission('delete_clients')) {
-        return true;
-      }
-      const role = this.currentUser?.role;
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
+      return this.canCreate || this.canEdit || this.canDelete || this.canImport;
     },
     canChooseBank() {
       return this.hasPermission('bypass_bank_scoping') || ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
@@ -1030,7 +1038,7 @@ export default {
 
     // CRUD
     openCreateModal() {
-      if (!this.canManage) return;
+      if (!this.canCreate) return;
 
       this.isEdit = false;
       this.form = {
@@ -1065,7 +1073,7 @@ export default {
       this.modal.show();
     },
     openEditModal(client) {
-      if (!this.canManage) return;
+      if (!this.canEdit) return;
 
       this.isEdit = true;
       
@@ -1115,7 +1123,7 @@ export default {
     },
     
     save() {
-      if (!this.canManage) return;
+      if (this.isEdit ? !this.canEdit : !this.canCreate) return;
 
       // Validate at least one department is selected
       if (this.selectedDepartments.length === 0) {
@@ -1166,7 +1174,7 @@ export default {
     },
     
     remove(client) {
-      if (!this.canManage) return;
+      if (!this.canDelete) return;
 
       this.$refs.confirmModal.open({
         title: 'Delete Client',

@@ -511,7 +511,10 @@ class CampaignController extends Controller
 
     public function store(Request $request)
     {
-        $this->authorizeManage();
+        $user = Auth::user();
+        if (!$user || !$user->canCreateCampaigns()) {
+            abort(403, 'You are not allowed to create campaigns.');
+        }
 
         $data = $request->validate([
             'name'              => ['required', 'string', 'max:255'],
@@ -611,7 +614,11 @@ class CampaignController extends Controller
      */
     public function destroy(Campaign $campaign)
     {
-        $this->authorizeManageCampaign($campaign);
+        $user = Auth::user();
+        if (!$user || !$user->canDeleteCampaigns()) {
+            abort(403, 'You are not allowed to delete campaigns.');
+        }
+        $this->authorizeView($campaign);
 
         $campaign->delete();
 
@@ -2099,7 +2106,7 @@ class CampaignController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user || (!$user->hasPermission(['view_campaigns', 'create_campaigns', 'edit_campaigns', 'delete_campaigns']) && !$user->canManageOperationalData())) {
+        if (!$user || !$user->canViewCampaigns()) {
             abort(403, 'You are not allowed to manage campaigns.');
         }
     }
@@ -2138,7 +2145,10 @@ class CampaignController extends Controller
 
     protected function authorizeManageCampaign(Campaign $campaign): void
     {
-        $this->authorizeManage();
+        $user = Auth::user();
+        if (!$user || !$user->canEditCampaigns()) {
+            abort(403, 'You are not allowed to edit campaigns.');
+        }
         $this->authorizeView($campaign);
     }
 
