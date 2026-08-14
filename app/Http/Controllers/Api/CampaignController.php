@@ -2099,7 +2099,7 @@ class CampaignController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user || !$user->canManageOperationalData()) {
+        if (!$user || (!$user->hasPermission(['view_campaigns', 'create_campaigns', 'edit_campaigns', 'delete_campaigns']) && !$user->canManageOperationalData())) {
             abort(403, 'You are not allowed to manage campaigns.');
         }
     }

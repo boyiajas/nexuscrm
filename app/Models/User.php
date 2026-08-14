@@ -72,10 +72,16 @@ class User extends Authenticatable
     ];
 
     protected $appends = [
+        'permission_codes',
         'role_codes',
         'role_names',
         'avatar_url',
     ];
+
+    public function getPermissionCodesAttribute(): array
+    {
+        return $this->permissions();
+    }
 
     protected $casts = [
         'email_verified_at' => 'datetime',
@@ -222,7 +228,10 @@ class User extends Authenticatable
 
     public function canManageOperationalData(): bool
     {
-        return $this->hasPermission(['view_clients', 'create_clients', 'edit_clients', 'view_campaigns']) || $this->hasRole([
+        return $this->hasPermission([
+            'view_clients', 'create_clients', 'edit_clients', 'delete_clients', 'import_clients',
+            'view_campaigns', 'create_campaigns', 'edit_campaigns', 'delete_campaigns', 'send_whatsapp', 'view_live_chat',
+        ]) || $this->hasRole([
             self::ROLE_SUPER_ADMIN,
             self::ROLE_ADMIN,
             self::ROLE_MANAGER,
@@ -230,6 +239,65 @@ class User extends Authenticatable
             self::ROLE_TEAM_LEADER,
             self::ROLE_AGENT,
             self::ROLE_STAFF_LEGACY,
+        ]);
+    }
+
+    public function canViewCampaigns(): bool
+    {
+        return $this->hasPermission('view_campaigns') || $this->canManageOperationalData();
+    }
+
+    public function canCreateCampaigns(): bool
+    {
+        return $this->hasPermission('create_campaigns') || $this->hasRole([
+            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER, self::ROLE_TEAM_LEADER
+        ]);
+    }
+
+    public function canEditCampaigns(): bool
+    {
+        return $this->hasPermission('edit_campaigns') || $this->hasRole([
+            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER, self::ROLE_TEAM_LEADER, self::ROLE_STAFF_LEGACY
+        ]);
+    }
+
+    public function canDeleteCampaigns(): bool
+    {
+        return $this->hasPermission('delete_campaigns') || $this->hasRole([
+            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN
+        ]);
+    }
+
+    public function canViewClients(): bool
+    {
+        return $this->hasPermission('view_clients') || $this->canManageOperationalData();
+    }
+
+    public function canCreateClients(): bool
+    {
+        return $this->hasPermission('create_clients') || $this->hasRole([
+            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER, self::ROLE_TEAM_LEADER
+        ]);
+    }
+
+    public function canEditClients(): bool
+    {
+        return $this->hasPermission('edit_clients') || $this->hasRole([
+            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER, self::ROLE_TEAM_LEADER, self::ROLE_AGENT, self::ROLE_STAFF_LEGACY
+        ]);
+    }
+
+    public function canDeleteClients(): bool
+    {
+        return $this->hasPermission('delete_clients') || $this->hasRole([
+            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN
+        ]);
+    }
+
+    public function canImportClients(): bool
+    {
+        return $this->hasPermission('import_clients') || $this->hasRole([
+            self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_MANAGER, self::ROLE_CALL_CENTRE_MANAGER
         ]);
     }
 

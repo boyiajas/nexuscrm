@@ -804,15 +804,32 @@ export default {
         return null;
       }
     },
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
+        ? this.currentUser.role_codes
+        : [this.currentUser?.role].filter(Boolean);
+
+      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+        return true;
+      }
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+      return false;
+    },
     canManage() {
+      if (this.hasPermission('view_clients') || this.hasPermission('create_clients') || this.hasPermission('edit_clients') || this.hasPermission('delete_clients')) {
+        return true;
+      }
       const role = this.currentUser?.role;
       return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
     },
     canChooseBank() {
-      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
+      return this.hasPermission('bypass_bank_scoping') || ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
     },
     canChooseAssignee() {
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER'].includes(this.currentUser?.role);
+      return this.hasPermission('edit_clients') || ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER'].includes(this.currentUser?.role);
     },
     selectedBankName() {
       if (!this.filters.bank_id) return '';

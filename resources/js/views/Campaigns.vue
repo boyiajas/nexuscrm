@@ -7,7 +7,7 @@
         <i class="bi bi-bullseye me-2 text-primary"></i>Campaigns
       </h2>
       <button
-        v-if="canManage"
+        v-if="canCreate"
         class="btn btn-primary btn-sm shadow-sm"
         @click="openCreateModal"
       >
@@ -84,7 +84,7 @@
                     class="btn btn-light text-secondary border-0 p-1 px-2"
                     title="Edit"
                     @click="openEditModal(c)"
-                    :disabled="!canManage"
+                    :disabled="!canEdit"
                   >
                     <i class="bi bi-pencil-square"></i>
                   </button>
@@ -100,7 +100,7 @@
                     class="btn btn-light text-danger border-0 p-1 px-2"
                     title="Delete"
                     @click="deleteCampaign(c)"
-                    :disabled="!canManage"
+                    :disabled="!canDelete"
                   >
                     <i class="bi bi-trash"></i>
                   </button>
@@ -398,8 +398,31 @@ export default {
         return null;
       }
     },
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
+        ? this.currentUser.role_codes
+        : [this.currentUser?.role].filter(Boolean);
+
+      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+        return true;
+      }
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+      return false;
+    },
     canManage() {
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER'].includes(this.currentUser?.role);
+      return this.canEdit || this.canCreate || this.canDelete;
+    },
+    canCreate() {
+      return this.hasPermission('create_campaigns') || ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER'].includes(this.currentUser?.role);
+    },
+    canEdit() {
+      return this.hasPermission('edit_campaigns') || ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'STAFF'].includes(this.currentUser?.role);
+    },
+    canDelete() {
+      return this.hasPermission('delete_campaigns') || ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
     },
     canChooseBank() {
       return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
@@ -481,7 +504,7 @@ export default {
     },
     canSend(c) {
       // Keep simple: only Draft or Scheduled can be sent
-      return this.canManage && ['Draft', 'Scheduled', 'Active'].includes(c.status);
+      return (this.canEdit || this.canCreate || this.hasPermission('send_whatsapp')) && ['Draft', 'Scheduled', 'Active'].includes(c.status);
     },
     buildPagination(data) {
       this.pagination.currentPage = data.current_page;

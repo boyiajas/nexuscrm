@@ -448,44 +448,54 @@ export default {
 
       return ['AGENT'];
     },
+    hasPermission(permCode) {
+      if (!this.user) return false;
+      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+        return true;
+      }
+      if (Array.isArray(this.user.permission_codes)) {
+        return this.user.permission_codes.includes(permCode);
+      }
+      return false;
+    },
     canViewClients() {
-      return !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_clients') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
     canViewCampaigns() {
-      return !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_campaigns') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
     canViewChat() {
-      return !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_live_chat') || this.hasPermission('send_whatsapp') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
     canViewAuditLog() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_audit_logs') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
     },
     canViewImportUploads() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF']);
+      return this.hasPermission('import_clients') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF']);
     },
     canViewSecurityIncidents() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_security_incidents') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
     },
     canViewComplianceConsole() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_compliance_console') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
     },
     canViewAutomation() {
-      return !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('manage_auto_replies') || this.hasPermission('manage_whatsapp_flows') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
     canManageBanks() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_banks') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canManageDepartments() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_departments') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canManageUsers() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_users') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canManageRoles() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_roles') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canManageSettings() {
-      return this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_system_settings') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
     },
     canViewAdminSection() {
       return this.canManageBanks || this.canManageDepartments || this.canManageUsers || this.canManageRoles || this.canManageSettings;

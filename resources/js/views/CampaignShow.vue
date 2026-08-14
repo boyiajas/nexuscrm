@@ -1858,11 +1858,35 @@ export default {
     };
   },
   computed: {
-    canManageCampaign() {
+    currentUser() {
       const stored = localStorage.getItem('nexus_user');
-      if (!stored) return false;
+      if (!stored) return null;
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    },
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
+        ? this.currentUser.role_codes
+        : [this.currentUser?.role].filter(Boolean);
 
-      const role = JSON.parse(stored)?.role;
+      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+        return true;
+      }
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+      return false;
+    },
+    canManageCampaign() {
+      if (!this.currentUser) return false;
+      if (this.hasPermission('edit_campaigns') || this.hasPermission('create_campaigns') || this.hasPermission('delete_campaigns')) {
+        return true;
+      }
+      const role = this.currentUser?.role;
       return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
     },
     previewHeaderText() {
