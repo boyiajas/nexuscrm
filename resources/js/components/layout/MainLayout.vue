@@ -216,23 +216,80 @@
             <i class="bi bi-grid-3x3-gap fs-6"></i>
           </button>
 
-          <div class="d-flex align-items-center gap-2 ms-1">
-            <img
-              v-if="user && user.avatar_url"
-              :src="user.avatar_url"
-              alt="User Avatar"
-              class="header-user-avatar border"
-              style="object-fit: cover;"
-            />
-            <div v-else-if="user && user.name" class="avatar-initial-badge border border-secondary" style="width: 32px; height: 32px; font-size: 0.85rem;">
-              {{ user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() }}
-            </div>
-            <img
-              v-else
-              src="https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff"
-              alt="User Avatar"
-              class="header-user-avatar border"
-            />
+          <!-- USER AVATAR DROPDOWN -->
+          <div class="dropdown ms-1">
+            <button
+              class="btn p-0 border-0 bg-transparent dropdown-toggle text-reset d-flex align-items-center"
+              type="button"
+              id="headerUserDropdown"
+              data-bs-toggle="dropdown"
+              aria-expanded="false"
+              title="User Account"
+            >
+              <img
+                v-if="user && user.avatar_url"
+                :src="user.avatar_url"
+                alt="User Avatar"
+                class="header-user-avatar border shadow-sm"
+                style="object-fit: cover; width: 34px; height: 34px; border-radius: 50%;"
+              />
+              <div
+                v-else-if="user && user.name"
+                class="avatar-initial-badge border border-secondary shadow-sm"
+                style="width: 34px; height: 34px; font-size: 0.85rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; background-color: #e2e8f0; color: #1e293b;"
+              >
+                {{ user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() }}
+              </div>
+              <img
+                v-else
+                src="https://ui-avatars.com/api/?name=User&background=0D8ABC&color=fff"
+                alt="User Avatar"
+                class="header-user-avatar border shadow-sm"
+                style="width: 34px; height: 34px; border-radius: 50%;"
+              />
+            </button>
+
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 py-2 mt-2" aria-labelledby="headerUserDropdown" style="min-width: 220px; z-index: 1050;">
+              <!-- User Info Header -->
+              <li class="px-3 py-2 border-bottom mb-1 bg-light">
+                <div class="fw-bold text-dark text-truncate">{{ user ? user.name : 'User' }}</div>
+                <div class="text-muted small text-truncate" style="font-size: 0.78rem;">{{ user ? user.email : '' }}</div>
+                <div v-if="userRoleName" class="badge bg-primary-subtle text-primary mt-1 fw-medium text-capitalize" style="font-size: 0.68rem;">
+                  {{ userRoleName }}
+                </div>
+              </li>
+
+              <!-- Dropdown Options -->
+              <li>
+                <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="$router.push({ name: 'settings' })">
+                  <i class="bi bi-person-circle text-primary"></i>
+                  <span>View Profile</span>
+                </a>
+              </li>
+
+              <li v-if="canManageSystemSettings">
+                <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="$router.push({ name: 'settings' })">
+                  <i class="bi bi-sliders text-secondary"></i>
+                  <span>System Settings</span>
+                </a>
+              </li>
+
+              <li>
+                <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="$router.push({ name: 'audit-log' })">
+                  <i class="bi bi-clock-history text-info"></i>
+                  <span>Activity Logs</span>
+                </a>
+              </li>
+
+              <li><hr class="dropdown-divider my-1"></li>
+
+              <li>
+                <a class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" href="#" @click.prevent="logout">
+                  <i class="bi bi-box-arrow-right"></i>
+                  <span class="fw-semibold">Logout</span>
+                </a>
+              </li>
+            </ul>
           </div>
         </div>
       </header>
@@ -368,6 +425,12 @@ export default {
     }
   },
   computed: {
+    userRoleName() {
+      if (Array.isArray(this.user?.role_names) && this.user.role_names.length) {
+        return this.user.role_names.join(', ').toLowerCase();
+      }
+      return (this.user?.role || '').replace(/_/g, ' ').toLowerCase() || 'user';
+    },
     unreadWhatsappRepliesCount() {
       return this.unreadWhatsappReplies.length;
     },
