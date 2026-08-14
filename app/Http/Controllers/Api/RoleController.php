@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Permission;
 use App\Models\Role;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ class RoleController extends Controller
         $this->authorizeManageRoles($request);
 
         $query = Role::query()
+            ->with('permissions')
             ->withCount('users')
             ->orderBy('name');
 
@@ -50,6 +52,8 @@ class RoleController extends Controller
             'whatsapp_daily_limit' => ['nullable', 'integer', 'min:1', 'max:1000000'],
             'watermark_enabled' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string'],
         ]);
 
         $data['code'] = $this->normalizeRoleCode($data['code']);
@@ -57,9 +61,17 @@ class RoleController extends Controller
         $data['watermark_enabled'] = $data['watermark_enabled'] ?? true;
         $data['is_system'] = false;
 
+        $permissions = $data['permissions'] ?? [];
+        unset($data['permissions']);
+
         $role = Role::create($data);
 
-        return response()->json($role->loadCount('users'), 201);
+        if (!empty($permissions)) {
+            $permissionIds = Permission::whereIn('code', $permissions)->orWhereIn('id', $permissions)->pluck('id')->all();
+            $role->permissions()->sync($permissionIds);
+        }
+
+        return response()->json($role->load('permissions')->loadCount('users'), 201);
     }
 
     public function update(Request $request, Role $role): JsonResponse
@@ -73,12 +85,30 @@ class RoleController extends Controller
             'whatsapp_daily_limit' => ['nullable', 'integer', 'min:1', 'max:1000000'],
             'watermark_enabled' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
+            'permissions' => ['nullable', 'array'],
+            'permissions.*' => ['string'],
         ]);
 
         $data['code'] = $this->normalizeRoleCode($data['code']);
+        
+        $permissions = $data['permissions'] ?? null;
+        unset($data['permissions']);
+
         $role->update($data);
 
-        return response()->json($role->fresh()->loadCount('users'));
+        if (is_array($permissions)) {
+            $permissionIds = Permission::whereIn('code', $permissions)->orWhereIn('id', $permissions)->pluck('id')->all();
+            $role->permissions()->sync($permissionIds);
+        }
+
+        return response()->json($role->fresh(['permissions'])->loadCount('users'));
+    }
+
+    public function permissions(Request $request): JsonResponse
+    {
+        $this->authorizeManageRoles($request);
+        $permissions = Permission::query()->orderBy('module')->orderBy('name')->get();
+        return response()->json($permissions);
     }
 
     public function toggleWatermark(Request $request, Role $role): JsonResponse

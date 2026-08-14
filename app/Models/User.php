@@ -174,19 +174,55 @@ class User extends Authenticatable
         return array_map(fn (string $code) => str_replace('_', ' ', $code), $this->resolvedRoleCodes());
     }
 
+    public function permissions(): array
+    {
+        $roleCodes = $this->resolvedRoleCodes();
+        if (empty($roleCodes)) {
+            return [];
+        }
+
+        $roles = Role::whereIn('code', $roleCodes)->with('permissions')->get();
+        $permCodes = [];
+        foreach ($roles as $r) {
+            foreach ($r->permissions as $p) {
+                $permCodes[] = $p->code;
+            }
+        }
+
+        return array_values(array_unique($permCodes));
+    }
+
+    public function hasPermission(string|array $permissions): bool
+    {
+        if ($this->hasRole(self::ROLE_SUPER_ADMIN)) {
+            return true;
+        }
+
+        $permissions = is_array($permissions) ? $permissions : [$permissions];
+        $userPerms = $this->permissions();
+
+        foreach ($permissions as $p) {
+            if (in_array($p, $userPerms, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function canManageSystemSettings(): bool
     {
-        return $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
+        return $this->hasPermission('manage_system_settings') || $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
     }
 
     public function canManageUsersAndDepartments(): bool
     {
-        return $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
+        return $this->hasPermission(['manage_users', 'manage_roles', 'manage_departments']) || $this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN]);
     }
 
     public function canManageOperationalData(): bool
     {
-        return $this->hasRole([
+        return $this->hasPermission(['view_clients', 'create_clients', 'edit_clients', 'view_campaigns']) || $this->hasRole([
             self::ROLE_SUPER_ADMIN,
             self::ROLE_ADMIN,
             self::ROLE_MANAGER,
@@ -204,7 +240,7 @@ class User extends Authenticatable
 
     public function canReviewAuditData(): bool
     {
-        return $this->hasRole([
+        return $this->hasPermission(['view_audit_logs', 'view_security_incidents', 'view_compliance_console']) || $this->hasRole([
             self::ROLE_SUPER_ADMIN,
             self::ROLE_ADMIN,
             self::ROLE_AUDITOR,
@@ -250,7 +286,7 @@ class User extends Authenticatable
 
     public function canViewSecurityIncidents(): bool
     {
-        return $this->hasRole([
+        return $this->hasPermission('view_security_incidents') || $this->hasRole([
             self::ROLE_SUPER_ADMIN,
             self::ROLE_ADMIN,
             self::ROLE_MANAGER,
@@ -269,7 +305,7 @@ class User extends Authenticatable
 
     public function canManageSecurityIncidents(): bool
     {
-        return $this->hasRole([
+        return $this->hasPermission('manage_security_incidents') || $this->hasRole([
             self::ROLE_SUPER_ADMIN,
             self::ROLE_ADMIN,
             self::ROLE_COMPLIANCE_OFFICER,
@@ -278,7 +314,7 @@ class User extends Authenticatable
 
     public function canViewComplianceConsole(): bool
     {
-        return $this->hasRole([
+        return $this->hasPermission('view_compliance_console') || $this->hasRole([
             self::ROLE_SUPER_ADMIN,
             self::ROLE_ADMIN,
             self::ROLE_MANAGER,
@@ -292,7 +328,7 @@ class User extends Authenticatable
 
     public function canManageComplianceConsole(): bool
     {
-        return $this->hasRole([
+        return $this->hasPermission('manage_compliance_console') || $this->hasRole([
             self::ROLE_SUPER_ADMIN,
             self::ROLE_ADMIN,
             self::ROLE_COMPLIANCE_OFFICER,
@@ -301,7 +337,7 @@ class User extends Authenticatable
 
     public function canBypassExportApproval(): bool
     {
-        return $this->hasRole([
+        return $this->hasPermission('bypass_export_approval') || $this->hasRole([
             self::ROLE_SUPER_ADMIN,
             self::ROLE_ADMIN,
         ]);
@@ -336,11 +372,15 @@ class User extends Authenticatable
 
     public function canAccessAllBanks(): bool
     {
-        return $this->canManageSystemSettings();
+        return $this->hasPermission('bypass_bank_scoping') || $this->canManageSystemSettings();
     }
 
     public function isPortfolioScoped(): bool
     {
+        if ($this->hasPermission('portfolio_scoped_only')) {
+            return true;
+        }
+
         return $this->hasRole([
             self::ROLE_AGENT,
             self::ROLE_STAFF_LEGACY,

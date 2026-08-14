@@ -136,50 +136,125 @@
     </div>
 
     <div class="modal fade" tabindex="-1" ref="modalRef">
-      <div class="modal-dialog">
+      <div class="modal-dialog modal-lg">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">{{ isEdit ? 'Edit Role' : 'Add Role' }}</h5>
+            <h5 class="modal-title fw-bold"><i class="bi bi-shield-lock me-2 text-primary"></i>{{ isEdit ? 'Edit Role' : 'Add Role' }}</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body">
+          <div class="modal-body" style="max-height: 78vh; overflow-y: auto;">
             <form @submit.prevent="save">
-              <div class="mb-3">
-                <label class="form-label">Role Name</label>
-                <input v-model="form.name" type="text" class="form-control" required />
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Role Name <span class="text-danger">*</span></label>
+                  <input v-model="form.name" type="text" class="form-control" placeholder="e.g. Call Centre Manager" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">Role Code <span class="text-danger">*</span></label>
+                  <input v-model="form.code" type="text" class="form-control" placeholder="e.g. CALL_CENTRE_MANAGER" required />
+                  <small class="text-muted" style="font-size: 0.75rem;">Stored as uppercase identifier.</small>
+                </div>
               </div>
+
               <div class="mb-3">
-                <label class="form-label">Code</label>
-                <input v-model="form.code" type="text" class="form-control" required />
-                <small class="text-muted">Stored as an uppercase identifier, for example `TEAM_LEADER`.</small>
+                <label class="form-label fw-semibold">Description</label>
+                <textarea v-model="form.description" class="form-control" rows="2" placeholder="Describe the purpose of this role..."></textarea>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Description</label>
-                <textarea v-model="form.description" class="form-control" rows="3" placeholder="Optional role description"></textarea>
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-semibold">WhatsApp Daily Limit</label>
+                  <input v-model.number="form.whatsapp_daily_limit" type="number" min="1" class="form-control" />
+                  <small class="text-muted" style="font-size: 0.75rem;">Max daily outbound WhatsApp limit.</small>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Watermark</label>
+                  <select v-model="form.watermark_enabled" class="form-select">
+                    <option :value="true">Enabled</option>
+                    <option :value="false">Disabled</option>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label fw-semibold">Status</label>
+                  <select v-model="form.is_active" class="form-select">
+                    <option :value="true">Active</option>
+                    <option :value="false">Inactive</option>
+                  </select>
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">WhatsApp Daily Limit</label>
-                <input v-model.number="form.whatsapp_daily_limit" type="number" min="1" class="form-control" />
-                <small class="text-muted">Default for a new role is 500 messages per day.</small>
+
+              <!-- SYSTEM PERMISSIONS CHECKBOX MATRIX -->
+              <div class="mt-4 pt-3 border-top">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <div>
+                    <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-key me-1 text-primary"></i> Access Levels & Permissions</h6>
+                    <small class="text-muted" style="font-size: 0.78rem;">Check the capabilities enabled for users assigned to this role.</small>
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-xs btn-outline-primary py-1 px-2" style="font-size: 0.75rem;" @click="selectAllPermissions">Select All</button>
+                    <button type="button" class="btn btn-xs btn-outline-secondary py-1 px-2" style="font-size: 0.75rem;" @click="deselectAllPermissions">Deselect All</button>
+                  </div>
+                </div>
+
+                <!-- Module Permission Cards -->
+                <div class="d-flex flex-column gap-3">
+                  <div
+                    v-for="(perms, moduleName) in groupedPermissions"
+                    :key="moduleName"
+                    class="card border shadow-none bg-light"
+                  >
+                    <div class="card-header bg-white py-2 px-3 d-flex justify-content-between align-items-center border-bottom">
+                      <div class="fw-bold text-dark small">
+                        <i class="bi bi-folder2-open me-1 text-secondary"></i> {{ moduleName }}
+                      </div>
+                      <div class="form-check form-check-inline mb-0">
+                        <input
+                          class="form-check-input"
+                          type="checkbox"
+                          :id="'mod-' + moduleName"
+                          :checked="isModuleFullySelected(moduleName)"
+                          :indeterminate.prop="isModulePartiallySelected(moduleName)"
+                          @change="toggleSelectAllModule(moduleName)"
+                        />
+                        <label class="form-check-label small text-muted" :for="'mod-' + moduleName" style="cursor: pointer; font-size: 0.78rem;">
+                          Select Module
+                        </label>
+                      </div>
+                    </div>
+                    <div class="card-body p-3">
+                      <div class="row g-2">
+                        <div
+                          v-for="perm in perms"
+                          :key="perm.code"
+                          class="col-md-6"
+                        >
+                          <div class="p-2 border rounded bg-white h-100 d-flex align-items-start gap-2">
+                            <input
+                              class="form-check-input mt-1 flex-shrink-0"
+                              type="checkbox"
+                              :id="'perm-' + perm.code"
+                              :value="perm.code"
+                              v-model="selectedPermissions"
+                            />
+                            <div>
+                              <label :for="'perm-' + perm.code" class="fw-semibold text-dark mb-0 small" style="cursor: pointer; display: block;">
+                                {{ perm.name }}
+                              </label>
+                              <small class="text-muted d-block" style="font-size: 0.72rem; line-height: 1.2;">
+                                {{ perm.description }}
+                              </small>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="mb-3">
-                <label class="form-label">Watermark</label>
-                <select v-model="form.watermark_enabled" class="form-select">
-                  <option :value="true">Enabled</option>
-                  <option :value="false">Disabled</option>
-                </select>
-                <small class="text-muted">Controls whether sensitive pages show the security watermark for users assigned to this role.</small>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">Status</label>
-                <select v-model="form.is_active" class="form-select">
-                  <option :value="true">Active</option>
-                  <option :value="false">Inactive</option>
-                </select>
-              </div>
-              <div class="text-end">
-                <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">Cancel</button>
-                <button class="btn btn-primary">Save</button>
+
+              <div class="text-end mt-4 pt-3 border-top">
+                <button type="button" class="btn btn-outline-secondary me-2 px-3" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary px-4 fw-bold">Save Role & Permissions</button>
               </div>
             </form>
           </div>
@@ -207,6 +282,18 @@ export default {
   data() {
     return {
       roles: [],
+      allPermissions: [],
+      selectedPermissions: [],
+      defaultCheckedCodes: [
+        'view_clients',
+        'create_clients',
+        'edit_clients',
+        'view_campaigns',
+        'create_campaigns',
+        'send_whatsapp',
+        'view_live_chat',
+        'request_exports',
+      ],
       loading: false,
       filters: {
         search: '',
@@ -236,8 +323,22 @@ export default {
       modal: null,
     };
   },
+  computed: {
+    groupedPermissions() {
+      const groups = {};
+      this.allPermissions.forEach((perm) => {
+        const mod = perm.module || 'General';
+        if (!groups[mod]) {
+          groups[mod] = [];
+        }
+        groups[mod].push(perm);
+      });
+      return groups;
+    },
+  },
   mounted() {
     this.modal = createManagedModal(this.$refs.modalRef);
+    this.fetchPermissions();
     this.fetchRoles();
   },
   beforeUnmount() {
@@ -294,8 +395,18 @@ export default {
       };
       this.fetchRoles(1);
     },
+    fetchPermissions() {
+      axios.get('/api/permissions')
+        .then((res) => {
+          this.allPermissions = res.data || [];
+        })
+        .catch((error) => {
+          console.error('Failed to fetch permissions:', error);
+        });
+    },
     openCreateModal() {
       this.isEdit = false;
+      this.selectedPermissions = [...this.defaultCheckedCodes];
       this.form = {
         id: null,
         code: '',
@@ -309,6 +420,7 @@ export default {
     },
     openEditModal(role) {
       this.isEdit = true;
+      this.selectedPermissions = Array.isArray(role.permissions) ? role.permissions.map(p => p.code) : [];
       this.form = {
         id: role.id,
         code: role.code || '',
@@ -320,6 +432,35 @@ export default {
       };
       this.modal.show();
     },
+    selectAllPermissions() {
+      this.selectedPermissions = this.allPermissions.map(p => p.code);
+    },
+    deselectAllPermissions() {
+      this.selectedPermissions = [];
+    },
+    isModuleFullySelected(moduleName) {
+      const perms = this.groupedPermissions[moduleName] || [];
+      if (!perms.length) return false;
+      return perms.every(p => this.selectedPermissions.includes(p.code));
+    },
+    isModulePartiallySelected(moduleName) {
+      const perms = this.groupedPermissions[moduleName] || [];
+      if (!perms.length) return false;
+      const count = perms.filter(p => this.selectedPermissions.includes(p.code)).length;
+      return count > 0 && count < perms.length;
+    },
+    toggleSelectAllModule(moduleName) {
+      const perms = this.groupedPermissions[moduleName] || [];
+      const codes = perms.map(p => p.code);
+      const isFully = this.isModuleFullySelected(moduleName);
+
+      if (isFully) {
+        this.selectedPermissions = this.selectedPermissions.filter(c => !codes.includes(c));
+      } else {
+        const set = new Set([...this.selectedPermissions, ...codes]);
+        this.selectedPermissions = Array.from(set);
+      }
+    },
     save() {
       const payload = {
         code: this.form.code,
@@ -328,6 +469,7 @@ export default {
         whatsapp_daily_limit: this.form.whatsapp_daily_limit || 500,
         watermark_enabled: !!this.form.watermark_enabled,
         is_active: !!this.form.is_active,
+        permissions: this.selectedPermissions,
       };
 
       const request = this.isEdit

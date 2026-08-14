@@ -164,6 +164,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('users', UserController::class)->except(['show']);
     Route::patch('roles/{role}/watermark', [RoleController::class, 'toggleWatermark']);
+    Route::get('permissions', [RoleController::class, 'permissions']);
     Route::apiResource('roles', RoleController::class)->except(['show']);
     Route::get('users-assignees', [UserController::class, 'assignees']);
 
