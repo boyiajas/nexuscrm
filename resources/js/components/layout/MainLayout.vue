@@ -448,16 +448,6 @@ export default {
 
       return ['AGENT'];
     },
-    hasPermission(permCode) {
-      if (!this.user) return false;
-      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
-        return true;
-      }
-      if (Array.isArray(this.user.permission_codes)) {
-        return this.user.permission_codes.includes(permCode);
-      }
-      return false;
-    },
     canViewClients() {
       return this.hasPermission('view_clients') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
     },
@@ -531,6 +521,16 @@ export default {
     },
   },
   methods: {
+    hasPermission(permCode) {
+      if (!this.user) return false;
+      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+        return true;
+      }
+      if (Array.isArray(this.user.permission_codes)) {
+        return this.user.permission_codes.includes(permCode);
+      }
+      return false;
+    },
     fetchUnreadReplies() {
       axios.get('/api/dashboard/whatsapp-replies')
         .then(res => {

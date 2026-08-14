@@ -398,20 +398,6 @@ export default {
         return null;
       }
     },
-    hasPermission(permCode) {
-      if (!this.currentUser) return false;
-      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
-        ? this.currentUser.role_codes
-        : [this.currentUser?.role].filter(Boolean);
-
-      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
-        return true;
-      }
-      if (Array.isArray(this.currentUser.permission_codes)) {
-        return this.currentUser.permission_codes.includes(permCode);
-      }
-      return false;
-    },
     canManage() {
       return this.canEdit || this.canCreate || this.canDelete;
     },
@@ -452,6 +438,20 @@ export default {
     disposeManagedModal(this.modal);
   },
   methods: {
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
+        ? this.currentUser.role_codes
+        : [this.currentUser?.role].filter(Boolean);
+
+      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+        return true;
+      }
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+      return false;
+    },
     async syncCurrentUser() {
       try {
         await syncAuthenticatedUser();

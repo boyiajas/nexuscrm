@@ -804,20 +804,6 @@ export default {
         return null;
       }
     },
-    hasPermission(permCode) {
-      if (!this.currentUser) return false;
-      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
-        ? this.currentUser.role_codes
-        : [this.currentUser?.role].filter(Boolean);
-
-      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
-        return true;
-      }
-      if (Array.isArray(this.currentUser.permission_codes)) {
-        return this.currentUser.permission_codes.includes(permCode);
-      }
-      return false;
-    },
     canManage() {
       if (this.hasPermission('view_clients') || this.hasPermission('create_clients') || this.hasPermission('edit_clients') || this.hasPermission('delete_clients')) {
         return true;
@@ -856,6 +842,20 @@ export default {
     }
   },
   methods: {
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
+        ? this.currentUser.role_codes
+        : [this.currentUser?.role].filter(Boolean);
+
+      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+        return true;
+      }
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+      return false;
+    },
     getInitials(name) {
       if (!name || typeof name !== 'string') return 'NX';
       const parts = name.trim().split(/\s+/).filter(Boolean);

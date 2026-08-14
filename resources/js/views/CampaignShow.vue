@@ -1867,20 +1867,6 @@ export default {
         return null;
       }
     },
-    hasPermission(permCode) {
-      if (!this.currentUser) return false;
-      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
-        ? this.currentUser.role_codes
-        : [this.currentUser?.role].filter(Boolean);
-
-      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
-        return true;
-      }
-      if (Array.isArray(this.currentUser.permission_codes)) {
-        return this.currentUser.permission_codes.includes(permCode);
-      }
-      return false;
-    },
     canManageCampaign() {
       if (!this.currentUser) return false;
       if (this.hasPermission('edit_campaigns') || this.hasPermission('create_campaigns') || this.hasPermission('delete_campaigns')) {
@@ -2093,6 +2079,20 @@ export default {
     cleanupManagedModalArtifacts(true);
   },
   methods: {
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      const roles = Array.isArray(this.currentUser.role_codes) && this.currentUser.role_codes.length
+        ? this.currentUser.role_codes
+        : [this.currentUser?.role].filter(Boolean);
+
+      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+        return true;
+      }
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+      return false;
+    },
     toggleSelectAllClients(event) {
       if (event.target.checked) {
         this.selectedClients = this.clients.map(c => c.id);
