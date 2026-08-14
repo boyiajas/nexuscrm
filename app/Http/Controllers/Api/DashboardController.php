@@ -60,13 +60,13 @@ class DashboardController extends Controller
             });
         }
         
-        $activeCampaigns = $campaignQuery->where('status', 'Active')->count();
-        $completedCampaigns = $campaignQuery->where('status', 'Completed')->count();
+        $activeCampaigns = (clone $campaignQuery)->where('status', 'Active')->count();
+        $completedCampaigns = (clone $campaignQuery)->where('status', 'Completed')->count();
 
         // Open chats: count chat sessions that have unread messages (works even if client_id is null)
         $openChatsQuery = ChatSession::where('unread_count', '>', 0);
-        if (!$user->canAccessAllBanks() && $userBankId) {
-            $openChatsQuery->where('bank_id', $userBankId);
+        if (!$user->canAccessAllBanks() && !empty($userBankIds)) {
+            $openChatsQuery->whereIn('bank_id', $userBankIds);
         }
         if ($user->isPortfolioScoped()) {
             $openChatsQuery->whereHas('client', function ($q) use ($user) {
@@ -85,8 +85,8 @@ class DashboardController extends Controller
                 SUM(CASE WHEN whatsapp_status = "Failed" OR email_status = "Failed" OR sms_status = "Failed" THEN 1 ELSE 0 END) as failed,
                 SUM(CASE WHEN whatsapp_status = "Pending" OR email_status = "Pending" OR sms_status = "Pending" THEN 1 ELSE 0 END) as pending
             ')
-            ->when(!$user->canAccessAllBanks() && $userBankId, function ($q) use ($userBankId) {
-                $q->where('campaigns.bank_id', $userBankId);
+            ->when(!$user->canAccessAllBanks() && !empty($userBankIds), function ($q) use ($userBankIds) {
+                $q->whereIn('campaigns.bank_id', $userBankIds);
             })
             ->when($user->isPortfolioScoped(), function ($q) use ($user) {
                 $q->where('clients.assigned_to_id', $user->id);
@@ -104,8 +104,8 @@ class DashboardController extends Controller
         // Get channel breakdown in a database-agnostic way.
         $channelBreakdownQuery = Campaign::query()
             ->select(['id', 'channels'])
-            ->when(!$user->canAccessAllBanks() && $userBankId, function ($q) use ($userBankId) {
-                $q->where('bank_id', $userBankId);
+            ->when(!$user->canAccessAllBanks() && !empty($userBankIds), function ($q) use ($userBankIds) {
+                $q->whereIn('bank_id', $userBankIds);
             })
             ->when(!$user->canManageSystemSettings(), function ($q) use ($userDeptIds) {
                 $q->where(function ($inner) use ($userDeptIds) {
@@ -162,8 +162,8 @@ class DashboardController extends Controller
             ->orderBy('created_at', 'desc')
             ->limit(5);
 
-        if (!$user->canAccessAllBanks() && $userBankId) {
-            $auditQuery->where('bank_id', $userBankId);
+        if (!$user->canAccessAllBanks() && !empty($userBankIds)) {
+            $auditQuery->whereIn('bank_id', $userBankIds);
         }
             
         if (!$user->canReviewAuditData() && !$user->canManageSystemSettings()) {
@@ -185,8 +185,8 @@ class DashboardController extends Controller
         $dailyCampaigns = Campaign::query()
             ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
             ->where('created_at', '>=', Carbon::now()->subDays(7))
-            ->when(!$user->canAccessAllBanks() && $userBankId, function ($q) use ($userBankId) {
-                $q->where('bank_id', $userBankId);
+            ->when(!$user->canAccessAllBanks() && !empty($userBankIds), function ($q) use ($userBankIds) {
+                $q->whereIn('bank_id', $userBankIds);
             })
             ->when($campaignPortfolioScoped, function ($q) use ($user) {
                 $q->whereHas('clients', function ($qq) use ($user) {
