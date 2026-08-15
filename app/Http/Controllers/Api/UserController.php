@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
 use App\Models\Bank;
 use App\Models\Department;
@@ -17,6 +18,7 @@ use App\Mail\UserAccountCreated;
 
 class UserController extends Controller
 {
+    use HasAuditLogging;
     public function index()
     {
         $this->authorizeManageUsers();
@@ -26,7 +28,14 @@ class UserController extends Controller
     public function assignees()
     {
         $user = auth()->user();
-        if (!$user || !$user->canManageOperationalData()) {
+        if (
+            !$user
+            || !(
+                $user->canManageOperationalData()
+                || $user->canViewSecurityIncidents()
+                || $user->canViewComplianceConsole()
+            )
+        ) {
             abort(403, 'You are not allowed to assign portfolios.');
         }
 
@@ -110,6 +119,12 @@ class UserController extends Controller
             \Illuminate\Support\Facades\Log::error('Failed to send account creation email: ' . $e->getMessage());
         }
 
+        $this->audit(
+            action: "Created user '{$user->name}' ({$user->email}) with primary role {$user->role}",
+            module: 'Users',
+            meta: ['user_id' => $user->id, 'bank_id' => $user->bank_id, 'role' => $user->role]
+        );
+
         return response()->json($user->load(['bank', 'banks', 'roles:id,code,name,whatsapp_daily_limit', 'departments']), 201);
     }
 
@@ -189,6 +204,12 @@ class UserController extends Controller
             $this->syncDepartmentMembership($user, $data['department_id'] ?? $user->department_id);
         }
 
+        $this->audit(
+            action: "Updated user '{$user->name}' ({$user->email})",
+            module: 'Users',
+            meta: ['user_id' => $user->id, 'bank_id' => $user->bank_id, 'role' => $user->role]
+        );
+
         return $user->load(['bank', 'banks', 'roles:id,code,name,whatsapp_daily_limit', 'departments']);
     }
 
@@ -199,12 +220,43 @@ class UserController extends Controller
             return response()->json(['message' => 'Cannot delete yourself'], 422);
         }
 
+        $deletedName = $user->name;
+        $deletedEmail = $user->email;
+        $deletedId = $user->id;
+
         $user->tokens()->delete();
         UserSessionTracker::closeAllForUser($user, 'user_deleted');
         \App\Models\AuditLog::where('user_id', $user->id)->update(['user_id' => null]);
         $user->delete();
 
+        $this->audit(
+            action: "Deleted user '{$deletedName}' ({$deletedEmail})",
+            module: 'Users',
+            meta: ['deleted_user_id' => $deletedId]
+        );
+
         return response()->noContent();
+    }
+
+    public function unlock(User $user)
+    {
+        $this->authorizeManageUsers();
+
+        $user->forceFill([
+            'locked_until'          => null,
+            'failed_login_attempts' => 0,
+        ])->save();
+
+        $this->audit(
+            action: "Unlocked user account for '{$user->name}' ({$user->email})",
+            module: 'Users',
+            meta: ['unlocked_user_id' => $user->id]
+        );
+
+        return response()->json([
+            'message' => 'User account unlocked successfully.',
+            'user'    => $user->load(['bank', 'banks', 'roles:id,code,name,whatsapp_daily_limit', 'departments']),
+        ]);
     }
 
     protected function syncDepartmentFields(array &$data): void
@@ -271,7 +323,7 @@ class UserController extends Controller
     protected function authorizeManageUsers(): void
     {
         $user = auth()->user();
-        if (!$user || !$user->canManageUsersAndDepartments()) {
+        if (!$user || !$user->canManageUsers()) {
             abort(403, 'You are not allowed to manage users.');
         }
     }

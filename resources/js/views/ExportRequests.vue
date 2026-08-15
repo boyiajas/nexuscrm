@@ -335,8 +335,15 @@ export default {
         return {};
       }
     },
+    currentRoleCodes() {
+      if (Array.isArray(this.currentUser?.role_codes) && this.currentUser.role_codes.length) {
+        return this.currentUser.role_codes;
+      }
+
+      return this.currentUser?.role ? [this.currentUser.role] : [];
+    },
     canApprove() {
-      return ['SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_OFFICER'].includes(this.currentUser.role);
+      return this.hasPermission('approve_exports');
     },
   },
   mounted() {
@@ -347,6 +354,18 @@ export default {
     disposeManagedModal(this.detailModal);
   },
   methods: {
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+        return true;
+      }
+
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+
+      return false;
+    },
     fetchRequests(page = 1) {
       this.pagination.currentPage = page;
       this.loading = true;

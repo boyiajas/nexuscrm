@@ -162,6 +162,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/whatsapp/senders', [WhatsAppWebhookController::class, 'whatsappSenders']);
     Route::get('/twilio/whatsapp-senders', [WhatsAppWebhookController::class, 'whatsappSenders']);
 
+    Route::post('users/{user}/unlock', [UserController::class, 'unlock']);
     Route::apiResource('users', UserController::class)->except(['show']);
     Route::patch('roles/{role}/watermark', [RoleController::class, 'toggleWatermark']);
     Route::get('permissions', [RoleController::class, 'permissions']);

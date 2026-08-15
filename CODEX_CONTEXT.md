@@ -59,20 +59,37 @@ Read this file first in any new Codex session before making changes. It is the p
   - retention policy / action workflow
   - secure bank transfer profile governance
 
-## Current Role Model
+## Current Role & Dynamic Permission Model
 
-Defined in `app/Models/User.php`.
+Defined in `app/Models/User.php` and managed via `Roles.vue`.
 
-- `SUPER_ADMIN`
-- `ADMIN`
-- `MANAGER`
-- `CALL_CENTRE_MANAGER`
-- `TEAM_LEADER`
-- `AGENT`
-- `STAFF` (legacy compatibility)
-- `AUDITOR`
-- `COMPLIANCE_OFFICER`
-- `READ_ONLY_REVIEWER`
+- System Roles:
+  - `SUPER_ADMIN`
+  - `ADMIN`
+  - `MANAGER`
+  - `CALL_CENTRE_MANAGER`
+  - `TEAM_LEADER`
+  - `AGENT`
+  - `STAFF` (legacy role code)
+  - `AUDITOR`
+  - `COMPLIANCE_OFFICER`
+  - `READ_ONLY_REVIEWER`
+
+- Dynamic Database-Driven RBAC Architecture:
+  - Permissions are stored in `permissions` table and linked to roles via `permission_role` table.
+  - Hardcoded role bypass arrays for non-admin roles have been completely removed from capability checks.
+  - `User::hasPermission($permCode)` checks database permission assignments. `SUPER_ADMIN` and `ADMIN` maintain implicit administrative root bypass.
+  - All capability helpers strictly invoke dynamic checks:
+    - `canCreateClients()` -> `hasPermission('create_clients')`
+    - `canEditClients()` -> `hasPermission('edit_clients')`
+    - `canDeleteClients()` -> `hasPermission('delete_clients')`
+    - `canImportClients()` -> `hasPermission('import_clients')`
+    - `canCreateCampaigns()` -> `hasPermission('create_campaigns')`
+    - `canEditCampaigns()` -> `hasPermission('edit_campaigns')`
+    - `canDeleteCampaigns()` -> `hasPermission('delete_campaigns')`
+    - `canViewClients()` -> `hasPermission('view_clients')`
+    - `canViewCampaigns()` -> `hasPermission('view_campaigns')`
+  - Frontend SPA uses `hasPermission(code)` instance methods (not computed getters) and `requiredPermission` router meta tags to enforce UI and navigation authorization.
 
 Important helpers:
 
@@ -267,12 +284,25 @@ Security/business fields:
 - `account_number`
 - `branch_code`
 - `assigned_to_id`
+- `import_batch_number`
+- `arrears_amount`
+- `outstanding_balance`
+- `installment_amount`
+- `last_payment_amount`
+- `total_payment_amount`
 - `whatsapp_opted_out_at`
 - `whatsapp_opt_out_reason`
 - `whatsapp_contact_basis`
 - `whatsapp_contact_basis_details`
 - `whatsapp_opted_in_at`
 - `whatsapp_opt_in_source`
+
+Batch Operations:
+- Bulk user assignment supports both manual selection and batch-level assignment via `import_batch_number`.
+- Endpoints:
+  - `POST /api/clients/bulk-assign`
+  - `POST /api/clients/assign-batch`
+  - `POST /api/clients/delete-batch`
 
 ### Import Upload Monitoring
 
@@ -502,6 +532,13 @@ These are still not fully implemented and should not be restated as complete unt
 
 ### Completed recently
 
+- Strict dynamic database-driven RBAC migration (permissions & permission_role tables, user model capability checks, roles checkbox matrix, router meta permission guards)
+- Removed all legacy hardcoded role bypass lists (`STAFF`, `AGENT`, etc.) across model, controllers (`ClientController`, `CampaignController`), and frontend SPA views (`Clients.vue`, `Campaigns.vue`, `CampaignShow.vue`, `MainLayout.vue`)
+- Top utility header user avatar dropdown menu (View Profile, Logout, Activity Logs)
+- Client schema extended with financial fields: Arrears Amount, Outstanding Balance, Installment Amount, Last Payment Amount, Total Payment Amount
+- Bulk client assignment by import batch number (`import_batch_number`)
+- Dynamic app name formatting across system mailers using `config('app.name')`
+- Home dashboard card counts and metrics calculation fixes
 - Meta direct WhatsApp migration completed
 - Twilio transport removed from active flow
 - WhatsApp template sync and preview from Meta

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
 use App\Models\Department;
 use Illuminate\Support\Facades\Auth;
@@ -9,6 +10,7 @@ use Illuminate\Http\Request;
 
 class DepartmentController extends Controller
 {
+    use HasAuditLogging;
     public function index()
     {
         $user = Auth::user();
@@ -47,7 +49,15 @@ class DepartmentController extends Controller
             $data['secondary_whatsapp_numbers'] = [];
         }
 
-        return Department::create($data);
+        $dept = Department::create($data);
+
+        $this->audit(
+            action: "Created department '{$dept->name}'",
+            module: 'Departments',
+            meta: ['department_id' => $dept->id]
+        );
+
+        return $dept;
     }
 
     public function update(Request $request, Department $department)
@@ -73,20 +83,34 @@ class DepartmentController extends Controller
 
         $department->update($data);
 
+        $this->audit(
+            action: "Updated department '{$department->name}'",
+            module: 'Departments',
+            meta: ['department_id' => $department->id]
+        );
+
         return $department;
     }
 
     public function destroy(Department $department)
     {
-        $this->authorizeManageDepartments();
+        $deptName = $department->name;
+        $deptId = $department->id;
         $department->delete();
+
+        $this->audit(
+            action: "Deleted department '{$deptName}'",
+            module: 'Departments',
+            meta: ['department_id' => $deptId]
+        );
+
         return response()->noContent();
     }
 
     protected function authorizeManageDepartments(): void
     {
         $user = Auth::user();
-        if (!$user || !$user->canManageUsersAndDepartments()) {
+        if (!$user || !$user->canManageDepartments()) {
             abort(403, 'You are not allowed to manage departments.');
         }
     }

@@ -11,7 +11,9 @@ if (storedToken) {
   axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
 }
 
-export async function syncAuthenticatedUser() {
+let inFlightSyncPromise = null;
+
+export async function syncAuthenticatedUser(force = false) {
   const storedToken = localStorage.getItem('nexus_token');
   if (!storedToken) {
     return null;
@@ -21,15 +23,27 @@ export async function syncAuthenticatedUser() {
     axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
   }
 
-  const response = await axios.get('/api/me');
-  const user = response.data || null;
-
-  if (user) {
-    localStorage.setItem('nexus_user', JSON.stringify(user));
-    window.dispatchEvent(new CustomEvent('auth-user-updated', { detail: user }));
+  if (inFlightSyncPromise && !force) {
+    return inFlightSyncPromise;
   }
 
-  return user;
+  inFlightSyncPromise = (async () => {
+    try {
+      const response = await axios.get('/api/me');
+      const user = response.data || null;
+
+      if (user) {
+        localStorage.setItem('nexus_user', JSON.stringify(user));
+        window.dispatchEvent(new CustomEvent('auth-user-updated', { detail: user }));
+      }
+
+      return user;
+    } finally {
+      inFlightSyncPromise = null;
+    }
+  })();
+
+  return inFlightSyncPromise;
 }
 
 axios.interceptors.response.use(

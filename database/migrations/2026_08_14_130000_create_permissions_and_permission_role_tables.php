@@ -54,8 +54,18 @@ return new class extends Migration
             ['code' => 'send_whatsapp', 'name' => 'Send Direct WhatsApp Messages', 'module' => 'Campaigns & Messaging', 'description' => 'Send single or template WhatsApp messages directly to clients.'],
             ['code' => 'view_live_chat', 'name' => 'Access Live Chat', 'module' => 'Campaigns & Messaging', 'description' => 'View and respond to incoming WhatsApp conversations.'],
 
+            // Account & Settings
+            ['code' => 'settings_user_account', 'name' => 'Access User Account Settings', 'module' => 'Account & Settings', 'description' => 'Access personal profile, security, and preference configurations.'],
+            ['code' => 'settings_system', 'name' => 'Access System Settings', 'module' => 'Account & Settings', 'description' => 'Access system-wide application, brand, and malware scanner configurations.'],
+            ['code' => 'settings_meta_whatsapp', 'name' => 'Access Meta WhatsApp Settings', 'module' => 'Account & Settings', 'description' => 'Access Meta Cloud API credentials, webhook tokens, and number health configurations.'],
+            ['code' => 'settings_waba_profile', 'name' => 'Access WABA Profile Settings', 'module' => 'Account & Settings', 'description' => 'Access and manage WhatsApp Business Account profiles.'],
+            ['code' => 'settings_waba_numbers', 'name' => 'Access WABA Numbers Settings', 'module' => 'Account & Settings', 'description' => 'Access and manage WABA registered phone numbers.'],
+            ['code' => 'settings_waba_templates', 'name' => 'Access WABA Templates Settings', 'module' => 'Account & Settings', 'description' => 'Access and manage WhatsApp message templates.'],
+
             // Security & Compliance
             ['code' => 'view_audit_logs', 'name' => 'View Audit Logs', 'module' => 'Security & Audit', 'description' => 'Access system audit trail logs and action histories.'],
+            ['code' => 'view_audit_logs_role_only', 'name' => 'View Audit Logs (Own Activity Only)', 'module' => 'Security & Audit', 'description' => 'Limit audit log visibility strictly to activities of the currently logged-in user.'],
+            ['code' => 'view_audit_logs_all_users', 'name' => 'View All Users Audit Logs', 'module' => 'Security & Audit', 'description' => 'View audit and activity logs for all users across the system.'],
             ['code' => 'view_security_incidents', 'name' => 'View Security Incidents', 'module' => 'Security & Audit', 'description' => 'View logged security events and alerts.'],
             ['code' => 'manage_security_incidents', 'name' => 'Manage Security Incidents', 'module' => 'Security & Audit', 'description' => 'Resolve, comment on, and manage security incidents.'],
             ['code' => 'view_compliance_console', 'name' => 'View Compliance Console', 'module' => 'Security & Audit', 'description' => 'Access compliance governance metrics.'],

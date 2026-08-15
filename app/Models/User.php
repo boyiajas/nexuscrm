@@ -64,6 +64,9 @@ class User extends Authenticatable
         'is_time_clock_user',
         'avatar_path',
         'preferences',
+        'mfa_enabled',
+        'mfa_type',
+        'mfa_secret',
     ];
 
     protected $hidden = [
@@ -76,7 +79,13 @@ class User extends Authenticatable
         'role_codes',
         'role_names',
         'avatar_url',
+        'is_locked',
     ];
+
+    public function getIsLockedAttribute(): bool
+    {
+        return $this->locked_until !== null && $this->locked_until->isFuture();
+    }
 
     public function getPermissionCodesAttribute(): array
     {
@@ -135,26 +144,26 @@ class User extends Authenticatable
 
     public function isSuperAdmin()
     {
-        return $this->role === self::ROLE_SUPER_ADMIN;
+        return $this->hasRole(self::ROLE_SUPER_ADMIN);
     }
 
     public function isAdmin()
     {
-        return $this->role === self::ROLE_ADMIN;
+        return $this->hasRole(self::ROLE_ADMIN);
     }
 
     public function isManager()
     {
-        return in_array($this->role, [
+        return $this->hasRole([
             self::ROLE_MANAGER,
             self::ROLE_CALL_CENTRE_MANAGER,
             self::ROLE_TEAM_LEADER,
-        ], true);
+        ]);
     }
 
     public function isStaff()
     {
-        return in_array($this->role, [self::ROLE_AGENT, self::ROLE_STAFF_LEGACY], true);
+        return $this->hasRole([self::ROLE_AGENT, self::ROLE_STAFF_LEGACY]);
     }
 
     public function hasRole(string|array $roles): bool
@@ -187,7 +196,12 @@ class User extends Authenticatable
             return [];
         }
 
-        $roles = Role::whereIn('code', $roleCodes)->with('permissions')->get();
+        $roles = Role::query()
+            ->whereIn('code', $roleCodes)
+            ->where('is_active', true)
+            ->with('permissions')
+            ->get();
+
         $permCodes = [];
         foreach ($roles as $r) {
             foreach ($r->permissions as $p) {
@@ -218,17 +232,83 @@ class User extends Authenticatable
 
     public function canManageSystemSettings(): bool
     {
-        return $this->hasPermission('manage_system_settings');
+        return $this->isSuperAdmin() || $this->hasPermission('manage_system_settings') || $this->hasPermission('settings_system');
+    }
+
+    public function canAccessUserAccountSettings(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('settings_user_account');
+    }
+
+    public function canAccessMetaWhatsappSettings(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('settings_meta_whatsapp');
+    }
+
+    public function canAccessWabaProfileSettings(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('settings_waba_profile');
+    }
+
+    public function canAccessWabaNumbersSettings(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('settings_waba_numbers');
+    }
+
+    public function canAccessWabaTemplatesSettings(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('settings_waba_templates');
+    }
+
+    public function canAccessAnySettings(): bool
+    {
+        return $this->canManageSystemSettings()
+            || $this->canAccessUserAccountSettings()
+            || $this->canAccessMetaWhatsappSettings()
+            || $this->canAccessWabaProfileSettings()
+            || $this->canAccessWabaNumbersSettings()
+            || $this->canAccessWabaTemplatesSettings();
+    }
+
+    public function canManageUsers(): bool
+    {
+        return $this->hasPermission('manage_users');
+    }
+
+    public function canManageRoles(): bool
+    {
+        return $this->hasPermission('manage_roles');
+    }
+
+    public function canManageDepartments(): bool
+    {
+        return $this->hasPermission('manage_departments');
+    }
+
+    public function canManageBanks(): bool
+    {
+        return $this->hasPermission('manage_banks');
     }
 
     public function canManageUsersAndDepartments(): bool
     {
-        return $this->hasPermission(['manage_users', 'manage_roles', 'manage_departments']);
+        return $this->hasPermission(['manage_users', 'manage_roles', 'manage_departments', 'manage_banks']);
     }
 
     public function canManageOperationalData(): bool
     {
-        return $this->canViewClients() || $this->canViewCampaigns();
+        return $this->hasPermission([
+            'create_clients',
+            'edit_clients',
+            'delete_clients',
+            'import_clients',
+            'create_campaigns',
+            'edit_campaigns',
+            'delete_campaigns',
+            'send_whatsapp',
+            'manage_auto_replies',
+            'manage_whatsapp_flows',
+        ]);
     }
 
     public function canViewCampaigns(): bool
@@ -278,17 +358,34 @@ class User extends Authenticatable
 
     public function canViewOperationalData(): bool
     {
-        return $this->canManageOperationalData() || $this->canReviewAuditData();
+        return $this->hasPermission([
+            'view_clients',
+            'create_clients',
+            'edit_clients',
+            'delete_clients',
+            'import_clients',
+            'view_campaigns',
+            'create_campaigns',
+            'edit_campaigns',
+            'delete_campaigns',
+            'view_live_chat',
+            'send_whatsapp',
+            'manage_auto_replies',
+            'manage_whatsapp_flows',
+        ]);
     }
 
     public function canReviewAuditData(): bool
     {
-        return $this->hasPermission(['view_audit_logs', 'view_security_incidents', 'view_compliance_console']) || $this->hasRole([
-            self::ROLE_SUPER_ADMIN,
-            self::ROLE_ADMIN,
-            self::ROLE_AUDITOR,
-            self::ROLE_COMPLIANCE_OFFICER,
-            self::ROLE_READ_ONLY_REVIEWER,
+        return $this->hasPermission([
+            'view_audit_logs',
+            'view_security_incidents',
+            'manage_security_incidents',
+            'view_compliance_console',
+            'manage_compliance_console',
+            'request_exports',
+            'approve_exports',
+            'bypass_export_approval',
         ]);
     }
 
@@ -303,9 +400,7 @@ class User extends Authenticatable
 
     public function requiresLoginMfa(): bool
     {
-        return $this->canManageSystemSettings()
-            || $this->isManager()
-            || $this->canReviewAuditData();
+        return (bool) $this->mfa_enabled;
     }
 
     public function requiresAdminIpAllowlist(): bool
@@ -315,29 +410,67 @@ class User extends Authenticatable
 
     public function canRequestSensitiveExports(): bool
     {
-        return $this->canViewOperationalData() || $this->canReviewAuditData();
+        return $this->hasPermission('request_exports');
+    }
+
+    public function canViewExportRequests(): bool
+    {
+        return $this->hasPermission([
+            'request_exports',
+            'approve_exports',
+            'bypass_export_approval',
+        ]);
     }
 
     public function canApproveExportRequests(): bool
     {
-        return $this->hasRole([
-            self::ROLE_SUPER_ADMIN,
-            self::ROLE_ADMIN,
-            self::ROLE_COMPLIANCE_OFFICER,
+        return $this->hasPermission('approve_exports');
+    }
+
+    public function canViewAuditLogs(): bool
+    {
+        return $this->hasPermission([
+            'view_audit_logs',
+            'view_audit_logs_role_only',
+            'view_audit_logs_all_users',
         ]);
+    }
+
+    public function canViewAuditLogsRoleOnly(): bool
+    {
+        return $this->hasPermission('view_audit_logs_role_only') && !$this->canViewAuditLogsAllUsers();
+    }
+
+    public function canViewAuditLogsAllUsers(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('view_audit_logs_all_users');
+    }
+
+    public function canViewLiveChat(): bool
+    {
+        return $this->hasPermission(['view_live_chat', 'send_whatsapp']);
+    }
+
+    public function canSendWhatsapp(): bool
+    {
+        return $this->hasPermission('send_whatsapp');
+    }
+
+    public function canViewImportUploads(): bool
+    {
+        return $this->hasPermission('import_clients');
+    }
+
+    public function canManageWhatsAppFlows(): bool
+    {
+        return $this->hasPermission('manage_whatsapp_flows');
     }
 
     public function canViewSecurityIncidents(): bool
     {
-        return $this->hasPermission('view_security_incidents') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN,
-            self::ROLE_ADMIN,
-            self::ROLE_MANAGER,
-            self::ROLE_CALL_CENTRE_MANAGER,
-            self::ROLE_TEAM_LEADER,
-            self::ROLE_AUDITOR,
-            self::ROLE_COMPLIANCE_OFFICER,
-            self::ROLE_READ_ONLY_REVIEWER,
+        return $this->hasPermission([
+            'view_security_incidents',
+            'manage_security_incidents',
         ]);
     }
 
@@ -348,42 +481,25 @@ class User extends Authenticatable
 
     public function canManageSecurityIncidents(): bool
     {
-        return $this->hasPermission('manage_security_incidents') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN,
-            self::ROLE_ADMIN,
-            self::ROLE_COMPLIANCE_OFFICER,
-        ]);
+        return $this->hasPermission('manage_security_incidents');
     }
 
     public function canViewComplianceConsole(): bool
     {
-        return $this->hasPermission('view_compliance_console') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN,
-            self::ROLE_ADMIN,
-            self::ROLE_MANAGER,
-            self::ROLE_CALL_CENTRE_MANAGER,
-            self::ROLE_TEAM_LEADER,
-            self::ROLE_AUDITOR,
-            self::ROLE_COMPLIANCE_OFFICER,
-            self::ROLE_READ_ONLY_REVIEWER,
+        return $this->hasPermission([
+            'view_compliance_console',
+            'manage_compliance_console',
         ]);
     }
 
     public function canManageComplianceConsole(): bool
     {
-        return $this->hasPermission('manage_compliance_console') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN,
-            self::ROLE_ADMIN,
-            self::ROLE_COMPLIANCE_OFFICER,
-        ]);
+        return $this->hasPermission('manage_compliance_console');
     }
 
     public function canBypassExportApproval(): bool
     {
-        return $this->hasPermission('bypass_export_approval') || $this->hasRole([
-            self::ROLE_SUPER_ADMIN,
-            self::ROLE_ADMIN,
-        ]);
+        return $this->hasPermission('bypass_export_approval');
     }
 
     public function resolvedBankId(): ?int
@@ -420,14 +536,7 @@ class User extends Authenticatable
 
     public function isPortfolioScoped(): bool
     {
-        if ($this->hasPermission('portfolio_scoped_only')) {
-            return true;
-        }
-
-        return $this->hasRole([
-            self::ROLE_AGENT,
-            self::ROLE_STAFF_LEGACY,
-        ]);
+        return $this->hasPermission('portfolio_scoped_only');
     }
 
     public function isActive(): bool

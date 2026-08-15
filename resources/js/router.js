@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import { syncAuthenticatedUser } from './axios';
 
 const Login = () => import('./views/auth/Login.vue');
 const Register = () => import('./views/auth/Register.vue');
@@ -30,68 +31,80 @@ const routes = [
     component: MainLayout,
     children: [
       { path: 'dashboard', name: 'dashboard', component: Dashboard, meta: { sensitiveView: true, pageIcon: 'bi-grid-fill' } },
-      { path: 'clients', name: 'clients', component: Clients, meta: { sensitiveView: true, pageIcon: 'bi-people-fill' } },
-      { path: 'campaigns', name: 'campaigns', component: Campaigns, meta: { sensitiveView: true, pageIcon: 'bi-megaphone-fill' } },
-      { path: 'campaigns/:id', name: 'campaign.show', component: CampaignShow, meta: { sensitiveView: true, pageIcon: 'bi-megaphone-fill' } },
-      { path: '/campaigns/:id/whatsapp-template/:templateSid?', name: 'WhatsappTemplatePreview', component: WhatsappTemplatePreview, meta: { sensitiveView: true, pageIcon: 'bi-whatsapp' } },
-      { path: 'chat', name: 'chat', component: Chat, meta: { sensitiveView: true, pageIcon: 'bi-chat-dots-fill' } },
-      { path: 'import-uploads', name: 'import-uploads', component: ImportUploads, meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'], sensitiveView: true, pageIcon: 'bi-cloud-upload-fill' } },
+      { path: 'clients', name: 'clients', component: Clients, meta: { requiredPermission: 'view_clients', sensitiveView: true, pageIcon: 'bi-people-fill' } },
+      { path: 'campaigns', name: 'campaigns', component: Campaigns, meta: { requiredPermission: 'view_campaigns', sensitiveView: true, pageIcon: 'bi-megaphone-fill' } },
+      { path: 'campaigns/:id', name: 'campaign.show', component: CampaignShow, meta: { requiredPermission: 'view_campaigns', sensitiveView: true, pageIcon: 'bi-megaphone-fill' } },
+      { path: '/campaigns/:id/whatsapp-template/:templateSid?', name: 'WhatsappTemplatePreview', component: WhatsappTemplatePreview, meta: { requiredPermission: 'view_campaigns', sensitiveView: true, pageIcon: 'bi-whatsapp' } },
+      { path: 'chat', name: 'chat', component: Chat, meta: { requiredAnyPermission: ['view_live_chat', 'send_whatsapp'], sensitiveView: true, pageIcon: 'bi-chat-dots-fill' } },
+      { path: 'import-uploads', name: 'import-uploads', component: ImportUploads, meta: { requiredPermission: 'import_clients', sensitiveView: true, pageIcon: 'bi-cloud-upload-fill' } },
       {
         path: 'audit-log',
         name: 'audit-log',
         component: AuditLog,
-        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'], sensitiveView: true, pageIcon: 'bi-activity' },
+        meta: { requiredAnyPermission: ['view_audit_logs', 'view_audit_logs_role_only', 'view_audit_logs_all_users'], sensitiveView: true, pageIcon: 'bi-activity' },
       },
       {
         path: 'security-incidents',
         name: 'security-incidents',
         component: SecurityIncidents,
-        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'], sensitiveView: true, pageIcon: 'bi-shield-exclamation' },
+        meta: { requiredAnyPermission: ['view_security_incidents', 'manage_security_incidents'], sensitiveView: true, pageIcon: 'bi-shield-exclamation' },
       },
       {
         path: 'compliance-console',
         name: 'compliance-console',
         component: ComplianceConsole,
-        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'], sensitiveView: true, pageIcon: 'bi-shield-check' },
+        meta: { requiredAnyPermission: ['view_compliance_console', 'manage_compliance_console'], sensitiveView: true, pageIcon: 'bi-shield-check' },
       },
       {
         path: 'export-requests',
         name: 'export-requests',
         component: ExportRequests,
-        meta: { sensitiveView: true, pageIcon: 'bi-shield-lock' },
+        meta: { requiredAnyPermission: ['request_exports', 'approve_exports', 'bypass_export_approval'], sensitiveView: true, pageIcon: 'bi-shield-lock' },
       },
       {
         path: 'settings',
         name: 'settings',
         component: Settings,
-        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'], sensitiveView: true, pageIcon: 'bi-gear-fill' },
+        meta: {
+          requiredAnyPermission: [
+            'settings_user_account',
+            'settings_system',
+            'manage_system_settings',
+            'settings_meta_whatsapp',
+            'settings_waba_profile',
+            'settings_waba_numbers',
+            'settings_waba_templates',
+          ],
+          sensitiveView: true,
+          pageIcon: 'bi-gear-fill',
+        },
       },
       {
         path: 'banks',
         name: 'banks',
         component: Banks,
-        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'], pageIcon: 'bi-bank' },
+        meta: { requiredPermission: 'manage_banks', pageIcon: 'bi-bank' },
       },
       {
         path: 'departments',
         name: 'departments',
         component: Departments,
-        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'], pageIcon: 'bi-building' },
+        meta: { requiredPermission: 'manage_departments', pageIcon: 'bi-building' },
       },
       {
         path: 'users',
         name: 'users',
         component: Users,
-        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'], pageIcon: 'bi-person-badge-fill' },
+        meta: { requiredPermission: 'manage_users', pageIcon: 'bi-person-badge-fill' },
       },
       {
         path: 'roles',
         name: 'roles',
         component: Roles,
-        meta: { allowedRoles: ['SUPER_ADMIN', 'ADMIN'], pageIcon: 'bi-shield-shaded' },
+        meta: { requiredPermission: 'manage_roles', pageIcon: 'bi-shield-shaded' },
       },
-      { path: 'automation/whatsapp-flows', name: 'whatsapp-flows', component: WhatsAppFlows, meta: { sensitiveView: true, pageIcon: 'bi-diagram-3-fill' } },
-      { path: 'whatsapp-replies', name: 'whatsapp-replies', component: WhatsappReplies, meta: { sensitiveView: true, pageIcon: 'bi-whatsapp' } },
+      { path: 'automation/whatsapp-flows', name: 'whatsapp-flows', component: WhatsAppFlows, meta: { requiredPermission: 'manage_whatsapp_flows', sensitiveView: true, pageIcon: 'bi-diagram-3-fill' } },
+      { path: 'whatsapp-replies', name: 'whatsapp-replies', component: WhatsappReplies, meta: { requiredAnyPermission: ['view_live_chat', 'send_whatsapp'], sensitiveView: true, pageIcon: 'bi-whatsapp' } },
       
     ],
 
@@ -116,12 +129,13 @@ function resolveStoredUserRoles(user) {
 }
 
 // Simple auth guard
-router.beforeEach(async (to, from, next) => {
+router.beforeEach((to, from, next) => {
   const publicPages = ['/login', '/register'];
   const authRequired = !publicPages.includes(to.path);
 
+  const storedToken = localStorage.getItem('nexus_token');
   const storedUser = localStorage.getItem('nexus_user');
-  const isLoggedIn = !!storedUser;
+  const isLoggedIn = !!(storedToken && storedUser);
 
   if (authRequired && !isLoggedIn) {
     return next({ name: 'login' });
@@ -132,12 +146,35 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (authRequired && isLoggedIn) {
-    const user = JSON.parse(storedUser || '{}');
-    const allowedRoles = to.meta?.allowedRoles;
+    // Fire user sync in background without blocking initial route rendering
+    syncAuthenticatedUser().catch(() => {});
+
+    let user = {};
+    try {
+      user = JSON.parse(storedUser || '{}');
+    } catch (e) {
+      user = {};
+    }
+
     const roleCodes = resolveStoredUserRoles(user);
 
-    if (Array.isArray(allowedRoles) && allowedRoles.length && !roleCodes.some((role) => allowedRoles.includes(role))) {
-      return next({ name: 'dashboard' });
+    // Super Admin and Admin bypass all route checks
+    if (!roleCodes.includes('SUPER_ADMIN') && !roleCodes.includes('ADMIN')) {
+      const requiredAnyPermission = Array.isArray(to.meta?.requiredAnyPermission)
+        ? to.meta.requiredAnyPermission
+        : [];
+      const requiredPermissions = requiredAnyPermission.length
+        ? requiredAnyPermission
+        : (to.meta?.requiredPermission ? [to.meta.requiredPermission] : []);
+
+      if (requiredPermissions.length) {
+        const userPerms = Array.isArray(user.permission_codes) ? user.permission_codes : [];
+        const hasAccess = requiredPermissions.some((permission) => userPerms.includes(permission));
+
+        if (!hasAccess) {
+          return next({ name: 'dashboard' });
+        }
+      }
     }
   }
 

@@ -485,12 +485,22 @@ export default {
     };
   },
   computed: {
-    canManageFlows() {
-      const stored = localStorage.getItem('nexus_user');
-      if (!stored) return false;
+    currentUser() {
+      try {
+        return JSON.parse(localStorage.getItem('nexus_user') || '{}');
+      } catch {
+        return {};
+      }
+    },
+    currentRoleCodes() {
+      if (Array.isArray(this.currentUser?.role_codes) && this.currentUser.role_codes.length) {
+        return this.currentUser.role_codes;
+      }
 
-      const role = JSON.parse(stored)?.role;
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
+      return this.currentUser?.role ? [this.currentUser.role] : [];
+    },
+    canManageFlows() {
+      return this.hasPermission('manage_whatsapp_flows');
     },
     imageMedia() {
       return this.templatePreview?.media || [];
@@ -555,6 +565,18 @@ export default {
     this.fetchTemplates();
   },
   methods: {
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+        return true;
+      }
+
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+
+      return false;
+    },
     async fetchFlows() {
       this.loadingFlows = true;
       try {

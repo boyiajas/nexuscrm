@@ -473,14 +473,21 @@ export default {
         return {};
       }
     },
+    currentRoleCodes() {
+      if (Array.isArray(this.currentUser?.role_codes) && this.currentUser.role_codes.length) {
+        return this.currentUser.role_codes;
+      }
+
+      return this.currentUser?.role ? [this.currentUser.role] : [];
+    },
     canManage() {
-      return ['SUPER_ADMIN', 'ADMIN', 'COMPLIANCE_OFFICER'].includes(this.currentUser.role);
+      return this.hasPermission('manage_security_incidents');
     },
     canCreate() {
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'COMPLIANCE_OFFICER'].includes(this.currentUser.role);
+      return this.hasAnyPermission(['view_security_incidents', 'manage_security_incidents']);
     },
     canAccessAllBanks() {
-      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser.role);
+      return this.hasAnyPermission(['bypass_bank_scoping', 'manage_system_settings']);
     },
   },
   mounted() {
@@ -495,6 +502,21 @@ export default {
     disposeManagedModal(this.detailModal);
   },
   methods: {
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+        return true;
+      }
+
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+
+      return false;
+    },
+    hasAnyPermission(permissionCodes = []) {
+      return permissionCodes.some((permissionCode) => this.hasPermission(permissionCode));
+    },
     async fetchIncidents(page = 1) {
       this.loading = true;
       try {
@@ -529,7 +551,7 @@ export default {
     },
     async loadAssignableUsers() {
       const { data } = await axios.get('/api/users-assignees');
-      this.assignableUsers = (data || []).filter((user) => ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER'].includes(user.role));
+      this.assignableUsers = data || [];
     },
     resetFilters() {
       this.filters = { q: '', status: 'all', type: 'all', severity: 'all', bank_id: '' };

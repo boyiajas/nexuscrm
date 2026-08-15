@@ -9,46 +9,89 @@
       </div>
 
       <div>
-        <span class="badge bg-success-subtle text-success border border-success px-3 py-2 fw-bold" style="font-size: 0.75rem; letter-spacing: 0.05em;">
-          SUPER_ADMIN
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fw-bold text-uppercase" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+          {{ userRoleName }}
         </span>
       </div>
     </div>
 
     <!-- Main Navigation Tabs -->
     <ul class="nav nav-pills gap-1 mb-4 p-1 rounded-3 bg-white border shadow-sm flex-wrap" id="settingsTabs" role="tablist">
-      <li class="nav-item" role="presentation">
-        <button class="nav-link active px-3 py-2 fw-semibold" id="account-tab" data-bs-toggle="tab" data-bs-target="#account" type="button">
+      <li class="nav-item" role="presentation" v-if="canAccessUserAccount">
+        <button
+          class="nav-link px-3 py-2 fw-semibold"
+          :class="{ active: activeMainTab === 'account' }"
+          @click="activeMainTab = 'account'"
+          id="account-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#account"
+          type="button"
+        >
           <i class="bi bi-person me-1"></i> User Account
         </button>
       </li>
-      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link px-3 py-2 fw-semibold" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
+      <li class="nav-item" role="presentation" v-if="canAccessSystem">
+        <button
+          class="nav-link px-3 py-2 fw-semibold"
+          :class="{ active: activeMainTab === 'system' }"
+          @click="activeMainTab = 'system'"
+          id="system-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#system"
+          type="button"
+        >
           <i class="bi bi-cpu me-1"></i> System Settings
         </button>
       </li>
-      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link px-3 py-2 fw-semibold" id="system-tab" data-bs-toggle="tab" data-bs-target="#system" type="button">
-          <i class="bi bi-hdd-network-fill me-1"></i> System
-        </button>
-      </li>
-      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link px-3 py-2 fw-semibold" id="meta-tab" data-bs-toggle="tab" data-bs-target="#meta" type="button">
+      <li class="nav-item" role="presentation" v-if="canAccessMetaWhatsapp">
+        <button
+          class="nav-link px-3 py-2 fw-semibold"
+          :class="{ active: activeMainTab === 'meta' }"
+          @click="activeMainTab = 'meta'"
+          id="meta-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#meta"
+          type="button"
+        >
           <i class="bi bi-whatsapp me-1"></i> Meta WhatsApp
         </button>
       </li>
-      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link px-3 py-2 fw-semibold" id="whatsapp-profiles-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-profiles" type="button">
+      <li class="nav-item" role="presentation" v-if="canAccessWabaProfiles">
+        <button
+          class="nav-link px-3 py-2 fw-semibold"
+          :class="{ active: activeMainTab === 'whatsapp-profiles' }"
+          @click="activeMainTab = 'whatsapp-profiles'"
+          id="whatsapp-profiles-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#whatsapp-profiles"
+          type="button"
+        >
           <i class="bi bi-person-lines-fill me-1"></i> WABA Profiles
         </button>
       </li>
-      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link px-3 py-2 fw-semibold" id="whatsapp-numbers-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-numbers" type="button">
+      <li class="nav-item" role="presentation" v-if="canAccessWabaNumbers">
+        <button
+          class="nav-link px-3 py-2 fw-semibold"
+          :class="{ active: activeMainTab === 'whatsapp-numbers' }"
+          @click="activeMainTab = 'whatsapp-numbers'"
+          id="whatsapp-numbers-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#whatsapp-numbers"
+          type="button"
+        >
           <i class="bi bi-telephone-fill me-1"></i> WABA Numbers
         </button>
       </li>
-      <li class="nav-item" role="presentation" v-if="isSuperAdmin">
-        <button class="nav-link px-3 py-2 fw-semibold" id="whatsapp-templates-tab" data-bs-toggle="tab" data-bs-target="#whatsapp-templates" type="button">
+      <li class="nav-item" role="presentation" v-if="canAccessWabaTemplates">
+        <button
+          class="nav-link px-3 py-2 fw-semibold"
+          :class="{ active: activeMainTab === 'whatsapp-templates' }"
+          @click="activeMainTab = 'whatsapp-templates'"
+          id="whatsapp-templates-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#whatsapp-templates"
+          type="button"
+        >
           <i class="bi bi-file-earmark-text-fill me-1"></i> WABA Templates
         </button>
       </li>
@@ -56,7 +99,7 @@
 
     <div class="tab-content">
       <!-- ACCOUNT TAB (Mockup 5 Two-Column Layout) -->
-      <div class="tab-pane fade show active" id="account">
+      <div class="tab-pane fade" :class="{ 'show active': activeMainTab === 'account' }" id="account" v-if="canAccessUserAccount">
         <div class="row g-4">
           <!-- Left Column (Sub-navigation) -->
           <div class="col-lg-3">
@@ -153,7 +196,7 @@
                   <div class="row g-3">
                     <div class="col-md-6">
                       <label class="form-label small fw-bold text-secondary">Assigned Role</label>
-                      <input type="text" class="form-control" value="Super Administrator" readonly />
+                      <input type="text" class="form-control text-capitalize" :value="userRoleName" readonly />
                     </div>
                     <div class="col-md-6">
                       <label class="form-label small fw-bold text-secondary">Primary Location</label>
@@ -314,7 +357,7 @@
       <!-- (Security Tab removed, contents moved to Account -> Security sub-tab) -->
 
       <!-- SYSTEM SETTINGS TAB -->
-      <div class="tab-pane fade" id="system" v-if="isSuperAdmin">
+      <div class="tab-pane fade" :class="{ 'show active': activeMainTab === 'system' }" id="system" v-if="canAccessSystem">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">System Settings</h5>
@@ -452,7 +495,7 @@
       </div>
 
       <!-- META CONFIG TAB -->
-      <div class="tab-pane fade" id="meta" v-if="isSuperAdmin">
+      <div class="tab-pane fade" :class="{ 'show active': activeMainTab === 'meta' }" id="meta" v-if="canAccessMetaWhatsapp">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">Meta WhatsApp Configuration</h5>
@@ -715,7 +758,7 @@
       </div>
 
       <!-- WHATSAPP PROFILES TAB -->
-      <div class="tab-pane fade" id="whatsapp-profiles" v-if="isSuperAdmin">
+      <div class="tab-pane fade" :class="{ 'show active': activeMainTab === 'whatsapp-profiles' }" id="whatsapp-profiles" v-if="canAccessWabaProfiles">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">WhatsApp Profiles</h5>
@@ -778,7 +821,7 @@
       </div>
 
       <!-- WHATSAPP NUMBERS TAB -->
-      <div class="tab-pane fade" id="whatsapp-numbers" v-if="isSuperAdmin">
+      <div class="tab-pane fade" :class="{ 'show active': activeMainTab === 'whatsapp-numbers' }" id="whatsapp-numbers" v-if="canAccessWabaNumbers">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">WhatsApp Phone Numbers</h5>
@@ -858,7 +901,7 @@
       </div>
 
       <!-- WHATSAPP TEMPLATES TAB -->
-      <div class="tab-pane fade" id="whatsapp-templates" v-if="isSuperAdmin">
+      <div class="tab-pane fade" :class="{ 'show active': activeMainTab === 'whatsapp-templates' }" id="whatsapp-templates" v-if="canAccessWabaTemplates">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">WhatsApp Templates</h5>
@@ -1489,7 +1532,24 @@ export default {
         },
       },
       templateModal: null,
+      activeMainTab: 'account',
+      currentUserData: null,
     };
+  },
+  created() {
+    const stored = localStorage.getItem('nexus_user');
+    if (stored) {
+      try {
+        this.currentUserData = JSON.parse(stored);
+      } catch (e) {}
+    }
+    this.handleAuthUserUpdated = (e) => {
+      if (e.detail) {
+        this.currentUserData = e.detail;
+        this.checkActiveTab();
+      }
+    };
+    window.addEventListener('auth-user-updated', this.handleAuthUserUpdated);
   },
   mounted() {
       this.loadUser();
@@ -1500,15 +1560,25 @@ export default {
       this.wn.verifyNumberModal = createManagedModal(this.$refs.verifyNumberModalRef);
       this.wp.modal = createManagedModal(this.$refs.profileModalRef);
       this.wa.migrateModal = createManagedModal(this.$refs.migrateModalRef);
-      if (this.isSuperAdmin) {
+
+      this.checkActiveTab();
+
+      if (this.canAccessSystem || this.canAccessMetaWhatsapp) {
         this.loadAdminSettings();
+      }
+      if (this.canAccessWabaProfiles) {
         this.fetchWhatsappProfiles();
+      }
+      if (this.canAccessWabaTemplates) {
         this.loadWhatsappTemplates();
+      }
+      if (this.canAccessWabaNumbers) {
         this.fetchWhatsappNumbers();
       }
       this.loadDepartmentOptions();
     },
   beforeUnmount() {
+    window.removeEventListener('auth-user-updated', this.handleAuthUserUpdated);
     disposeManagedModal(this.templateModal);
     disposeManagedModal(this.wn.addNumberModal);
     disposeManagedModal(this.wn.verifyNumberModal);
@@ -1526,6 +1596,41 @@ export default {
     },
   },
   computed: {
+    currentUser() {
+      if (this.currentUserData) return this.currentUserData;
+      const stored = localStorage.getItem('nexus_user');
+      if (!stored) return null;
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    },
+    userRoleName() {
+      const user = this.currentUser;
+      if (Array.isArray(user?.role_names) && user.role_names.length) {
+        return user.role_names.join(', ');
+      }
+      return (user?.role || 'USER').replace(/_/g, ' ');
+    },
+    canAccessUserAccount() {
+      return this.hasPermission('settings_user_account');
+    },
+    canAccessSystem() {
+      return this.hasPermission('settings_system') || this.hasPermission('manage_system_settings');
+    },
+    canAccessMetaWhatsapp() {
+      return this.hasPermission('settings_meta_whatsapp');
+    },
+    canAccessWabaProfiles() {
+      return this.hasPermission('settings_waba_profile');
+    },
+    canAccessWabaNumbers() {
+      return this.hasPermission('settings_waba_numbers');
+    },
+    canAccessWabaTemplates() {
+      return this.hasPermission('settings_waba_templates');
+    },
     hasValidMigrationDestination() {
       if (this.wa.migrateForm.destinationType === 'profile') {
         return !!this.wa.migrateForm.profile_id;
@@ -1533,17 +1638,12 @@ export default {
       return !!this.wa.migrateForm.custom_waba_id;
     },
     isSuperAdmin() {
-      const stored = localStorage.getItem('nexus_user');
-      if (!stored) return false;
-      try {
-        const user = JSON.parse(stored);
-        const roles = Array.isArray(user?.role_codes) && user.role_codes.length
-          ? user.role_codes
-          : [user?.role].filter(Boolean);
-        return roles.some((role) => ['SUPER_ADMIN', 'ADMIN'].includes(role));
-      } catch {
-        return false;
-      }
+      const user = this.currentUser;
+      if (!user) return false;
+      const roles = Array.isArray(user?.role_codes) && user.role_codes.length
+        ? user.role_codes
+        : [user?.role].filter(Boolean);
+      return roles.some((role) => ['SUPER_ADMIN', 'ADMIN'].includes(role));
     },
     isStaffRole() {
       return this.form.role === 'STAFF';
@@ -1695,10 +1795,34 @@ export default {
     },
   },
   methods: {
+    hasPermission(permCode) {
+      if (this.isSuperAdmin) return true;
+      const user = this.currentUser;
+      if (!user) return false;
+      if (Array.isArray(user.permission_codes)) {
+        return user.permission_codes.includes(permCode);
+      }
+      return false;
+    },
     switchToTab(tabId) {
       const btn = document.getElementById(`${tabId}-tab`);
       if (btn) {
         btn.click();
+      }
+    },
+    checkActiveTab() {
+      if (this.canAccessUserAccount) {
+        this.activeMainTab = 'account';
+      } else if (this.canAccessSystem) {
+        this.activeMainTab = 'system';
+      } else if (this.canAccessMetaWhatsapp) {
+        this.activeMainTab = 'meta';
+      } else if (this.canAccessWabaProfiles) {
+        this.activeMainTab = 'whatsapp-profiles';
+      } else if (this.canAccessWabaNumbers) {
+        this.activeMainTab = 'whatsapp-numbers';
+      } else if (this.canAccessWabaTemplates) {
+        this.activeMainTab = 'whatsapp-templates';
       }
     },
     // Load profile
@@ -1706,6 +1830,10 @@ export default {
       axios.get('/api/user').then((res) => {
         const fallback = { ...this.form };
         const user = res.data || {};
+        this.currentUserData = user;
+        try {
+          localStorage.setItem('nexus_user', JSON.stringify(user));
+        } catch (e) {}
         this.form = Object.assign(fallback, user, {
           department_ids: Array.isArray(user.departments) ? user.departments.map((department) => department.id) : [],
           active: user.status ? user.status === 'Active' : fallback.active,
@@ -1715,6 +1843,7 @@ export default {
           this.prefs = Object.assign({}, this.prefs, user.preferences);
         }
         this.syncSelectedDepartments();
+        this.checkActiveTab();
       });
     },
     loadDepartmentOptions() {
@@ -1858,10 +1987,6 @@ export default {
           this.loadMFA();
         },
       });
-    },
-
-    savePrefs() {
-      notify.info('Preferences saved (setup backend later).', 'Settings');
     },
 
     applyBranding(settings) {

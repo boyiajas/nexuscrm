@@ -19,6 +19,7 @@ class ExportRequestController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+        abort_unless($user && $user->canViewExportRequests(), 403, 'You are not allowed to access export requests.');
         $query = ExportRequest::query()
             ->with([
                 'requestedBy:id,name,role',
@@ -367,11 +368,7 @@ class ExportRequestController extends Controller
     protected function notifyExportApproversOfUnusualActivity(ExportRequest $exportRequest): void
     {
         $approverEmails = User::query()
-            ->whereIn('role', [
-                User::ROLE_SUPER_ADMIN,
-                User::ROLE_ADMIN,
-                User::ROLE_COMPLIANCE_OFFICER,
-            ])
+            ->with('roles:id,code,is_active')
             ->where('status', 'Active')
             ->when($exportRequest->bank_id, function ($query) use ($exportRequest) {
                 $query->where(function ($builder) use ($exportRequest) {
@@ -379,6 +376,8 @@ class ExportRequestController extends Controller
                         ->orWhereIn('bank_id', [$exportRequest->bank_id]);
                 });
             })
+            ->get()
+            ->filter(fn (User $user) => $user->canApproveExportRequests())
             ->pluck('email')
             ->filter()
             ->unique()

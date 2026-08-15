@@ -16,8 +16,8 @@ class WhatsappAccountController extends Controller
     private function authorizeAdmin(): void
     {
         $user = Auth::user();
-        if (!$user || !$user->canManageSystemSettings()) {
-            abort(403, 'Only SUPER_ADMIN or ADMIN can manage system settings.');
+        if (!$user || (!$user->canManageSystemSettings() && !$user->canAccessWabaProfileSettings())) {
+            abort(403, 'Unauthorized access to WhatsApp profiles.');
         }
     }
 

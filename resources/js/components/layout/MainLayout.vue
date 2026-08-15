@@ -81,7 +81,7 @@
               <i class="bi bi-clipboard-check-fill me-2"></i><span class="nav-label">Compliance</span>
             </router-link>
           </li>
-          <li class="nav-item">
+          <li class="nav-item" v-if="canViewExportRequests">
             <router-link :to="{ name: 'export-requests' }" class="nav-link" :class="{ active: isActive('export-requests') }">
               <i class="bi bi-download me-2"></i><span class="nav-label">Exports</span>
             </router-link>
@@ -111,7 +111,7 @@
               <i class="bi bi-shield-lock-fill me-2"></i><span class="nav-label">Roles</span>
             </router-link>
           </li>
-          <li class="nav-item" v-if="canManageSettings">
+          <li class="nav-item" v-if="canAccessSettings">
             <router-link :to="{ name: 'settings' }" class="nav-link" :class="{ active: isActive('settings') }">
               <i class="bi bi-gear-fill me-2"></i><span class="nav-label">Settings</span>
             </router-link>
@@ -121,7 +121,7 @@
 
       <!-- SIDEBAR FOOTER & CTA BUTTON -->
       <div class="px-3 pb-3 pt-2 d-flex flex-column gap-3 border-top border-secondary border-opacity-25">
-        <button class="btn btn-sidebar-cta w-100 d-flex align-items-center justify-content-center gap-2 shadow-sm" @click="$router.push({ name: 'campaigns' })">
+        <button v-if="canCreateCampaign" class="btn btn-sidebar-cta w-100 d-flex align-items-center justify-content-center gap-2 shadow-sm" @click="$router.push({ name: 'campaigns' })">
           <i class="bi bi-plus-lg"></i> New Campaign
         </button>
 
@@ -260,17 +260,10 @@
               </li>
 
               <!-- Dropdown Options -->
-              <li>
+              <li v-if="canAccessSettings">
                 <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="$router.push({ name: 'settings' })">
-                  <i class="bi bi-person-circle text-primary"></i>
-                  <span>View Profile</span>
-                </a>
-              </li>
-
-              <li v-if="canManageSystemSettings">
-                <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="$router.push({ name: 'settings' })">
-                  <i class="bi bi-sliders text-secondary"></i>
-                  <span>System Settings</span>
+                  <i class="bi bi-person-gear text-primary"></i>
+                  <span>User Settings</span>
                 </a>
               </li>
 
@@ -401,17 +394,14 @@ export default {
     window.addEventListener('app-toast', this.handleToastEvent);
     window.addEventListener('auth-user-updated', this.handleAuthUserUpdated);
   },
-  async mounted() {
+  mounted() {
     this.fetchUnreadReplies();
     this.repliesTimer = window.setInterval(this.fetchUnreadReplies, 15000);
-    try {
-      const user = await syncAuthenticatedUser();
+    syncAuthenticatedUser().then((user) => {
       if (user) {
         this.user = user;
       }
-    } catch (e) {
-      // Let the normal 401 interceptor handle invalid sessions/tokens.
-    }
+    }).catch(() => {});
   },
   beforeUnmount() {
     window.removeEventListener('branding-updated', this.handleBrandingUpdated);
@@ -449,46 +439,63 @@ export default {
       return ['AGENT'];
     },
     canViewClients() {
-      return this.hasPermission('view_clients') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_clients');
     },
     canViewCampaigns() {
-      return this.hasPermission('view_campaigns') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_campaigns');
     },
     canViewChat() {
-      return this.hasPermission('view_live_chat') || this.hasPermission('send_whatsapp') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('view_live_chat') || this.hasPermission('send_whatsapp');
     },
     canViewAuditLog() {
-      return this.hasPermission('view_audit_logs') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
+      return this.hasAnyPermission(['view_audit_logs', 'view_audit_logs_role_only', 'view_audit_logs_all_users']);
     },
     canViewImportUploads() {
-      return this.hasPermission('import_clients') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF']);
+      return this.hasPermission('import_clients');
     },
     canViewSecurityIncidents() {
-      return this.hasPermission('view_security_incidents') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
+      return this.hasAnyPermission(['view_security_incidents', 'manage_security_incidents']);
     },
     canViewComplianceConsole() {
-      return this.hasPermission('view_compliance_console') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AUDITOR', 'COMPLIANCE_OFFICER', 'READ_ONLY_REVIEWER']);
+      return this.hasAnyPermission(['view_compliance_console', 'manage_compliance_console']);
+    },
+    canViewExportRequests() {
+      return this.hasAnyPermission(['request_exports', 'approve_exports', 'bypass_export_approval']);
     },
     canViewAutomation() {
-      return this.hasPermission('manage_auto_replies') || this.hasPermission('manage_whatsapp_flows') || !this.hasAnyRole(['AUDITOR', 'READ_ONLY_REVIEWER']);
+      return this.hasPermission('manage_auto_replies') || this.hasPermission('manage_whatsapp_flows');
     },
     canManageBanks() {
-      return this.hasPermission('manage_banks') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_banks');
     },
     canManageDepartments() {
-      return this.hasPermission('manage_departments') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_departments');
     },
     canManageUsers() {
-      return this.hasPermission('manage_users') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_users');
     },
     canManageRoles() {
-      return this.hasPermission('manage_roles') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_roles');
     },
     canManageSettings() {
-      return this.hasPermission('manage_system_settings') || this.hasAnyRole(['SUPER_ADMIN', 'ADMIN']);
+      return this.hasPermission('manage_system_settings') || this.hasPermission('settings_system');
+    },
+    canAccessSettings() {
+      return (
+        this.hasPermission('settings_user_account') ||
+        this.hasPermission('settings_system') ||
+        this.hasPermission('manage_system_settings') ||
+        this.hasPermission('settings_meta_whatsapp') ||
+        this.hasPermission('settings_waba_profile') ||
+        this.hasPermission('settings_waba_numbers') ||
+        this.hasPermission('settings_waba_templates')
+      );
+    },
+    canCreateCampaign() {
+      return this.hasPermission('create_campaigns');
     },
     canViewAdminSection() {
-      return this.canManageBanks || this.canManageDepartments || this.canManageUsers || this.canManageRoles || this.canManageSettings;
+      return this.canManageBanks || this.canManageDepartments || this.canManageUsers || this.canManageRoles || this.canAccessSettings;
     },
     roleWatermarkEnabled() {
       if (Array.isArray(this.user?.roles) && this.user.roles.length) {
@@ -530,6 +537,9 @@ export default {
         return this.user.permission_codes.includes(permCode);
       }
       return false;
+    },
+    hasAnyPermission(permissionCodes = []) {
+      return permissionCodes.some((permissionCode) => this.hasPermission(permissionCode));
     },
     fetchUnreadReplies() {
       axios.get('/api/dashboard/whatsapp-replies')

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
 use App\Models\Permission;
 use App\Models\Role;
@@ -11,6 +12,7 @@ use Illuminate\Validation\Rule;
 
 class RoleController extends Controller
 {
+    use HasAuditLogging;
     public function index(Request $request)
     {
         $this->authorizeManageRoles($request);
@@ -71,6 +73,12 @@ class RoleController extends Controller
             $role->permissions()->sync($permissionIds);
         }
 
+        $this->audit(
+            action: "Created role '{$role->name}' ({$role->code})",
+            module: 'Roles',
+            meta: ['role_id' => $role->id, 'role_code' => $role->code, 'permissions_count' => count($permissions)]
+        );
+
         return response()->json($role->load('permissions')->loadCount('users'), 201);
     }
 
@@ -100,6 +108,12 @@ class RoleController extends Controller
             $permissionIds = Permission::whereIn('code', $permissions)->orWhereIn('id', $permissions)->pluck('id')->all();
             $role->permissions()->sync($permissionIds);
         }
+
+        $this->audit(
+            action: "Updated role '{$role->name}' ({$role->code})",
+            module: 'Roles',
+            meta: ['role_id' => $role->id, 'role_code' => $role->code, 'permissions_count' => is_array($permissions) ? count($permissions) : null]
+        );
 
         return response()->json($role->fresh(['permissions'])->loadCount('users'));
     }
@@ -136,7 +150,16 @@ class RoleController extends Controller
             ], 422);
         }
 
+        $roleName = $role->name;
+        $roleCode = $role->code;
+        $roleId = $role->id;
         $role->delete();
+
+        $this->audit(
+            action: "Deleted role '{$roleName}' ({$roleCode})",
+            module: 'Roles',
+            meta: ['role_id' => $roleId, 'role_code' => $roleCode]
+        );
 
         return response()->json(['message' => 'Role deleted successfully.']);
     }
@@ -144,7 +167,7 @@ class RoleController extends Controller
     protected function authorizeManageRoles(Request $request): void
     {
         $user = $request->user();
-        if (!$user || !$user->canManageUsersAndDepartments()) {
+        if (!$user || !$user->canManageRoles()) {
             abort(403, 'You are not allowed to manage roles.');
         }
     }

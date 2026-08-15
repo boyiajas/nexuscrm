@@ -19,7 +19,7 @@ class UserProfileController extends Controller
     {
         $user = $request->user();
 
-        if ($user->role === \App\Models\User::ROLE_STAFF_LEGACY) {
+        if ($user->hasRole(\App\Models\User::ROLE_STAFF_LEGACY)) {
             return response()->json(
                 $user->departments()
                     ->orderBy('name')
@@ -96,7 +96,7 @@ class UserProfileController extends Controller
         if (array_key_exists('department_ids', $data)) {
             $selectedDepartmentIds = array_values(array_unique(array_map('intval', $data['department_ids'] ?? [])));
 
-            if ($user->role === \App\Models\User::ROLE_STAFF_LEGACY) {
+            if ($user->hasRole(\App\Models\User::ROLE_STAFF_LEGACY)) {
                 $currentIds = $user->resolvedDepartmentIds();
                 sort($currentIds);
                 $incoming = $selectedDepartmentIds;

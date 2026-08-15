@@ -823,7 +823,7 @@ export default {
       return this.hasPermission('bypass_bank_scoping') || ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
     },
     canChooseAssignee() {
-      return this.hasPermission('edit_clients') || ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER'].includes(this.currentUser?.role);
+      return this.hasPermission('edit_clients');
     },
     selectedBankName() {
       if (!this.filters.bank_id) return '';

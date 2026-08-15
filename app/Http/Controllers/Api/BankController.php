@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
 use App\Models\Bank;
 use Illuminate\Http\JsonResponse;
@@ -10,9 +11,13 @@ use Illuminate\Http\Request;
 
 class BankController extends Controller
 {
+    use HasAuditLogging;
     public function index(Request $request)
     {
         $user = $request->user();
+        if (!$user) {
+            abort(401);
+        }
         $query = Bank::with('departments')->orderBy('name');
 
         if ($user && !$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
@@ -60,6 +65,12 @@ class BankController extends Controller
 
         $bank->load('departments');
 
+        $this->audit(
+            action: "Created bank '{$bank->name}' ({$bank->code})",
+            module: 'Banks',
+            meta: ['bank_id' => $bank->id]
+        );
+
         return response()->json($bank, 201);
     }
 
@@ -81,6 +92,12 @@ class BankController extends Controller
             $bank->departments()->sync($request->input('department_ids', []));
         }
 
+        $this->audit(
+            action: "Updated bank '{$bank->name}' ({$bank->code})",
+            module: 'Banks',
+            meta: ['bank_id' => $bank->id]
+        );
+
         return response()->json($bank->fresh());
     }
 
@@ -96,7 +113,16 @@ class BankController extends Controller
             ], 422);
         }
 
+        $bankName = $bank->name;
+        $bankCode = $bank->code;
+        $bankId = $bank->id;
         $bank->delete();
+
+        $this->audit(
+            action: "Deleted bank '{$bankName}' ({$bankCode})",
+            module: 'Banks',
+            meta: ['bank_id' => $bankId]
+        );
 
         return response()->json(['message' => 'Bank deleted successfully.']);
     }
@@ -104,7 +130,7 @@ class BankController extends Controller
     protected function authorizeManageBanks(Request $request): void
     {
         $user = $request->user();
-        if (!$user || !$user->canManageUsersAndDepartments()) {
+        if (!$user || !$user->canManageBanks()) {
             abort(403, 'You are not allowed to manage banks.');
         }
     }

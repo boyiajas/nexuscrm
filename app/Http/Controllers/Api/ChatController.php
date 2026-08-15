@@ -252,7 +252,7 @@ class ChatController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user || !$user->canViewOperationalData()) {
+        if (!$user || !$user->canViewLiveChat()) {
             abort(403, 'You are not allowed to access live chat.');
         }
 
@@ -263,7 +263,7 @@ class ChatController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user || !$user->canManageOperationalData()) {
+        if (!$user || !$user->canSendWhatsapp()) {
             abort(403, 'You are not allowed to manage live chat.');
         }
     }

@@ -57,6 +57,6 @@ class ImportUploadController extends Controller
 
     protected function authorizeView(?User $user): void
     {
-        abort_unless($user && $user->canManageOperationalData(), 403, 'You are not allowed to access import upload records.');
+        abort_unless($user && $user->canViewImportUploads(), 403, 'You are not allowed to access import upload records.');
     }
 }

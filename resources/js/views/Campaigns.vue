@@ -402,16 +402,16 @@ export default {
       return this.canEdit || this.canCreate || this.canDelete;
     },
     canCreate() {
-      return this.hasPermission('create_campaigns') || ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER'].includes(this.currentUser?.role);
+      return this.hasPermission('create_campaigns');
     },
     canEdit() {
-      return this.hasPermission('edit_campaigns') || ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'STAFF'].includes(this.currentUser?.role);
+      return this.hasPermission('edit_campaigns');
     },
     canDelete() {
-      return this.hasPermission('delete_campaigns') || ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
+      return this.hasPermission('delete_campaigns');
     },
     canChooseBank() {
-      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
+      return this.hasAnyPermission(['bypass_bank_scoping', 'manage_system_settings']);
     },
 
     selectedDepartments: {
@@ -427,9 +427,9 @@ export default {
         },
     },
   },
-  async mounted() {
+  mounted() {
     this.modal = createManagedModal(this.$refs.modalRef);
-    await this.syncCurrentUser();
+    this.syncCurrentUser();
     this.fetchCampaigns();
     this.fetchBanks();
     this.fetchDepartments();
@@ -452,6 +452,9 @@ export default {
       }
       return false;
     },
+    hasAnyPermission(permissionCodes = []) {
+      return permissionCodes.some((permissionCode) => this.hasPermission(permissionCode));
+    },
     async syncCurrentUser() {
       try {
         await syncAuthenticatedUser();
@@ -467,7 +470,14 @@ export default {
         storedUser = null;
       }
 
-      const canChooseBank = ['SUPER_ADMIN', 'ADMIN'].includes(storedUser?.role);
+      const userPerms = Array.isArray(storedUser?.permission_codes) ? storedUser.permission_codes : [];
+      const roleCodes = Array.isArray(storedUser?.role_codes) && storedUser.role_codes.length
+        ? storedUser.role_codes
+        : [storedUser?.role].filter(Boolean);
+      const canChooseBank = roleCodes.includes('SUPER_ADMIN')
+        || roleCodes.includes('ADMIN')
+        || userPerms.includes('bypass_bank_scoping')
+        || userPerms.includes('manage_system_settings');
 
       return {
         id: null,

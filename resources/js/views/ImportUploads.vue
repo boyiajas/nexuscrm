@@ -177,8 +177,15 @@ export default {
         return {};
       }
     },
+    currentRoleCodes() {
+      if (Array.isArray(this.currentUser?.role_codes) && this.currentUser.role_codes.length) {
+        return this.currentUser.role_codes;
+      }
+
+      return this.currentUser?.role ? [this.currentUser.role] : [];
+    },
     canAccessAllBanks() {
-      return ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser.role);
+      return this.hasAnyPermission(['bypass_bank_scoping', 'manage_system_settings']);
     },
   },
   mounted() {
@@ -188,6 +195,21 @@ export default {
     }
   },
   methods: {
+    hasPermission(permCode) {
+      if (!this.currentUser) return false;
+      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+        return true;
+      }
+
+      if (Array.isArray(this.currentUser.permission_codes)) {
+        return this.currentUser.permission_codes.includes(permCode);
+      }
+
+      return false;
+    },
+    hasAnyPermission(permissionCodes = []) {
+      return permissionCodes.some((permissionCode) => this.hasPermission(permissionCode));
+    },
     async fetchUploads(page = 1) {
       this.loading = true;
       try {

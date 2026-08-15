@@ -41,11 +41,11 @@ class MfaController extends Controller
         $cached = cache()->get("mfa_email_{$user->id}");
 
         if ($cached && $cached == $request->code) {
-            $user->update([
+            $user->forceFill([
                 'mfa_enabled' => true,
                 'mfa_type'    => 'email',
                 'mfa_secret'  => null,
-            ]);
+            ])->save();
             cache()->forget("mfa_email_{$user->id}");
 
             return ['message' => 'Email MFA enabled.'];
@@ -57,11 +57,11 @@ class MfaController extends Controller
     public function disable(Request $request)
     {
         $user = $request->user();
-        $user->update([
+        $user->forceFill([
             'mfa_enabled' => false,
             'mfa_type'    => null,
             'mfa_secret'  => null,
-        ]);
+        ])->save();
 
         return ['message' => 'MFA disabled'];
     }

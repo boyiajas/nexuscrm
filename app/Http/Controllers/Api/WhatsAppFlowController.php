@@ -103,7 +103,7 @@ class WhatsAppFlowController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user || !$user->canViewOperationalData()) {
+        if (!$user || !$user->canManageWhatsAppFlows()) {
             abort(403, 'You are not allowed to access WhatsApp flows.');
         }
     }
@@ -112,7 +112,7 @@ class WhatsAppFlowController extends Controller
     {
         $user = Auth::user();
 
-        if (!$user || !$user->canManageOperationalData()) {
+        if (!$user || !$user->canManageWhatsAppFlows()) {
             abort(403, 'You are not allowed to manage WhatsApp flows.');
         }
     }

@@ -50,6 +50,9 @@ class CampaignController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
+        if (!$user || !$user->canViewCampaigns()) {
+            abort(403, 'You are not allowed to access campaigns.');
+        }
         $userDeptIds = $user?->resolvedDepartmentIds() ?? [];
 
         $query = Campaign::query()
@@ -2118,6 +2121,10 @@ class CampaignController extends Controller
 
         if (!$user) {
             abort(401);
+        }
+
+        if (!$user->canViewCampaigns()) {
+            abort(403, 'You are not allowed to access campaigns.');
         }
 
         // System admins can view all

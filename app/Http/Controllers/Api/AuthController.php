@@ -464,11 +464,6 @@ class AuthController extends Controller
             }
         );
 
-        $user->forceFill([
-            'mfa_enabled' => true,
-            'mfa_type' => 'email',
-        ])->save();
-
         $this->audit(
             action: "MFA challenge created for {$user->email}",
             module: 'Auth',

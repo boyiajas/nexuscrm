@@ -765,7 +765,7 @@ class ClientController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $user = Auth::user();
-        $this->authorizeManage($user, 'export clients');
+        $this->authorizeView($user);
         $exportRequest = $this->authorizeSensitiveExport($request, ExportRequest::DATASET_CLIENTS);
         $query = Client::query()->with('departments');
 
@@ -1275,14 +1275,14 @@ class ClientController extends Controller
 
     protected function authorizeView($user): void
     {
-        if (!$user || !$user->canViewOperationalData()) {
+        if (!$user || !$user->canViewClients()) {
             abort(403, 'You are not allowed to access clients.');
         }
     }
 
     protected function authorizeManage($user, string $action = 'manage clients'): void
     {
-        if (!$user || !$user->canManageOperationalData()) {
+        if (!$user || !$user->canEditClients()) {
             abort(403, "You are not allowed to {$action}.");
         }
     }

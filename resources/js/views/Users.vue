@@ -53,16 +53,22 @@
                   >
                     {{ u.status }}
                   </span>
+                  <span v-if="u.is_locked" class="badge bg-warning text-dark ms-1" title="Account Temporarily Locked">
+                    <i class="bi bi-lock-fill me-1"></i>Locked
+                  </span>
                 </td>
                 <td class="text-end pe-4">
                   <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-light text-secondary border-0 p-1 px-2" title="View" @click="openProfileModal(u)">
+                    <button class="btn btn-light text-secondary border-0 p-1 px-2" title="View Profile" @click="openProfileModal(u)">
                       <i class="bi bi-eye"></i>
                     </button>
-                    <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(u)">
+                    <button v-if="u.is_locked && canManageUsers" class="btn btn-light text-warning border-0 p-1 px-2" title="Unlock Account" @click="unlockUser(u)">
+                      <i class="bi bi-unlock-fill"></i>
+                    </button>
+                    <button v-if="canManageUsers" class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(u)">
                       <i class="bi bi-pencil-square"></i>
                     </button>
-                    <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(u)">
+                    <button v-if="canManageUsers" class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(u)">
                       <i class="bi bi-trash"></i>
                     </button>
                   </div>
@@ -223,7 +229,12 @@
                       </div>
                       <div class="col-md-6">
                         <label class="form-label small text-muted">Status</label>
-                        <div class="fw-semibold">{{ profile.status || 'Active' }}</div>
+                        <div class="fw-semibold">
+                          <span :class="profile.status === 'Active' ? 'badge bg-success' : 'badge bg-danger'">{{ profile.status || 'Active' }}</span>
+                          <span v-if="profile.is_locked" class="badge bg-warning text-dark ms-2">
+                            <i class="bi bi-lock-fill me-1"></i>Locked
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -231,10 +242,16 @@
               </div>
             </div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-            <button v-if="!isEdit" class="btn btn-primary" @click="openEditModal(profile)">Edit</button>
-            <button v-else class="btn btn-primary" @click="openEditModal(profile)">Edit</button>
+          <div class="modal-footer d-flex justify-content-between align-items-center">
+            <div>
+              <button v-if="profile.is_locked && canManageUsers" class="btn btn-warning text-dark" @click="unlockUser(profile)">
+                <i class="bi bi-unlock-fill me-1"></i>Unlock Account
+              </button>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+              <button v-if="canManageUsers" class="btn btn-primary" @click="openEditModalFromProfile">Edit</button>
+            </div>
           </div>
         </div>
       </div>
@@ -555,6 +572,12 @@ export default {
       }
 
       return [];
+    },
+    canManageUsers() {
+      const codes = this.currentUserRoleCodes || [];
+      if (codes.some(c => ['SUPER_ADMIN', 'ADMIN'].includes(c))) return true;
+      const perms = this.currentUser?.permission_codes || [];
+      return perms.includes('manage_users');
     },
     canChooseBankForForm() {
       return this.currentUserRoleCodes.some((role) => ['SUPER_ADMIN', 'ADMIN'].includes(role));
@@ -901,6 +924,8 @@ export default {
     },
     openProfileModal(user) {
       this.profile = {
+        id: user.id,
+        rawUser: user,
         name: user.name,
         email: user.email,
         username: user.username || "",
@@ -916,11 +941,50 @@ export default {
         is_provider: !!user.is_provider,
         is_time_clock_user: !!user.is_time_clock_user,
         status: user.status || "Active",
+        is_locked: !!user.is_locked,
+        locked_until: user.locked_until || null,
       };
       if (!this.profileModal) {
         this.profileModal = createManagedModal(this.$refs.profileModalRef);
       }
       this.profileModal.show();
+    },
+    openEditModalFromProfile() {
+      if (this.profileModal) {
+        this.profileModal.hide();
+      }
+      if (this.profile.rawUser) {
+        this.openEditModal(this.profile.rawUser);
+      }
+    },
+    unlockUser(userOrProfile) {
+      const u = userOrProfile.rawUser || userOrProfile;
+      const userId = u.id;
+      const userName = u.name || 'User';
+
+      this.$refs.confirmModal.open({
+        title: 'Unlock User Account',
+        message: `Are you sure you want to unlock the account for "${userName}"? This will reset failed login attempts and allow the user to sign in immediately.`,
+        confirmLabel: 'Unlock Account',
+        confirmVariant: 'warning',
+        onConfirm: async () => {
+          try {
+            const res = await axios.post(`/api/users/${userId}/unlock`);
+            notify.success(`User "${userName}" account unlocked successfully.`, 'Users');
+            this.fetchUsers(this.pagination.currentPage);
+            if (this.profile.id === userId) {
+              this.profile.is_locked = false;
+              this.profile.locked_until = null;
+              if (this.profile.rawUser) {
+                this.profile.rawUser.is_locked = false;
+                this.profile.rawUser.locked_until = null;
+              }
+            }
+          } catch (error) {
+            notify.error(error.response?.data?.message || 'Failed to unlock user account.', 'Users');
+          }
+        },
+      });
     },
   },
 };

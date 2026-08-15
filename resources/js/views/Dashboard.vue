@@ -309,12 +309,7 @@ export default {
         total_pending: 0,
         total_messages: 0,
       },
-      recentLogs: [
-        { id: 1, user_name: 'Taiwo Peter', ref_id: 'CLI-8942', action: 'Message Sent (WhatsApp)', status: 'Delivered', time_ago: '2 mins ago' },
-        { id: 2, user_name: 'Sarah Mensah', ref_id: 'CLI-7731', action: 'Campaign Opt-in', status: 'Completed', time_ago: '15 mins ago' },
-        { id: 3, user_name: 'James Kalu', ref_id: 'CLI-9012', action: 'Payment Link Generated', status: 'Pending', time_ago: '1 hour ago' },
-        { id: 4, user_name: 'Amina Bello', ref_id: 'CLI-8822', action: 'Message Failed', status: 'Failed', time_ago: '2 hours ago' },
-      ],
+      recentLogs: [],
     };
   },
   async mounted() {
@@ -332,7 +327,7 @@ export default {
             this.recentLogs = res.data.recent_activity.map(log => ({
               ...log,
               time_ago: log.logged_at,
-              status: 'Completed', // Audit logs are implicit complete actions
+              status: log.status || 'Completed',
             }));
           }
         })

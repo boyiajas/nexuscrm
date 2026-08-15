@@ -293,6 +293,7 @@ export default {
         'send_whatsapp',
         'view_live_chat',
         'request_exports',
+        'settings_user_account',
       ],
       loading: false,
       filters: {

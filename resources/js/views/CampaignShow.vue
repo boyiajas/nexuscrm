@@ -1869,11 +1869,7 @@ export default {
     },
     canManageCampaign() {
       if (!this.currentUser) return false;
-      if (this.hasPermission('edit_campaigns') || this.hasPermission('create_campaigns') || this.hasPermission('delete_campaigns')) {
-        return true;
-      }
-      const role = this.currentUser?.role;
-      return ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'CALL_CENTRE_MANAGER', 'TEAM_LEADER', 'AGENT', 'STAFF'].includes(role);
+      return this.hasPermission('edit_campaigns') || this.hasPermission('create_campaigns');
     },
     previewHeaderText() {
         if (!this.currentWhatsappTemplate || !this.currentWhatsappTemplate.header_text) return '';
