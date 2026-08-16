@@ -318,7 +318,7 @@ class AuthController extends Controller
             'email'                 => ['required', 'email', 'max:255', 'unique:users,email'],
             'password'              => ['required', 'string', 'confirmed', Password::min(12)->letters()->mixedCase()->numbers()->symbols()],
             'department_id'         => ['nullable', 'integer', 'exists:departments,id'],
-            'role'                  => ['sometimes', \Illuminate\Validation\Rule::in(User::ALL_ROLES)],
+            'role'                  => ['sometimes', \Illuminate\Validation\Rule::exists('roles', 'code')],
         ]);
 
         $user = User::create([
