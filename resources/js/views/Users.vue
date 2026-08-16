@@ -45,8 +45,22 @@
                     </span>
                   </div>
                 </td>
-                <td>{{ u.bank?.name || '-' }}</td>
-                <td>{{ u.department || '-' }}</td>
+                <td>
+                  <div v-if="u.banks && u.banks.length" class="d-flex flex-wrap gap-1">
+                    <span v-for="b in u.banks" :key="`${u.id}-bank-${b.id}`" class="badge bg-secondary">
+                      {{ b.name }}
+                    </span>
+                  </div>
+                  <span v-else>{{ u.bank?.name || '-' }}</span>
+                </td>
+                <td>
+                  <div v-if="u.departments && u.departments.length" class="d-flex flex-wrap gap-1">
+                    <span v-for="d in u.departments" :key="`${u.id}-dept-${d.id}`" class="badge bg-secondary">
+                      {{ d.name }}
+                    </span>
+                  </div>
+                  <span v-else>{{ u.department || '-' }}</span>
+                </td>
                 <td>
                   <span
                     :class="u.status === 'Active' ? 'badge bg-success' : 'badge bg-danger'"
@@ -195,11 +209,21 @@
                     <div class="row g-3">
                       <div class="col-md-12">
                         <label class="form-label small text-muted">Bank</label>
-                        <div class="fw-semibold">{{ profile.bank_name || '-' }}</div>
+                        <div v-if="profile.banks && profile.banks.length" class="d-flex flex-wrap gap-1">
+                          <span v-for="b in profile.banks" :key="`profile-bank-${b.id}`" class="badge bg-secondary">
+                            {{ b.name }}
+                          </span>
+                        </div>
+                        <div v-else class="fw-semibold">{{ profile.bank_name || '-' }}</div>
                       </div>
                       <div class="col-md-12">
                         <label class="form-label small text-muted">Department</label>
-                        <div class="fw-semibold">{{ profile.department || '-' }}</div>
+                        <div v-if="profile.departments && profile.departments.length" class="d-flex flex-wrap gap-1">
+                          <span v-for="d in profile.departments" :key="`profile-dept-${d.id}`" class="badge bg-secondary">
+                            {{ d.name }}
+                          </span>
+                        </div>
+                        <div v-else class="fw-semibold">{{ profile.department || '-' }}</div>
                       </div>
                       <div class="col-md-6">
                         <label class="form-label small text-muted">Roles</label>
@@ -936,6 +960,8 @@ export default {
         secondary_phone: user.secondary_phone || "",
         department: user.department || "",
         bank_name: user.bank?.name || "",
+        banks: user.banks || [],
+        departments: user.departments || [],
         role_codes: this.roleCodesForUser(user),
         inactivity_timeout: user.inactivity_timeout || "",
         is_provider: !!user.is_provider,

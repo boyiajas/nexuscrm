@@ -19,10 +19,13 @@ use App\Mail\UserAccountCreated;
 class UserController extends Controller
 {
     use HasAuditLogging;
-    public function index()
+    public function index(Request $request)
     {
         $this->authorizeManageUsers();
-        return User::with(['bank', 'roles:id,code,name,whatsapp_daily_limit'])->orderBy('name')->paginate(20);
+        $perPage = max(1, min((int) $request->get('per_page', 20), 1000));
+        return User::with(['bank', 'banks', 'departments', 'roles:id,code,name,whatsapp_daily_limit'])
+            ->orderBy('name')
+            ->paginate($perPage);
     }
 
     public function assignees()
