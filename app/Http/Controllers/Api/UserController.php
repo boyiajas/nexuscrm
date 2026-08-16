@@ -262,6 +262,63 @@ class UserController extends Controller
         ]);
     }
 
+    public function resetPassword(Request $request, User $user)
+    {
+        $this->authorizeManageUsers();
+
+        $data = $request->validate([
+            'password' => ['nullable', 'string', Password::min(12)->letters()->mixedCase()->numbers()->symbols()],
+        ]);
+
+        $newPassword = !empty($data['password']) ? $data['password'] : $this->generateSecurePassword();
+
+        $user->forceFill([
+            'password'                => Hash::make($newPassword),
+            'password_changed_at'     => now(),
+            'password_reset_required' => true,
+            'locked_until'            => null,
+            'failed_login_attempts'   => 0,
+        ])->save();
+
+        $user->tokens()->delete();
+        UserSessionTracker::closeAllForUser($user, 'password_reset_by_admin');
+
+        $this->audit(
+            action: "Reset password for user '{$user->name}' ({$user->email})",
+            module: 'Users',
+            meta: ['target_user_id' => $user->id]
+        );
+
+        return response()->json([
+            'message'      => 'Password reset successfully.',
+            'new_password' => $newPassword,
+            'user'         => $user->fresh(['bank', 'banks', 'roles:id,code,name,whatsapp_daily_limit', 'departments']),
+        ]);
+    }
+
+    protected function generateSecurePassword(int $length = 14): string
+    {
+        $uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        $lowers = 'abcdefghijkmnpqrstuvwxyz';
+        $numbers = '23456789';
+        $symbols = '!@#$%^&*()_+-=';
+
+        $pwd = [
+            $uppers[random_int(0, strlen($uppers) - 1)],
+            $lowers[random_int(0, strlen($lowers) - 1)],
+            $numbers[random_int(0, strlen($numbers) - 1)],
+            $symbols[random_int(0, strlen($symbols) - 1)],
+        ];
+
+        $all = $uppers . $lowers . $numbers . $symbols;
+        for ($i = count($pwd); $i < $length; $i++) {
+            $pwd[] = $all[random_int(0, strlen($all) - 1)];
+        }
+
+        shuffle($pwd);
+        return implode('', $pwd);
+    }
+
     protected function syncDepartmentFields(array &$data): void
     {
         if (array_key_exists('department_ids', $data)) {

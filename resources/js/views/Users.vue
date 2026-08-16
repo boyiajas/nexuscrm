@@ -79,6 +79,9 @@
                     <button v-if="u.is_locked && canManageUsers" class="btn btn-light text-warning border-0 p-1 px-2" title="Unlock Account" @click="unlockUser(u)">
                       <i class="bi bi-unlock-fill"></i>
                     </button>
+                    <button v-if="canManageUsers" class="btn btn-light text-warning border-0 p-1 px-2" title="Reset Password" @click="openResetPasswordModal(u)">
+                      <i class="bi bi-key-fill"></i>
+                    </button>
                     <button v-if="canManageUsers" class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(u)">
                       <i class="bi bi-pencil-square"></i>
                     </button>
@@ -267,9 +270,12 @@
             </div>
           </div>
           <div class="modal-footer d-flex justify-content-between align-items-center">
-            <div>
+            <div class="d-flex gap-2">
               <button v-if="profile.is_locked && canManageUsers" class="btn btn-warning text-dark" @click="unlockUser(profile)">
                 <i class="bi bi-unlock-fill me-1"></i>Unlock Account
+              </button>
+              <button v-if="canManageUsers" class="btn btn-outline-warning text-dark" @click="openResetPasswordModal(profile)">
+                <i class="bi bi-key-fill me-1"></i>Reset Password
               </button>
             </div>
             <div class="d-flex gap-2">
@@ -464,6 +470,75 @@
         </div>
       </div>
     </div>
+    <!-- RESET PASSWORD MODAL -->
+    <div class="modal fade" tabindex="-1" ref="resetPasswordModalRef">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="bi bi-key-fill text-warning me-2"></i>Reset Password — {{ resetTarget?.name || 'User' }}
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div v-if="resetSuccess" class="alert alert-success border mb-0">
+              <div class="d-flex align-items-center mb-2 fw-semibold fs-6">
+                <i class="bi bi-check-circle-fill text-success me-2 fs-5"></i>Password Reset Successfully!
+              </div>
+              <p class="small text-muted mb-2">
+                User <strong>{{ resetTarget?.name }}</strong> will be required to change their password upon their next login. Please copy and provide them with this new password:
+              </p>
+              <div class="input-group mb-3">
+                <input type="text" readonly :value="newPassword" class="form-control font-monospace fw-bold bg-light fs-6 text-dark" />
+                <button class="btn btn-outline-secondary" type="button" @click="copyResetPassword">
+                  <i class="bi" :class="passwordCopied ? 'bi-check2-circle text-success' : 'bi-clipboard'"></i>
+                  {{ passwordCopied ? 'Copied' : 'Copy' }}
+                </button>
+              </div>
+              <div class="d-flex justify-content-end">
+                <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Done</button>
+              </div>
+            </div>
+
+            <form v-else @submit.prevent="submitResetPassword">
+              <p class="text-muted small mb-3">
+                This action will set a new password for <strong>{{ resetTarget?.name }}</strong>, revoke all active sessions, and force a password change upon next login.
+              </p>
+
+              <div class="mb-3">
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" id="modeAuto" value="auto" v-model="resetMode">
+                  <label class="form-check-label" for="modeAuto">Auto-generate strong password</label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="radio" id="modeManual" value="manual" v-model="resetMode">
+                  <label class="form-check-label" for="modeManual">Set custom password</label>
+                </div>
+              </div>
+
+              <div class="mb-3" v-if="resetMode === 'manual'">
+                <label class="form-label">Custom Password</label>
+                <div class="input-group">
+                  <input v-model="customResetPassword" type="text" class="form-control" placeholder="Enter new password" minlength="12" required />
+                  <button class="btn btn-outline-secondary" type="button" @click="generateCustomPassword">Generate</button>
+                </div>
+                <small class="text-muted">Must be at least 12 characters with letters, numbers, and symbols.</small>
+              </div>
+
+              <div class="d-flex justify-content-end gap-2 mt-4">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-warning text-dark" :disabled="resetLoading">
+                  <span v-if="resetLoading" class="spinner-border spinner-border-sm me-1"></span>
+                  <i v-else class="bi bi-key-fill me-1"></i>
+                  Reset Password
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <ConfirmationModal ref="confirmModal" />
   </div>
 </template>
@@ -560,12 +635,22 @@ export default {
         is_time_clock_user: false,
         status: "",
       },
+
+      resetPasswordModal: null,
+      resetTarget: null,
+      resetMode: 'auto',
+      customResetPassword: '',
+      newPassword: '',
+      resetSuccess: false,
+      resetLoading: false,
+      passwordCopied: false,
     };
   },
 
   mounted() {
     this.modal = createManagedModal(this.$refs.modalRef);
     this.profileModal = createManagedModal(this.$refs.profileModalRef);
+    this.resetPasswordModal = createManagedModal(this.$refs.resetPasswordModalRef);
     this.fetchUsers();
     this.fetchDepartments();
     this.fetchBanks();
@@ -574,6 +659,7 @@ export default {
   beforeUnmount() {
     disposeManagedModal(this.modal);
     disposeManagedModal(this.profileModal);
+    disposeManagedModal(this.resetPasswordModal);
   },
 
   computed: {
@@ -1011,6 +1097,73 @@ export default {
           }
         },
       });
+    },
+    openResetPasswordModal(userOrProfile) {
+      const target = userOrProfile.rawUser || userOrProfile;
+      this.resetTarget = target;
+      this.resetMode = 'auto';
+      this.customResetPassword = '';
+      this.newPassword = '';
+      this.resetSuccess = false;
+      this.resetLoading = false;
+      this.passwordCopied = false;
+
+      if (!this.resetPasswordModal) {
+        this.resetPasswordModal = createManagedModal(this.$refs.resetPasswordModalRef);
+      }
+      this.resetPasswordModal.show();
+    },
+    generateCustomPassword() {
+      const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+      const lowers = 'abcdefghijkmnpqrstuvwxyz';
+      const numbers = '23456789';
+      const symbols = '!@#$%^&*()_+-=';
+      const pwd = [
+        uppers[Math.floor(Math.random() * uppers.length)],
+        lowers[Math.floor(Math.random() * lowers.length)],
+        numbers[Math.floor(Math.random() * numbers.length)],
+        symbols[Math.floor(Math.random() * symbols.length)],
+      ];
+      const all = uppers + lowers + numbers + symbols;
+      for (let i = pwd.length; i < 14; i++) {
+        pwd.push(all[Math.floor(Math.random() * all.length)]);
+      }
+      for (let i = pwd.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pwd[i], pwd[j]] = [pwd[j], pwd[i]];
+      }
+      this.customResetPassword = pwd.join('');
+    },
+    async submitResetPassword() {
+      if (!this.resetTarget) return;
+      this.resetLoading = true;
+      try {
+        const payload = {};
+        if (this.resetMode === 'manual') {
+          payload.password = this.customResetPassword;
+        }
+        const res = await axios.post(`/api/users/${this.resetTarget.id}/reset-password`, payload);
+        this.newPassword = res.data.new_password;
+        this.resetSuccess = true;
+        notify.success(`Password reset for ${this.resetTarget.name}`, 'Users');
+        this.fetchUsers(this.pagination.currentPage);
+      } catch (error) {
+        notify.error(error.response?.data?.message || 'Failed to reset password.', 'Users');
+      } finally {
+        this.resetLoading = false;
+      }
+    },
+    async copyResetPassword() {
+      if (!this.newPassword) return;
+      try {
+        await navigator.clipboard.writeText(this.newPassword);
+        this.passwordCopied = true;
+        setTimeout(() => {
+          this.passwordCopied = false;
+        }, 2000);
+      } catch (e) {
+        notify.info(`New Password: ${this.newPassword}`);
+      }
     },
   },
 };

@@ -163,6 +163,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/twilio/whatsapp-senders', [WhatsAppWebhookController::class, 'whatsappSenders']);
 
     Route::post('users/{user}/unlock', [UserController::class, 'unlock']);
+    Route::post('users/{user}/reset-password', [UserController::class, 'resetPassword']);
     Route::apiResource('users', UserController::class)->except(['show']);
     Route::patch('roles/{role}/watermark', [RoleController::class, 'toggleWatermark']);
     Route::get('permissions', [RoleController::class, 'permissions']);
