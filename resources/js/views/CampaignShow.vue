@@ -2129,7 +2129,15 @@ export default {
       
       const parts = source.split('.');
       if (parts[0] === 'client') {
-          return client[parts[1]] || `{{${key}}}`;
+          let val = client[parts[1]];
+          if (parts[1] === 'first_name' && !val && client.name) {
+              val = client.name.split(' ')[0];
+          }
+          if (parts[1] === 'surname' && !val && client.name) {
+              const nameParts = client.name.split(' ');
+              val = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+          }
+          return val || `{{${key}}}`;
       } else if (parts[0] === 'campaign') {
           return this.campaign ? this.campaign[parts[1]] : `{{${key}}}`;
       }

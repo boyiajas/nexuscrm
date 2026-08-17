@@ -620,10 +620,10 @@
                 <div class="row">
                   <div class="col-md-6 mb-2"><strong>Name:</strong> {{ viewClient.name || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>ID Number:</strong> {{ viewClient.id_number_masked || viewClient.id_number || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>Title:</strong> {{ viewClient.title || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Title:</strong> {{ viewClient.title || parseName(viewClient.name).title || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Initials:</strong> {{ viewClient.initials || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>First Name:</strong> {{ viewClient.first_name || (viewClient.name ? viewClient.name.split(' ')[0] : '-') }}</div>
-                  <div class="col-md-6 mb-2"><strong>Surname:</strong> {{ viewClient.surname || (viewClient.name && viewClient.name.split(' ').length > 1 ? viewClient.name.split(' ').slice(1).join(' ') : '-') }}</div>
+                  <div class="col-md-6 mb-2"><strong>First Name:</strong> {{ viewClient.first_name || parseName(viewClient.name).first_name || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Surname:</strong> {{ viewClient.surname || parseName(viewClient.name).surname || '-' }}</div>
                 </div>
               </div>
 
@@ -872,6 +872,20 @@ export default {
       }
       return (parts[0] || 'NX').substring(0, 2).toUpperCase();
     },
+    parseName(fullName) {
+      if (!fullName || typeof fullName !== 'string') {
+        return { title: '', first_name: '', surname: '' };
+      }
+      let parts = fullName.trim().split(/\s+/).filter(Boolean);
+      let title = '';
+      const commonTitles = ['mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'rev', 'adv', 'sir', 'madam'];
+      if (parts.length > 0 && commonTitles.includes(parts[0].replace('.', '').toLowerCase())) {
+        title = parts.shift();
+      }
+      const first_name = parts.length > 0 ? parts.shift() : '';
+      const surname = parts.join(' ');
+      return { title, first_name, surname };
+    },
     openViewModal(client) {
       this.viewClient = client;
       this.viewModal.show();
@@ -1080,13 +1094,14 @@ export default {
       // Load full client data with departments
       axios.get(`/api/clients/${client.id}`).then((response) => {
         const fullClient = response.data;
+        const parsed = this.parseName(fullClient.name);
         
         this.form = {
           id: fullClient.id,
           name: fullClient.name,
-          title: fullClient.title || '',
-          first_name: fullClient.first_name || (fullClient.name ? fullClient.name.split(' ')[0] : ''),
-          surname: fullClient.surname || (fullClient.name && fullClient.name.split(' ').length > 1 ? fullClient.name.split(' ').slice(1).join(' ') : ''),
+          title: fullClient.title || parsed.title || '',
+          first_name: fullClient.first_name || parsed.first_name || '',
+          surname: fullClient.surname || parsed.surname || '',
           email: fullClient.email || '',
           phone: fullClient.phone || '',
           bank_id: fullClient.bank_id || '',
