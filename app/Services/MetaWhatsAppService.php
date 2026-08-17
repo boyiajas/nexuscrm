@@ -365,7 +365,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             $mediaType = strtolower($headerFormat);
             
             try {
-                $mediaId = $this->uploadMediaFromUrl($mediaUrl, $senderContext['phone_number_id']);
+                $mediaId = $this->uploadMediaFromUrl($mediaUrl, $senderContext['phone_number_id'], $headerFormat);
                 $headerParams[] = [
                     'type' => $mediaType,
                     $mediaType => [
@@ -728,7 +728,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         return $payload;
     }
 
-    public function uploadMediaFromUrl(string $url, string $senderPhoneNumberId): string
+    public function uploadMediaFromUrl(string $url, string $senderPhoneNumberId, ?string $headerFormat = 'IMAGE'): string
     {
         $cacheKey = 'meta_media_id_' . md5($url);
         if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
@@ -746,14 +746,33 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
         $tempFile = tempnam(sys_get_temp_dir(), 'meta_media');
         file_put_contents($tempFile, $content);
-        $mimeType = mime_content_type($tempFile) ?: 'application/octet-stream';
-        $filename = basename(parse_url($url, PHP_URL_PATH)) ?: 'media_file';
+        $detectedMime = mime_content_type($tempFile);
         unlink($tempFile);
+
+        // Normalize MIME type for Meta API compliance
+        $mimeType = $detectedMime ?: 'image/jpeg';
+        if (strtoupper((string) $headerFormat) === 'IMAGE' && !in_array($mimeType, ['image/jpeg', 'image/png'])) {
+            $mimeType = 'image/jpeg';
+        }
+
+        $extMap = [
+            'image/jpeg'      => '.jpg',
+            'image/png'       => '.png',
+            'video/mp4'       => '.mp4',
+            'application/pdf' => '.pdf',
+        ];
+
+        $filename = basename(parse_url($url, PHP_URL_PATH)) ?: 'media_file';
+        $ext = $extMap[$mimeType] ?? '.jpg';
+        if (!preg_match('/\.(jpg|jpeg|png|mp4|pdf)$/i', $filename)) {
+            $filename .= $ext;
+        }
 
         $response = \Illuminate\Support\Facades\Http::withToken($this->accessToken)
             ->attach('file', $content, $filename, ['Content-Type' => $mimeType])
             ->post("https://graph.facebook.com/{$this->apiVersion}/{$senderPhoneNumberId}/media", [
                 'messaging_product' => 'whatsapp',
+                'type'              => $mimeType,
             ]);
 
         if (!$response->successful()) {
