@@ -375,7 +375,8 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             } catch (\Exception $e) {
                 Log::warning('Failed to upload Meta media URL, falling back to link parameter.', [
                     'url' => $mediaUrl,
-                    'error' => $e->getMessage()
+                    'error_message' => $e->getMessage(),
+                    'error_trace' => $e->getTraceAsString(),
                 ]);
                 $headerParams[] = [
                     'type' => $mediaType,
@@ -734,9 +735,13 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             return \Illuminate\Support\Facades\Cache::get($cacheKey);
         }
 
-        $content = @file_get_contents($url);
-        if (!$content) {
-            throw new \RuntimeException("Failed to download media from URL: {$url}");
+        $downloadResponse = \Illuminate\Support\Facades\Http::get($url);
+        if (!$downloadResponse->successful()) {
+            throw new \RuntimeException("Failed to download media from URL: {$url}. Status: " . $downloadResponse->status());
+        }
+        $content = $downloadResponse->body();
+        if (empty($content)) {
+            throw new \RuntimeException("Downloaded media content is empty from URL: {$url}");
         }
 
         $tempFile = tempnam(sys_get_temp_dir(), 'meta_media');
