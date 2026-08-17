@@ -31,6 +31,9 @@ class DashboardController extends Controller
                 $q->whereIn('departments.id', $userDeptIds);
             });
         }
+        if ($user->isPortfolioScoped()) {
+            $totalClientsQuery->where('assigned_to_id', $user->id);
+        }
         $totalClients = $totalClientsQuery->count();
 
         // Campaign counts (bank and department-scoped)
@@ -47,6 +50,12 @@ class DashboardController extends Controller
                         $qq->whereIn('departments.id', $userDeptIds);
                     });
                 }
+            });
+        }
+
+        if ($user->isPortfolioScoped()) {
+            $campaignQuery->whereHas('clients', function ($qq) use ($user) {
+                $qq->where('clients.assigned_to_id', $user->id);
             });
         }
         
