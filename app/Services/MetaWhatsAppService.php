@@ -356,6 +356,19 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             }
         }
 
+        $headerFormat = strtoupper((string) ($template['header_format'] ?? ''));
+        $mediaUrl = $template['media_urls'][0] ?? null;
+
+        if (in_array($headerFormat, ['IMAGE', 'DOCUMENT', 'VIDEO']) && $mediaUrl) {
+            $mediaType = strtolower($headerFormat);
+            $headerParams[] = [
+                'type' => $mediaType,
+                $mediaType => [
+                    'link' => $mediaUrl,
+                ],
+            ];
+        }
+
         $payload = [
             'messaging_product' => 'whatsapp',
             'to' => ltrim($to, '+'),
