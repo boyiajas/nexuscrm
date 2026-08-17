@@ -4,10 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Models\WhatsappTemplateCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class WhatsAppTemplateController extends Controller
 {
@@ -15,37 +16,104 @@ class WhatsAppTemplateController extends Controller
     {
     }
 
+    /**
+     * Return templates from local DB cache (fast – no Meta API call).
+     */
     public function index(Request $request): JsonResponse
     {
         $onlyApproved = filter_var($request->query('approved', '1'), FILTER_VALIDATE_BOOLEAN);
-        $templates    = $this->whatsApp->getWhatsAppTemplates($onlyApproved);
 
-        $data = array_map(function (array $t) {
-            $whatsapp = $t['whatsapp'] ?? [];
-            return [
-                'id'           => $t['sid'],
-                'meta_id'      => $t['meta_id'] ?? null,
-                'sid'          => $t['sid'],
-                'name'         => $t['friendly_name'] ?? $t['sid'],
-                'language'     => $t['language'] ?? null,
-                'category'     => $whatsapp['category'] ?? null,
-                'status'       => $whatsapp['status'] ?? null,
-                'body_preview' => $t['preview'] ?? null,
-                'variables'    => $t['variables'] ?? [],
-                'whatsapp'     => $whatsapp,
-                'media_urls'   => $t['media'] ?? [],
-                'header_format'=> $t['header_format'] ?? null,
-                'header_text'  => $t['header_text'] ?? null,
-                'footer_text'  => $t['footer_text'] ?? null,
-                'buttons'      => $t['buttons'] ?? [],
-            ];
-        }, $templates);
+        $query = WhatsappTemplateCache::orderBy('friendly_name');
+
+        if ($onlyApproved) {
+            $query->where('status', 'approved');
+        }
+
+        $data = $query->get()->map(fn ($t) => $t->toApiArray())->values();
+
+        // If the cache is empty, do a one-time auto-sync so the first visit works
+        if ($data->isEmpty()) {
+            try {
+                $synced = $this->syncFromMeta(false);
+                $data = collect($synced)->values();
+            } catch (\Throwable $e) {
+                Log::warning('WhatsApp template auto-sync failed.', ['error' => $e->getMessage()]);
+            }
+        }
 
         return response()->json($data);
     }
 
+    /**
+     * Pull latest templates from Meta API and upsert into local DB cache.
+     * Called only by the "Refresh" button on the Settings WABA Templates page.
+     */
+    public function sync(): JsonResponse
+    {
+        $this->authorizeAdmin();
+
+        try {
+            $results = $this->syncFromMeta(false);
+            return response()->json([
+                'message' => 'Templates synced successfully.',
+                'count'   => count($results),
+                'synced_at' => now()->toDateTimeString(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('WhatsApp template sync failed.', ['error' => $e->getMessage()]);
+            return response()->json(['message' => 'Sync failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Core sync logic: fetch from Meta and upsert into whatsapp_templates_cache.
+     */
+    private function syncFromMeta(bool $onlyApproved = false): array
+    {
+        $templates = $this->whatsApp->getWhatsAppTemplates($onlyApproved);
+        $now       = now();
+        $results   = [];
+
+        foreach ($templates as $t) {
+            $whatsapp = $t['whatsapp'] ?? [];
+            $record   = WhatsappTemplateCache::updateOrCreate(
+                ['sid' => $t['sid']],
+                [
+                    'meta_id'       => $t['meta_id'] ?? null,
+                    'friendly_name' => $t['friendly_name'] ?? $t['sid'],
+                    'language'      => $t['language'] ?? null,
+                    'category'      => $whatsapp['category'] ?? null,
+                    'status'        => $whatsapp['status'] ?? null,
+                    'body_preview'  => $t['preview'] ?? null,
+                    'header_format' => $t['header_format'] ?? null,
+                    'header_text'   => $t['header_text'] ?? null,
+                    'footer_text'   => $t['footer_text'] ?? null,
+                    'variables'     => $t['variables'] ?? [],
+                    'media_urls'    => $t['media'] ?? [],
+                    'buttons'       => $t['buttons'] ?? [],
+                    'raw_whatsapp'  => $whatsapp,
+                    'synced_at'     => $now,
+                ]
+            );
+
+            $results[] = $record->toApiArray();
+        }
+
+        return $results;
+    }
+
     public function show(string $id): JsonResponse
     {
+        // Try DB first
+        $cached = WhatsappTemplateCache::where('sid', $id)->first();
+        if ($cached) {
+            return response()->json([
+                'template'  => $cached->toApiArray(),
+                'approvals' => [],
+            ]);
+        }
+
+        // Fallback to Meta API for non-cached
         $details   = $this->whatsApp->getTemplateDetails($id);
         $approvals = $this->whatsApp->getTemplateApprovalStatus($id);
 
@@ -111,6 +179,9 @@ class WhatsAppTemplateController extends Controller
 
         $this->whatsApp->deleteWhatsAppTemplate($id);
 
+        // Also remove from local cache
+        WhatsappTemplateCache::where('sid', $id)->delete();
+
         return response()->json([], 204);
     }
 
@@ -119,7 +190,7 @@ class WhatsAppTemplateController extends Controller
         $this->authorizeAdmin();
 
         $data = $request->validate([
-            'template_ids' => ['required', 'array'],
+            'template_ids'   => ['required', 'array'],
             'template_ids.*' => ['string'],
         ]);
 
@@ -127,14 +198,15 @@ class WhatsAppTemplateController extends Controller
         foreach ($data['template_ids'] as $id) {
             try {
                 $this->whatsApp->deleteWhatsAppTemplate($id);
+                WhatsappTemplateCache::where('sid', $id)->delete();
                 $deletedCount++;
             } catch (\Exception $e) {
-                // Log or ignore errors for individual templates to continue deleting others
+                // continue deleting others
             }
         }
 
         return response()->json([
-            'message' => 'Templates deleted successfully.',
+            'message'       => 'Templates deleted successfully.',
             'deleted_count' => $deletedCount,
         ]);
     }
@@ -158,15 +230,15 @@ class WhatsAppTemplateController extends Controller
 
         $data = $request->validate([
             'destination_waba_id' => ['required', 'string'],
-            'template_ids' => ['required', 'array'],
-            'template_ids.*' => ['string'],
+            'template_ids'        => ['required', 'array'],
+            'template_ids.*'      => ['string'],
         ]);
 
         $result = $this->whatsApp->migrateTemplates($data['destination_waba_id'], $data['template_ids']);
 
         return response()->json([
             'message' => 'Templates migrated successfully.',
-            'result' => $result,
+            'result'  => $result,
         ]);
     }
 

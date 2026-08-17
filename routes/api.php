@@ -62,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/whatsapp-templates', [WhatsAppTemplateController::class, 'index']);
     Route::post('/whatsapp-templates', [WhatsAppTemplateController::class, 'store']);
+    Route::post('/whatsapp-templates/sync', [WhatsAppTemplateController::class, 'sync']);
     Route::post('/whatsapp-templates/migrate', [WhatsAppTemplateController::class, 'migrate']);
     Route::delete('/whatsapp-templates/bulk-delete', [WhatsAppTemplateController::class, 'bulkDestroy']);
     Route::get('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'show']);

@@ -908,7 +908,7 @@
             <small class="text-muted">View, search, and create WhatsApp templates synced with Meta.</small>
           </div>
           <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-primary btn-sm" @click="loadWhatsappTemplates" :disabled="wa.loading">
+            <button type="button" class="btn btn-outline-primary btn-sm" @click="syncWhatsappTemplates" :disabled="wa.loading">
               <span v-if="wa.loading" class="spinner-border spinner-border-sm me-1"></span>
               Refresh
             </button>
@@ -2107,7 +2107,7 @@ export default {
         });
     },
 
-    // WhatsApp templates
+    // WhatsApp templates — load from local DB cache (fast, no Meta API call)
     loadWhatsappTemplates() {
       this.wa.loading = true;
       axios
@@ -2125,6 +2125,20 @@ export default {
           this.wa.availableLanguages = [];
         })
         .finally(() => {
+          this.wa.loading = false;
+        });
+    },
+    // Refresh: pull latest templates from Meta API and save to DB
+    syncWhatsappTemplates() {
+      this.wa.loading = true;
+      axios
+        .post('/api/whatsapp-templates/sync')
+        .then((res) => {
+          notify.success(`Synced ${res.data.count || 0} templates from Meta.`, 'WhatsApp Templates');
+          this.loadWhatsappTemplates();
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || 'Failed to sync templates from Meta.', 'WhatsApp Templates');
           this.wa.loading = false;
         });
     },
