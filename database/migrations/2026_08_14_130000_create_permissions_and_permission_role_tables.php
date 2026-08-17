@@ -97,36 +97,36 @@ return new class extends Migration
                 'view_clients', 'create_clients', 'edit_clients', 'import_clients',
                 'view_campaigns', 'create_campaigns', 'edit_campaigns', 'send_whatsapp', 'view_live_chat',
                 'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'request_exports', 'approve_exports',
-                'manage_auto_replies', 'manage_whatsapp_flows',
+                'manage_auto_replies', 'manage_whatsapp_flows', 'settings_user_account',
             ],
             'CALL_CENTRE_MANAGER' => [
                 'view_clients', 'create_clients', 'edit_clients', 'import_clients',
                 'view_campaigns', 'create_campaigns', 'edit_campaigns', 'send_whatsapp', 'view_live_chat',
                 'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'request_exports',
-                'manage_auto_replies', 'manage_whatsapp_flows',
+                'manage_auto_replies', 'manage_whatsapp_flows', 'settings_user_account',
             ],
             'TEAM_LEADER' => [
                 'view_clients', 'create_clients', 'edit_clients',
                 'view_campaigns', 'create_campaigns', 'send_whatsapp', 'view_live_chat',
-                'view_security_incidents', 'view_compliance_console', 'request_exports',
+                'view_security_incidents', 'view_compliance_console', 'request_exports', 'settings_user_account',
             ],
             'AGENT' => [
                 'view_clients', 'edit_clients', 'portfolio_scoped_only',
-                'view_campaigns', 'send_whatsapp', 'view_live_chat', 'request_exports',
+                'view_campaigns', 'send_whatsapp', 'view_live_chat', 'request_exports', 'settings_user_account',
             ],
             'STAFF' => [
                 'view_clients', 'edit_clients', 'portfolio_scoped_only',
-                'view_campaigns', 'send_whatsapp', 'view_live_chat', 'request_exports',
+                'view_campaigns', 'send_whatsapp', 'view_live_chat', 'request_exports', 'settings_user_account',
             ],
             'AUDITOR' => [
-                'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'request_exports',
+                'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'request_exports', 'settings_user_account',
             ],
             'COMPLIANCE_OFFICER' => [
                 'view_audit_logs', 'view_security_incidents', 'manage_security_incidents',
-                'view_compliance_console', 'manage_compliance_console', 'request_exports', 'approve_exports',
+                'view_compliance_console', 'manage_compliance_console', 'request_exports', 'approve_exports', 'settings_user_account',
             ],
             'READ_ONLY_REVIEWER' => [
-                'view_audit_logs', 'view_security_incidents', 'view_compliance_console',
+                'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'settings_user_account',
             ],
         ];
 
