@@ -622,8 +622,8 @@
                   <div class="col-md-6 mb-2"><strong>ID Number:</strong> {{ viewClient.id_number_masked || viewClient.id_number || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Title:</strong> {{ viewClient.title || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Initials:</strong> {{ viewClient.initials || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>First Name:</strong> {{ viewClient.first_name || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>Surname:</strong> {{ viewClient.surname || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>First Name:</strong> {{ viewClient.first_name || (viewClient.name ? viewClient.name.split(' ')[0] : '-') }}</div>
+                  <div class="col-md-6 mb-2"><strong>Surname:</strong> {{ viewClient.surname || (viewClient.name && viewClient.name.split(' ').length > 1 ? viewClient.name.split(' ').slice(1).join(' ') : '-') }}</div>
                 </div>
               </div>
 
@@ -1085,8 +1085,8 @@ export default {
           id: fullClient.id,
           name: fullClient.name,
           title: fullClient.title || '',
-          first_name: fullClient.first_name || '',
-          surname: fullClient.surname || '',
+          first_name: fullClient.first_name || (fullClient.name ? fullClient.name.split(' ')[0] : ''),
+          surname: fullClient.surname || (fullClient.name && fullClient.name.split(' ').length > 1 ? fullClient.name.split(' ').slice(1).join(' ') : ''),
           email: fullClient.email || '',
           phone: fullClient.phone || '',
           bank_id: fullClient.bank_id || '',
