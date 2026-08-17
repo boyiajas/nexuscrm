@@ -2232,7 +2232,7 @@ class CampaignController extends Controller
         }
 
         $normalized = [];
-        $missing = [];
+        $missing = []; \Log::info("DEBUG TEMPLATE VARIABLES", ["input" => $input, "expected" => $expectedVariables]);
 
         foreach ($this->sortedTemplateVariableKeys($expectedVariables) as $key) {
             $entry = $input[$key] ?? null;

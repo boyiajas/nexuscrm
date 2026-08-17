@@ -1004,6 +1004,7 @@
                   <label class="form-label">WhatsApp Template</label>
                   <select
                     v-model="whatsappForm.templateId"
+                    @change="handleWhatsappTemplateChange"
                     class="form-select"
                   >
                     <option value="">-- Select a template --</option>
@@ -2110,6 +2111,20 @@ export default {
     },
     viewClient(client) {
       this.$router.push({ name: 'clients', query: { id: client.id } });
+    },
+    handleWhatsappTemplateChange() {
+      // Avoid overwriting if we are editing and haven't actually changed the template
+      const currentVars = this.whatsappForm.templateVariables || {};
+      this.whatsappForm.templateVariables = { ...currentVars };
+
+      const tpl = this.currentWhatsappTemplate;
+      if (tpl && tpl.variables) {
+        Object.keys(tpl.variables).forEach((key) => {
+          if (!this.whatsappForm.templateVariables[key]) {
+            this.whatsappForm.templateVariables[key] = { source: '', custom_value: '' };
+          }
+        });
+      }
     },
     getTemplateVariable(key) {
       if (!this.whatsappForm.templateVariables[key]) {
