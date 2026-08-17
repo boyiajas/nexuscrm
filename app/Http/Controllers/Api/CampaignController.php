@@ -143,12 +143,8 @@ class CampaignController extends Controller
             ->orderBy('clients.name')
             ->get()
             ->map(function ($client) {
-                return [
-                    'id' => $client->id,
-                    'name' => $client->name,
-                    'email' => $client->email,
+                return array_merge($client->toArray(), [
                     'phone' => $this->resolveClientPhone($client),
-                    'import_batch_number' => $client->import_batch_number,
                     'departments' => $client->departments->map(function ($dept) {
                         return [
                             'id' => $dept->id,
@@ -156,7 +152,7 @@ class CampaignController extends Controller
                         ];
                     }),
                     'department_names' => $client->departments->pluck('name')->join(', '),
-                ];
+                ]);
             });
 
         return response()->json($clients);
@@ -385,14 +381,9 @@ class CampaignController extends Controller
                         ->where('client_id', $client->id)
                         ->first();
 
-                    return [
-                        'id' => $client->id,
-                        'name' => $client->name,
-                        'email' => $client->email,
+                    return array_merge($client->toArray(), [
                         'phone' => $this->resolveClientPhone($client),
-                        'bank_name' => $client->bank_name,
                         'assigned_to_name' => $client->assignedTo?->name,
-                        'import_batch_number' => $client->import_batch_number,
                         'departments' => $client->departments->map(function ($dept) {
                             return ['id' => $dept->id, 'name' => $dept->name];
                         }),
@@ -403,7 +394,7 @@ class CampaignController extends Controller
                         'sms_status' => $pivot->sms_status ?? 'Pending',
                         'sms_sent_at' => $pivot->sms_sent_at,
                         'created_at' => $pivot->created_at ?? $client->created_at,
-                    ];
+                    ]);
                 })
                 ->values();
 
@@ -422,14 +413,9 @@ class CampaignController extends Controller
                 ->where('client_id', $client->id)
                 ->first();
 
-            return [
-                'id' => $client->id,
-                'name' => $client->name,
-                'email' => $client->email,
+            return array_merge($client->toArray(), [
                 'phone' => $this->resolveClientPhone($client),
-                'bank_name' => $client->bank_name,
                 'assigned_to_name' => $client->assignedTo?->name,
-                'import_batch_number' => $client->import_batch_number,
                 'departments' => $client->departments->map(function ($dept) {
                     return ['id' => $dept->id, 'name' => $dept->name];
                 }),
@@ -440,7 +426,7 @@ class CampaignController extends Controller
                 'sms_status' => $pivot->sms_status ?? 'Pending',
                 'sms_sent_at' => $pivot->sms_sent_at,
                 'created_at' => $pivot->created_at ?? $client->created_at,
-            ];
+            ]);
         });
 
         return response()->json(array_merge($paginator->toArray(), [

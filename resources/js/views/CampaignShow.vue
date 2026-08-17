@@ -2137,9 +2137,12 @@ export default {
               const nameParts = client.name.split(' ');
               val = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
           }
-          return val || `{{${key}}}`;
+          let finalVal = val !== undefined && val !== null ? String(val) : '';
+          return finalVal.trim() === '' ? ' ' : finalVal;
       } else if (parts[0] === 'campaign') {
-          return this.campaign ? this.campaign[parts[1]] : `{{${key}}}`;
+          let val = this.campaign ? this.campaign[parts[1]] : null;
+          let finalVal = val !== undefined && val !== null ? String(val) : '';
+          return finalVal.trim() === '' ? ' ' : finalVal;
       }
       return `{{${key}}}`;
     },

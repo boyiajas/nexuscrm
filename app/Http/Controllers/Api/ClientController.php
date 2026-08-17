@@ -108,34 +108,23 @@ class ClientController extends Controller
                 ? ($createdByName ?: 'Imported / Unknown')
                 : 'Manual / Not tracked';
 
-            return [
-                'id' => $client->id,
-                'name' => $client->name,
+            return array_merge($client->toArray(), [
                 'email' => $this->resolveClientDisplayEmail($client),
                 'phone' => $this->resolveClientDisplayPhone($client),
-                'bank_id' => $client->bank_id,
-                'bank_name' => $client->bank_name,
-                'assigned_to_id' => $client->assigned_to_id,
                 'assigned_to_name' => $client->assignedTo?->name,
-                'import_batch_number' => $client->import_batch_number,
                 'created_by_name' => $createdByName,
                 'created_by_label' => $createdByLabel,
                 'id_number_masked' => $client->maskedIdNumber(),
                 'account_number_masked' => $client->maskedAccountNumber(),
                 'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
-                'whatsapp_opt_out_reason' => $client->whatsapp_opt_out_reason,
-                'whatsapp_contact_basis' => $client->whatsapp_contact_basis,
-                'whatsapp_contact_basis_details' => $client->whatsapp_contact_basis_details,
                 'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
-                'whatsapp_opt_in_source' => $client->whatsapp_opt_in_source,
                 'whatsapp_can_receive' => $client->canReceiveWhatsapp(),
                 'whatsapp_compliance_status' => $this->whatsappComplianceStatus($client),
-                'tags' => $client->tags ?? [],
                 'departments' => $client->departments->map(fn ($dept) => [
                     'id' => $dept->id,
                     'name' => $dept->name,
                 ])->values(),
-            ];
+            ]);
         });
 
         return response()->json(array_merge($clients->toArray(), [
