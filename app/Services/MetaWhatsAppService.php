@@ -781,7 +781,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
         $response = \Illuminate\Support\Facades\Http::withToken($this->accessToken)
             ->attach('file', $content, $filename, ['Content-Type' => $mimeType])
-            ->post("https://graph.facebook.com/{$this->apiVersion}/{$senderPhoneNumberId}/media", [
+            ->post("{$this->baseUrl}/{$senderPhoneNumberId}/media", [
                 'messaging_product' => 'whatsapp',
                 'type'              => $mimeType,
             ]);
