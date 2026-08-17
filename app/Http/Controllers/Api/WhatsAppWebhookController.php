@@ -374,14 +374,14 @@ class WhatsAppWebhookController extends Controller
             return $recipient->client;
         }
 
-        Log::warning('Ambiguous inbound client match by phone; client was not auto-linked.', [
+        Log::warning('Ambiguous inbound client match by phone; picking the most recently updated client.', [
             'phone' => $phone,
             'phone_number_id' => $phoneNumberId,
             'candidate_client_ids' => $clients->pluck('id')->all(),
             'candidate_bank_ids' => $clients->pluck('bank_id')->unique()->values()->all(),
         ]);
 
-        return null;
+        return $clients->sortByDesc('updated_at')->first();
     }
 
     protected function findRecipientByPhone(string $phone, ?string $phoneNumberId = null): ?CampaignWhatsappRecipient
@@ -391,51 +391,18 @@ class WhatsAppWebhookController extends Controller
             return null;
         }
 
-        if ($recipients->count() === 1) {
-            return $recipients->first();
-        }
-
         if ($phoneNumberId) {
             $scopedByPhoneNumberId = $recipients
                 ->filter(fn ($recipient) => (string) $recipient->provider_phone_number_id === (string) $phoneNumberId)
                 ->values();
-
-            if ($scopedByPhoneNumberId->count() === 1) {
-                return $scopedByPhoneNumberId->first();
-            }
 
             if ($scopedByPhoneNumberId->isNotEmpty()) {
                 $recipients = $scopedByPhoneNumberId;
             }
         }
 
-        $clientIds = $recipients->pluck('client_id')->filter()->unique()->values();
-        if ($clientIds->count() === 1) {
-            return $recipients->sortByDesc('id')->first();
-        }
-
-        $recentSingle = $recipients
-            ->filter(fn ($recipient) => optional($recipient->created_at)->gte(now()->subDays(30)))
-            ->pluck('client_id')
-            ->filter()
-            ->unique()
-            ->values();
-
-        if ($recentSingle->count() === 1) {
-            return $recipients
-                ->where('client_id', $recentSingle->first())
-                ->sortByDesc('id')
-                ->first();
-        }
-
-        Log::warning('Ambiguous inbound WhatsApp recipient match by phone; recipient was not auto-linked.', [
-            'phone' => $phone,
-            'phone_number_id' => $phoneNumberId,
-            'candidate_recipient_ids' => $recipients->pluck('id')->all(),
-            'candidate_client_ids' => $clientIds->all(),
-        ]);
-
-        return null;
+        // Just pick the most recent recipient overall to avoid dropping the link
+        return $recipients->sortByDesc('id')->first();
     }
 
     protected function candidateClientsForPhone(string $phone)
