@@ -363,7 +363,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
         if (in_array($headerFormat, ['IMAGE', 'DOCUMENT', 'VIDEO']) && $mediaUrl) {
             $mediaType = strtolower($headerFormat);
-            
+
             try {
                 $mediaId = $this->uploadMediaFromUrl($mediaUrl, $senderContext['phone_number_id'], $headerFormat);
                 $headerParams[] = [
@@ -373,17 +373,12 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                     ],
                 ];
             } catch (\Exception $e) {
-                Log::warning('Failed to upload Meta media URL, falling back to link parameter.', [
-                    'url' => $mediaUrl,
+                Log::error('Media upload to Meta failed — template cannot be sent without a valid media_id.', [
+                    'url'           => $mediaUrl,
+                    'phone_num_id'  => $senderContext['phone_number_id'],
                     'error_message' => $e->getMessage(),
-                    'error_trace' => $e->getTraceAsString(),
                 ]);
-                $headerParams[] = [
-                    'type' => $mediaType,
-                    $mediaType => [
-                        'link' => $mediaUrl,
-                    ],
-                ];
+                throw new \RuntimeException('Media upload error: ' . $e->getMessage(), 0, $e);
             }
         }
 
@@ -735,9 +730,17 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             return \Illuminate\Support\Facades\Cache::get($cacheKey);
         }
 
-        $downloadResponse = \Illuminate\Support\Facades\Http::get($url);
+        // Meta CDN URLs (lookaside.fbsbx.com, scontent) require the access token to download.
+        // Try authenticated download first, fall back to unauthenticated for public URLs.
+        $downloadResponse = \Illuminate\Support\Facades\Http::withToken($this->accessToken)->get($url);
         if (!$downloadResponse->successful()) {
-            throw new \RuntimeException("Failed to download media from URL: {$url}. Status: " . $downloadResponse->status());
+            // Retry without token for non-Meta public URLs
+            $downloadResponse = \Illuminate\Support\Facades\Http::get($url);
+        }
+        if (!$downloadResponse->successful()) {
+            throw new \RuntimeException(
+                "Failed to download media from URL (status {$downloadResponse->status()}): {$url}"
+            );
         }
         $content = $downloadResponse->body();
         if (empty($content)) {
@@ -768,6 +771,14 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             $filename .= $ext;
         }
 
+        Log::info('Uploading media to Meta API.', [
+            'url'             => $url,
+            'phone_number_id' => $senderPhoneNumberId,
+            'mime_type'       => $mimeType,
+            'filename'        => $filename,
+            'content_size'    => strlen($content),
+        ]);
+
         $response = \Illuminate\Support\Facades\Http::withToken($this->accessToken)
             ->attach('file', $content, $filename, ['Content-Type' => $mimeType])
             ->post("https://graph.facebook.com/{$this->apiVersion}/{$senderPhoneNumberId}/media", [
@@ -780,9 +791,11 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         }
 
         $mediaId = $response->json('id');
-        if ($mediaId) {
-            \Illuminate\Support\Facades\Cache::put($cacheKey, $mediaId, now()->addDays(29));
+        if (!$mediaId) {
+            throw new \RuntimeException('Meta media upload returned no media ID. Response: ' . $response->body());
         }
+
+        \Illuminate\Support\Facades\Cache::put($cacheKey, $mediaId, now()->addDays(29));
 
         return $mediaId;
     }
