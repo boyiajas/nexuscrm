@@ -320,11 +320,14 @@ class WhatsAppBatchService
             $source = is_array($entry) ? ($entry['source'] ?? null) : $entry;
             $customValue = is_array($entry) ? ($entry['custom_value'] ?? null) : null;
 
-            $values[$key] = match ($source) {
+            $firstName = $client?->first_name ?: (explode(' ', $client?->name ?? '')[0] ?? '');
+            $surname = $client?->surname ?: (implode(' ', array_slice(explode(' ', $client?->name ?? ''), 1)) ?: '');
+
+            $val = match ($source) {
                 'client.name' => (string) ($client?->name ?? ''),
                 'client.title' => (string) ($client?->title ?? ''),
-                'client.first_name' => (string) ($client?->first_name ?? ''),
-                'client.surname' => (string) ($client?->surname ?? ''),
+                'client.first_name' => (string) $firstName,
+                'client.surname' => (string) $surname,
                 'client.phone' => (string) ($this->resolveClientPhone($client) ?? ''),
                 'client.email' => (string) ($client?->email ?? ''),
                 'client.id_number' => (string) ($client?->id_number ?? ''),
@@ -340,6 +343,8 @@ class WhatsAppBatchService
                 'custom' => (string) ($customValue ?? ''),
                 default => '',
             };
+
+            $values[$key] = trim($val) === '' ? ' ' : $val;
         }
 
         return $values;

@@ -160,9 +160,9 @@
           <div class="modal-body">
             <div class="row g-3">
               <div class="col-lg-6">
-                <div class="card h-100">
+                <div class="card h-100 border shadow-sm">
                   <div class="card-body">
-                    <h6 class="mb-3">Contact Information</h6>
+                    <h6 class="mb-3"><i class="bi bi-person-lines-fill me-2 text-primary"></i>Contact Information</h6>
                     <div class="d-flex align-items-center gap-3 mb-3">
                       <div class="avatar-initial-badge d-flex align-items-center justify-content-center shadow-sm" style="width: 64px; height: 64px; font-size: 1.5rem;">
                         {{ getInitials(profile.name) }}
@@ -206,9 +206,9 @@
               </div>
 
               <div class="col-lg-6">
-                <div class="card h-100">
+                <div class="card h-100 border shadow-sm">
                   <div class="card-body">
-                    <h6 class="mb-3">Working Information</h6>
+                    <h6 class="mb-3"><i class="bi bi-briefcase-fill me-2 text-primary"></i>Working Information</h6>
                     <div class="row g-3">
                       <div class="col-md-12">
                         <label class="form-label small text-muted">Bank</label>
@@ -262,6 +262,31 @@
                             <i class="bi bi-lock-fill me-1"></i>Locked
                           </span>
                         </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="col-lg-12">
+                <div class="card border shadow-sm">
+                  <div class="card-body">
+                    <h6 class="mb-3"><i class="bi bi-shield-check me-2 text-primary"></i>Security & Activity</h6>
+                    <div class="row g-3">
+                      <div class="col-md-4">
+                        <label class="form-label small text-muted">Last Login</label>
+                        <div class="fw-semibold">
+                          <span v-if="profile.last_login_at">{{ new Date(profile.last_login_at).toLocaleString() }}</span>
+                          <span v-else class="text-muted fst-italic">Never</span>
+                        </div>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small text-muted">Last Login IP</label>
+                        <div class="fw-semibold font-monospace">{{ profile.last_login_ip || '-' }}</div>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small text-muted">Last Login Device/Browser</label>
+                        <div class="fw-semibold small" style="word-break: break-word;">{{ profile.last_login_user_agent || '-' }}</div>
                       </div>
                     </div>
                   </div>
@@ -634,6 +659,9 @@ export default {
         is_provider: false,
         is_time_clock_user: false,
         status: "",
+        last_login_at: null,
+        last_login_ip: null,
+        last_login_user_agent: null,
       },
 
       resetPasswordModal: null,
@@ -1055,6 +1083,9 @@ export default {
         status: user.status || "Active",
         is_locked: !!user.is_locked,
         locked_until: user.locked_until || null,
+        last_login_at: user.last_login_at || null,
+        last_login_ip: user.last_login_ip || null,
+        last_login_user_agent: user.last_login_user_agent || null,
       };
       if (!this.profileModal) {
         this.profileModal = createManagedModal(this.$refs.profileModalRef);
