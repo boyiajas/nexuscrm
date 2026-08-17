@@ -319,6 +319,8 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             throw new \RuntimeException('Template name is required for Meta WhatsApp sends.');
         }
 
+        $senderContext = $this->resolveSenderContext($overrideFrom);
+
         $template = $this->getTemplateDetails($templateName);
         $bodyComponent = $this->bodyComponent($template['components'] ?? []);
         $exampleBody = (string) ($bodyComponent['text'] ?? '');
@@ -361,12 +363,27 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
         if (in_array($headerFormat, ['IMAGE', 'DOCUMENT', 'VIDEO']) && $mediaUrl) {
             $mediaType = strtolower($headerFormat);
-            $headerParams[] = [
-                'type' => $mediaType,
-                $mediaType => [
-                    'link' => $mediaUrl,
-                ],
-            ];
+            
+            try {
+                $mediaId = $this->uploadMediaFromUrl($mediaUrl, $senderContext['phone_number_id']);
+                $headerParams[] = [
+                    'type' => $mediaType,
+                    $mediaType => [
+                        'id' => $mediaId,
+                    ],
+                ];
+            } catch (\Exception $e) {
+                Log::warning('Failed to upload Meta media URL, falling back to link parameter.', [
+                    'url' => $mediaUrl,
+                    'error' => $e->getMessage()
+                ]);
+                $headerParams[] = [
+                    'type' => $mediaType,
+                    $mediaType => [
+                        'link' => $mediaUrl,
+                    ],
+                ];
+            }
         }
 
         $payload = [
@@ -400,7 +417,6 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             unset($payload['template']['components']);
         }
 
-        $senderContext = $this->resolveSenderContext($overrideFrom);
         $response = $this->post("{$senderContext['phone_number_id']}/messages", $payload);
         $messageId = $response['messages'][0]['id'] ?? null;
 
@@ -709,5 +725,41 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         }
 
         return $payload;
+    }
+
+    public function uploadMediaFromUrl(string $url, string $senderPhoneNumberId): string
+    {
+        $cacheKey = 'meta_media_id_' . md5($url);
+        if (\Illuminate\Support\Facades\Cache::has($cacheKey)) {
+            return \Illuminate\Support\Facades\Cache::get($cacheKey);
+        }
+
+        $content = @file_get_contents($url);
+        if (!$content) {
+            throw new \RuntimeException("Failed to download media from URL: {$url}");
+        }
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'meta_media');
+        file_put_contents($tempFile, $content);
+        $mimeType = mime_content_type($tempFile) ?: 'application/octet-stream';
+        $filename = basename(parse_url($url, PHP_URL_PATH)) ?: 'media_file';
+        unlink($tempFile);
+
+        $response = \Illuminate\Support\Facades\Http::withToken($this->accessToken)
+            ->attach('file', $content, $filename, ['Content-Type' => $mimeType])
+            ->post("https://graph.facebook.com/{$this->apiVersion}/{$senderPhoneNumberId}/media", [
+                'messaging_product' => 'whatsapp',
+            ]);
+
+        if (!$response->successful()) {
+            throw new \RuntimeException('Failed to upload media to Meta: ' . $response->body());
+        }
+
+        $mediaId = $response->json('id');
+        if ($mediaId) {
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $mediaId, now()->addDays(29));
+        }
+
+        return $mediaId;
     }
 }
