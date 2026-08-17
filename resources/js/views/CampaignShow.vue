@@ -2690,6 +2690,23 @@ export default {
         parsedVariables = {};
       }
 
+      // Auto-migrate old numeric keys to the new format
+      const template = this.whatsappTemplates.find((t) => t.id === templateId);
+      if (template && template.variables) {
+        const expectedKeys = Object.keys(template.variables);
+        if (expectedKeys.length > 0 && parsedVariables['1'] && !parsedVariables[expectedKeys[0]]) {
+            const newParsed = {};
+            let i = 1;
+            for (const key of expectedKeys) {
+                if (parsedVariables[String(i)]) {
+                    newParsed[key] = parsedVariables[String(i)];
+                }
+                i++;
+            }
+            parsedVariables = newParsed;
+        }
+      }
+
       this.whatsappForm = {
         mode: isFlow ? 'flow' : 'template',
         templateId: templateId || '',

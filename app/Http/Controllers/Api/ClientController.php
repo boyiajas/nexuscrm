@@ -153,33 +153,16 @@ class ClientController extends Controller
                 'assigned_to_id' => $client->assigned_to_id,
             ]
         );
-        return response()->json([
-            'id' => $client->id,
-            'name' => $client->name,
+        return response()->json(array_merge($client->toArray(), [
             'email' => $this->resolveClientDisplayEmail($client),
             'phone' => $this->resolveClientDisplayPhone($client),
-            'bank_id' => $client->bank_id,
-            'bank_name' => $client->bank_name,
-            'assigned_to_id' => $client->assigned_to_id,
             'assigned_to_name' => $client->assignedTo?->name,
             'id_number' => $this->shouldMaskSensitiveFields($user) ? $client->maskedIdNumber() : $client->id_number,
-            'title' => $client->title,
-            'first_name' => $client->first_name,
-            'surname' => $client->surname,
-            'easy_pay_number' => $client->easy_pay_number,
-            'outstanding_balance' => $client->outstanding_balance,
-            'arrears_amount' => $client->arrears_amount,
-            'installment_amount' => $client->installment_amount,
             'account_number' => $this->shouldMaskSensitiveFields($user) ? $client->maskedAccountNumber() : $client->account_number,
-            'branch_code' => $client->branch_code,
             'id_number_masked' => $client->maskedIdNumber(),
             'account_number_masked' => $client->maskedAccountNumber(),
             'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
-            'whatsapp_opt_out_reason' => $client->whatsapp_opt_out_reason,
-            'whatsapp_contact_basis' => $client->whatsapp_contact_basis,
-            'whatsapp_contact_basis_details' => $client->whatsapp_contact_basis_details,
             'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
-            'whatsapp_opt_in_source' => $client->whatsapp_opt_in_source,
             'whatsapp_can_receive' => $client->canReceiveWhatsapp(),
             'whatsapp_compliance_status' => $this->whatsappComplianceStatus($client),
             'tags' => $client->tags ?? [],
@@ -188,8 +171,8 @@ class ClientController extends Controller
                     'id' => $dept->id,
                     'name' => $dept->name,
                 ];
-            }),
-        ]);
+            })->values(),
+        ]));
     }
 
     public function store(Request $request)
