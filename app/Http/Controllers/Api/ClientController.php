@@ -50,16 +50,22 @@ class ClientController extends Controller
             });
         }
 
-        if ($search = $request->get('search', $request->get('q'))) {
+        if ($search = trim((string) $request->get('search', $request->get('q')))) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%$search%")
+                  ->orWhere('first_name', 'like', "%$search%")
+                  ->orWhere('surname', 'like', "%$search%")
                   ->orWhere('email', 'like', "%$search%")
-                  ->orWhere('phone', 'like', "%$search%");
+                  ->orWhere('phone', 'like', "%$search%")
+                  ->orWhere('cell_phone', 'like', "%$search%")
+                  ->orWhere('id_number', 'like', "%$search%")
+                  ->orWhere('account_number', 'like', "%$search%")
+                  ->orWhere('easy_pay_number', 'like', "%$search%");
             });
         }
 
         if ($dept = $request->get('department')) {
-            if ($dept !== 'All') {
+            if ($dept !== 'All' && $dept !== '') {
                 $query->whereHas('departments', function ($q) use ($dept) {
                     $q->where('departments.name', $dept);
                 });
@@ -73,19 +79,35 @@ class ClientController extends Controller
             });
         }
 
-        if ($user && $user->canAccessAllBanks() && $request->filled('bank_id')) {
-            $query->where('bank_id', (int) $request->get('bank_id'));
+        if ($request->filled('bank_id')) {
+            $requestedBankId = (int) $request->get('bank_id');
+            if ($user->canAccessAllBanks() || in_array($requestedBankId, $user->resolvedBankIds(), true)) {
+                $query->where('bank_id', $requestedBankId);
+            }
+        }
+
+        if ($status = $request->get('status')) {
+            if (!in_array($status, ['All', 'all', ''], true)) {
+                $query->where('status', $status);
+            }
         }
 
         $batchOptions = (clone $query)
             ->whereNotNull('import_batch_number')
+            ->where('import_batch_number', '!=', '')
             ->distinct()
             ->orderByDesc('import_batch_number')
             ->pluck('import_batch_number')
             ->values();
 
         if ($batch = trim((string) $request->get('import_batch_number'))) {
-            $query->where('import_batch_number', $batch);
+            if ($batch === 'manual') {
+                $query->where(function ($q) {
+                    $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
+                });
+            } else {
+                $query->where('import_batch_number', $batch);
+            }
         }
 
         $clients = $query->orderBy('name')->paginate($perPage);
@@ -744,8 +766,11 @@ class ClientController extends Controller
         $this->applyBankScope($query, $user);
         $this->applyPortfolioScope($query, $user);
 
-        if ($user && $user->canAccessAllBanks() && $request->filled('bank_id')) {
-            $query->where('bank_id', (int) $request->get('bank_id'));
+        if ($request->filled('bank_id')) {
+            $requestedBankId = (int) $request->get('bank_id');
+            if ($user->canAccessAllBanks() || in_array($requestedBankId, $user->resolvedBankIds(), true)) {
+                $query->where('bank_id', $requestedBankId);
+            }
         }
 
         // Department scoping for non-system-admin users
@@ -756,11 +781,17 @@ class ClientController extends Controller
             });
         }
 
-        if ($search = $request->get('search', $request->get('q'))) {
+        if ($search = trim((string) $request->get('search', $request->get('q')))) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%$search%")
+                    ->orWhere('first_name', 'like', "%$search%")
+                    ->orWhere('surname', 'like', "%$search%")
                     ->orWhere('email', 'like', "%$search%")
-                    ->orWhere('phone', 'like', "%$search%");
+                    ->orWhere('phone', 'like', "%$search%")
+                    ->orWhere('cell_phone', 'like', "%$search%")
+                    ->orWhere('id_number', 'like', "%$search%")
+                    ->orWhere('account_number', 'like', "%$search%")
+                    ->orWhere('easy_pay_number', 'like', "%$search%");
             });
         }
 
@@ -779,7 +810,19 @@ class ClientController extends Controller
         }
 
         if ($batch = trim((string) $request->get('import_batch_number'))) {
-            $query->where('import_batch_number', $batch);
+            if ($batch === 'manual') {
+                $query->where(function ($q) {
+                    $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
+                });
+            } else {
+                $query->where('import_batch_number', $batch);
+            }
+        }
+
+        if ($status = $request->get('status')) {
+            if (!in_array($status, ['All', 'all', ''], true)) {
+                $query->where('status', $status);
+            }
         }
 
         $fileName = 'clients_' . now()->format('Ymd_His') . '.csv';

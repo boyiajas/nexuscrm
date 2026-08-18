@@ -33,8 +33,8 @@
                 v-model="filters.q"
                 type="text"
                 class="form-control form-control-sm rounded-pill"
-                style="width: 200px;"
-                placeholder="Search name, phone..."
+                style="width: 210px;"
+                placeholder="Search name, phone, email, ID..."
                 @input="applyFilters"
               />
 
@@ -49,22 +49,33 @@
               <!-- Bank Filter -->
               <select v-model="filters.bank_id" class="form-select form-select-sm rounded-pill" style="width: 140px;" @change="applyFilters">
                 <option value="">All Banks</option>
-                <option v-for="b in bankOptions" :key="b.id" :value="b.id">
+                <option v-for="b in banks" :key="b.id" :value="b.id">
                   {{ b.name }}
                 </option>
               </select>
 
+              <!-- Source / Batch Filter -->
+              <select v-model="filters.import_batch_number" class="form-select form-select-sm rounded-pill" style="width: 170px;" @change="applyFilters">
+                <option value="">All Sources / Batches</option>
+                <option value="manual">Manually Created</option>
+                <optgroup label="Import Batches" v-if="clientBatchOptions.length">
+                  <option v-for="batch in clientBatchOptions" :key="batch" :value="batch">
+                    Batch {{ batch }}
+                  </option>
+                </optgroup>
+              </select>
+
               <!-- Status Filter -->
-              <select v-model="filters.import_batch_number" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
-                <option value="">Status v</option>
-                <option v-for="batch in clientBatchOptions" :key="batch" :value="batch">
-                  Batch {{ batch }}
-                </option>
+              <select v-model="filters.status" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
+                <option value="">All Statuses</option>
+                <option value="Active">Active</option>
+                <option value="Pending">Pending</option>
+                <option value="Inactive">Inactive</option>
               </select>
             </div>
 
             <div class="d-flex align-items-center gap-3">
-              <div v-if="filters.import_batch_number" class="btn-group btn-group-sm">
+              <div v-if="filters.import_batch_number && filters.import_batch_number !== 'manual'" class="btn-group btn-group-sm">
                 <button type="button" class="btn btn-outline-primary shadow-sm" @click="openAssignBatchModal" :disabled="!canManage">
                   <i class="bi bi-person-lines-fill"></i> Assign Batch
                 </button>
@@ -718,6 +729,7 @@ export default {
         department: '',
         import_batch_number: '',
         bank_id: '',
+        status: '',
       },
       pageSize: 25,
       pageSizeOptions: [25, 50, 100, 200, 300, 500, 1000],
@@ -1007,6 +1019,7 @@ export default {
         department: this.filters.department || undefined,
         import_batch_number: this.filters.import_batch_number || undefined,
         bank_id: this.filters.bank_id || undefined,
+        status: this.filters.status || undefined,
         per_page: this.pageSize,
       };
 
@@ -1043,7 +1056,7 @@ export default {
       this.fetchClients(1);
     },
     resetFilters() {
-      this.filters = { q: '', department: '', import_batch_number: '', bank_id: '' };
+      this.filters = { q: '', department: '', import_batch_number: '', bank_id: '', status: '' };
       this.fetchClients(1);
     },
     changePageSize() {
@@ -1531,12 +1544,14 @@ export default {
           department: this.filters.department || '',
           import_batch_number: this.filters.import_batch_number || '',
           bank_id: this.filters.bank_id || '',
+          status: this.filters.status || '',
         },
         summaryRows: [
           { label: 'Search', value: this.filters.q || 'All clients' },
           { label: 'Department', value: this.filters.department || 'All departments' },
-          { label: 'Import Batch', value: this.filters.import_batch_number || 'All batches' },
+          { label: 'Source / Batch', value: this.filters.import_batch_number === 'manual' ? 'Manually Created' : (this.filters.import_batch_number || 'All batches') },
           { label: 'Bank Scope', value: this.selectedBankName || 'Current access scope' },
+          { label: 'Status', value: this.filters.status || 'All statuses' },
         ],
         fallbackName: 'clients.csv',
       });
