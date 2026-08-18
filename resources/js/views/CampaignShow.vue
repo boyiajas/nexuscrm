@@ -181,7 +181,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="cl in clients" :key="cl.id">
+                <tr v-for="cl in paginatedCampaignClients" :key="cl.id">
                   <td class="ps-4 py-1">
                     <div class="form-check m-0">
                       <input class="form-check-input" type="checkbox" :value="cl.id" v-model="selectedClients">
@@ -205,7 +205,12 @@
                     <span v-else class="text-muted">-</span>
                   </td>
                   <td>
-                    <span class="badge" :class="statusColor(cl.whatsapp_status)">
+                    <span
+                      class="badge"
+                      :class="statusColor(cl.whatsapp_status)"
+                      :title="(cl.whatsapp_status && cl.whatsapp_status.toLowerCase() === 'failed' || cl.whatsapp_error_message || cl.whatsapp_error_code) ? getRecipientErrorMessage(cl) : null"
+                      :style="(cl.whatsapp_status && cl.whatsapp_status.toLowerCase() === 'failed' || cl.whatsapp_error_message || cl.whatsapp_error_code) ? 'cursor: help;' : ''"
+                    >
                       {{ cl.whatsapp_status || '-' }}
                     </span>
                   </td>
@@ -237,6 +242,51 @@
                 </tr>
               </tbody>
             </table>
+            </div>
+          </div>
+
+          <!-- Footer Strip with Rows Per Page & Pagination -->
+          <div class="card-footer bg-white py-3 px-4 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 border-top">
+            <div class="d-flex align-items-center gap-3">
+              <small class="text-muted fw-medium">
+                {{ campaignClientPaginationInfo }}
+              </small>
+              <div class="d-flex align-items-center gap-2">
+                <label class="small text-muted fw-medium mb-0">Rows per page:</label>
+                <select
+                  v-model.number="clientTablePerPage"
+                  class="form-select form-select-sm border-secondary-subtle"
+                  style="width: 80px; font-size: 0.8rem;"
+                  @change="clientTableCurrentPage = 1"
+                >
+                  <option :value="10">10</option>
+                  <option :value="25">25</option>
+                  <option :value="50">50</option>
+                  <option :value="100">100</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+              <button
+                class="btn btn-sm btn-light border p-1 px-2"
+                :disabled="clientTableCurrentPage <= 1"
+                @click="clientTableCurrentPage--"
+                title="Previous Page"
+              >
+                <i class="bi bi-chevron-left"></i>
+              </button>
+              <span class="small fw-semibold text-dark px-1">
+                Page {{ clientTableCurrentPage }} of {{ totalCampaignClientPages }}
+              </span>
+              <button
+                class="btn btn-sm btn-light border p-1 px-2"
+                :disabled="clientTableCurrentPage >= totalCampaignClientPages"
+                @click="clientTableCurrentPage++"
+                title="Next Page"
+              >
+                <i class="bi bi-chevron-right"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -708,8 +758,8 @@
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="(r, idx) in filteredRecipients" :key="r.id">
-                        <td class="ps-4 text-muted small fw-bold">{{ idx + 1 }}</td>
+                      <tr v-for="(r, idx) in paginatedRecipients" :key="r.id">
+                        <td class="ps-4 text-muted small fw-bold">{{ (recipientModal.currentPage - 1) * (recipientModal.perPage || 25) + idx + 1 }}</td>
                         <td class="fw-bold text-dark">{{ r.phone || r.client_name || '+1 (555) 019-2834' }}</td>
                         <td>
                           <span :class="idx % 2 === 0 ? 'badge bg-primary-subtle text-primary border' : 'badge bg-danger-subtle text-danger border'" class="px-2 py-1 fw-bold" style="font-size: 0.75rem;">
@@ -718,11 +768,20 @@
                         </td>
                         <td class="small fw-medium text-dark">{{ r.department_names || (idx % 2 === 0 ? 'Retail Recovery' : 'Auto Finance') }}</td>
                         <td>
-                          <span :class="getStatusBadgeClass(r.status)">
+                          <span
+                            :class="getStatusBadgeClass(r.status)"
+                            :title="(r.status === 'Failed' || (r.status && r.status.toLowerCase() === 'failed') || r.error_message || r.error_code) ? getRecipientErrorMessage(r) : null"
+                            :style="(r.status === 'Failed' || (r.status && r.status.toLowerCase() === 'failed') || r.error_message || r.error_code) ? 'cursor: help;' : ''"
+                          >
                             <i v-if="getStatusBadgeClass(r.status).includes('pending')" class="bi bi-clock-history me-1"></i>
                             <i v-else-if="getStatusBadgeClass(r.status).includes('delivered')" class="bi bi-check2-all me-1"></i>
                             <i v-else-if="getStatusBadgeClass(r.status).includes('failed')" class="bi bi-exclamation-circle me-1"></i>
                             {{ r.status || 'Queued' }}
+                            <i
+                              v-if="(r.status === 'Failed' || (r.status && r.status.toLowerCase() === 'failed') || r.error_message) && getRecipientErrorMessage(r)"
+                              class="bi bi-info-circle-fill ms-1 text-danger opacity-75"
+                              :title="getRecipientErrorMessage(r)"
+                            ></i>
                           </span>
                         </td>
                         <td class="text-end pe-4">
@@ -752,17 +811,46 @@
                 </div>
               </div>
 
-              <!-- Footer Strip -->
-              <div class="card-footer bg-white py-3 px-4 d-flex justify-content-between align-items-center border-top">
-                <small class="text-muted fw-medium">
-                  Showing {{ filteredRecipients.length }} of {{ filteredRecipients.length }} records
-                </small>
+              <!-- Footer Strip with Rows Per Page & Pagination -->
+              <div class="card-footer bg-white py-3 px-4 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 border-top">
+                <div class="d-flex align-items-center gap-3">
+                  <small class="text-muted fw-medium">
+                    {{ recipientPaginationInfo }}
+                  </small>
+                  <div class="d-flex align-items-center gap-2">
+                    <label class="small text-muted fw-medium mb-0">Rows per page:</label>
+                    <select
+                      v-model.number="recipientModal.perPage"
+                      class="form-select form-select-sm border-secondary-subtle"
+                      style="width: 80px; font-size: 0.8rem;"
+                      @change="recipientModal.currentPage = 1"
+                    >
+                      <option :value="10">10</option>
+                      <option :value="25">25</option>
+                      <option :value="50">50</option>
+                      <option :value="100">100</option>
+                    </select>
+                  </div>
+                </div>
 
-                <div class="d-flex align-items-center gap-1">
-                  <button class="btn btn-sm btn-light border p-1 px-2" disabled>
+                <div class="d-flex align-items-center gap-2">
+                  <button
+                    class="btn btn-sm btn-light border p-1 px-2"
+                    :disabled="recipientModal.currentPage <= 1"
+                    @click="recipientModal.currentPage--"
+                    title="Previous Page"
+                  >
                     <i class="bi bi-chevron-left"></i>
                   </button>
-                  <button class="btn btn-sm btn-light border p-1 px-2" disabled>
+                  <span class="small fw-semibold text-dark px-1">
+                    Page {{ recipientModal.currentPage }} of {{ totalRecipientPages }}
+                  </span>
+                  <button
+                    class="btn btn-sm btn-light border p-1 px-2"
+                    :disabled="recipientModal.currentPage >= totalRecipientPages"
+                    @click="recipientModal.currentPage++"
+                    title="Next Page"
+                  >
                     <i class="bi bi-chevron-right"></i>
                   </button>
                 </div>
@@ -1803,6 +1891,8 @@ export default {
       // clients in campaign
       clients: [],
       selectedClients: [],
+      clientTablePerPage: 25,
+      clientTableCurrentPage: 1,
 
       // channel messages
       whatsappMessages: [],
@@ -1834,6 +1924,8 @@ export default {
           can_send: false,
         },
         filter: '',
+        currentPage: 1,
+        perPage: 25,
       },
 
       // add clients modal
@@ -2025,6 +2117,26 @@ export default {
     selectAllClients() {
       return this.clients.length > 0 && this.selectedClients.length === this.clients.length;
     },
+    paginatedCampaignClients() {
+      const list = this.clients || [];
+      const perPage = Number(this.clientTablePerPage) || 25;
+      if (perPage <= 0) return list;
+      const start = (this.clientTableCurrentPage - 1) * perPage;
+      return list.slice(start, start + perPage);
+    },
+    totalCampaignClientPages() {
+      const perPage = Number(this.clientTablePerPage) || 25;
+      if (perPage <= 0) return 1;
+      return Math.max(1, Math.ceil((this.clients || []).length / perPage));
+    },
+    campaignClientPaginationInfo() {
+      const total = (this.clients || []).length;
+      if (total === 0) return 'Showing 0 of 0 records';
+      const perPage = Number(this.clientTablePerPage) || 25;
+      const start = (this.clientTableCurrentPage - 1) * perPage + 1;
+      const end = Math.min(start + perPage - 1, total);
+      return `Showing ${start} to ${end} of ${total} records`;
+    },
     filteredRecipients() {
       const rows = this.recipientModal.rows || [];
       const q = (this.recipientModal.filter || '').trim().toLowerCase();
@@ -2036,10 +2148,32 @@ export default {
           r.phone,
           r.department_names,
           r.status,
+          r.error_message,
+          r.error_code,
         ]
           .filter(Boolean)
           .some((val) => String(val).toLowerCase().includes(q));
       });
+    },
+    paginatedRecipients() {
+      const list = this.filteredRecipients;
+      const perPage = Number(this.recipientModal.perPage) || 25;
+      if (perPage <= 0) return list;
+      const start = (this.recipientModal.currentPage - 1) * perPage;
+      return list.slice(start, start + perPage);
+    },
+    totalRecipientPages() {
+      const perPage = Number(this.recipientModal.perPage) || 25;
+      if (perPage <= 0) return 1;
+      return Math.max(1, Math.ceil(this.filteredRecipients.length / perPage));
+    },
+    recipientPaginationInfo() {
+      const total = this.filteredRecipients.length;
+      if (total === 0) return 'Showing 0 of 0 records';
+      const perPage = Number(this.recipientModal.perPage) || 25;
+      const start = (this.recipientModal.currentPage - 1) * perPage + 1;
+      const end = Math.min(start + perPage - 1, total);
+      return `Showing ${start} to ${end} of ${total} records`;
     },
     currentWhatsappTemplate() {
         if (!this.whatsappForm.templateId) return null;
@@ -2468,6 +2602,19 @@ export default {
       if (s === 'delivered' || s === 'sent' || s === 'completed' || s === 'active') return 'badge-status-delivered text-success bg-success-subtle';
       if (s === 'failed' || s === 'error') return 'badge-status-failed text-danger bg-danger-subtle';
       return 'badge-status-pending text-primary bg-primary-subtle';
+    },
+    getRecipientErrorMessage(r) {
+      if (!r) return 'Delivery failed';
+      if (r.error_message && r.error_code) {
+        return `${r.error_message} (Error Code: ${r.error_code})`;
+      }
+      if (r.error_message) {
+        return r.error_message;
+      }
+      if (r.error_code) {
+        return `Error Code: ${r.error_code}`;
+      }
+      return 'Message delivery failed';
     },
 
     // Export helpers
