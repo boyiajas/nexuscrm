@@ -343,9 +343,10 @@ class WhatsAppWebhookController extends Controller
     protected function mapStatus(string $status): string
     {
         return match ($status) {
-            'delivered', 'read', 'sent' => 'Delivered',
-            'failed' => 'Failed',
-            default => 'Pending',
+            'delivered', 'read' => 'Delivered',
+            'sent'              => 'Sent',
+            'failed'            => 'Failed',
+            default             => 'Pending',
         };
     }
 
