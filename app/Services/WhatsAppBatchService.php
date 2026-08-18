@@ -172,25 +172,27 @@ class WhatsAppBatchService
     {
         $query = $message->recipients();
 
-        $total = (clone $query)->count();
-        $delivered = (clone $query)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
-        $failed = (clone $query)->whereRaw('LOWER(status) = ?', ['failed'])->count();
-        $queued = (clone $query)->whereRaw('LOWER(status) = ?', ['queued'])->count();
-        $processing = (clone $query)->whereRaw('LOWER(status) = ?', ['processing'])->count();
-        $paused = (clone $query)->whereRaw('LOWER(status) = ?', ['paused'])->count();
+        $total          = (clone $query)->count();
+        $delivered      = (clone $query)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
+        $sent           = (clone $query)->whereRaw('LOWER(status) = ?', ['sent'])->count();
+        $failed         = (clone $query)->whereRaw('LOWER(status) = ?', ['failed'])->count();
+        $queued         = (clone $query)->whereRaw('LOWER(status) = ?', ['queued'])->count();
+        $processing     = (clone $query)->whereRaw('LOWER(status) = ?', ['processing'])->count();
+        $paused         = (clone $query)->whereRaw('LOWER(status) = ?', ['paused'])->count();
         $providerPending = (clone $query)->whereRaw('LOWER(status) = ?', ['pending'])->count();
-        $suppressed = (clone $query)->whereIn('status', ['Suppressed', 'No Lawful Basis', 'No Phone'])->count();
+        $suppressed     = (clone $query)->whereIn('status', ['Suppressed', 'No Lawful Basis', 'No Phone'])->count();
 
         return [
-            'total' => $total,
-            'delivered' => $delivered,
-            'failed' => $failed,
-            'queued' => $queued,
-            'processing' => $processing,
-            'paused' => $paused,
+            'total'           => $total,
+            'delivered'       => $delivered + $sent,   // 'Sent' = accepted by Meta, counts as delivered
+            'sent'            => $sent,
+            'failed'          => $failed,
+            'queued'          => $queued,
+            'processing'      => $processing,
+            'paused'          => $paused,
             'provider_pending' => $providerPending,
-            'suppressed' => $suppressed,
-            'pending' => $queued + $processing + $providerPending + $paused,
+            'suppressed'      => $suppressed,
+            'pending'         => $queued + $processing + $providerPending + $paused,
         ];
     }
 

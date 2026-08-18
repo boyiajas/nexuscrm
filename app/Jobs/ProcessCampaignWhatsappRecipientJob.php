@@ -220,9 +220,10 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
     protected function mapProviderStatus(?string $status): string
     {
         return match (strtolower((string) $status)) {
-            'delivered', 'read', 'sent' => 'Delivered',
+            'delivered', 'read'             => 'Delivered',
+            'sent', 'accepted', 'queued'    => 'Sent',
             'failed', 'undelivered', 'error' => 'Failed',
-            default => 'Pending',
+            default                         => 'Pending',
         };
     }
 }
