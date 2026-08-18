@@ -615,9 +615,12 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             throw new \RuntimeException('Source WABA ID is missing in active Meta config.');
         }
 
+        // Meta requires numeric integer template IDs
+        $numericIds = array_values(array_map('intval', $templateIds));
+
         return $this->post("{$destinationWabaId}/migrate_message_templates", [
             'source_waba_id' => $sourceWabaId,
-            'template_ids' => array_values($templateIds),
+            'template_ids'   => $numericIds,
         ]);
     }
 

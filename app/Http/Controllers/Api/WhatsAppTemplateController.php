@@ -234,7 +234,18 @@ class WhatsAppTemplateController extends Controller
             'template_ids.*'      => ['string'],
         ]);
 
-        $result = $this->whatsApp->migrateTemplates($data['destination_waba_id'], $data['template_ids']);
+        // Meta migrate API requires numeric meta_id values, not template name strings.
+        // Look them up from the local DB cache.
+        $resolvedIds = WhatsappTemplateCache::whereIn('sid', $data['template_ids'])
+            ->whereNotNull('meta_id')
+            ->pluck('meta_id', 'sid');
+
+        $metaIds = array_values(array_map(
+            fn ($sid) => $resolvedIds[$sid] ?? $sid,
+            $data['template_ids']
+        ));
+
+        $result = $this->whatsApp->migrateTemplates($data['destination_waba_id'], $metaIds);
 
         return response()->json([
             'message' => 'Templates migrated successfully.',
