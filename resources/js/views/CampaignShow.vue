@@ -791,23 +791,38 @@
             </p>
 
             <!-- Search and filter -->
-            <div class="row mb-3">
-              <div class="col-md-6">
+            <div class="row g-2 mb-3 align-items-center">
+              <div class="col-md-5">
                 <div class="input-group input-group-sm">
-                  <span class="input-group-text">
-                    <i class="bi bi-search"></i>
+                  <span class="input-group-text bg-light border-end-0">
+                    <i class="bi bi-search text-muted"></i>
                   </span>
                   <input
                     v-model="clientSearch"
                     type="text"
-                    class="form-control"
-                    placeholder="Search clients by name, email, phone..."
+                    class="form-control border-start-0 ps-0"
+                    placeholder="Search by name, email, phone, ID..."
                     @input="filterClients"
                   />
                 </div>
               </div>
-              <div class="col-md-6">
-                <div class="form-check form-check-inline">
+              <div class="col-md-4">
+                <select
+                  v-model="clientSourceFilter"
+                  class="form-select form-select-sm"
+                  @change="filterClients"
+                >
+                  <option value="">All Client Sources / Batches</option>
+                  <option value="manual">Manually Created Clients</option>
+                  <optgroup label="Import Batches" v-if="clientBatchOptions.length">
+                    <option v-for="batch in clientBatchOptions" :key="batch" :value="batch">
+                      Batch {{ batch }}
+                    </option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="col-md-3 text-end">
+                <div class="form-check form-check-inline mb-0">
                   <input
                     class="form-check-input"
                     type="checkbox"
@@ -815,7 +830,7 @@
                     v-model="showSelectedOnly"
                     @change="filterClients"
                   />
-                  <label class="form-check-label" for="showSelectedOnly">
+                  <label class="form-check-label small" for="showSelectedOnly">
                     Show selected only
                   </label>
                 </div>
@@ -824,14 +839,14 @@
 
             <!-- VueMultiselect for client selection -->
             <div class="mb-3">
-              <label class="form-label">Select Clients</label>
+              <label class="form-label fw-semibold">Select Clients</label>
               <vue-multiselect
                 v-model="selectedClients"
                 :options="filteredAvailableClients"
                 :multiple="true"
                 :close-on-select="false"
                 :clear-on-select="false"
-                placeholder="Type to search clients..."
+                placeholder="Type to search or filter clients..."
                 label="nameWithDetails"
                 track-by="id"
                 :searchable="true"
@@ -842,16 +857,24 @@
                 class="mb-2"
               >
                 <template #noResult>No clients found</template>
-                <template #noOptions>Type to search clients</template>
+                <template #noOptions>No clients available</template>
                 <template #option="{ option }">
-                  <div class="client-option">
-                    <strong>{{ option.name }}</strong>
+                  <div class="client-option py-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <strong>{{ option.name }}</strong>
+                      <span v-if="!option.import_batch_number" class="badge bg-secondary bg-opacity-10 text-secondary border">
+                        Manual
+                      </span>
+                      <span v-else class="badge bg-info bg-opacity-10 text-info border">
+                        Batch: {{ option.import_batch_number }}
+                      </span>
+                    </div>
                     <div class="small text-muted">
                       <span v-if="option.email">{{ option.email }}</span>
                       <span v-if="option.email && option.phone"> • </span>
                       <span v-if="option.phone">{{ option.phone }}</span>
                     </div>
-                    <div class="small">
+                    <div class="small mt-1">
                       <span
                         v-for="dept in (option.departments || [])"
                         :key="dept.id"
@@ -871,29 +894,32 @@
               </vue-multiselect>
 
               <!-- Selection summary -->
-              <div class="d-flex justify-content-between align-items-center mt-2">
+              <div class="d-flex flex-wrap justify-content-between align-items-center mt-2 gap-2">
                 <small class="text-muted">
                   <span v-if="selectedClients.length > 0">
-                    {{ selectedClients.length }} client(s) selected
+                    <strong>{{ selectedClients.length }}</strong> client(s) selected
                   </span>
                   <span v-else>
                     No clients selected
                   </span>
                   · {{ filteredAvailableClients.length }} available
+                  <span v-if="clientSourceFilter === 'manual'" class="text-primary fw-semibold"> (Filtered: Manual)</span>
+                  <span v-else-if="clientSourceFilter" class="text-primary fw-semibold"> (Filtered: Batch {{ clientSourceFilter }})</span>
                 </small>
                 <div>
                   <button
                     type="button"
-                    class="btn btn-link btn-sm p-0 me-2"
+                    class="btn btn-link btn-sm p-0 me-3 text-decoration-none fw-semibold"
                     @click="selectAllFilteredClients"
                     :disabled="filteredAvailableClients.length === 0"
                   >
-                    Select all shown
+                    <i class="bi bi-check-all me-1"></i>Select all shown ({{ filteredAvailableClients.length }})
                   </button>
                   <button
                     type="button"
-                    class="btn btn-link btn-sm p-0 text-danger"
+                    class="btn btn-link btn-sm p-0 text-danger text-decoration-none fw-semibold"
                     @click="clearSelection"
+                    :disabled="selectedClients.length === 0"
                   >
                     Clear all
                   </button>
@@ -902,8 +928,8 @@
             </div>
 
             <!-- Selected clients preview -->
-            <div v-if="selectedClients.length > 0" class="border rounded p-3 mb-3">
-              <h6 class="mb-2">Selected Clients ({{ selectedClients.length }})</h6>
+            <div v-if="selectedClients.length > 0" class="border rounded p-3 mb-3 bg-light bg-opacity-50">
+              <h6 class="mb-2 text-dark">Selected Clients ({{ selectedClients.length }})</h6>
               <div class="selected-clients-container">
                 <div
                   v-for="client in selectedClients"
@@ -913,6 +939,12 @@
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
                       <strong>{{ client.name }}</strong>
+                      <span v-if="!client.import_batch_number" class="badge bg-secondary bg-opacity-10 text-secondary border ms-2">
+                        Manual
+                      </span>
+                      <span v-else class="badge bg-info bg-opacity-10 text-info border ms-2">
+                        Batch: {{ client.import_batch_number }}
+                      </span>
                       <div class="small text-muted">
                         {{ client.email || client.phone || 'No contact details' }}
                       </div>
@@ -1810,6 +1842,8 @@ export default {
       filteredAvailableClients: [],
       selectedClients: [],
       clientSearch: '',
+      clientSourceFilter: '',
+      clientBatchOptions: [],
       showSelectedOnly: false,
       loadingClients: false,
       addClientsForm: {
@@ -2510,6 +2544,7 @@ export default {
 
       this.selectedClients = [];
       this.clientSearch = '';
+      this.clientSourceFilter = '';
       this.showSelectedOnly = false;
       this.addClientsForm.saving = false;
       this.loadingClients = true;
@@ -2522,12 +2557,21 @@ export default {
             ...client,
             nameWithDetails: `${client.name} (${client.email || client.phone || 'No contact details'})`,
           }));
+
+          const batchSet = new Set();
+          clients.forEach(c => {
+            if (c.import_batch_number && String(c.import_batch_number).trim() !== '') {
+              batchSet.add(String(c.import_batch_number).trim());
+            }
+          });
+          this.clientBatchOptions = Array.from(batchSet).sort().reverse();
           this.filteredAvailableClients = [...this.availableClients];
         })
         .catch((error) => {
           console.error('Failed to load available clients:', error);
           this.availableClients = [];
           this.filteredAvailableClients = [];
+          this.clientBatchOptions = [];
         })
         .finally(() => {
           this.loadingClients = false;
@@ -2535,16 +2579,24 @@ export default {
         });
     },
     filterClients() {
-      let filtered = [];
+      let filtered = [...this.availableClients];
 
-      if (!this.clientSearch.trim()) {
-        filtered = [...this.availableClients];
-      } else {
+      // Source / Batch filter
+      if (this.clientSourceFilter === 'manual') {
+        filtered = filtered.filter(c => !c.import_batch_number || String(c.import_batch_number).trim() === '');
+      } else if (this.clientSourceFilter) {
+        filtered = filtered.filter(c => String(c.import_batch_number || '').trim() === String(this.clientSourceFilter).trim());
+      }
+
+      // Text Search
+      if (this.clientSearch.trim()) {
         const search = this.clientSearch.toLowerCase();
-        filtered = this.availableClients.filter(client =>
-          client.name.toLowerCase().includes(search) ||
+        filtered = filtered.filter(client =>
+          (client.name && client.name.toLowerCase().includes(search)) ||
           (client.email && client.email.toLowerCase().includes(search)) ||
           (client.phone && client.phone.includes(search)) ||
+          (client.id_number && client.id_number.includes(search)) ||
+          (client.account_number && client.account_number.includes(search)) ||
           (client.departments && client.departments.some(dept =>
             dept.name.toLowerCase().includes(search)
           ))

@@ -201,7 +201,13 @@ class CampaignController extends Controller
         }
 
         if ($importBatchNumber) {
-            $allowedClientsQuery->where('import_batch_number', $importBatchNumber);
+            if ($importBatchNumber === 'manual') {
+                $allowedClientsQuery->where(function ($q) {
+                    $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
+                });
+            } else {
+                $allowedClientsQuery->where('import_batch_number', $importBatchNumber);
+            }
         }
 
         // Exclude already attached clients
