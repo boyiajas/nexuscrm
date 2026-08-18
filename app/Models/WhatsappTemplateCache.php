@@ -55,6 +55,7 @@ class WhatsappTemplateCache extends Model
             'header_text'   => $this->header_text,
             'footer_text'   => $this->footer_text,
             'buttons'       => $this->buttons ?? [],
+            'components'    => $this->raw_whatsapp['components'] ?? [],
         ];
     }
 }

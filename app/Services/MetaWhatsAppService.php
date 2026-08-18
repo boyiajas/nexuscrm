@@ -498,28 +498,56 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function getTemplateDetails(string $templateId): array
     {
-        $templates = $this->getWhatsAppTemplates(false, 200);
-        foreach ($templates as $template) {
-            if (($template['sid'] ?? null) === $templateId) {
-                return [
-                    'id' => $template['sid'],
-                    'name' => $template['friendly_name'],
-                    'language' => $template['language'],
-                    'status' => $template['whatsapp']['status'] ?? null,
-                    'category' => $template['whatsapp']['category'] ?? null,
-                    'preview' => $template['preview'] ?? null,
-                    'variables' => $template['variables'] ?? [],
-                    'media_urls' => $template['media'] ?? [],
-                    'header_format' => $template['header_format'] ?? null,
-                    'header_text' => $template['header_text'] ?? null,
-                    'footer_text' => $template['footer_text'] ?? null,
-                    'buttons' => $template['buttons'] ?? [],
-                    'components' => $template['components'] ?? [],
-                ];
-            }
+        // 1. Check local DB cache first (fast, zero network overhead)
+        $cached = \App\Models\WhatsappTemplateCache::where('sid', $templateId)
+            ->orWhere('friendly_name', $templateId)
+            ->orWhere('meta_id', $templateId)
+            ->first();
+
+        if ($cached) {
+            $apiArray = $cached->toApiArray();
+            return [
+                'id'            => $apiArray['sid'] ?? $apiArray['id'],
+                'name'          => $apiArray['name'] ?? $apiArray['sid'],
+                'language'      => $apiArray['language'] ?? 'en_US',
+                'status'        => $apiArray['status'] ?? null,
+                'category'      => $apiArray['category'] ?? null,
+                'preview'       => $apiArray['body_preview'] ?? null,
+                'variables'     => $apiArray['variables'] ?? [],
+                'media_urls'    => $apiArray['media_urls'] ?? [],
+                'header_format' => $apiArray['header_format'] ?? null,
+                'header_text'   => $apiArray['header_text'] ?? null,
+                'footer_text'   => $apiArray['footer_text'] ?? null,
+                'buttons'       => $apiArray['buttons'] ?? [],
+                'components'    => $apiArray['components'] ?? ($cached->raw_whatsapp['components'] ?? []),
+            ];
         }
 
-        throw new \RuntimeException("Meta WhatsApp template [{$templateId}] not found.");
+        // 2. Cache Meta API calls so rapid calls don't bombard Meta Graph API
+        return \Illuminate\Support\Facades\Cache::remember('waba_template_details_' . md5($templateId), 3600, function () use ($templateId) {
+            $templates = $this->getWhatsAppTemplates(false, 200);
+            foreach ($templates as $template) {
+                if (($template['sid'] ?? null) === $templateId || ($template['friendly_name'] ?? null) === $templateId) {
+                    return [
+                        'id'            => $template['sid'],
+                        'name'          => $template['friendly_name'],
+                        'language'      => $template['language'],
+                        'status'        => $template['whatsapp']['status'] ?? null,
+                        'category'      => $template['whatsapp']['category'] ?? null,
+                        'preview'       => $template['preview'] ?? null,
+                        'variables'     => $template['variables'] ?? [],
+                        'media_urls'    => $template['media'] ?? [],
+                        'header_format' => $template['header_format'] ?? null,
+                        'header_text'   => $template['header_text'] ?? null,
+                        'footer_text'   => $template['footer_text'] ?? null,
+                        'buttons'       => $template['buttons'] ?? [],
+                        'components'    => $template['components'] ?? [],
+                    ];
+                }
+            }
+
+            throw new \RuntimeException("Meta WhatsApp template [{$templateId}] not found.");
+        });
     }
 
     public function getTemplateApprovalStatus(string $templateId): array
@@ -722,13 +750,13 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     protected function get(string $path, array $query = []): array
     {
         $url = str_starts_with($path, 'http') ? $path : "{$this->baseUrl}/{$path}";
-        $response = Http::withToken($this->accessToken)->timeout(15)->get($url, $query);
+        $response = Http::withToken($this->accessToken)->retry(3, 500)->timeout(15)->get($url, $query);
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
     }
 
     protected function post(string $path, array $payload): array
     {
-        $response = Http::withToken($this->accessToken)->timeout(15)->post("{$this->baseUrl}/{$path}", $payload);
+        $response = Http::withToken($this->accessToken)->retry(3, 500)->timeout(15)->post("{$this->baseUrl}/{$path}", $payload);
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
     }
 
