@@ -65,7 +65,13 @@ class DashboardController extends Controller
         // Open chats: count chat sessions that have unread messages
         $openChatsQuery = ChatSession::where('unread_count', '>', 0);
         if (!$user->canAccessAllBanks() && !empty($userBankIds)) {
-            $openChatsQuery->whereIn('bank_id', $userBankIds);
+            $openChatsQuery->where(function ($q) use ($userBankIds) {
+                $q->whereIn('bank_id', $userBankIds)
+                  ->orWhereHas('client', function ($cq) use ($userBankIds) {
+                      $cq->whereIn('bank_id', $userBankIds);
+                  })
+                  ->orWhereNull('bank_id');
+            });
         }
         if ($user->isPortfolioScoped()) {
             $openChatsQuery->whereHas('client', function ($q) use ($user) {
@@ -288,7 +294,14 @@ class DashboardController extends Controller
             ->where('unread_count', '>', 0)
             ->where('platform', 'whatsapp')
             ->when(!auth()->user()?->canAccessAllBanks() && !empty(auth()->user()?->resolvedBankIds()), function ($q) {
-                $q->whereIn('bank_id', auth()->user()->resolvedBankIds());
+                $userBankIds = auth()->user()->resolvedBankIds();
+                $q->where(function ($inner) use ($userBankIds) {
+                    $inner->whereIn('bank_id', $userBankIds)
+                          ->orWhereHas('client', function ($cq) use ($userBankIds) {
+                              $cq->whereIn('bank_id', $userBankIds);
+                          })
+                          ->orWhereNull('bank_id');
+                });
             })
             ->when(auth()->user()?->isPortfolioScoped(), function ($q) {
                 $q->whereHas('client', function ($qq) {

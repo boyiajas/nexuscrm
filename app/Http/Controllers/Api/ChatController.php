@@ -28,7 +28,14 @@ class ChatController extends Controller
             ->orderByDesc('updated_at');
 
         if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $query->whereIn('bank_id', $user->resolvedBankIds());
+            $bankIds = $user->resolvedBankIds();
+            $query->where(function ($q) use ($bankIds) {
+                $q->whereIn('bank_id', $bankIds)
+                  ->orWhereHas('client', function ($cq) use ($bankIds) {
+                      $cq->whereIn('bank_id', $bankIds);
+                  })
+                  ->orWhereNull('bank_id');
+            });
         }
 
         if ($user->isPortfolioScoped()) {

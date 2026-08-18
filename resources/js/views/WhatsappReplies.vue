@@ -45,7 +45,7 @@
                   class="btn btn-light text-secondary border-0 p-1 px-2"
                   title="Open chat"
                   @click="openChat(r)"
-                  :disabled="!r.client_id"
+                  :disabled="!r.client_id && !r.id"
                 >
                   <i class="bi bi-chat-dots"></i>
                 </button>
@@ -93,8 +93,11 @@ export default {
       });
     },
     openChat(row) {
-      if (!row.client_id) return;
-      this.$router.push({ name: 'chat', query: { client_id: row.client_id } });
+      if (row.client_id) {
+        this.$router.push({ name: 'chat', query: { client_id: row.client_id } });
+      } else if (row.id) {
+        this.$router.push({ name: 'chat', query: { session_id: row.id } });
+      }
     },
   },
 };

@@ -305,6 +305,20 @@ export default {
     },
     handleQueryClient() {
       const clientId = this.$route.query.client_id;
+      const sessionId = this.$route.query.session_id;
+
+      if (sessionId) {
+        axios.get(`/api/chat/sessions/${sessionId}`).then((res) => {
+          this.activeSession = res.data;
+          this.messages = res.data.messages || [];
+          this.fetchSessions();
+          this.$nextTick(this.scrollToBottom);
+        }).catch((err) => {
+          console.error('Unable to open chat session by ID', err);
+        });
+        return;
+      }
+
       if (!clientId || !this.canManageChat) return;
 
       axios

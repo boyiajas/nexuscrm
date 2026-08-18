@@ -178,7 +178,7 @@
               <li><h6 class="dropdown-header fw-bold text-dark border-bottom pb-2 mb-1">Notifications</h6></li>
               <template v-if="unreadWhatsappRepliesCount > 0">
                 <li v-for="reply in unreadWhatsappReplies.slice(0, 5)" :key="reply.id">
-                  <a class="dropdown-item py-3 d-flex align-items-start gap-3 border-bottom" href="#" @click.prevent="openWhatsappReplies">
+                  <a class="dropdown-item py-3 d-flex align-items-start gap-3 border-bottom" href="#" @click.prevent="openWhatsappReplyChat(reply)">
                     <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 mt-1 shadow-sm" style="width: 38px; height: 38px;">
                       <i class="bi bi-whatsapp fs-5"></i>
                     </div>
@@ -561,6 +561,15 @@ export default {
         .catch(err => {
           console.error('Failed to load unread replies:', err);
         });
+    },
+    openWhatsappReplyChat(reply) {
+      if (reply.client_id) {
+        this.$router.push({ name: 'chat', query: { client_id: reply.client_id } });
+      } else if (reply.id) {
+        this.$router.push({ name: 'chat', query: { session_id: reply.id } });
+      } else {
+        this.openWhatsappReplies();
+      }
     },
     openWhatsappReplies() {
       this.unreadWhatsappReplies = [];

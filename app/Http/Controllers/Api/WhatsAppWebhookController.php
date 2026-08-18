@@ -321,10 +321,10 @@ class WhatsAppWebhookController extends Controller
         $session->update([
             'last_message' => $body,
             'updated_at' => now(),
-            'client_id' => $session->client_id ?: ($client?->id ?? null),
+            'client_id' => $client?->id ?: $session->client_id,
             'client_name' => $client?->name ?? $session->client_name ?? $from,
             'phone' => $session->phone ?: ($client?->phone ?? $from),
-            'bank_id' => $session->bank_id ?: ($client?->bank_id ?? null),
+            'bank_id' => $client?->bank_id ?: $session->bank_id,
             'status' => 'active',
         ]);
 
