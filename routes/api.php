@@ -146,6 +146,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('settings', [SettingsController::class, 'show']);
     Route::post('settings', [SettingsController::class, 'update']);
     Route::post('settings/meta/validate', [SettingsController::class, 'validateMetaPermissions']);
+    Route::post('settings/meta/subscribe-webhook', [SettingsController::class, 'subscribeWebhook']);
+    Route::get('settings/meta/webhook-subscriptions', [SettingsController::class, 'getWebhookSubscriptions']);
 
     Route::get('settings/meta/phone-numbers', [SettingsController::class, 'fetchMetaPhoneNumbers']);
     Route::post('settings/meta/phone-numbers', [SettingsController::class, 'submitMetaPhoneNumber']);

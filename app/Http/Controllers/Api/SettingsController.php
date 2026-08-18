@@ -78,6 +78,37 @@ class SettingsController extends Controller
         }
     }
 
+    public function subscribeWebhook()
+    {
+        $this->authorizeAdmin();
+
+        try {
+            $service = app(MetaWhatsAppService::class);
+            $result = $service->subscribeWebhook();
+            return response()->json([
+                'message' => 'App successfully subscribed to active WABA webhooks.',
+                'data' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to subscribe webhook to WABA: ' . $e->getMessage()], 422);
+        }
+    }
+
+    public function getWebhookSubscriptions()
+    {
+        $this->authorizeAdmin();
+
+        try {
+            $service = app(MetaWhatsAppService::class);
+            $result = $service->getWebhookSubscriptions();
+            return response()->json([
+                'subscriptions' => $result,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to fetch webhook subscriptions: ' . $e->getMessage()], 422);
+        }
+    }
+
     public function fetchMetaPhoneNumbers()
     {
         $this->authorizeAdmin();

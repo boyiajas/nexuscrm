@@ -624,6 +624,28 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ]);
     }
 
+    /**
+     * Subscribe the configured Meta App to the active WABA so that Meta sends
+     * delivery / read / inbound message webhooks to our callback URL.
+     * This must be called once whenever the active WABA changes.
+     */
+    public function subscribeWebhook(): array
+    {
+        if (empty($this->businessAccountId)) {
+            throw new \RuntimeException('WhatsApp Business Account ID is not configured.');
+        }
+
+        return $this->post("{$this->businessAccountId}/subscribed_apps", []);
+    }
+
+    /**
+     * Check which apps are currently subscribed to the active WABA.
+     */
+    public function getWebhookSubscriptions(): array
+    {
+        return $this->get("{$this->businessAccountId}/subscribed_apps");
+    }
+
     protected function bodyComponent(array $components): array
     {
         return collect($components)

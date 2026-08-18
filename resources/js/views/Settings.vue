@@ -502,6 +502,10 @@
             <small class="text-muted">Store the Cloud API credentials in the database and use the webhook values below in Meta.</small>
           </div>
           <div class="d-flex gap-2">
+            <button class="btn btn-outline-info btn-sm" @click="subscribeWebhook" :disabled="meta.subscribingWebhook || meta.saving">
+              <span v-if="meta.subscribingWebhook" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-broadcast me-1"></i> Subscribe Webhooks
+            </button>
             <button class="btn btn-outline-primary btn-sm" @click="validateMetaPermissions" :disabled="meta.validating || meta.saving">
               <span v-if="meta.validating" class="spinner-border spinner-border-sm me-1"></span>
               Validate Permissions
@@ -1435,6 +1439,7 @@ export default {
       meta: {
         saving: false,
         validating: false,
+        subscribingWebhook: false,
         form: {
           whatsapp_provider: 'meta',
           meta_app_id: '',
@@ -2625,6 +2630,20 @@ export default {
         })
         .finally(() => {
           this.meta.validating = false;
+        });
+    },
+    subscribeWebhook() {
+      this.meta.subscribingWebhook = true;
+      axios
+        .post('/api/settings/meta/subscribe-webhook')
+        .then((res) => {
+          notify.success(res.data?.message || 'Webhook subscribed to Meta WABA.', 'Settings');
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || err.message, 'Settings');
+        })
+        .finally(() => {
+          this.meta.subscribingWebhook = false;
         });
     },
     permissionStatusBadge(status) {

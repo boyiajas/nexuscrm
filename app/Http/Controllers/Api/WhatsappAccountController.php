@@ -140,12 +140,28 @@ class WhatsappAccountController extends Controller
         $settings->meta_token_rotation_notes = "Activated profile: {$account->name}";
         $settings->save();
 
+        $autoSubscribed = false;
+        try {
+            app(\App\Services\MetaWhatsAppService::class)->subscribeWebhook();
+            $autoSubscribed = true;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Auto webhook subscription on profile activation failed', ['error' => $e->getMessage()]);
+        }
+
         $this->audit(
             action: 'Activated WhatsApp profile',
             module: 'Settings',
-            meta: ['profile_name' => $account->name]
+            meta: [
+                'profile_name' => $account->name,
+                'auto_subscribed_webhook' => $autoSubscribed,
+            ]
         );
 
-        return response()->json(['message' => "Successfully switched active WhatsApp account to {$account->name}."]);
+        $msg = "Successfully switched active WhatsApp account to {$account->name}.";
+        if ($autoSubscribed) {
+            $msg .= " Subscribed webhook to WABA ({$account->waba_id}).";
+        }
+
+        return response()->json(['message' => $msg]);
     }
 }
