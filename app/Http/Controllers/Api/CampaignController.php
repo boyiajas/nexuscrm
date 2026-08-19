@@ -844,7 +844,7 @@ class CampaignController extends Controller
             ]);
 
         $assignedClientIds = null;
-        if ($user?->isPortfolioScoped()) {
+        if ($user?->isPortfolioScoped() && !$user?->canViewAllImportedClients()) {
             $assignedClientIds = $campaign->clients()
                 ->where('clients.assigned_to_id', $user->id)
                 ->pluck('clients.id');

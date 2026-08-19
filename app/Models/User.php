@@ -541,6 +541,10 @@ class User extends Authenticatable
 
     public function isPortfolioScoped(): bool
     {
+        if ($this->canViewAllImportedClients()) {
+            return false;
+        }
+
         return $this->hasPermission('portfolio_scoped_only');
     }
 

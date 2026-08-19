@@ -1445,7 +1445,7 @@ class ClientController extends Controller
 
     protected function applyPortfolioScope($query, $user): void
     {
-        if ($user && $user->isPortfolioScoped()) {
+        if ($user && $user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
             $query->where('assigned_to_id', $user->id);
         }
     }
@@ -1463,7 +1463,7 @@ class ClientController extends Controller
 
     protected function authorizeClientPortfolio($user, Client $client, string $action = 'view'): void
     {
-        if ($user->isPortfolioScoped() && (int) $client->assigned_to_id !== (int) $user->id) {
+        if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients() && (int) $client->assigned_to_id !== (int) $user->id) {
             abort(403, "You are not allowed to {$action} this client.");
         }
     }
