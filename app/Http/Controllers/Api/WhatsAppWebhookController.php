@@ -102,6 +102,15 @@ class WhatsAppWebhookController extends Controller
         }
 
         $mappedStatus = $this->mapStatus($statusName);
+        $errorCode = $status['errors'][0]['code'] ?? null;
+        $errorTitle = $status['errors'][0]['title'] ?? $status['errors'][0]['message'] ?? '';
+
+        $isEcosystemWarning = in_array((string)$errorCode, ['131049', '131026'], true)
+            || str_contains(strtolower((string)$errorTitle), 'maintain healthy ecosystem engagement');
+
+        if ($isEcosystemWarning) {
+            $mappedStatus = 'Delivered (Ecosystem Warning)';
+        }
 
         $recipient->status = $mappedStatus;
         $recipient->message_sid = $messageId ?: $recipient->message_sid;
@@ -109,11 +118,13 @@ class WhatsAppWebhookController extends Controller
         $recipient->status_payload = $payload;
         $recipient->provider_status_payload = $payload;
 
-        if ($mappedStatus === 'Delivered') {
-            $recipient->delivered_at = Carbon::now();
-        } elseif ($mappedStatus === 'Failed') {
-            $recipient->error_code = $status['errors'][0]['code'] ?? $recipient->error_code;
-            $recipient->error_message = $status['errors'][0]['title'] ?? $recipient->error_message;
+        if ($mappedStatus === 'Delivered' || $mappedStatus === 'Delivered (Ecosystem Warning)') {
+            $recipient->delivered_at = $recipient->delivered_at ?: Carbon::now();
+        }
+
+        if ($errorCode || $errorTitle) {
+            $recipient->error_code = $errorCode ?: $recipient->error_code;
+            $recipient->error_message = $errorTitle ?: $recipient->error_message;
         }
 
         $recipient->save();

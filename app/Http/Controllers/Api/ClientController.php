@@ -44,7 +44,7 @@ class ClientController extends Controller
 
         // Department scoping for non-system-admin users
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canManageSystemSettings() && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -98,7 +98,15 @@ class ClientController extends Controller
             }
         }
 
-        $batchOptions = (clone $query)
+        $batchOptionsQuery = Client::query();
+        $this->applyBankScope($batchOptionsQuery, $user);
+        if ($user && !$user->canManageSystemSettings() && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
+            $batchOptionsQuery->whereHas('departments', function ($q) use ($userDepartmentIds) {
+                $q->whereIn('departments.id', $userDepartmentIds);
+            });
+        }
+
+        $batchOptions = $batchOptionsQuery
             ->whereNotNull('import_batch_number')
             ->where('import_batch_number', '!=', '')
             ->distinct()

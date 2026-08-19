@@ -47,7 +47,7 @@ class WhatsAppBatchService
         ]);
 
         $message->recipients()
-            ->whereNotIn('status', ['Delivered', 'Suppressed', 'No Lawful Basis', 'No Phone'])
+            ->whereNotIn('status', ['Delivered', 'Delivered (Ecosystem Warning)', 'Suppressed', 'No Lawful Basis', 'No Phone'])
             ->update([
                 'status' => 'Queued',
                 'queued_at' => $now,
@@ -173,7 +173,10 @@ class WhatsAppBatchService
         $query = $message->recipients();
 
         $total           = (clone $query)->count();
-        $delivered       = (clone $query)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
+        $delivered       = (clone $query)->where(function($q) {
+            $q->whereIn('status', ['Delivered', 'Delivered (Ecosystem Warning)'])
+              ->orWhereRaw('LOWER(status) = ?', ['delivered']);
+        })->count();
         $sent            = (clone $query)->whereRaw('LOWER(status) = ?', ['sent'])->count();
         $failed          = (clone $query)->whereRaw('LOWER(status) = ?', ['failed'])->count();
         $queued          = (clone $query)->whereRaw('LOWER(status) = ?', ['queued'])->count();

@@ -121,12 +121,12 @@ class CampaignController extends Controller
             ->select('clients.*');
 
         if ($user = Auth::user()) {
-            if ($user->isPortfolioScoped()) {
+            if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
                 $query->where('clients.assigned_to_id', $user->id);
             }
         }
 
-        if (!empty($deptIds)) {
+        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients() && !$user->canManageSystemSettings())) {
             $query->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -189,12 +189,12 @@ class CampaignController extends Controller
         $allowedClientsQuery = Client::query();
 
         if ($user = Auth::user()) {
-            if ($user->isPortfolioScoped()) {
+            if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
                 $allowedClientsQuery->where('assigned_to_id', $user->id);
             }
         }
 
-        if (!empty($deptIds)) {
+        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients() && !$user->canManageSystemSettings())) {
             $allowedClientsQuery->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -220,17 +220,24 @@ class CampaignController extends Controller
             // Add ALL allowed clients
             $clientIdsToAttach = $allowedClientsQuery->pluck('id')->all();
         } else {
-            // Add only selected client_ids, but intersect with allowed (dept-scoped) ones
+            // Add only selected client_ids, but intersect with allowed ones
             if (empty($clientIds)) {
                 return response()->json([
                     'message' => 'client_ids is required when add_all is false.',
                 ], 422);
             }
 
-            $clientIdsToAttach = $allowedClientsQuery
-                ->whereIn('id', $clientIds)
-                ->pluck('id')
-                ->all();
+            if ($user && ($user->canViewAllImportedClients() || $user->canManageSystemSettings())) {
+                $clientIdsToAttach = Client::whereIn('id', $clientIds)
+                    ->whereNotIn('id', $alreadyAttachedIds)
+                    ->pluck('id')
+                    ->all();
+            } else {
+                $clientIdsToAttach = $allowedClientsQuery
+                    ->whereIn('id', $clientIds)
+                    ->pluck('id')
+                    ->all();
+            }
         }
 
         if (empty($clientIdsToAttach)) {
@@ -351,7 +358,7 @@ class CampaignController extends Controller
         $baseQuery = $campaign->clients()
             ->with(['departments', 'assignedTo:id,name']);
 
-        if (Auth::user()?->isPortfolioScoped()) {
+        if (Auth::user()?->isPortfolioScoped() && !Auth::user()?->canViewAllImportedClients()) {
             $baseQuery->where('clients.assigned_to_id', Auth::id());
         }
 
@@ -1192,6 +1199,26 @@ class CampaignController extends Controller
             'id'      => $message->id,
             'queued_count' => $queuedCount,
             'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
+        ]);
+    }
+
+    /**
+     * Quick toggle for Live Chat status on a WhatsApp batch.
+     */
+    public function toggleLiveChat(Campaign $campaign, $messageId)
+    {
+        $this->authorizeManageCampaign($campaign);
+        /** @var \App\Models\CampaignWhatsappMessage $message */
+        $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
+        
+        $newStatus = !$message->enable_live_chat;
+        $message->update([
+            'enable_live_chat' => $newStatus,
+        ]);
+
+        return response()->json([
+            'message' => 'Live chat status updated to ' . ($newStatus ? 'Enabled' : 'Disabled') . '.',
+            'enable_live_chat' => $newStatus,
         ]);
     }
 

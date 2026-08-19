@@ -490,7 +490,13 @@
                   <td>{{ w.failed }}</td>
                   <td>{{ w.pending }}</td>
                   <td>
-                    <span :class="w.enable_live_chat ? 'badge bg-success' : 'badge bg-secondary'">
+                    <span
+                      :class="w.enable_live_chat ? 'badge bg-success' : 'badge bg-secondary'"
+                      style="cursor: pointer;"
+                      :title="'Click to toggle Live Chat (Currently ' + (w.enable_live_chat ? 'Enabled' : 'Disabled') + ')'"
+                      @click="toggleLiveChat(w)"
+                    >
+                      <i :class="w.enable_live_chat ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'"></i>
                       {{ w.enable_live_chat ? 'Enabled' : 'Disabled' }}
                     </span>
                   </td>
@@ -893,16 +899,17 @@
                         <td>
                           <span
                             :class="getStatusBadgeClass(r.status)"
-                            :title="(r.status === 'Failed' || (r.status && r.status.toLowerCase() === 'failed') || r.error_message || r.error_code) ? getRecipientErrorMessage(r) : null"
-                            :style="(r.status === 'Failed' || (r.status && r.status.toLowerCase() === 'failed') || r.error_message || r.error_code) ? 'cursor: help;' : ''"
+                            :title="(r.error_message || r.error_code) ? getRecipientErrorMessage(r) : null"
+                            :style="(r.error_message || r.error_code) ? 'cursor: help;' : ''"
                           >
-                            <i v-if="getStatusBadgeClass(r.status).includes('pending')" class="bi bi-clock-history me-1"></i>
+                            <i v-if="r.status && r.status.toLowerCase().includes('ecosystem')" class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>
+                            <i v-else-if="getStatusBadgeClass(r.status).includes('pending')" class="bi bi-clock-history me-1"></i>
                             <i v-else-if="getStatusBadgeClass(r.status).includes('delivered')" class="bi bi-check2-all me-1"></i>
                             <i v-else-if="getStatusBadgeClass(r.status).includes('failed')" class="bi bi-exclamation-circle me-1"></i>
                             {{ r.status || 'Queued' }}
                             <i
-                              v-if="(r.status === 'Failed' || (r.status && r.status.toLowerCase() === 'failed') || r.error_message) && getRecipientErrorMessage(r)"
-                              class="bi bi-info-circle-fill ms-1 text-danger opacity-75"
+                              v-if="r.error_message && getRecipientErrorMessage(r)"
+                              :class="r.status && r.status.toLowerCase().includes('ecosystem') ? 'bi bi-info-circle-fill ms-1 text-warning opacity-75' : 'bi bi-info-circle-fill ms-1 text-danger opacity-75'"
                               :title="getRecipientErrorMessage(r)"
                             ></i>
                           </span>
@@ -2675,6 +2682,7 @@ export default {
     statusColor(status) {
       if (!status) return 'bg-light text-dark';
       const s = status.toLowerCase();
+      if (s.includes('ecosystem')) return 'bg-warning text-dark';
       if (s.includes('delivered') || s.includes('sent') || s.includes('success')) return 'bg-success';
       if (s.includes('fail') || s.includes('bounce') || s.includes('error')) return 'bg-danger';
       if (s.includes('pending') || s.includes('queue')) return 'bg-warning text-dark';
@@ -2926,7 +2934,8 @@ export default {
     getStatusBadgeClass(status) {
       if (!status) return 'badge-status-pending text-primary bg-primary-subtle';
       const s = status.toLowerCase();
-      if (s === 'delivered' || s === 'sent' || s === 'completed' || s === 'active') return 'badge-status-delivered text-success bg-success-subtle';
+      if (s.includes('ecosystem')) return 'badge-status-warning text-warning-emphasis bg-warning-subtle border border-warning';
+      if (s === 'delivered' || s.includes('delivered') || s === 'sent' || s === 'completed' || s === 'active') return 'badge-status-delivered text-success bg-success-subtle';
       if (s === 'failed' || s === 'error') return 'badge-status-failed text-danger bg-danger-subtle';
       return 'badge-status-pending text-primary bg-primary-subtle';
     },
@@ -3220,6 +3229,17 @@ export default {
         .finally(() => {
           this.whatsappForm.sending = false;
           this.whatsappForm.action = null;
+        });
+    },
+    toggleLiveChat(message) {
+      const campaignId = this.$route.params.id;
+      axios.patch(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/toggle-live-chat`)
+        .then((res) => {
+          message.enable_live_chat = res.data.enable_live_chat;
+          notify.success(res.data.message || 'Live chat status updated.', 'WhatsApp');
+        })
+        .catch((error) => {
+          notify.error(error.response?.data?.message || 'Failed to update live chat status.', 'WhatsApp');
         });
     },
     editWhatsappTemplate(message) {
