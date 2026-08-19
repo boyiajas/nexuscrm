@@ -109,7 +109,7 @@ class WhatsAppWebhookController extends Controller
             || str_contains(strtolower((string)$errorTitle), 'maintain healthy ecosystem engagement');
 
         if ($isEcosystemWarning) {
-            $mappedStatus = 'Delivered (Ecosystem Warning)';
+            $mappedStatus = 'Delivered';
         }
 
         $recipient->status = $mappedStatus;
@@ -118,7 +118,7 @@ class WhatsAppWebhookController extends Controller
         $recipient->status_payload = $payload;
         $recipient->provider_status_payload = $payload;
 
-        if ($mappedStatus === 'Delivered' || $mappedStatus === 'Delivered (Ecosystem Warning)') {
+        if ($mappedStatus === 'Delivered') {
             $recipient->delivered_at = $recipient->delivered_at ?: Carbon::now();
         }
 

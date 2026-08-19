@@ -188,7 +188,7 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                 ]);
 
                 $recipient->update([
-                    'status' => 'Delivered (Ecosystem Warning)',
+                    'status' => 'Delivered',
                     'delivered_at' => $recipient->delivered_at ?: now(),
                     'error_code' => '131049',
                     'error_message' => $errorMsg,
@@ -198,13 +198,13 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                     CampaignClient::where('campaign_id', $campaign->id)
                         ->where('client_id', $client->id)
                         ->update([
-                            'whatsapp_status' => 'Delivered (Ecosystem Warning)',
+                            'whatsapp_status' => 'Delivered',
                             'whatsapp_sent_at' => $recipient->delivered_at ?: now(),
                             'updated_at' => now(),
                         ]);
                 }
 
-                $batchService->completeAttempt($attempt, $recipient->fresh(), 'Delivered (Ecosystem Warning)', null, '131049', $errorMsg);
+                $batchService->completeAttempt($attempt, $recipient->fresh(), 'Delivered', null, '131049', $errorMsg);
                 $batchService->syncMessageProgress($message->fresh());
                 return;
             }

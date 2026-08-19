@@ -175,10 +175,20 @@ class WhatsAppBatchService
         $total           = (clone $query)->count();
         $delivered       = (clone $query)->where(function($q) {
             $q->whereIn('status', ['Delivered', 'Delivered (Ecosystem Warning)'])
-              ->orWhereRaw('LOWER(status) = ?', ['delivered']);
+              ->orWhereRaw('LOWER(status) = ?', ['delivered'])
+              ->orWhereIn('error_code', ['131049', '131026'])
+              ->orWhere('error_message', 'like', '%maintain healthy ecosystem engagement%');
         })->count();
         $sent            = (clone $query)->whereRaw('LOWER(status) = ?', ['sent'])->count();
-        $failed          = (clone $query)->whereRaw('LOWER(status) = ?', ['failed'])->count();
+        $failed          = (clone $query)->whereRaw('LOWER(status) = ?', ['failed'])
+            ->where(function($q) {
+                $q->whereNotIn('error_code', ['131049', '131026'])
+                  ->orWhereNull('error_code');
+            })
+            ->where(function($q) {
+                $q->where('error_message', 'not like', '%maintain healthy ecosystem engagement%')
+                  ->orWhereNull('error_message');
+            })->count();
         $queued          = (clone $query)->whereRaw('LOWER(status) = ?', ['queued'])->count();
         $processing      = (clone $query)->whereRaw('LOWER(status) = ?', ['processing'])->count();
         $paused          = (clone $query)->whereRaw('LOWER(status) = ?', ['paused'])->count();

@@ -868,8 +868,21 @@ class CampaignController extends Controller
                     ->whereIn('client_id', $assignedClientIds);
 
                 $total = (clone $recipientQuery)->count();
-                $delivered = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
-                $failed = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])->count();
+                $delivered = (clone $recipientQuery)->where(function($q) {
+                    $q->whereIn('status', ['Delivered', 'Delivered (Ecosystem Warning)'])
+                      ->orWhereRaw('LOWER(status) = ?', ['delivered'])
+                      ->orWhereIn('error_code', ['131049', '131026'])
+                      ->orWhere('error_message', 'like', '%maintain healthy ecosystem engagement%');
+                })->count();
+                $failed = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])
+                    ->where(function($q) {
+                        $q->whereNotIn('error_code', ['131049', '131026'])
+                          ->orWhereNull('error_code');
+                    })
+                    ->where(function($q) {
+                        $q->where('error_message', 'not like', '%maintain healthy ecosystem engagement%')
+                          ->orWhereNull('error_message');
+                    })->count();
                 $queued = (clone $recipientQuery)->whereRaw("LOWER(status) = 'queued'")->count();
                 $processing = (clone $recipientQuery)->whereRaw("LOWER(status) = 'processing'")->count();
                 $paused = (clone $recipientQuery)->whereRaw("LOWER(status) = 'paused'")->count();
@@ -1769,6 +1782,11 @@ class CampaignController extends Controller
                 }
             }
 
+            $isEcosystemWarning = in_array((string)$r->error_code, ['131049', '131026'], true)
+                || str_contains(strtolower((string)$r->error_message), 'maintain healthy ecosystem engagement');
+
+            $status = ($isEcosystemWarning || strcasecmp($r->status, 'Delivered (Ecosystem Warning)') === 0) ? 'Delivered' : $r->status;
+
             return [
                 'id'               => $r->id,
                 'client_id'        => $client?->id,
@@ -1779,14 +1797,14 @@ class CampaignController extends Controller
                 'bank_name'        => $client?->bank_name,
                 'assigned_to_name' => $client?->assignedTo?->name,
                 'department_names' => $departments->pluck('name')->join(', ') ?: null,
-                'status'           => $r->status,
+                'status'           => $status,
                 'attempts_count'   => $r->attempts_count ?? 0,
                 'queued_at'        => optional($r->queued_at)->toDateTimeString(),
                 'processing_started_at' => optional($r->processing_started_at)->toDateTimeString(),
                 'last_attempted_at' => optional($r->last_attempted_at)->toDateTimeString(),
                 'error_code'       => $r->error_code,
                 'error_message'    => $r->error_message,
-                'delivered_at'     => optional($r->delivered_at)->toDateTimeString(),
+                'delivered_at'     => optional($r->delivered_at ?: ($isEcosystemWarning ? $r->updated_at : null))->toDateTimeString(),
                 'last_response'    => $r->last_response,
                 'last_response_at' => optional($r->last_response_at)->toDateTimeString(),
                 'reply_type'       => $replyMeta['type'],
