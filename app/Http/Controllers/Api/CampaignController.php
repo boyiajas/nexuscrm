@@ -382,10 +382,8 @@ class CampaignController extends Controller
             $clients = $baseQuery
                 ->orderBy('clients.name')
                 ->get()
-                ->map(function ($client) use ($campaign) {
-                    $pivot = CampaignClient::where('campaign_id', $campaign->id)
-                        ->where('client_id', $client->id)
-                        ->first();
+                ->map(function ($client) {
+                    $pivot = $client->pivot;
 
                     return array_merge($client->toArray(), [
                         'phone' => $this->resolveClientPhone($client),
@@ -393,13 +391,13 @@ class CampaignController extends Controller
                         'departments' => $client->departments->map(function ($dept) {
                             return ['id' => $dept->id, 'name' => $dept->name];
                         }),
-                        'whatsapp_status' => $pivot->whatsapp_status ?? 'Pending',
-                        'whatsapp_sent_at' => $pivot->whatsapp_sent_at,
-                        'email_status' => $pivot->email_status ?? 'Pending',
-                        'email_sent_at' => $pivot->email_sent_at,
-                        'sms_status' => $pivot->sms_status ?? 'Pending',
-                        'sms_sent_at' => $pivot->sms_sent_at,
-                        'created_at' => $pivot->created_at ?? $client->created_at,
+                        'whatsapp_status' => $pivot?->whatsapp_status ?? 'Pending',
+                        'whatsapp_sent_at' => $pivot?->whatsapp_sent_at,
+                        'email_status' => $pivot?->email_status ?? 'Pending',
+                        'email_sent_at' => $pivot?->email_sent_at,
+                        'sms_status' => $pivot?->sms_status ?? 'Pending',
+                        'sms_sent_at' => $pivot?->sms_sent_at,
+                        'created_at' => $pivot?->created_at ?? $client->created_at,
                     ]);
                 })
                 ->values();
@@ -414,10 +412,8 @@ class CampaignController extends Controller
             ->orderBy('clients.name')
             ->paginate($perPage);
 
-        $paginator->getCollection()->transform(function ($client) use ($campaign) {
-            $pivot = CampaignClient::where('campaign_id', $campaign->id)
-                ->where('client_id', $client->id)
-                ->first();
+        $paginator->getCollection()->transform(function ($client) {
+            $pivot = $client->pivot;
 
             return array_merge($client->toArray(), [
                 'phone' => $this->resolveClientPhone($client),
@@ -425,13 +421,13 @@ class CampaignController extends Controller
                 'departments' => $client->departments->map(function ($dept) {
                     return ['id' => $dept->id, 'name' => $dept->name];
                 }),
-                'whatsapp_status' => $pivot->whatsapp_status ?? 'Pending',
-                'whatsapp_sent_at' => $pivot->whatsapp_sent_at,
-                'email_status' => $pivot->email_status ?? 'Pending',
-                'email_sent_at' => $pivot->email_sent_at,
-                'sms_status' => $pivot->sms_status ?? 'Pending',
-                'sms_sent_at' => $pivot->sms_sent_at,
-                'created_at' => $pivot->created_at ?? $client->created_at,
+                'whatsapp_status' => $pivot?->whatsapp_status ?? 'Pending',
+                'whatsapp_sent_at' => $pivot?->whatsapp_sent_at,
+                'email_status' => $pivot?->email_status ?? 'Pending',
+                'email_sent_at' => $pivot?->email_sent_at,
+                'sms_status' => $pivot?->sms_status ?? 'Pending',
+                'sms_sent_at' => $pivot?->sms_sent_at,
+                'created_at' => $pivot?->created_at ?? $client->created_at,
             ]);
         });
 

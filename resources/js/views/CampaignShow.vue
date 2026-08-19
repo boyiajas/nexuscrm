@@ -125,36 +125,148 @@
       <div class="tab-pane fade show active" id="tab-clients">
         <div class="card shadow-sm">
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h5 class="card-title mb-0">Clients in this campaign</h5>
-              <div class="d-flex gap-2">
-                <button 
-                  v-if="selectedClients.length > 0"
-                  class="btn btn-sm btn-outline-danger" 
-                  @click="removeSelectedClients" 
-                  :disabled="!canManageCampaign"
-                >
-                  <i class="bi bi-trash me-1"></i>
-                  Remove Selected ({{ selectedClients.length }})
-                </button>
+            
+            <!-- Active Tracking Channel Selector -->
+            <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-3 pb-2 border-bottom">
+              <div class="d-flex align-items-center gap-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">TRACKING CHANNEL:</span>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button
+                    v-if="channels.whatsapp"
+                    type="button"
+                    class="btn fw-semibold"
+                    :class="activeChannelTab === 'whatsapp' ? 'btn-success' : 'btn-outline-success'"
+                    @click="activeChannelTab = 'whatsapp'"
+                  >
+                    <i class="bi bi-whatsapp me-1"></i> WhatsApp
+                  </button>
+                  <button
+                    v-if="channels.email"
+                    type="button"
+                    class="btn fw-semibold"
+                    :class="activeChannelTab === 'email' ? 'btn-primary' : 'btn-outline-primary'"
+                    @click="activeChannelTab = 'email'"
+                  >
+                    <i class="bi bi-envelope me-1"></i> Email
+                  </button>
+                  <button
+                    v-if="channels.sms"
+                    type="button"
+                    class="btn fw-semibold"
+                    :class="activeChannelTab === 'sms' ? 'btn-info text-white' : 'btn-outline-info'"
+                    @click="activeChannelTab = 'sms'"
+                  >
+                    <i class="bi bi-chat-left-text me-1"></i> SMS
+                  </button>
+                </div>
+              </div>
+              <div class="small text-muted">
+                Showing status tracking & batch selection for <strong class="text-uppercase text-dark">{{ activeChannelTab }}</strong>
+              </div>
+            </div>
+
+            <!-- Delivery Tracking Metric Strip -->
+            <div class="row g-2 mb-3">
+              <div class="col-6 col-md-3">
+                <div class="p-2 border rounded bg-light text-center shadow-xs">
+                  <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
+                  <div class="fs-5 fw-bold text-dark mb-0">{{ clientStats.total }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="p-2 border rounded bg-success bg-opacity-10 border-success border-opacity-25 text-center shadow-xs">
+                  <div class="text-success small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">{{ activeChannelTab.toUpperCase() }} SENT</div>
+                  <div class="fs-5 fw-bold text-success mb-0">{{ clientStats.sent }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="p-2 border rounded bg-warning bg-opacity-10 border-warning border-opacity-25 text-center shadow-xs">
+                  <div class="text-warning-emphasis small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">REMAINING (UNSENT)</div>
+                  <div class="fs-5 fw-bold text-warning-emphasis mb-0">{{ clientStats.unsent }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="p-2 border rounded bg-danger bg-opacity-10 border-danger border-opacity-25 text-center shadow-xs">
+                  <div class="text-danger small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">{{ activeChannelTab.toUpperCase() }} FAILED</div>
+                  <div class="fs-5 fw-bold text-danger mb-0">{{ clientStats.failed }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Toolbar Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h5 class="card-title mb-0 me-1">Campaign Clients</h5>
+
+                <!-- Search Input -->
+                <div class="input-group input-group-sm" style="width: 190px;">
+                  <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                  <input
+                    type="text"
+                    v-model="clientSearchQuery"
+                    class="form-control form-control-sm border-start-0"
+                    placeholder="Search clients..."
+                  />
+                </div>
+
+                <!-- Status Filter Dropdown -->
+                <select v-model="clientStatusFilter" class="form-select form-select-sm" style="width: 185px;">
+                  <option value="all">All Statuses ({{ clientStats.total }})</option>
+                  <option value="unsent">Unsent {{ activeChannelTab.toUpperCase() }} ({{ clientStats.unsent }})</option>
+                  <option value="sent">Sent / Delivered ({{ clientStats.sent }})</option>
+                  <option value="failed">Failed Only ({{ clientStats.failed }})</option>
+                </select>
+              </div>
+
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <!-- Batch Selection Dropdown -->
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-primary dropdown-toggle d-flex align-items-center gap-1 shadow-sm" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-check2-square"></i> Select Unsent Batch
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><h6 class="dropdown-header">Select unsent batch for {{ activeChannelTab.toUpperCase() }}</h6></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(25)"><i class="bi bi-list-check me-2 text-primary"></i>Next 25 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(50)"><i class="bi bi-list-check me-2 text-primary"></i>Next 50 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(100)"><i class="bi bi-list-check me-2 text-primary"></i>Next 100 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(250)"><i class="bi bi-list-check me-2 text-primary"></i>Next 250 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(500)"><i class="bi bi-list-check me-2 text-primary"></i>Next 500 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(1000)"><i class="bi bi-list-check me-2 text-primary"></i>Next 1000 Unsent</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item fw-semibold" href="#" @click.prevent="selectUnsentBatch('all_unsent')"><i class="bi bi-check-all me-2 text-success"></i>All Unsent {{ activeChannelTab.toUpperCase() }} ({{ clientStats.unsent }})</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch('all_campaign')"><i class="bi bi-people me-2 text-secondary"></i>All Campaign Clients ({{ clientStats.total }})</a></li>
+                    <li v-if="selectedClients.length > 0"><hr class="dropdown-divider"></li>
+                    <li v-if="selectedClients.length > 0"><a class="dropdown-item text-danger" href="#" @click.prevent="selectedClients = []"><i class="bi bi-x-circle me-2"></i>Clear Selection</a></li>
+                  </ul>
+                </div>
+
                 <button class="btn btn-sm btn-outline-secondary" @click="exportClients">
-                  <i class="bi bi-filetype-csv me-1"></i>
-                  Export CSV
+                  <i class="bi bi-filetype-csv me-1"></i> Export CSV
                 </button>
                 <button class="btn btn-sm btn-primary" @click="openAddClientsModal" :disabled="!canManageCampaign">
-                  <i class="bi bi-person-plus me-1"></i>
-                  Add Clients to Campaign
+                  <i class="bi bi-person-plus me-1"></i> Add Clients
                 </button>
               </div>
             </div>
-            <!-- Bulk Actions Bar -->
-            <div v-if="selectedClients.length > 0" class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-primary bg-opacity-10 rounded border border-primary border-opacity-25 shadow-sm">
-              <div>
-                <span class="fw-bold text-primary">{{ selectedClients.length }}</span> <span class="text-secondary small fw-medium">client(s) selected</span>
+
+            <!-- Multi-Channel Bulk Actions Bar -->
+            <div v-if="selectedClients.length > 0" class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3 px-3 py-2 bg-light rounded border shadow-sm">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary fs-6">{{ selectedClients.length }}</span>
+                <span class="text-dark fw-semibold small">client(s) selected for batch dispatch</span>
               </div>
-              <div class="d-flex gap-2">
+              <div class="d-flex gap-2 flex-wrap">
+                <button v-if="channels.whatsapp" class="btn btn-sm btn-success fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendWhatsappToSelected">
+                  <i class="bi bi-whatsapp"></i> Send WhatsApp ({{ selectedClients.length }})
+                </button>
+                <button v-if="channels.email" class="btn btn-sm btn-primary fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendEmailToSelected">
+                  <i class="bi bi-envelope"></i> Send Email ({{ selectedClients.length }})
+                </button>
+                <button v-if="channels.sms" class="btn btn-sm btn-info text-white fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendSmsToSelected">
+                  <i class="bi bi-chat-left-text"></i> Send SMS ({{ selectedClients.length }})
+                </button>
                 <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkRemoveClients" :disabled="bulkActionLoading">
-                  <i class="bi bi-person-dash"></i> Remove from Campaign
+                  <i class="bi bi-person-dash"></i> Remove
                 </button>
               </div>
             </div>
@@ -235,9 +347,15 @@
                     </div>
                   </td>
                 </tr>
-                <tr v-if="clients.length === 0">
-                  <td colspan="11" class="text-center text-muted py-3">
-                    No clients added to this campaign yet.
+                <tr v-if="filteredCampaignClients.length === 0">
+                  <td colspan="11" class="text-center text-muted py-4">
+                    <div v-if="clientStatusFilter !== 'all' || clientSearchQuery">
+                      <i class="bi bi-funnel text-muted fs-4 d-block mb-1"></i>
+                      No clients found matching the selected filter or search term.
+                    </div>
+                    <div v-else>
+                      No clients added to this campaign yet.
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -256,13 +374,15 @@
                 <select
                   v-model.number="clientTablePerPage"
                   class="form-select form-select-sm border-secondary-subtle"
-                  style="width: 80px; font-size: 0.8rem;"
+                  style="width: 85px; font-size: 0.8rem;"
                   @change="clientTableCurrentPage = 1"
                 >
-                  <option :value="10">10</option>
                   <option :value="25">25</option>
                   <option :value="50">50</option>
                   <option :value="100">100</option>
+                  <option :value="250">250</option>
+                  <option :value="500">500</option>
+                  <option :value="1000">1000</option>
                 </select>
               </div>
             </div>
@@ -1197,65 +1317,83 @@
 
                 <!-- Recipients via vue-multiselect -->
                 <div class="mb-3">
-                <label class="form-label">Recipients (Campaign Clients)</label>
-                <vue-multiselect
-                    v-model="whatsappForm.selectedClients"
-                    :options="campaignClientOptions"
-                    :multiple="true"
-                    :close-on-select="false"
-                    :clear-on-select="false"
-                    placeholder="Select campaign clients (leave empty for ALL)"
-                    label="nameWithDetails"
-                    track-by="id"
-                    :searchable="true"
-                    :show-labels="false"
-                    class="mb-1"
-                >
-                    <template #noResult>No clients found</template>
-                    <template #noOptions>No clients loaded</template>
-                    <template #option="{ option }">
-                    <div class="client-option">
-                        <strong>{{ option.name }}</strong>
-                        <div class="small text-muted">
-                        <span v-if="option.email">{{ option.email }}</span>
-                        <span v-if="option.email && option.phone"> • </span>
-                        <span v-if="option.phone">{{ option.phone }}</span>
-                        </div>
-                        <div class="small">
-                        <span
-                            v-for="dept in (option.departments || [])"
-                            :key="dept.id"
-                            class="badge bg-light text-dark border me-1"
-                        >
-                            {{ dept.name }}
-                        </span>
-                        </div>
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="form-label mb-0 fw-semibold">Recipients (Campaign Clients)</label>
+                    <div class="small text-muted" v-if="clientStats.unsent > 0">
+                      <span class="badge bg-warning text-dark">{{ clientStats.unsent }} unsent remaining</span>
                     </div>
-                    </template>
-                </vue-multiselect>
+                  </div>
 
-                <div class="d-flex justify-content-between mt-1">
-                    <small class="text-muted">
-                    Leave empty to send to <strong>all {{ clients.length }}</strong> campaign clients.
-                    </small>
-                    <div>
-                    <button
-                        type="button"
-                        class="btn btn-link btn-sm p-0 me-2"
-                        @click="selectAllCampaignClients('whatsapp')"
-                        :disabled="campaignClientOptions.length === 0"
-                    >
-                        Select all
-                    </button>
-                    <button
-                        type="button"
-                        class="btn btn-link btn-sm p-0 text-danger"
-                        @click="clearCampaignClientSelection('whatsapp')"
-                    >
-                        Clear
-                    </button>
-                    </div>
-                </div>
+                  <!-- Quick Batch Presets Bar in Modal -->
+                  <div class="p-2 mb-2 bg-light rounded border d-flex flex-wrap align-items-center gap-1">
+                    <span class="small fw-semibold text-muted me-1" style="font-size: 0.78rem;">Select Unsent Batch:</span>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(25)">Next 25</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(50)">Next 50</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(100)">Next 100</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(250)">Next 250</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(500)">Next 500</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(1000)">Next 1000</button>
+                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 rounded-pill ms-auto" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal('all_unsent')">All Unsent ({{ clientStats.unsent }})</button>
+                  </div>
+
+                  <vue-multiselect
+                      v-model="whatsappForm.selectedClients"
+                      :options="campaignClientOptions"
+                      :multiple="true"
+                      :close-on-select="false"
+                      :clear-on-select="false"
+                      placeholder="Select campaign clients (leave empty for ALL)"
+                      label="nameWithDetails"
+                      track-by="id"
+                      :searchable="true"
+                      :show-labels="false"
+                      class="mb-1"
+                  >
+                      <template #noResult>No clients found</template>
+                      <template #noOptions>No clients loaded</template>
+                      <template #option="{ option }">
+                      <div class="client-option">
+                          <strong>{{ option.name }}</strong>
+                          <div class="small text-muted">
+                          <span v-if="option.email">{{ option.email }}</span>
+                          <span v-if="option.email && option.phone"> • </span>
+                          <span v-if="option.phone">{{ option.phone }}</span>
+                          </div>
+                          <div class="small">
+                          <span
+                              v-for="dept in (option.departments || [])"
+                              :key="dept.id"
+                              class="badge bg-light text-dark border me-1"
+                          >
+                              {{ dept.name }}
+                          </span>
+                          </div>
+                      </div>
+                      </template>
+                  </vue-multiselect>
+
+                  <div class="d-flex justify-content-between mt-1">
+                      <small class="text-muted">
+                        Targeting <strong>{{ whatsappForm.selectedClients.length || clients.length }}</strong> client(s). Leave empty to send to all {{ clients.length }}.
+                      </small>
+                      <div>
+                      <button
+                          type="button"
+                          class="btn btn-link btn-sm p-0 me-2"
+                          @click="selectAllCampaignClients('whatsapp')"
+                          :disabled="campaignClientOptions.length === 0"
+                      >
+                          Select all
+                      </button>
+                      <button
+                          type="button"
+                          class="btn btn-link btn-sm p-0 text-danger"
+                          @click="clearCampaignClientSelection('whatsapp')"
+                      >
+                          Clear
+                      </button>
+                      </div>
+                  </div>
                 </div>
 
                 <!-- Options -->
@@ -1893,6 +2031,9 @@ export default {
       selectedClients: [],
       clientTablePerPage: 25,
       clientTableCurrentPage: 1,
+      clientStatusFilter: 'all',
+      clientSearchQuery: '',
+      activeChannelTab: 'whatsapp',
 
       // channel messages
       whatsappMessages: [],
@@ -2114,11 +2255,65 @@ export default {
       }
       return cards;
     },
+    clientStats() {
+      const list = this.clients || [];
+      let total = list.length;
+      let sent = 0;
+      let delivered = 0;
+      let failed = 0;
+      let unsent = 0;
+
+      list.forEach(c => {
+        const statusVal = this.getClientChannelStatus(c, this.activeChannelTab);
+        const st = String(statusVal || 'Pending').trim().toLowerCase();
+
+        if (['delivered', 'read', 'opened', 'clicked'].includes(st)) {
+          delivered++;
+          sent++;
+        } else if (st === 'sent') {
+          sent++;
+        } else if (st === 'failed' || st === 'bounced' || (this.activeChannelTab === 'whatsapp' && (c.whatsapp_error_message || c.whatsapp_error_code))) {
+          failed++;
+        } else {
+          unsent++;
+        }
+      });
+
+      return { total, sent, delivered, failed, unsent };
+    },
+    filteredCampaignClients() {
+      let list = this.clients || [];
+
+      // Filter by status for active channel
+      if (this.clientStatusFilter === 'unsent') {
+        list = list.filter(c => this.isClientUnsent(c, this.activeChannelTab));
+      } else if (this.clientStatusFilter === 'sent') {
+        list = list.filter(c => this.isClientSent(c, this.activeChannelTab));
+      } else if (this.clientStatusFilter === 'failed') {
+        list = list.filter(c => this.isClientFailed(c, this.activeChannelTab));
+      }
+
+      // Filter by search query
+      if (this.clientSearchQuery && this.clientSearchQuery.trim() !== '') {
+        const q = this.clientSearchQuery.trim().toLowerCase();
+        list = list.filter(c => {
+          return (
+            (c.name && c.name.toLowerCase().includes(q)) ||
+            (c.email && c.email.toLowerCase().includes(q)) ||
+            (c.phone && c.phone.toLowerCase().includes(q)) ||
+            (c.bank_name && c.bank_name.toLowerCase().includes(q)) ||
+            (c.import_batch_number && String(c.import_batch_number).toLowerCase().includes(q))
+          );
+        });
+      }
+
+      return list;
+    },
     selectAllClients() {
-      return this.clients.length > 0 && this.selectedClients.length === this.clients.length;
+      return this.filteredCampaignClients.length > 0 && this.selectedClients.length === this.filteredCampaignClients.length;
     },
     paginatedCampaignClients() {
-      const list = this.clients || [];
+      const list = this.filteredCampaignClients;
       const perPage = Number(this.clientTablePerPage) || 25;
       if (perPage <= 0) return list;
       const start = (this.clientTableCurrentPage - 1) * perPage;
@@ -2127,10 +2322,10 @@ export default {
     totalCampaignClientPages() {
       const perPage = Number(this.clientTablePerPage) || 25;
       if (perPage <= 0) return 1;
-      return Math.max(1, Math.ceil((this.clients || []).length / perPage));
+      return Math.max(1, Math.ceil(this.filteredCampaignClients.length / perPage));
     },
     campaignClientPaginationInfo() {
-      const total = (this.clients || []).length;
+      const total = this.filteredCampaignClients.length;
       if (total === 0) return 'Showing 0 of 0 records';
       const perPage = Number(this.clientTablePerPage) || 25;
       const start = (this.clientTableCurrentPage - 1) * perPage + 1;
@@ -2258,9 +2453,138 @@ export default {
       }
       return false;
     },
+    getClientChannelStatus(cl, channel = this.activeChannelTab) {
+      if (!cl) return 'Pending';
+      if (channel === 'email') return cl.email_status || 'Pending';
+      if (channel === 'sms') return cl.sms_status || 'Pending';
+      return cl.whatsapp_status || 'Pending';
+    },
+    isClientUnsent(cl, channel = this.activeChannelTab) {
+      if (!cl) return true;
+      const st = String(this.getClientChannelStatus(cl, channel)).trim().toLowerCase();
+      return ['pending', 'unsent', 'not_sent', ''].includes(st);
+    },
+    isClientSent(cl, channel = this.activeChannelTab) {
+      if (!cl) return false;
+      const st = String(this.getClientChannelStatus(cl, channel)).trim().toLowerCase();
+      return ['sent', 'delivered', 'read', 'opened', 'clicked'].includes(st);
+    },
+    isClientFailed(cl, channel = this.activeChannelTab) {
+      if (!cl) return false;
+      const st = String(this.getClientChannelStatus(cl, channel)).trim().toLowerCase();
+      return st === 'failed' || st === 'bounced' || (channel === 'whatsapp' && (!!cl.whatsapp_error_message || !!cl.whatsapp_error_code));
+    },
+    selectUnsentBatch(count) {
+      const unsentList = (this.clients || []).filter(c => this.isClientUnsent(c, this.activeChannelTab));
+      let targets = [];
+      if (count === 'all_unsent') {
+        targets = unsentList;
+      } else if (count === 'all_campaign') {
+        targets = this.clients || [];
+      } else {
+        const n = Number(count) || 25;
+        targets = unsentList.slice(0, n);
+      }
+
+      this.selectedClients = targets.map(c => c.id);
+      const chName = this.activeChannelTab.toUpperCase();
+      if (targets.length > 0) {
+        notify.info(`Selected next ${targets.length} unsent client(s) for ${chName}.`, 'Campaigns');
+      } else {
+        notify.warning(`No unsent clients remaining for ${chName} in this campaign.`, 'Campaigns');
+      }
+    },
+    selectUnsentBatchInModal(count) {
+      const unsentList = (this.clients || []).filter(c => this.isClientUnsent(c, 'whatsapp'));
+      let targets = [];
+      if (count === 'all_unsent') {
+        targets = unsentList;
+      } else if (count === 'all_campaign') {
+        targets = this.clients || [];
+      } else {
+        const n = Number(count) || 25;
+        targets = unsentList.slice(0, n);
+      }
+
+      this.whatsappForm.selectedClients = targets.map(c => {
+        return this.campaignClientOptions.find(opt => opt.id === c.id) || {
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          departments: c.departments,
+          nameWithDetails: `${c.name}${c.phone ? ' (' + c.phone + ')' : ''}`,
+        };
+      });
+
+      if (targets.length > 0) {
+        notify.info(`Selected ${targets.length} unsent recipient(s) for WhatsApp.`, 'WhatsApp');
+      } else {
+        notify.warning('No unsent clients remaining in this campaign.', 'WhatsApp');
+      }
+    },
+    sendWhatsappToSelected() {
+      if (this.selectedClients.length === 0) return;
+      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+      
+      this.whatsappForm.selectedClients = selectedObjects.map(c => {
+        return this.campaignClientOptions.find(opt => opt.id === c.id) || {
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          departments: c.departments,
+          nameWithDetails: `${c.name}${c.phone ? ' (' + c.phone + ')' : ''}`,
+        };
+      });
+
+      this.openAddWhatsappTemplateModal();
+    },
+    sendEmailToSelected() {
+      if (this.selectedClients.length === 0) return;
+      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+      
+      this.emailForm = {
+        mode: 'new',
+        subject: '',
+        body: '',
+        templateId: '',
+        clientsMode: 'selected',
+        selectedClients: selectedObjects,
+        selectedClientIds: selectedObjects.map(c => c.id),
+        sending: false,
+      };
+
+      axios.get('/api/email-templates').then((res) => {
+        this.emailTemplates = res.data.data || res.data;
+      }).catch(() => {
+        this.emailTemplates = [];
+      }).finally(() => {
+        if (this.addEmailModal) {
+          this.addEmailModal.show();
+        }
+      });
+    },
+    sendSmsToSelected() {
+      if (this.selectedClients.length === 0) return;
+      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+
+      this.smsForm = {
+        subject: '',
+        text: '',
+        clientsMode: 'selected',
+        selectedClients: selectedObjects,
+        selectedClientIds: selectedObjects.map(c => c.id),
+        sending: false,
+      };
+
+      if (this.addSmsModal) {
+        this.addSmsModal.show();
+      }
+    },
     toggleSelectAllClients(event) {
       if (event.target.checked) {
-        this.selectedClients = this.clients.map(c => c.id);
+        this.selectedClients = this.filteredCampaignClients.map(c => c.id);
       } else {
         this.selectedClients = [];
       }
@@ -2399,7 +2723,7 @@ export default {
     },
     fetchClients() {
       const id = this.$route.params.id;
-      axios.get(`/api/campaigns/${id}/clients`).then((res) => {
+      axios.get(`/api/campaigns/${id}/clients?all=1`).then((res) => {
         this.clients = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
       }).catch(() => {
         this.clients = [];
@@ -2879,7 +3203,9 @@ export default {
 
           this.addWhatsappModal.hide();
           this.fetchWhatsApp();
+          this.fetchClients();
           this.fetchStats();
+          this.selectedClients = [];
           this.editingWhatsappMessageId = null;
         })
         .catch((error) => {
