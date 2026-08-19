@@ -2530,7 +2530,7 @@ export default {
       if (this.selectedClients.length === 0) return;
       const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
       
-      this.whatsappForm.selectedClients = selectedObjects.map(c => {
+      const mappedClients = selectedObjects.map(c => {
         return this.campaignClientOptions.find(opt => opt.id === c.id) || {
           id: c.id,
           name: c.name,
@@ -2541,7 +2541,7 @@ export default {
         };
       });
 
-      this.openAddWhatsappTemplateModal();
+      this.openAddWhatsappTemplateModal(mappedClients);
     },
     sendEmailToSelected() {
       if (this.selectedClients.length === 0) return;
@@ -3133,7 +3133,9 @@ export default {
     },
 
     // WhatsApp Template flow
-    openAddWhatsappTemplateModal() {
+    openAddWhatsappTemplateModal(preselectedClients = null) {
+      const existingSelected = preselectedClients !== null ? preselectedClients : [];
+
       this.whatsappModalLoading = true;
       this.editingWhatsappMessageId = null;
       this.whatsappForm = {
@@ -3141,7 +3143,7 @@ export default {
         templateId: '',
         flowId: '',
         templateVariables: {},
-        selectedClients: [],
+        selectedClients: existingSelected,
         trackResponses: false,
         enableLiveChat: false,
         sending: false,
