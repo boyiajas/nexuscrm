@@ -9,6 +9,7 @@ use App\Models\CampaignWhatsappMessage;
 use App\Models\CampaignWhatsappRecipient;
 use App\Models\ChatSession;
 use App\Models\Client;
+use App\Mail\WhatsAppInboundReplyNotification;
 use App\Services\MetaWhatsAppService;
 use App\Services\WhatsAppBatchService;
 use Carbon\Carbon;
@@ -16,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class WhatsAppWebhookController extends Controller
 {
@@ -289,6 +291,8 @@ class WhatsAppWebhookController extends Controller
                 $client->setOptIn('yes', 'inbound_reply');
             }
         }
+
+        $this->sendInboundReplyNotificationEmail($messageBatch, $client, $recipient, $body, $from);
 
         if (!$shouldOpenLiveChat) {
             Log::info('Meta WhatsApp reply tracked without opening live chat session.', [
@@ -588,5 +592,40 @@ class WhatsAppWebhookController extends Controller
         Cache::put($key, true, now()->addDay());
 
         return false;
+    }
+
+    protected function sendInboundReplyNotificationEmail(?CampaignWhatsappMessage $messageBatch, ?Client $client, ?CampaignWhatsappRecipient $recipient, string $body, string $from): void
+    {
+        try {
+            $targetUser = $messageBatch?->createdBy
+                ?: $messageBatch?->campaign?->user
+                ?: $client?->assignedTo;
+
+            if ($targetUser && $targetUser->email) {
+                Mail::to($targetUser->email)->queue(
+                    new WhatsAppInboundReplyNotification(
+                        $targetUser,
+                        $client,
+                        $recipient,
+                        $messageBatch,
+                        $body,
+                        $from
+                    )
+                );
+
+                Log::info('WhatsApp inbound reply email notification dispatched.', [
+                    'target_user_id' => $targetUser->id,
+                    'target_email'   => $targetUser->email,
+                    'client_id'      => $client?->id,
+                    'from'           => $from,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to dispatch WhatsApp inbound reply email notification.', [
+                'error'     => $e->getMessage(),
+                'client_id' => $client?->id,
+                'from'      => $from,
+            ]);
+        }
     }
 }
