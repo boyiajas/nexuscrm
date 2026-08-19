@@ -465,6 +465,14 @@
                 <div class="card-body">
                   <div class="row g-3">
                     <div class="col-md-6">
+                      <label class="form-label">Opt-In Status</label>
+                      <select v-model="form.opt_in" class="form-select" @change="onOptInChange">
+                        <option value="none">None (Unset)</option>
+                        <option value="yes">Yes (Opted In)</option>
+                        <option value="no">No (Opted Out / Suppressed)</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
                       <label class="form-label">Lawful Basis</label>
                       <select v-model="form.whatsapp_contact_basis" class="form-select">
                         <option value="">Select lawful basis</option>
@@ -479,26 +487,13 @@
                       <label class="form-label">Opt-In Source</label>
                       <input v-model="form.whatsapp_opt_in_source" type="text" class="form-control" placeholder="bank_import, signed consent, call recording..." />
                     </div>
+                    <div class="col-md-6" v-if="form.opt_in === 'no'">
+                      <label class="form-label">Opt-Out / Suppression Reason</label>
+                      <input v-model="form.whatsapp_opt_out_reason" type="text" class="form-control" placeholder="STOP, customer request, legal restriction..." />
+                    </div>
                     <div class="col-12">
                       <label class="form-label">Lawful Basis Details</label>
                       <textarea v-model="form.whatsapp_contact_basis_details" class="form-control" rows="2" placeholder="Describe the source of permission or lawful basis for WhatsApp contact."></textarea>
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label">Opt-In Date</label>
-                      <input v-model="form.whatsapp_opted_in_at" type="datetime-local" class="form-control" />
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label d-block">Suppression</label>
-                      <div class="form-check mt-2">
-                        <input id="client-whatsapp-opted-out" v-model="form.whatsapp_opted_out" class="form-check-input" type="checkbox" />
-                        <label class="form-check-label" for="client-whatsapp-opted-out">
-                          Block this client from WhatsApp messaging
-                        </label>
-                      </div>
-                    </div>
-                    <div class="col-12" v-if="form.whatsapp_opted_out">
-                      <label class="form-label">Opt-Out / Suppression Reason</label>
-                      <input v-model="form.whatsapp_opt_out_reason" type="text" class="form-control" placeholder="STOP, customer request, legal restriction..." />
                     </div>
                   </div>
                 </div>
@@ -1142,6 +1137,7 @@ export default {
         assigned_to_id: this.canChooseAssignee ? '' : (this.currentUser?.id || ''),
         department_ids: [],
         tags: [],
+        opt_in: 'none',
         whatsapp_contact_basis: 'bank_instruction',
         whatsapp_contact_basis_details: '',
         whatsapp_opted_in_at: '',
@@ -1183,6 +1179,7 @@ export default {
           assigned_to_id: fullClient.assigned_to_id || '',
           department_ids: fullClient.departments ? fullClient.departments.map(d => d.id) : [],
           tags: fullClient.tags || [],
+          opt_in: fullClient.opt_in || 'none',
           whatsapp_contact_basis: fullClient.whatsapp_contact_basis || '',
           whatsapp_contact_basis_details: fullClient.whatsapp_contact_basis_details || '',
           whatsapp_opted_in_at: this.toDateTimeLocal(fullClient.whatsapp_opted_in_at),
@@ -1204,6 +1201,15 @@ export default {
       });
     },
     
+    onOptInChange() {
+      if (this.form.opt_in === 'no') {
+        this.form.whatsapp_opted_out = true;
+      } else {
+        this.form.whatsapp_opted_out = false;
+        this.form.whatsapp_opt_out_reason = '';
+      }
+    },
+
     save() {
       if (this.isEdit ? !this.canEdit : !this.canCreate) return;
 
@@ -1231,7 +1237,10 @@ export default {
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 
-      if (!this.form.whatsapp_opted_out) {
+      if (this.form.opt_in === 'no') {
+        this.form.whatsapp_opted_out = true;
+      } else {
+        this.form.whatsapp_opted_out = false;
         this.form.whatsapp_opt_out_reason = '';
       }
 

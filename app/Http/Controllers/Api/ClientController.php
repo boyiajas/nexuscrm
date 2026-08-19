@@ -238,6 +238,7 @@ class ClientController extends Controller
             'whatsapp_opt_in_source' => ['nullable', 'string', 'max:255'],
             'whatsapp_opted_out' => ['sometimes', 'boolean'],
             'whatsapp_opt_out_reason' => ['nullable', 'string', 'max:255'],
+            'opt_in' => ['nullable', 'string', Rule::in(['yes', 'no', 'none'])],
             'department_ids' => ['required', 'array', 'min:1'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
             'assigned_to_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -281,6 +282,10 @@ class ClientController extends Controller
                 'assigned_to_id' => $this->resolveAssignedUserId($user, $bankId, $data['assigned_to_id'] ?? null),
                 'tags' => $data['tags'] ?? null,
             ]);
+
+            if (!empty($data['opt_in'])) {
+                $client->setOptIn($data['opt_in'], $data['whatsapp_opt_out_reason'] ?? 'manual');
+            }
 
             // Sync departments
             $client->departments()->sync($data['department_ids']);
@@ -346,6 +351,7 @@ class ClientController extends Controller
             'whatsapp_opt_in_source' => ['nullable', 'string', 'max:255'],
             'whatsapp_opted_out' => ['sometimes', 'boolean'],
             'whatsapp_opt_out_reason' => ['nullable', 'string', 'max:255'],
+            'opt_in' => ['nullable', 'string', Rule::in(['yes', 'no', 'none'])],
             'department_ids' => ['sometimes', 'array'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
             'assigned_to_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -398,6 +404,10 @@ class ClientController extends Controller
                 'assigned_to_id' => $this->resolveAssignedUserId($user, $bankId, $data['assigned_to_id'] ?? $client->assigned_to_id),
                 'tags' => $data['tags'] ?? $client->tags,
             ]);
+
+            if (array_key_exists('opt_in', $data) && !empty($data['opt_in'])) {
+                $client->setOptIn($data['opt_in'], $data['whatsapp_opt_out_reason'] ?? 'manual');
+            }
 
             // Update departments if provided
             if (isset($data['department_ids'])) {
