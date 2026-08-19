@@ -350,7 +350,17 @@
                     </div>
                   </td>
                 </tr>
-                <tr v-if="filteredCampaignClients.length === 0">
+                <tr v-if="loadingCampaignClients">
+                  <td colspan="11" class="text-center py-5">
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                      <div class="spinner-border text-primary spinner-border-sm" role="status" style="width: 1.5rem; height: 1.5rem;">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                      <span class="text-muted fw-medium small ms-1">Loading campaign clients...</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-else-if="filteredCampaignClients.length === 0">
                   <td colspan="11" class="text-center text-muted py-4">
                     <div v-if="clientStatusFilter !== 'all' || clientSearchQuery">
                       <i class="bi bi-funnel text-muted fs-4 d-block mb-1"></i>
@@ -540,7 +550,17 @@
                     </div>
                   </td>
                 </tr>
-                <tr v-if="whatsappMessages.length === 0">
+                <tr v-if="loadingWhatsappMessages">
+                  <td colspan="10" class="text-center py-4">
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                      <div class="spinner-border text-primary spinner-border-sm" role="status" style="width: 1.25rem; height: 1.25rem;">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                      <span class="text-muted fw-medium small ms-1">Loading WhatsApp sends...</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-else-if="whatsappMessages.length === 0">
                   <td colspan="10" class="text-center text-muted py-3">
                     No WhatsApp sends yet.
                   </td>
@@ -2038,6 +2058,7 @@ export default {
 
       // clients in campaign
       clients: [],
+      loadingCampaignClients: true,
       selectedClients: [],
       clientTablePerPage: 25,
       clientTableCurrentPage: 1,
@@ -2047,6 +2068,7 @@ export default {
 
       // channel messages
       whatsappMessages: [],
+      loadingWhatsappMessages: true,
       emails: [],
       smsMessages: [],
       editingWhatsappMessageId: null,
@@ -2734,18 +2756,24 @@ export default {
     },
     fetchClients() {
       const id = this.$route.params.id;
+      this.loadingCampaignClients = true;
       axios.get(`/api/campaigns/${id}/clients?all=1`).then((res) => {
         this.clients = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
       }).catch(() => {
         this.clients = [];
+      }).finally(() => {
+        this.loadingCampaignClients = false;
       });
     },
     fetchWhatsApp() {
       const id = this.$route.params.id;
+      this.loadingWhatsappMessages = true;
       axios.get(`/api/campaigns/${id}/whatsapp-messages`).then((res) => {
         this.whatsappMessages = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
       }).catch(() => {
         this.whatsappMessages = [];
+      }).finally(() => {
+        this.loadingWhatsappMessages = false;
       });
     },
     fetchEmails() {
