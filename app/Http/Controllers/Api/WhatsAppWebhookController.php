@@ -597,6 +597,14 @@ class WhatsAppWebhookController extends Controller
     protected function sendInboundReplyNotificationEmail(?CampaignWhatsappMessage $messageBatch, ?Client $client, ?CampaignWhatsappRecipient $recipient, string $body, string $from): void
     {
         try {
+            if ($messageBatch && isset($messageBatch->enable_email_notification) && !$messageBatch->enable_email_notification) {
+                Log::info('WhatsApp inbound reply email notification skipped (disabled for batch).', [
+                    'message_batch_id' => $messageBatch->id,
+                    'from' => $from,
+                ]);
+                return;
+            }
+
             $targetUser = $messageBatch?->createdBy
                 ?: $messageBatch?->campaign?->user
                 ?: $client?->assignedTo;

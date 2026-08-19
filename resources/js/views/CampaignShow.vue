@@ -467,6 +467,7 @@
                   <th>Failed</th>
                   <th>Pending</th>
                   <th>Chat Request</th>
+                  <th>Email Notif</th>
                   <th>Responses</th>
                   <th class="text-end pe-4">Action</th>
                 </tr>
@@ -511,6 +512,17 @@
                     </span>
                   </td>
                   <td>
+                    <span
+                      :class="(w.enable_email_notification !== false) ? 'badge bg-success' : 'badge bg-secondary'"
+                      style="cursor: pointer;"
+                      :title="'Click to toggle Email Notification on reply (Currently ' + (w.enable_email_notification !== false ? 'Enabled' : 'Disabled') + ')'"
+                      @click="toggleEmailNotification(w)"
+                    >
+                      <i :class="(w.enable_email_notification !== false) ? 'bi bi-envelope-check me-1' : 'bi bi-envelope-x me-1'"></i>
+                      {{ (w.enable_email_notification !== false) ? 'Enabled' : 'Disabled' }}
+                    </span>
+                  </td>
+                  <td>
                     <span class="badge bg-success me-1">Yes: {{ w.yes_responses_count || 0 }}</span>
                     <span class="badge bg-secondary">No: {{ w.no_responses_count || 0 }}</span>
                   </td>
@@ -551,7 +563,7 @@
                   </td>
                 </tr>
                 <tr v-if="loadingWhatsappMessages">
-                  <td colspan="10" class="text-center py-4">
+                  <td colspan="11" class="text-center py-4">
                     <div class="d-flex align-items-center justify-content-center gap-2">
                       <div class="spinner-border text-primary spinner-border-sm" role="status" style="width: 1.25rem; height: 1.25rem;">
                         <span class="visually-hidden">Loading...</span>
@@ -561,7 +573,7 @@
                   </td>
                 </tr>
                 <tr v-else-if="whatsappMessages.length === 0">
-                  <td colspan="10" class="text-center text-muted py-3">
+                  <td colspan="11" class="text-center text-muted py-3">
                     No WhatsApp sends yet.
                   </td>
                 </tr>
@@ -1454,6 +1466,19 @@
                     </label>
                     </div>
                 </div>
+                <div class="col-md-6">
+                    <div class="form-check mb-2">
+                    <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="waEnableEmailNotification"
+                        v-model="whatsappForm.enableEmailNotification"
+                    />
+                    <label class="form-check-label" for="waEnableEmailNotification">
+                        Send email notification on reply
+                    </label>
+                    </div>
+                </div>
                 </div>
 
             
@@ -2128,7 +2153,8 @@ export default {
         clientsMode: 'all',
         selectedClients: [],
         trackResponses: false,
-        enableLiveChat: false,
+        enableLiveChat: true,
+        enableEmailNotification: true,
         showSamplePreview: false,
         sending: false,
       },
@@ -3181,8 +3207,9 @@ export default {
         flowId: '',
         templateVariables: {},
         selectedClients: existingSelected,
-        trackResponses: false,
-        enableLiveChat: false,
+        trackResponses: true,
+        enableLiveChat: true,
+        enableEmailNotification: true,
         sending: false,
         action: null,
       };
@@ -3227,6 +3254,7 @@ export default {
         client_ids: hasSelection ? this.whatsappForm.selectedClients.map((c) => c.id) : [],
         send_now: sendNow,
         enable_live_chat: this.whatsappForm.enableLiveChat,
+        enable_email_notification: this.whatsappForm.enableEmailNotification,
       };
 
       this.whatsappForm.sending = true;
@@ -3270,6 +3298,17 @@ export default {
           notify.error(error.response?.data?.message || 'Failed to update live chat status.', 'WhatsApp');
         });
     },
+    toggleEmailNotification(message) {
+      const campaignId = this.$route.params.id;
+      axios.patch(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/toggle-email-notification`)
+        .then((res) => {
+          message.enable_email_notification = res.data.enable_email_notification;
+          notify.success(res.data.message || 'Email notification status updated.', 'WhatsApp');
+        })
+        .catch((error) => {
+          notify.error(error.response?.data?.message || 'Failed to update email notification status.', 'WhatsApp');
+        });
+    },
     editWhatsappTemplate(message) {
       const isFlow = !!(message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow);
       const templateId = this.whatsappTemplateId(message);
@@ -3308,6 +3347,7 @@ export default {
         selectedClients: [],
         trackResponses: true,
         enableLiveChat: !!message.enable_live_chat,
+        enableEmailNotification: message.enable_email_notification !== false,
         sending: false,
         action: null,
       };

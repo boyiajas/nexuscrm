@@ -90,6 +90,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/campaigns/{campaign}/whatsapp-messages/export', [CampaignController::class, 'exportWhatsappMessages']);
     Route::put('/campaigns/{campaign}/whatsapp-messages/{message}', [CampaignController::class, 'updateWhatsappMessage']);
     Route::patch('/campaigns/{campaign}/whatsapp-messages/{message}/toggle-live-chat', [CampaignController::class, 'toggleLiveChat']);
+    Route::patch('/campaigns/{campaign}/whatsapp-messages/{message}/toggle-email-notification', [CampaignController::class, 'toggleEmailNotification']);
     Route::post('/campaigns/{campaign}/whatsapp-messages/{message}/send', [CampaignController::class, 'sendDraftWhatsappMessage']);
     Route::post('/campaigns/{campaign}/whatsapp-messages/{message}/pause', [CampaignController::class, 'pauseWhatsappMessage']);
     Route::post('/campaigns/{campaign}/whatsapp-messages/{message}/resume', [CampaignController::class, 'resumeWhatsappMessage']);

@@ -840,6 +840,7 @@ class CampaignController extends Controller
                 'created_by_user_id',
                 'provider_display_phone_number',
                 'enable_live_chat',
+                'enable_email_notification',
                 'created_at',
             ]);
 
@@ -939,6 +940,7 @@ class CampaignController extends Controller
                 'created_by_user_id' => $m->created_by_user_id,
                 'reply_number'  => $m->provider_display_phone_number,
                 'enable_live_chat' => (bool) $m->enable_live_chat,
+                'enable_email_notification' => (bool) ($m->enable_email_notification ?? true),
                 'yes_responses_count' => $yesResponsesCount,
                 'no_responses_count' => $noResponsesCount,
                 'replies_count' => $repliesCount,
@@ -1033,6 +1035,7 @@ class CampaignController extends Controller
             'client_ids.*'     => ['integer', 'exists:clients,id'],
             'send_now'         => ['sometimes', 'boolean'],
             'enable_live_chat' => ['sometimes', 'boolean'],
+            'enable_email_notification' => ['sometimes', 'boolean'],
             'auto_replies'     => ['sometimes', 'array'],
             'auto_replies.*.trigger_keyword' => ['required', 'string'],
             'auto_replies.*.template_sid' => ['required', 'string'],
@@ -1178,6 +1181,7 @@ class CampaignController extends Controller
             'last_processed_at'=> null,
             'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
             'enable_live_chat' => $data['enable_live_chat'] ?? $message->enable_live_chat,
+            'enable_email_notification' => $data['enable_email_notification'] ?? $message->enable_email_notification,
             'created_by_user_id' => $message->created_by_user_id ?: Auth::id(),
         ]);
 
@@ -1232,6 +1236,26 @@ class CampaignController extends Controller
         return response()->json([
             'message' => 'Live chat status updated to ' . ($newStatus ? 'Enabled' : 'Disabled') . '.',
             'enable_live_chat' => $newStatus,
+        ]);
+    }
+
+    /**
+     * Quick toggle for Email Notification status on a WhatsApp batch.
+     */
+    public function toggleEmailNotification(Campaign $campaign, $messageId)
+    {
+        $this->authorizeManageCampaign($campaign);
+        /** @var \App\Models\CampaignWhatsappMessage $message */
+        $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
+        
+        $newStatus = !($message->enable_email_notification ?? true);
+        $message->update([
+            'enable_email_notification' => $newStatus,
+        ]);
+
+        return response()->json([
+            'message' => 'Email notification status updated to ' . ($newStatus ? 'Enabled' : 'Disabled') . '.',
+            'enable_email_notification' => $newStatus,
         ]);
     }
 
@@ -1865,6 +1889,7 @@ class CampaignController extends Controller
             'reply_number'  => $message->provider_display_phone_number,
             'scheduled_at'  => optional($message->scheduled_at)->toDateTimeString(),
             'enable_live_chat' => (bool) $message->enable_live_chat,
+            'enable_email_notification' => (bool) ($message->enable_email_notification ?? true),
             'track_responses'  => (bool) $message->track_responses,
             'template_variables' => $message->template_variables ?? [],
             'queued_at'     => optional($message->queued_at)->toDateTimeString(),
@@ -1921,6 +1946,7 @@ class CampaignController extends Controller
             'client_ids.*'     => ['integer', 'exists:clients,id'],
             'track_responses'  => ['sometimes', 'boolean'],
             'enable_live_chat' => ['sometimes', 'boolean'],
+            'enable_email_notification' => ['sometimes', 'boolean'],
             'send_now'         => ['sometimes', 'boolean'],
             'auto_replies'     => ['sometimes', 'array'],
             'auto_replies.*.trigger_keyword' => ['required', 'string'],
@@ -2053,6 +2079,7 @@ class CampaignController extends Controller
             'messages_per_second' => $this->batchService->enforcedMessagesPerSecond(),
             'track_responses'   => $data['track_responses']  ?? false,
             'enable_live_chat'  => $data['enable_live_chat'] ?? false,
+            'enable_email_notification' => $data['enable_email_notification'] ?? true,
         ]);
 
         if ($sendNow) {

@@ -34,6 +34,7 @@ class CampaignWhatsappMessage extends Model
         'last_processed_at',
         'messages_per_second',
         'enable_live_chat',
+        'enable_email_notification',
         'track_responses',
     ];
 
@@ -48,6 +49,7 @@ class CampaignWhatsappMessage extends Model
         'flow_definition' => 'array',
         'track_responses' => 'boolean',
         'enable_live_chat' => 'boolean',
+        'enable_email_notification' => 'boolean',
         'messages_per_second' => 'integer',
     ];
 
