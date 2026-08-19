@@ -38,7 +38,8 @@
           <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
-              <div class="stat-card-number mt-1">{{ campaign?.total_recipients || 2 }}</div>
+              <div class="stat-card-number mt-1">{{ clients.length || stats.total_clients || campaign?.total_recipients || 0 }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">Campaign Recipients</small>
             </div>
             <div class="stat-icon-badge">
               <i class="bi bi-people-fill"></i>
@@ -53,8 +54,8 @@
           <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">WHATSAPP</div>
-              <div class="stat-card-number mt-1">3</div>
-              <small class="text-muted" style="font-size: 0.75rem;">Total messages queued</small>
+              <div class="stat-card-number mt-1">{{ channels.whatsapp ? (stats.whatsapp_sent || 0) : 'N/A' }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ channels.whatsapp ? 'Total messages queued' : 'Channel Not Active' }}</small>
             </div>
             <div class="stat-icon-badge" style="background-color: #ecfdf5; color: #059669;">
               <i class="bi bi-whatsapp"></i>
@@ -65,32 +66,34 @@
       </div>
 
       <div class="col-md-3">
-        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
-          <div class="card-body p-3 d-flex justify-content-between align-items-center position-relative z-1">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" :class="channels.email ? '' : 'opacity-75'" style="border-left: 3px solid #3b82f6 !important;">
+          <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
-              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem;">EMAIL METRICS</div>
-              <div class="h5 fw-bold text-muted mb-0 mt-1">N/A</div>
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">EMAIL METRICS</div>
+              <div class="stat-card-number mt-1">{{ channels.email ? (stats.email_sent || 0) : 'N/A' }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ channels.email ? 'Total emails sent' : 'Channel Not Active' }}</small>
             </div>
-            <div class="stat-icon-badge text-muted">
+            <div class="stat-icon-badge" style="background-color: #eff6ff; color: #2563eb;">
               <i class="bi bi-envelope"></i>
             </div>
           </div>
-          <i class="bi bi-envelope position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+          <i class="bi bi-envelope position-absolute text-primary" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
         </div>
       </div>
 
       <div class="col-md-3">
-        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden" style="border-left: 3px solid #8b5cf6 !important;">
-          <div class="card-body p-3 d-flex justify-content-between align-items-center position-relative z-1">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" :class="channels.sms ? '' : 'opacity-75'" style="border-left: 3px solid #8b5cf6 !important;">
+          <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
-              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem;">SMS METRICS</div>
-              <div class="h5 fw-bold text-muted mb-0 mt-1">N/A</div>
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">SMS METRICS</div>
+              <div class="stat-card-number mt-1">{{ channels.sms ? (stats.sms_sent || 0) : 'N/A' }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ channels.sms ? 'Total SMS sent' : 'Channel Not Active' }}</small>
             </div>
-            <div class="stat-icon-badge text-muted">
+            <div class="stat-icon-badge" style="background-color: #f5f3ff; color: #7c3aed;">
               <i class="bi bi-chat-dots"></i>
             </div>
           </div>
-          <i class="bi bi-chat-dots position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+          <i class="bi bi-chat-dots position-absolute text-purple" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
         </div>
       </div>
     </div>

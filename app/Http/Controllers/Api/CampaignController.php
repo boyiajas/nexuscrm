@@ -740,7 +740,7 @@ class CampaignController extends Controller
                 'smsMessages:id,campaign_id,total,delivered,failed,pending',
             ]);
 
-            $totalClients = $campaign->clients->count();
+            $totalClients = $campaign->clients()->count();
 
             $whatsTotals = [
                 'total'     => $campaign->whatsappMessages->sum('total'),
