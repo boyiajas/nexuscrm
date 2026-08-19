@@ -29,6 +29,7 @@ class WhatsAppInboundReplyNotification extends Mailable implements ShouldQueue
         public string $clientMessage,
         public string $phone
     ) {
+        $this->onQueue('whatsapp');
         $this->appName = SystemSetting::first()?->app_name ?: 'NexusCRM';
         
         $baseUrl = config('app.url', url('/'));
@@ -57,6 +58,7 @@ class WhatsAppInboundReplyNotification extends Mailable implements ShouldQueue
                 'clientName' => $this->client?->name ?: 'Unknown Client',
                 'clientPhone' => $this->phone,
                 'clientEmail' => $this->client?->email ?: 'N/A',
+                'accountNumber' => $this->client?->account_number ?: 'N/A',
                 'bankName' => $this->client?->bank_name ?: ($this->messageBatch?->campaign?->bank?->name ?: 'N/A'),
                 'campaignName' => $this->messageBatch?->campaign?->name ?: 'N/A',
                 'templateName' => $this->messageBatch?->template_name ?: ($this->messageBatch?->flow_name ?: 'WhatsApp Message'),

@@ -16,6 +16,7 @@ A client has replied to a WhatsApp campaign message on **{{ $appName }}**.
 - **Name:** {{ $clientName }}
 - **Phone:** {{ $clientPhone }}
 - **Email:** {{ $clientEmail }}
+- **Account Number:** {{ $accountNumber }}
 - **Bank / Portfolio:** {{ $bankName }}
 
 ---
