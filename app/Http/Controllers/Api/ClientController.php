@@ -92,6 +92,12 @@ class ClientController extends Controller
             }
         }
 
+        if ($optIn = $request->get('opt_in')) {
+            if (!in_array($optIn, ['All', 'all', ''], true)) {
+                $query->where('opt_in', strtolower($optIn));
+            }
+        }
+
         $batchOptions = (clone $query)
             ->whereNotNull('import_batch_number')
             ->where('import_batch_number', '!=', '')
@@ -138,6 +144,8 @@ class ClientController extends Controller
                 'created_by_label' => $createdByLabel,
                 'id_number_masked' => $client->maskedIdNumber(),
                 'account_number_masked' => $client->maskedAccountNumber(),
+                'opt_in' => $client->opt_in ?: 'none',
+                'opt_in_updated_at' => optional($client->opt_in_updated_at)->toDateTimeString(),
                 'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
                 'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
                 'whatsapp_can_receive' => $client->canReceiveWhatsapp(),
@@ -183,6 +191,8 @@ class ClientController extends Controller
             'account_number' => $this->shouldMaskSensitiveFields($user) ? $client->maskedAccountNumber() : $client->account_number,
             'id_number_masked' => $client->maskedIdNumber(),
             'account_number_masked' => $client->maskedAccountNumber(),
+            'opt_in' => $client->opt_in ?: 'none',
+            'opt_in_updated_at' => optional($client->opt_in_updated_at)->toDateTimeString(),
             'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
             'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
             'whatsapp_can_receive' => $client->canReceiveWhatsapp(),
@@ -1852,6 +1862,41 @@ class ClientController extends Controller
         if (function_exists('set_time_limit')) {
             @set_time_limit($seconds);
         }
+    }
+
+    public function updateOptIn(Request $request, Client $client)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->canEditClients()) {
+            abort(403, 'You do not have permission to update client opt-in status.');
+        }
+
+        $data = $request->validate([
+            'opt_in' => ['required', 'string', Rule::in(['yes', 'no', 'none'])],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $client->setOptIn($data['opt_in'], $data['reason'] ?? 'Manual status update');
+
+        $this->audit(
+            action: "Updated client #{$client->id} Opt-In status to {$data['opt_in']}",
+            module: 'Clients',
+            meta: [
+                'client_id' => $client->id,
+                'opt_in' => $data['opt_in'],
+                'reason' => $data['reason'] ?? null,
+            ]
+        );
+
+        return response()->json([
+            'message' => 'Opt-in status updated successfully',
+            'client' => array_merge($client->toArray(), [
+                'opt_in' => $client->opt_in,
+                'opt_in_updated_at' => optional($client->opt_in_updated_at)->toDateTimeString(),
+                'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
+                'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
+            ]),
+        ]);
     }
 
     protected function generateImportBatchNumber(): string

@@ -54,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('clients/bulk-delete', [ClientController::class, 'bulkDestroy']);
     Route::get('import-uploads', [ImportUploadController::class, 'index']);
     Route::get('clients/export', [ClientController::class, 'export']);
+    Route::post('clients/{client}/opt-in', [ClientController::class, 'updateOptIn']);
     Route::apiResource('clients', ClientController::class);
     Route::get('banks', [BankController::class, 'index']);
     Route::post('banks', [BankController::class, 'store']);
@@ -111,6 +112,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('chat/sessions/{session}/messages', [ChatController::class, 'storeMessage']);
     Route::post('chat/sessions/{session}/clear', [ChatController::class, 'clear']);
     Route::post('chat/sessions/{session}/block', [ChatController::class, 'block']);
+    Route::post('chat/sessions/{session}/opt-in', [ChatController::class, 'updateOptIn']);
     Route::delete('chat/sessions/{session}', [ChatController::class, 'destroy']);
     Route::post('chat/session-for-client', [ChatController::class, 'sessionForClient']);
 

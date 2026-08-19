@@ -271,8 +271,12 @@ class WhatsAppWebhookController extends Controller
             }
         }
 
-        if ($client && $isOptOut) {
-            $client->markWhatsappOptOut(strtolower(trim($body)));
+        if ($client) {
+            if ($isOptOut) {
+                $client->setOptIn('no', strtolower(trim($body)));
+            } else {
+                $client->setOptIn('yes', 'inbound_reply');
+            }
         }
 
         if (!$shouldOpenLiveChat) {
@@ -467,6 +471,8 @@ class WhatsAppWebhookController extends Controller
             'unsubscribe',
             'opt out',
             'optout',
+            'opt-out',
+            'opt_out',
             'cancel',
             'end',
             'quit',

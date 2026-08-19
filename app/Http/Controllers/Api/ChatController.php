@@ -321,4 +321,26 @@ class ChatController extends Controller
             ]);
         }
     }
+
+    public function updateOptIn(Request $request, ChatSession $session)
+    {
+        $this->authorizeManage();
+        $this->authorizeSessionScope(Auth::user(), $session);
+
+        $data = $request->validate([
+            'opt_in' => ['required', 'string', \Illuminate\Validation\Rule::in(['yes', 'no', 'none'])],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $client = $session->client;
+        if ($client) {
+            $client->setOptIn($data['opt_in'], $data['reason'] ?? 'Updated via Live Chat');
+        }
+
+        return response()->json([
+            'message' => 'Opt-in status updated successfully',
+            'opt_in' => $client?->opt_in ?: $data['opt_in'],
+            'opt_in_updated_at' => optional($client?->opt_in_updated_at)->toDateTimeString(),
+        ]);
+    }
 }

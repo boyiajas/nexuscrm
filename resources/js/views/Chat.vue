@@ -57,6 +57,26 @@
                     <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-lines-fill text-muted me-3"></i>Contact info</a></li>
                     <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search text-muted me-3"></i>Search</a></li>
                     <li><hr class="dropdown-divider"></li>
+                    <li class="dropdown-header text-uppercase small fw-bold text-muted">Opt-In Status</li>
+                    <li>
+                      <a class="dropdown-item py-1 text-success d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'yes')">
+                        <span><i class="bi bi-check-circle-fill me-2"></i>Opt-In: Yes</span>
+                        <i v-if="(session.client?.opt_in || session.opt_in) === 'yes'" class="bi bi-check2"></i>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item py-1 text-danger d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'no')">
+                        <span><i class="bi bi-x-circle-fill me-2"></i>Opt-In: No</span>
+                        <i v-if="(session.client?.opt_in || session.opt_in) === 'no'" class="bi bi-check2"></i>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item py-1 text-secondary d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'none')">
+                        <span><i class="bi bi-dash-circle me-2"></i>Opt-In: None</span>
+                        <i v-if="!session.client?.opt_in || session.client?.opt_in === 'none' || session.opt_in === 'none'" class="bi bi-check2"></i>
+                      </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item py-2" href="#" @click.prevent="clearChat(session)"><i class="bi bi-eraser text-muted me-3"></i>Clear chat</a></li>
                     <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(session)"><i class="bi bi-trash text-danger me-3"></i>Delete chat</a></li>
                     <li><hr class="dropdown-divider"></li>
@@ -82,7 +102,18 @@
             <i class="bi bi-person-fill"></i>
           </div>
           <div>
-            <div class="fw-semibold">{{ activeSession.client_name }}</div>
+            <div class="d-flex align-items-center gap-2">
+              <div class="fw-semibold">{{ activeSession.client_name }}</div>
+              <span v-if="(activeSession.client?.opt_in || activeSession.opt_in) === 'yes'" class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 ms-1" title="Opted In">
+                <i class="bi bi-check-circle-fill me-1"></i>Opt-In: Yes
+              </span>
+              <span v-else-if="(activeSession.client?.opt_in || activeSession.opt_in) === 'no'" class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-1" title="Opted Out">
+                <i class="bi bi-x-circle-fill me-1"></i>Opt-In: No
+              </span>
+              <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 ms-1" title="Unset">
+                <i class="bi bi-dash-circle me-1"></i>Opt-In: None
+              </span>
+            </div>
             <small class="text-muted">
               {{ activeSession.platform }} <span v-if="activeSession.agent">• Assigned to {{ activeSession.agent.name }}</span>
             </small>
@@ -91,9 +122,29 @@
             <i class="bi bi-search" style="cursor: pointer;" title="Search"></i>
             <div class="dropdown">
               <i class="bi bi-three-dots-vertical" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" title="Menu"></i>
-              <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 200px;">
+              <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 220px;">
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(activeSession)"><i class="bi bi-person-lines-fill me-2 text-muted"></i>Contact info</a></li>
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search me-2 text-muted"></i>Search</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li class="dropdown-header text-uppercase small fw-bold text-muted">Set Opt-In Status</li>
+                <li>
+                  <a class="dropdown-item py-1 text-success d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(activeSession, 'yes')">
+                    <span><i class="bi bi-check-circle-fill me-2"></i>Opt-In: Yes</span>
+                    <i v-if="(activeSession.client?.opt_in || activeSession.opt_in) === 'yes'" class="bi bi-check2"></i>
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item py-1 text-danger d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(activeSession, 'no')">
+                    <span><i class="bi bi-x-circle-fill me-2"></i>Opt-In: No</span>
+                    <i v-if="(activeSession.client?.opt_in || activeSession.opt_in) === 'no'" class="bi bi-check2"></i>
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item py-1 text-secondary d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(activeSession, 'none')">
+                    <span><i class="bi bi-dash-circle me-2"></i>Opt-In: None</span>
+                    <i v-if="!activeSession.client?.opt_in || activeSession.client?.opt_in === 'none' || activeSession.opt_in === 'none'" class="bi bi-check2"></i>
+                  </a>
+                </li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="clearChat(activeSession)"><i class="bi bi-eraser me-2 text-muted"></i>Clear chat</a></li>
                 <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(activeSession)"><i class="bi bi-trash text-danger me-2"></i>Delete chat</a></li>
@@ -180,6 +231,15 @@
               <p v-if="contactInfoSession.client?.email"><strong>Email:</strong> {{ contactInfoSession.client.email }}</p>
               <p v-if="contactInfoSession.client?.status"><strong>Status:</strong> <span class="badge bg-secondary">{{ contactInfoSession.client.status }}</span></p>
               <p v-if="contactInfoSession.client?.id_number"><strong>ID Number:</strong> {{ contactInfoSession.client.id_number }}</p>
+              <p>
+                <strong>Opt-In Status:</strong>
+                <span v-if="(contactInfoSession.client?.opt_in || contactInfoSession.opt_in) === 'yes'" class="badge bg-success ms-1">Yes</span>
+                <span v-else-if="(contactInfoSession.client?.opt_in || contactInfoSession.opt_in) === 'no'" class="badge bg-danger ms-1">No</span>
+                <span v-else class="badge bg-secondary ms-1">None</span>
+              </p>
+              <p v-if="contactInfoSession.client?.opt_in_updated_at || contactInfoSession.client?.whatsapp_opted_in_at">
+                <strong>Opt-In Timestamp:</strong> <span class="small text-muted">{{ contactInfoSession.client?.opt_in_updated_at || contactInfoSession.client?.whatsapp_opted_in_at }}</span>
+              </p>
             </div>
           </div>
         </div>
@@ -191,6 +251,7 @@
 
 <script>
 import axios from '../axios';
+import { notify } from '../utils/notify';
 import './Chat.css';
 
 export default {
@@ -403,6 +464,27 @@ export default {
           alert('Failed to block client.');
         });
       }
+    },
+    setOptIn(session, status) {
+      if (!session) return;
+      axios.post(`/api/chat/sessions/${session.id}/opt-in`, { opt_in: status }).then((res) => {
+        if (session.client) {
+          session.client.opt_in = status;
+          session.client.opt_in_updated_at = res.data.opt_in_updated_at;
+        }
+        session.opt_in = status;
+        if (this.activeSession && this.activeSession.id === session.id) {
+          if (this.activeSession.client) {
+            this.activeSession.client.opt_in = status;
+            this.activeSession.client.opt_in_updated_at = res.data.opt_in_updated_at;
+          }
+          this.activeSession.opt_in = status;
+        }
+        notify.success(`Opt-In status updated to ${status.toUpperCase()}.`, 'Compliance');
+      }).catch((err) => {
+        console.error('Failed to update Opt-In status', err);
+        notify.error(err.response?.data?.message || 'Failed to update Opt-In status.', 'Compliance');
+      });
     },
     showContactInfo(session) {
       if (!session) return;

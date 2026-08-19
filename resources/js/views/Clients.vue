@@ -72,6 +72,14 @@
                 <option value="Pending">Pending</option>
                 <option value="Inactive">Inactive</option>
               </select>
+
+              <!-- Opt-In Filter -->
+              <select v-model="filters.opt_in" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
+                <option value="">All Opt-In</option>
+                <option value="yes">Opt-In: Yes</option>
+                <option value="no">Opt-In: No</option>
+                <option value="none">Opt-In: None</option>
+              </select>
             </div>
 
             <div class="d-flex align-items-center gap-3">
@@ -132,6 +140,7 @@
                     <th>CONTACT</th>
                     <th>INSTITUTION</th>
                     <th>STATUS</th>
+                    <th>OPT-IN</th>
                     <th class="text-end pe-4">ACTIONS</th>
                   </tr>
                 </thead>
@@ -166,6 +175,17 @@
                     <td>
                       <span class="badge" :class="getStatusBadgeClass(c.status || 'Active')">
                         {{ c.status || 'Active' }}
+                      </span>
+                    </td>
+                    <td>
+                      <span v-if="c.opt_in === 'yes'" class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25" title="Opted In">
+                        <i class="bi bi-check-circle-fill me-1"></i>Yes
+                      </span>
+                      <span v-else-if="c.opt_in === 'no'" class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" title="Opted Out">
+                        <i class="bi bi-x-circle-fill me-1"></i>No
+                      </span>
+                      <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25" title="No Response / Unset">
+                        <i class="bi bi-dash-circle me-1"></i>None
                       </span>
                     </td>
                     <td class="text-end pe-4">
@@ -686,6 +706,38 @@
                   </div>
                 </div>
               </div>
+
+              <!-- WhatsApp & Opt-In Compliance -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3 text-primary mt-2">WhatsApp & Opt-In Compliance</h6>
+                <div class="row">
+                  <div class="col-md-6 mb-2">
+                    <strong>Opt-In Status:</strong>
+                    <span v-if="viewClient.opt_in === 'yes'" class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 ms-2">
+                      <i class="bi bi-check-circle-fill me-1"></i>Yes
+                    </span>
+                    <span v-else-if="viewClient.opt_in === 'no'" class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-2">
+                      <i class="bi bi-x-circle-fill me-1"></i>No
+                    </span>
+                    <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 ms-2">
+                      <i class="bi bi-dash-circle me-1"></i>None
+                    </span>
+                  </div>
+                  <div class="col-md-6 mb-2">
+                    <strong>Opt-In Timestamp:</strong>
+                    <span>{{ viewClient.opt_in_updated_at || viewClient.whatsapp_opted_in_at || viewClient.whatsapp_opted_out_at || '-' }}</span>
+                  </div>
+                  <div class="col-md-6 mb-2">
+                    <strong>Lawful Basis:</strong> {{ viewClient.whatsapp_contact_basis || '-' }}
+                  </div>
+                  <div class="col-md-6 mb-2">
+                    <strong>Opt-In Source:</strong> {{ viewClient.whatsapp_opt_in_source || '-' }}
+                  </div>
+                  <div class="col-12 mb-2" v-if="viewClient.whatsapp_opt_out_reason">
+                    <strong>Opt-Out Reason:</strong> <span class="text-danger">{{ viewClient.whatsapp_opt_out_reason }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -730,6 +782,7 @@ export default {
         import_batch_number: '',
         bank_id: '',
         status: '',
+        opt_in: '',
       },
       pageSize: 25,
       pageSizeOptions: [25, 50, 100, 250, 500, 1000],
@@ -1020,6 +1073,7 @@ export default {
         import_batch_number: this.filters.import_batch_number || undefined,
         bank_id: this.filters.bank_id || undefined,
         status: this.filters.status || undefined,
+        opt_in: this.filters.opt_in || undefined,
         per_page: this.pageSize,
       };
 
@@ -1056,7 +1110,7 @@ export default {
       this.fetchClients(1);
     },
     resetFilters() {
-      this.filters = { q: '', department: '', import_batch_number: '', bank_id: '', status: '' };
+      this.filters = { q: '', department: '', import_batch_number: '', bank_id: '', status: '', opt_in: '' };
       this.fetchClients(1);
     },
     changePageSize() {
