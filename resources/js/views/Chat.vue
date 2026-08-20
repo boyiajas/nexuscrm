@@ -23,7 +23,13 @@
           <span class="input-group-text bg-white border-end-0 text-muted">
             <i class="bi bi-search"></i>
           </span>
-          <input type="text" class="form-control border-start-0 shadow-none bg-white" placeholder="Search or start new chat">
+          <input
+            v-model="sidebarSearch"
+            type="text"
+            class="form-control border-start-0 shadow-none bg-white"
+            placeholder="Search name, phone, account..."
+            @input="onSidebarSearchInput"
+          />
         </div>
       </div>
 
@@ -262,7 +268,9 @@ export default {
       activeSession: null,
       messages: [],
       newMessage: '',
-      filterStatus: 'active',
+      filterStatus: 'all',
+      sidebarSearch: '',
+      searchTimeout: null,
       pollingInterval: null,
       isSearching: false,
       searchQuery: '',
@@ -318,10 +326,24 @@ export default {
     },
     fetchSessions() {
       return axios
-        .get('/api/chat/sessions', { params: { status: this.filterStatus } })
+        .get('/api/chat/sessions', {
+          params: {
+            status: this.filterStatus,
+            search: this.sidebarSearch,
+            per_page: 100,
+          },
+        })
         .then((res) => {
           this.sessions = res.data.data || res.data;
         });
+    },
+    onSidebarSearchInput() {
+      if (this.searchTimeout) {
+        clearTimeout(this.searchTimeout);
+      }
+      this.searchTimeout = setTimeout(() => {
+        this.fetchSessions();
+      }, 300);
     },
     openSession(session, event = null) {
       if (event && event.target.closest('.chat-list-dropdown')) {
@@ -346,12 +368,20 @@ export default {
       }
     },
     pollData() {
-      // Soft refresh sidebar
-      axios
-        .get('/api/chat/sessions', { params: { status: this.filterStatus } })
-        .then((res) => {
-          this.sessions = res.data.data || res.data;
-        });
+      // Soft refresh sidebar (only when not actively typing search)
+      if (!this.sidebarSearch) {
+        axios
+          .get('/api/chat/sessions', {
+            params: {
+              status: this.filterStatus,
+              search: this.sidebarSearch,
+              per_page: 100,
+            },
+          })
+          .then((res) => {
+            this.sessions = res.data.data || res.data;
+          });
+      }
 
       // Soft refresh active session messages
       if (this.activeSession) {
