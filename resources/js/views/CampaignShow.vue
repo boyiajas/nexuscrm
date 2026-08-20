@@ -246,8 +246,19 @@
                 <button class="btn btn-sm btn-outline-secondary" @click="exportClients">
                   <i class="bi bi-filetype-csv me-1"></i> Export CSV
                 </button>
-                <button class="btn btn-sm btn-primary" @click="openAddClientsModal" :disabled="!canManageCampaign">
-                  <i class="bi bi-person-plus me-1"></i> Add Clients
+                <button 
+                  class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" 
+                  @click="openAddClientsModal" 
+                  :disabled="!canManageCampaign || loadingClients"
+                >
+                  <span
+                    v-if="loadingClients"
+                    class="spinner-border spinner-border-sm"
+                    role="status"
+                    aria-hidden="true"
+                  ></span>
+                  <i v-else class="bi bi-person-plus"></i>
+                  <span>{{ loadingClients ? 'Loading Clients...' : 'Add Clients' }}</span>
                 </button>
               </div>
             </div>
