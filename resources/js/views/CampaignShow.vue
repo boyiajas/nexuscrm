@@ -1087,6 +1087,52 @@
               </div>
             </div>
 
+            <!-- Opt-In Status Filter Checkboxes -->
+            <div class="p-2 mb-3 bg-light rounded border d-flex flex-wrap align-items-center gap-3">
+              <span class="small fw-bold text-muted text-uppercase me-1" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                <i class="bi bi-funnel me-1"></i>Opt-In Status Filter:
+              </span>
+              
+              <div class="form-check form-check-inline mb-0">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="optInFilterYes"
+                  v-model="optInFilterYes"
+                  @change="filterClients"
+                />
+                <label class="form-check-label small fw-semibold text-success" for="optInFilterYes" style="cursor: pointer;">
+                  <i class="bi bi-check-circle-fill me-1 text-success"></i>Opt-In
+                </label>
+              </div>
+
+              <div class="form-check form-check-inline mb-0">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="optInFilterNone"
+                  v-model="optInFilterNone"
+                  @change="filterClients"
+                />
+                <label class="form-check-label small fw-semibold text-secondary" for="optInFilterNone" style="cursor: pointer;">
+                  <i class="bi bi-dash-circle me-1 text-muted"></i>Opt-In None
+                </label>
+              </div>
+
+              <div class="form-check form-check-inline mb-0">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="optInFilterNo"
+                  v-model="optInFilterNo"
+                  @change="filterClients"
+                />
+                <label class="form-check-label small fw-semibold text-danger" for="optInFilterNo" style="cursor: pointer;">
+                  <i class="bi bi-x-circle-fill me-1 text-danger"></i>Opt-Out
+                </label>
+              </div>
+            </div>
+
             <!-- VueMultiselect for client selection -->
             <div class="mb-3">
               <label class="form-label fw-semibold">Select Clients</label>
@@ -1111,7 +1157,12 @@
                 <template #option="{ option }">
                   <div class="client-option py-1">
                     <div class="d-flex justify-content-between align-items-center">
-                      <strong>{{ option.name }}</strong>
+                      <div class="d-flex align-items-center gap-2">
+                        <strong>{{ option.name }}</strong>
+                        <span v-if="option.opt_in === 'yes'" class="badge bg-success bg-opacity-10 text-success border border-success-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-In</span>
+                        <span v-else-if="option.opt_in === 'no'" class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-Out</span>
+                        <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-In None</span>
+                      </div>
                       <span v-if="!option.import_batch_number" class="badge bg-secondary bg-opacity-10 text-secondary border">
                         Manual
                       </span>
@@ -2134,6 +2185,9 @@ export default {
       clientSearch: '',
       clientSourceFilter: '',
       clientBatchOptions: [],
+      optInFilterYes: true,
+      optInFilterNo: false,
+      optInFilterNone: true,
       showSelectedOnly: false,
       loadingClients: false,
       addClientsForm: {
@@ -3082,6 +3136,9 @@ export default {
       this.selectedClients = [];
       this.clientSearch = '';
       this.clientSourceFilter = '';
+      this.optInFilterYes = true;
+      this.optInFilterNo = false;
+      this.optInFilterNone = true;
       this.showSelectedOnly = false;
       this.addClientsForm.saving = false;
       this.loadingClients = true;
@@ -3102,7 +3159,7 @@ export default {
             }
           });
           this.clientBatchOptions = Array.from(batchSet).sort().reverse();
-          this.filteredAvailableClients = [...this.availableClients];
+          this.filterClients();
         })
         .catch((error) => {
           console.error('Failed to load available clients:', error);
@@ -3117,6 +3174,14 @@ export default {
     },
     filterClients() {
       let filtered = [...this.availableClients];
+
+      // Opt-In Filter
+      filtered = filtered.filter(c => {
+        const status = (c.opt_in || 'none').toLowerCase().trim();
+        if (status === 'yes') return this.optInFilterYes;
+        if (status === 'no') return this.optInFilterNo;
+        return this.optInFilterNone;
+      });
 
       // Source / Batch filter
       if (this.clientSourceFilter === 'manual') {
