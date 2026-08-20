@@ -14,6 +14,8 @@
           <option value="all">All</option>
           <option value="active">Active</option>
           <option value="closed">Closed</option>
+          <option value="unread">Unread</option>
+          <option value="read">Read</option>
         </select>
       </div>
 

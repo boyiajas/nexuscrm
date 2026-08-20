@@ -45,7 +45,13 @@ class ChatController extends Controller
         }
 
         if ($status = $request->get('status')) {
-            if ($status !== 'all') {
+            if ($status === 'unread') {
+                $query->where('unread_count', '>', 0);
+            } elseif ($status === 'read') {
+                $query->where(function ($q) {
+                    $q->where('unread_count', 0)->orWhereNull('unread_count');
+                });
+            } elseif ($status !== 'all') {
                 $query->where('status', $status);
             }
         }
