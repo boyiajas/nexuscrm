@@ -1759,7 +1759,7 @@ class CampaignController extends Controller
                 'bank_name'        => $client?->bank_name,
                 'assigned_to_name' => $client?->assignedTo?->name,
                 'department_names' => $departments->pluck('name')->join(', ') ?: null,
-                'opt_in'           => $client?->opt_in ?: ($client?->whatsapp_opted_out_at ? 'no' : ($client?->whatsapp_opted_in_at || $client?->whatsapp_contact_basis ? 'yes' : 'none')),
+                'opt_in'           => $client?->whatsapp_opted_out_at ? 'no' : ($client?->whatsapp_opted_in_at ? 'yes' : 'none'),
                 'whatsapp_contact_basis' => $client?->whatsapp_contact_basis,
                 'whatsapp_opted_out' => !is_null($client?->whatsapp_opted_out_at),
                 'whatsapp_opted_in_at' => optional($client?->whatsapp_opted_in_at)->toDateTimeString(),

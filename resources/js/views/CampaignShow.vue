@@ -209,7 +209,7 @@
                     <span v-if="cl.whatsapp_opted_out_at || cl.opt_in === 'no'" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
                       <i class="bi bi-x-circle me-1"></i> Opted Out
                     </span>
-                    <span v-else-if="cl.opt_in === 'yes' || cl.whatsapp_opted_in_at || cl.whatsapp_contact_basis" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                    <span v-else-if="cl.whatsapp_opted_in_at" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
                       <i class="bi bi-check-circle me-1"></i> Opted In
                     </span>
                     <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
@@ -734,7 +734,7 @@
                           <span v-if="r.opt_in === 'no' || r.whatsapp_opted_out" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size: 0.72rem;">
                             <i class="bi bi-x-circle me-1"></i> Opted Out
                           </span>
-                          <span v-else-if="r.opt_in === 'yes' || r.whatsapp_opted_in_at || r.whatsapp_contact_basis" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 0.72rem;">
+                          <span v-else-if="r.whatsapp_opted_in_at" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 0.72rem;">
                             <i class="bi bi-check-circle me-1"></i> Opted In
                           </span>
                           <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" style="font-size: 0.72rem;">

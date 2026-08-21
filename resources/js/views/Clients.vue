@@ -176,7 +176,7 @@
                       <span v-if="c.whatsapp_opted_out_at || c.opt_in === 'no'" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
                         <i class="bi bi-x-circle me-1"></i> Opted Out
                       </span>
-                      <span v-else-if="c.opt_in === 'yes' || c.whatsapp_opted_in_at || (c.whatsapp_contact_basis && c.whatsapp_contact_basis !== '')" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                      <span v-else-if="c.whatsapp_opted_in_at" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
                         <i class="bi bi-check-circle me-1"></i> Opted In
                       </span>
                       <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
