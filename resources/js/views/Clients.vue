@@ -65,20 +65,20 @@
                 </optgroup>
               </select>
 
-              <!-- Opt-In Filter -->
-              <select v-model="filters.opt_in" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
-                <option value="">All Opt-Ins</option>
-                <option value="opted_in">Opted In</option>
-                <option value="opted_out">Opted Out</option>
-                <option value="none">None</option>
-              </select>
-
               <!-- Status Filter -->
               <select v-model="filters.status" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
                 <option value="">All Statuses</option>
                 <option value="Active">Active</option>
                 <option value="Pending">Pending</option>
                 <option value="Inactive">Inactive</option>
+              </select>
+
+              <!-- Opt-In Filter -->
+              <select v-model="filters.opt_in" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
+                <option value="">All Opt-In</option>
+                <option value="yes">Opt-In: Yes</option>
+                <option value="no">Opt-In: No</option>
+                <option value="none">Opt-In: None</option>
               </select>
             </div>
 
@@ -203,7 +203,7 @@
                     </td>
                   </tr>
                   <tr v-if="!loading && clients.length === 0">
-                    <td :colspan="canManage ? 8 : 7" class="text-center text-muted py-5">
+                    <td :colspan="canManage ? 7 : 6" class="text-center text-muted py-5">
                       No clients found.
                     </td>
                   </tr>
@@ -225,7 +225,7 @@
                 <option value="25">25</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
-                <option value="200">200</option>
+                <option value="250">250</option>
                 <option value="500">500</option>
                 <option value="1000">1000</option>
               </select>
@@ -437,14 +437,6 @@
                   <input v-model="form.arrears_amount" type="number" step="0.01" class="form-control" />
                 </div>
                 <div class="col-md-4">
-                  <label class="form-label">Settlement Amount</label>
-                  <input v-model="form.settlement_amount" type="number" step="0.01" class="form-control" />
-                </div>
-                <div class="col-md-4">
-                  <label class="form-label">3 Months Amount</label>
-                  <input v-model="form.three_months_amount" type="number" step="0.01" class="form-control" />
-                </div>
-                <div class="col-md-4">
                   <label class="form-label">Installment Amount</label>
                   <input v-model="form.installment_amount" type="number" step="0.01" class="form-control" />
                 </div>
@@ -473,6 +465,14 @@
                 <div class="card-body">
                   <div class="row g-3">
                     <div class="col-md-6">
+                      <label class="form-label">Opt-In Status</label>
+                      <select v-model="form.opt_in" class="form-select" @change="onOptInChange">
+                        <option value="none">None (Unset)</option>
+                        <option value="yes">Yes (Opted In)</option>
+                        <option value="no">No (Opted Out / Suppressed)</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
                       <label class="form-label">Lawful Basis</label>
                       <select v-model="form.whatsapp_contact_basis" class="form-select">
                         <option value="">Select lawful basis</option>
@@ -487,26 +487,13 @@
                       <label class="form-label">Opt-In Source</label>
                       <input v-model="form.whatsapp_opt_in_source" type="text" class="form-control" placeholder="bank_import, signed consent, call recording..." />
                     </div>
+                    <div class="col-md-6" v-if="form.opt_in === 'no'">
+                      <label class="form-label">Opt-Out / Suppression Reason</label>
+                      <input v-model="form.whatsapp_opt_out_reason" type="text" class="form-control" placeholder="STOP, customer request, legal restriction..." />
+                    </div>
                     <div class="col-12">
                       <label class="form-label">Lawful Basis Details</label>
                       <textarea v-model="form.whatsapp_contact_basis_details" class="form-control" rows="2" placeholder="Describe the source of permission or lawful basis for WhatsApp contact."></textarea>
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label">Opt-In Date</label>
-                      <input v-model="form.whatsapp_opted_in_at" type="datetime-local" class="form-control" />
-                    </div>
-                    <div class="col-md-6">
-                      <label class="form-label d-block">Suppression</label>
-                      <div class="form-check mt-2">
-                        <input id="client-whatsapp-opted-out" v-model="form.whatsapp_opted_out" class="form-check-input" type="checkbox" />
-                        <label class="form-check-label" for="client-whatsapp-opted-out">
-                          Block this client from WhatsApp messaging
-                        </label>
-                      </div>
-                    </div>
-                    <div class="col-12" v-if="form.whatsapp_opted_out">
-                      <label class="form-label">Opt-Out / Suppression Reason</label>
-                      <input v-model="form.whatsapp_opt_out_reason" type="text" class="form-control" placeholder="STOP, customer request, legal restriction..." />
                     </div>
                   </div>
                 </div>
@@ -688,8 +675,6 @@
                   <div class="col-md-6 mb-2"><strong>Easy Pay Number:</strong> {{ viewClient.easy_pay_number || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ viewClient.arrears_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Outstanding Balance:</strong> {{ viewClient.outstanding_balance || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>Settlement Amount:</strong> {{ viewClient.settlement_amount || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>3 Months Amount:</strong> {{ viewClient.three_months_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Installment Amount:</strong> {{ viewClient.installment_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Last Payment Amount:</strong> {{ viewClient.last_payment_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Total Payment Amount:</strong> {{ viewClient.total_payment_amount || '-' }}</div>
@@ -713,6 +698,38 @@
                       <span v-for="t in viewClient.tags" :key="t" class="badge bg-secondary me-1">{{ t }}</span>
                     </span>
                     <span v-else>-</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- WhatsApp & Opt-In Compliance -->
+              <div class="col-12">
+                <h6 class="border-bottom pb-2 mb-3 text-primary mt-2">WhatsApp & Opt-In Compliance</h6>
+                <div class="row">
+                  <div class="col-md-6 mb-2">
+                    <strong>Opt-In Status:</strong>
+                    <span v-if="viewClient.opt_in === 'yes'" class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 ms-2">
+                      <i class="bi bi-check-circle-fill me-1"></i>Yes
+                    </span>
+                    <span v-else-if="viewClient.opt_in === 'no'" class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 ms-2">
+                      <i class="bi bi-x-circle-fill me-1"></i>No
+                    </span>
+                    <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 ms-2">
+                      <i class="bi bi-dash-circle me-1"></i>None
+                    </span>
+                  </div>
+                  <div class="col-md-6 mb-2">
+                    <strong>Opt-In Timestamp:</strong>
+                    <span>{{ viewClient.opt_in_updated_at || viewClient.whatsapp_opted_in_at || viewClient.whatsapp_opted_out_at || '-' }}</span>
+                  </div>
+                  <div class="col-md-6 mb-2">
+                    <strong>Lawful Basis:</strong> {{ viewClient.whatsapp_contact_basis || '-' }}
+                  </div>
+                  <div class="col-md-6 mb-2">
+                    <strong>Opt-In Source:</strong> {{ viewClient.whatsapp_opt_in_source || '-' }}
+                  </div>
+                  <div class="col-12 mb-2" v-if="viewClient.whatsapp_opt_out_reason">
+                    <strong>Opt-Out Reason:</strong> <span class="text-danger">{{ viewClient.whatsapp_opt_out_reason }}</span>
                   </div>
                 </div>
               </div>
@@ -763,7 +780,7 @@ export default {
         opt_in: '',
       },
       pageSize: 25,
-      pageSizeOptions: [25, 50, 100, 200, 300, 500, 1000],
+      pageSizeOptions: [25, 50, 100, 250, 500, 1000],
       pagination: {
         currentPage: 1,
         lastPage: 1,
@@ -1116,12 +1133,11 @@ export default {
         easy_pay_number: '',
         outstanding_balance: '',
         arrears_amount: '',
-        settlement_amount: '',
-        three_months_amount: '',
         installment_amount: '',
         assigned_to_id: this.canChooseAssignee ? '' : (this.currentUser?.id || ''),
         department_ids: [],
         tags: [],
+        opt_in: 'none',
         whatsapp_contact_basis: 'bank_instruction',
         whatsapp_contact_basis_details: '',
         whatsapp_opted_in_at: '',
@@ -1159,12 +1175,11 @@ export default {
           easy_pay_number: fullClient.easy_pay_number || '',
           outstanding_balance: fullClient.outstanding_balance || '',
           arrears_amount: fullClient.arrears_amount || '',
-          settlement_amount: fullClient.settlement_amount || '',
-          three_months_amount: fullClient.three_months_amount || '',
           installment_amount: fullClient.installment_amount || '',
           assigned_to_id: fullClient.assigned_to_id || '',
           department_ids: fullClient.departments ? fullClient.departments.map(d => d.id) : [],
           tags: fullClient.tags || [],
+          opt_in: fullClient.opt_in || 'none',
           whatsapp_contact_basis: fullClient.whatsapp_contact_basis || '',
           whatsapp_contact_basis_details: fullClient.whatsapp_contact_basis_details || '',
           whatsapp_opted_in_at: this.toDateTimeLocal(fullClient.whatsapp_opted_in_at),
@@ -1186,6 +1201,15 @@ export default {
       });
     },
     
+    onOptInChange() {
+      if (this.form.opt_in === 'no') {
+        this.form.whatsapp_opted_out = true;
+      } else {
+        this.form.whatsapp_opted_out = false;
+        this.form.whatsapp_opt_out_reason = '';
+      }
+    },
+
     save() {
       if (this.isEdit ? !this.canEdit : !this.canCreate) return;
 
@@ -1213,7 +1237,10 @@ export default {
         .map((t) => t.trim())
         .filter((t) => t.length > 0);
 
-      if (!this.form.whatsapp_opted_out) {
+      if (this.form.opt_in === 'no') {
+        this.form.whatsapp_opted_out = true;
+      } else {
+        this.form.whatsapp_opted_out = false;
         this.form.whatsapp_opt_out_reason = '';
       }
 
@@ -1581,14 +1608,12 @@ export default {
           import_batch_number: this.filters.import_batch_number || '',
           bank_id: this.filters.bank_id || '',
           status: this.filters.status || '',
-          opt_in: this.filters.opt_in || '',
         },
         summaryRows: [
           { label: 'Search', value: this.filters.q || 'All clients' },
           { label: 'Department', value: this.filters.department || 'All departments' },
           { label: 'Source / Batch', value: this.filters.import_batch_number === 'manual' ? 'Manually Created' : (this.filters.import_batch_number || 'All batches') },
           { label: 'Bank Scope', value: this.selectedBankName || 'Current access scope' },
-          { label: 'Opt-In Status', value: this.filters.opt_in || 'All opt-ins' },
           { label: 'Status', value: this.filters.status || 'All statuses' },
         ],
         fallbackName: 'clients.csv',

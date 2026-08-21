@@ -6,6 +6,7 @@ export function cleanupModalArtifacts(force = false) {
 
   document.body.classList.remove('modal-open');
   document.body.style.removeProperty('padding-right');
+  document.body.style.paddingRight = '0px';
   document.querySelectorAll('.modal-backdrop').forEach((el) => el.remove());
 }
 

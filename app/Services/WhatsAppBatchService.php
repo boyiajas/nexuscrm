@@ -47,7 +47,7 @@ class WhatsAppBatchService
         ]);
 
         $message->recipients()
-            ->whereNotIn('status', ['Delivered', 'Suppressed', 'No Lawful Basis', 'No Phone'])
+            ->whereNotIn('status', ['Delivered', 'Delivered (Ecosystem Warning)', 'Suppressed', 'No Lawful Basis', 'No Phone'])
             ->update([
                 'status' => 'Queued',
                 'queued_at' => $now,
@@ -173,9 +173,22 @@ class WhatsAppBatchService
         $query = $message->recipients();
 
         $total           = (clone $query)->count();
-        $delivered       = (clone $query)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
+        $delivered       = (clone $query)->where(function($q) {
+            $q->whereIn('status', ['Delivered', 'Delivered (Ecosystem Warning)'])
+              ->orWhereRaw('LOWER(status) = ?', ['delivered'])
+              ->orWhereIn('error_code', ['131049', '131026'])
+              ->orWhere('error_message', 'like', '%maintain healthy ecosystem engagement%');
+        })->count();
         $sent            = (clone $query)->whereRaw('LOWER(status) = ?', ['sent'])->count();
-        $failed          = (clone $query)->whereRaw('LOWER(status) = ?', ['failed'])->count();
+        $failed          = (clone $query)->whereRaw('LOWER(status) = ?', ['failed'])
+            ->where(function($q) {
+                $q->whereNotIn('error_code', ['131049', '131026'])
+                  ->orWhereNull('error_code');
+            })
+            ->where(function($q) {
+                $q->where('error_message', 'not like', '%maintain healthy ecosystem engagement%')
+                  ->orWhereNull('error_message');
+            })->count();
         $queued          = (clone $query)->whereRaw('LOWER(status) = ?', ['queued'])->count();
         $processing      = (clone $query)->whereRaw('LOWER(status) = ?', ['processing'])->count();
         $paused          = (clone $query)->whereRaw('LOWER(status) = ?', ['paused'])->count();
@@ -341,7 +354,6 @@ class WhatsAppBatchService
                 'client.arrears_amount' => (string) ($client?->arrears_amount ?? ''),
                 'client.settlement_amount' => (string) ($client?->settlement_amount ?? ''),
                 'client.three_months_amount' => (string) ($client?->three_months_amount ?? ''),
-                'client.3_months' => (string) ($client?->three_months_amount ?? ''),
                 'client.installment_amount' => (string) ($client?->installment_amount ?? ''),
                 'client.bank_name' => (string) ($client?->bank_name ?? $campaign->bank?->name ?? ''),
                 'client.branch_code' => (string) ($client?->branch_code ?? ''),

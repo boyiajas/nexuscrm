@@ -121,12 +121,12 @@ class CampaignController extends Controller
             ->select('clients.*');
 
         if ($user = Auth::user()) {
-            if ($user->isPortfolioScoped()) {
+            if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
                 $query->where('clients.assigned_to_id', $user->id);
             }
         }
 
-        if (!empty($deptIds)) {
+        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients() && !$user->canManageSystemSettings())) {
             $query->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -189,12 +189,12 @@ class CampaignController extends Controller
         $allowedClientsQuery = Client::query();
 
         if ($user = Auth::user()) {
-            if ($user->isPortfolioScoped()) {
+            if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
                 $allowedClientsQuery->where('assigned_to_id', $user->id);
             }
         }
 
-        if (!empty($deptIds)) {
+        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients() && !$user->canManageSystemSettings())) {
             $allowedClientsQuery->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -220,17 +220,24 @@ class CampaignController extends Controller
             // Add ALL allowed clients
             $clientIdsToAttach = $allowedClientsQuery->pluck('id')->all();
         } else {
-            // Add only selected client_ids, but intersect with allowed (dept-scoped) ones
+            // Add only selected client_ids, but intersect with allowed ones
             if (empty($clientIds)) {
                 return response()->json([
                     'message' => 'client_ids is required when add_all is false.',
                 ], 422);
             }
 
-            $clientIdsToAttach = $allowedClientsQuery
-                ->whereIn('id', $clientIds)
-                ->pluck('id')
-                ->all();
+            if ($user && ($user->canViewAllImportedClients() || $user->canManageSystemSettings())) {
+                $clientIdsToAttach = Client::whereIn('id', $clientIds)
+                    ->whereNotIn('id', $alreadyAttachedIds)
+                    ->pluck('id')
+                    ->all();
+            } else {
+                $clientIdsToAttach = $allowedClientsQuery
+                    ->whereIn('id', $clientIds)
+                    ->pluck('id')
+                    ->all();
+            }
         }
 
         if (empty($clientIdsToAttach)) {
@@ -351,7 +358,7 @@ class CampaignController extends Controller
         $baseQuery = $campaign->clients()
             ->with(['departments', 'assignedTo:id,name']);
 
-        if (Auth::user()?->isPortfolioScoped()) {
+        if (Auth::user()?->isPortfolioScoped() && !Auth::user()?->canViewAllImportedClients()) {
             $baseQuery->where('clients.assigned_to_id', Auth::id());
         }
 
@@ -382,10 +389,8 @@ class CampaignController extends Controller
             $clients = $baseQuery
                 ->orderBy('clients.name')
                 ->get()
-                ->map(function ($client) use ($campaign) {
-                    $pivot = CampaignClient::where('campaign_id', $campaign->id)
-                        ->where('client_id', $client->id)
-                        ->first();
+                ->map(function ($client) {
+                    $pivot = $client->pivot;
 
                     return array_merge($client->toArray(), [
                         'phone' => $this->resolveClientPhone($client),
@@ -393,13 +398,13 @@ class CampaignController extends Controller
                         'departments' => $client->departments->map(function ($dept) {
                             return ['id' => $dept->id, 'name' => $dept->name];
                         }),
-                        'whatsapp_status' => $pivot->whatsapp_status ?? 'Pending',
-                        'whatsapp_sent_at' => $pivot->whatsapp_sent_at,
-                        'email_status' => $pivot->email_status ?? 'Pending',
-                        'email_sent_at' => $pivot->email_sent_at,
-                        'sms_status' => $pivot->sms_status ?? 'Pending',
-                        'sms_sent_at' => $pivot->sms_sent_at,
-                        'created_at' => $pivot->created_at ?? $client->created_at,
+                        'whatsapp_status' => $pivot?->whatsapp_status ?? 'Pending',
+                        'whatsapp_sent_at' => $pivot?->whatsapp_sent_at,
+                        'email_status' => $pivot?->email_status ?? 'Pending',
+                        'email_sent_at' => $pivot?->email_sent_at,
+                        'sms_status' => $pivot?->sms_status ?? 'Pending',
+                        'sms_sent_at' => $pivot?->sms_sent_at,
+                        'created_at' => $pivot?->created_at ?? $client->created_at,
                     ]);
                 })
                 ->values();
@@ -414,10 +419,8 @@ class CampaignController extends Controller
             ->orderBy('clients.name')
             ->paginate($perPage);
 
-        $paginator->getCollection()->transform(function ($client) use ($campaign) {
-            $pivot = CampaignClient::where('campaign_id', $campaign->id)
-                ->where('client_id', $client->id)
-                ->first();
+        $paginator->getCollection()->transform(function ($client) {
+            $pivot = $client->pivot;
 
             return array_merge($client->toArray(), [
                 'phone' => $this->resolveClientPhone($client),
@@ -425,13 +428,13 @@ class CampaignController extends Controller
                 'departments' => $client->departments->map(function ($dept) {
                     return ['id' => $dept->id, 'name' => $dept->name];
                 }),
-                'whatsapp_status' => $pivot->whatsapp_status ?? 'Pending',
-                'whatsapp_sent_at' => $pivot->whatsapp_sent_at,
-                'email_status' => $pivot->email_status ?? 'Pending',
-                'email_sent_at' => $pivot->email_sent_at,
-                'sms_status' => $pivot->sms_status ?? 'Pending',
-                'sms_sent_at' => $pivot->sms_sent_at,
-                'created_at' => $pivot->created_at ?? $client->created_at,
+                'whatsapp_status' => $pivot?->whatsapp_status ?? 'Pending',
+                'whatsapp_sent_at' => $pivot?->whatsapp_sent_at,
+                'email_status' => $pivot?->email_status ?? 'Pending',
+                'email_sent_at' => $pivot?->email_sent_at,
+                'sms_status' => $pivot?->sms_status ?? 'Pending',
+                'sms_sent_at' => $pivot?->sms_sent_at,
+                'created_at' => $pivot?->created_at ?? $client->created_at,
             ]);
         });
 
@@ -744,7 +747,7 @@ class CampaignController extends Controller
                 'smsMessages:id,campaign_id,total,delivered,failed,pending',
             ]);
 
-            $totalClients = $campaign->clients->count();
+            $totalClients = $campaign->clients()->count();
 
             $whatsTotals = [
                 'total'     => $campaign->whatsappMessages->sum('total'),
@@ -837,11 +840,12 @@ class CampaignController extends Controller
                 'created_by_user_id',
                 'provider_display_phone_number',
                 'enable_live_chat',
+                'enable_email_notification',
                 'created_at',
             ]);
 
         $assignedClientIds = null;
-        if ($user?->isPortfolioScoped()) {
+        if ($user?->isPortfolioScoped() && !$user?->canViewAllImportedClients()) {
             $assignedClientIds = $campaign->clients()
                 ->where('clients.assigned_to_id', $user->id)
                 ->pluck('clients.id');
@@ -865,8 +869,21 @@ class CampaignController extends Controller
                     ->whereIn('client_id', $assignedClientIds);
 
                 $total = (clone $recipientQuery)->count();
-                $delivered = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['delivered'])->count();
-                $failed = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])->count();
+                $delivered = (clone $recipientQuery)->where(function($q) {
+                    $q->whereIn('status', ['Delivered', 'Delivered (Ecosystem Warning)'])
+                      ->orWhereRaw('LOWER(status) = ?', ['delivered'])
+                      ->orWhereIn('error_code', ['131049', '131026'])
+                      ->orWhere('error_message', 'like', '%maintain healthy ecosystem engagement%');
+                })->count();
+                $failed = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])
+                    ->where(function($q) {
+                        $q->whereNotIn('error_code', ['131049', '131026'])
+                          ->orWhereNull('error_code');
+                    })
+                    ->where(function($q) {
+                        $q->where('error_message', 'not like', '%maintain healthy ecosystem engagement%')
+                          ->orWhereNull('error_message');
+                    })->count();
                 $queued = (clone $recipientQuery)->whereRaw("LOWER(status) = 'queued'")->count();
                 $processing = (clone $recipientQuery)->whereRaw("LOWER(status) = 'processing'")->count();
                 $paused = (clone $recipientQuery)->whereRaw("LOWER(status) = 'paused'")->count();
@@ -876,9 +893,6 @@ class CampaignController extends Controller
                 $noResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['no'])->count();
             } else {
                 $counts = $this->batchService->recipientCounts($m);
-                $total = $counts['total'];
-                $delivered = $counts['delivered'];
-                $failed = $counts['failed'];
                 $queued = $counts['queued'];
                 $processing = $counts['processing'];
                 $paused = $counts['paused'];
@@ -926,6 +940,7 @@ class CampaignController extends Controller
                 'created_by_user_id' => $m->created_by_user_id,
                 'reply_number'  => $m->provider_display_phone_number,
                 'enable_live_chat' => (bool) $m->enable_live_chat,
+                'enable_email_notification' => (bool) ($m->enable_email_notification ?? true),
                 'yes_responses_count' => $yesResponsesCount,
                 'no_responses_count' => $noResponsesCount,
                 'replies_count' => $repliesCount,
@@ -1020,6 +1035,7 @@ class CampaignController extends Controller
             'client_ids.*'     => ['integer', 'exists:clients,id'],
             'send_now'         => ['sometimes', 'boolean'],
             'enable_live_chat' => ['sometimes', 'boolean'],
+            'enable_email_notification' => ['sometimes', 'boolean'],
             'auto_replies'     => ['sometimes', 'array'],
             'auto_replies.*.trigger_keyword' => ['required', 'string'],
             'auto_replies.*.template_sid' => ['required', 'string'],
@@ -1165,6 +1181,7 @@ class CampaignController extends Controller
             'last_processed_at'=> null,
             'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
             'enable_live_chat' => $data['enable_live_chat'] ?? $message->enable_live_chat,
+            'enable_email_notification' => $data['enable_email_notification'] ?? $message->enable_email_notification,
             'created_by_user_id' => $message->created_by_user_id ?: Auth::id(),
         ]);
 
@@ -1199,6 +1216,46 @@ class CampaignController extends Controller
             'id'      => $message->id,
             'queued_count' => $queuedCount,
             'whatsapp_daily_limit' => $this->dailyLimitService->summaryFor(Auth::user()),
+        ]);
+    }
+
+    /**
+     * Quick toggle for Live Chat status on a WhatsApp batch.
+     */
+    public function toggleLiveChat(Campaign $campaign, $messageId)
+    {
+        $this->authorizeManageCampaign($campaign);
+        /** @var \App\Models\CampaignWhatsappMessage $message */
+        $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
+        
+        $newStatus = !$message->enable_live_chat;
+        $message->update([
+            'enable_live_chat' => $newStatus,
+        ]);
+
+        return response()->json([
+            'message' => 'Live chat status updated to ' . ($newStatus ? 'Enabled' : 'Disabled') . '.',
+            'enable_live_chat' => $newStatus,
+        ]);
+    }
+
+    /**
+     * Quick toggle for Email Notification status on a WhatsApp batch.
+     */
+    public function toggleEmailNotification(Campaign $campaign, $messageId)
+    {
+        $this->authorizeManageCampaign($campaign);
+        /** @var \App\Models\CampaignWhatsappMessage $message */
+        $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
+        
+        $newStatus = !($message->enable_email_notification ?? true);
+        $message->update([
+            'enable_email_notification' => $newStatus,
+        ]);
+
+        return response()->json([
+            'message' => 'Email notification status updated to ' . ($newStatus ? 'Enabled' : 'Disabled') . '.',
+            'enable_email_notification' => $newStatus,
         ]);
     }
 
@@ -1749,6 +1806,11 @@ class CampaignController extends Controller
                 }
             }
 
+            $isEcosystemWarning = in_array((string)$r->error_code, ['131049', '131026'], true)
+                || str_contains(strtolower((string)$r->error_message), 'maintain healthy ecosystem engagement');
+
+            $status = ($isEcosystemWarning || strcasecmp($r->status, 'Delivered (Ecosystem Warning)') === 0) ? 'Delivered' : $r->status;
+
             return [
                 'id'               => $r->id,
                 'client_id'        => $client?->id,
@@ -1759,18 +1821,14 @@ class CampaignController extends Controller
                 'bank_name'        => $client?->bank_name,
                 'assigned_to_name' => $client?->assignedTo?->name,
                 'department_names' => $departments->pluck('name')->join(', ') ?: null,
-                'opt_in'           => $client?->whatsapp_opted_out_at ? 'no' : ($client?->whatsapp_opted_in_at ? 'yes' : 'none'),
-                'whatsapp_contact_basis' => $client?->whatsapp_contact_basis,
-                'whatsapp_opted_out' => !is_null($client?->whatsapp_opted_out_at),
-                'whatsapp_opted_in_at' => optional($client?->whatsapp_opted_in_at)->toDateTimeString(),
-                'status'           => $r->status,
+                'status'           => $status,
                 'attempts_count'   => $r->attempts_count ?? 0,
                 'queued_at'        => optional($r->queued_at)->toDateTimeString(),
                 'processing_started_at' => optional($r->processing_started_at)->toDateTimeString(),
                 'last_attempted_at' => optional($r->last_attempted_at)->toDateTimeString(),
                 'error_code'       => $r->error_code,
                 'error_message'    => $r->error_message,
-                'delivered_at'     => optional($r->delivered_at)->toDateTimeString(),
+                'delivered_at'     => optional($r->delivered_at ?: ($isEcosystemWarning ? $r->updated_at : null))->toDateTimeString(),
                 'last_response'    => $r->last_response,
                 'last_response_at' => optional($r->last_response_at)->toDateTimeString(),
                 'reply_type'       => $replyMeta['type'],
@@ -1831,6 +1889,7 @@ class CampaignController extends Controller
             'reply_number'  => $message->provider_display_phone_number,
             'scheduled_at'  => optional($message->scheduled_at)->toDateTimeString(),
             'enable_live_chat' => (bool) $message->enable_live_chat,
+            'enable_email_notification' => (bool) ($message->enable_email_notification ?? true),
             'track_responses'  => (bool) $message->track_responses,
             'template_variables' => $message->template_variables ?? [],
             'queued_at'     => optional($message->queued_at)->toDateTimeString(),
@@ -1887,6 +1946,7 @@ class CampaignController extends Controller
             'client_ids.*'     => ['integer', 'exists:clients,id'],
             'track_responses'  => ['sometimes', 'boolean'],
             'enable_live_chat' => ['sometimes', 'boolean'],
+            'enable_email_notification' => ['sometimes', 'boolean'],
             'send_now'         => ['sometimes', 'boolean'],
             'auto_replies'     => ['sometimes', 'array'],
             'auto_replies.*.trigger_keyword' => ['required', 'string'],
@@ -2019,6 +2079,7 @@ class CampaignController extends Controller
             'messages_per_second' => $this->batchService->enforcedMessagesPerSecond(),
             'track_responses'   => $data['track_responses']  ?? false,
             'enable_live_chat'  => $data['enable_live_chat'] ?? false,
+            'enable_email_notification' => $data['enable_email_notification'] ?? true,
         ]);
 
         if ($sendNow) {

@@ -40,4 +40,9 @@ class ChatSession extends Model
     {
         return $this->hasMany(ChatMessage::class);
     }
+
+    public function latestMessage()
+    {
+        return $this->hasOne(ChatMessage::class, 'chat_session_id')->latestOfMany();
+    }
 }

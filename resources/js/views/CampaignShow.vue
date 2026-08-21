@@ -38,7 +38,8 @@
           <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
-              <div class="stat-card-number mt-1">{{ stats.total_clients || clients.length || campaign?.total_recipients || 0 }}</div>
+              <div class="stat-card-number mt-1">{{ clients.length || stats.total_clients || campaign?.total_recipients || 0 }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">Campaign Recipients</small>
             </div>
             <div class="stat-icon-badge">
               <i class="bi bi-people-fill"></i>
@@ -53,8 +54,8 @@
           <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">WHATSAPP</div>
-              <div class="stat-card-number mt-1">{{ totalWhatsappQueued }}</div>
-              <small class="text-muted" style="font-size: 0.75rem;">Total messages queued</small>
+              <div class="stat-card-number mt-1">{{ channels.whatsapp ? (stats.whatsapp_sent || 0) : 'N/A' }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ channels.whatsapp ? 'Total messages queued' : 'Channel Not Active' }}</small>
             </div>
             <div class="stat-icon-badge" style="background-color: #ecfdf5; color: #059669;">
               <i class="bi bi-whatsapp"></i>
@@ -65,32 +66,34 @@
       </div>
 
       <div class="col-md-3">
-        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
-          <div class="card-body p-3 d-flex justify-content-between align-items-center position-relative z-1">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" :class="channels.email ? '' : 'opacity-75'" style="border-left: 3px solid #3b82f6 !important;">
+          <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
-              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem;">EMAIL METRICS</div>
-              <div class="h5 fw-bold text-muted mb-0 mt-1">N/A</div>
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">EMAIL METRICS</div>
+              <div class="stat-card-number mt-1">{{ channels.email ? (stats.email_sent || 0) : 'N/A' }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ channels.email ? 'Total emails sent' : 'Channel Not Active' }}</small>
             </div>
-            <div class="stat-icon-badge text-muted">
+            <div class="stat-icon-badge" style="background-color: #eff6ff; color: #2563eb;">
               <i class="bi bi-envelope"></i>
             </div>
           </div>
-          <i class="bi bi-envelope position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+          <i class="bi bi-envelope position-absolute text-primary" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
         </div>
       </div>
 
       <div class="col-md-3">
-        <div class="card border shadow-sm h-100 opacity-75 position-relative overflow-hidden" style="border-left: 3px solid #8b5cf6 !important;">
-          <div class="card-body p-3 d-flex justify-content-between align-items-center position-relative z-1">
+        <div class="card border shadow-sm h-100 position-relative overflow-hidden" :class="channels.sms ? '' : 'opacity-75'" style="border-left: 3px solid #8b5cf6 !important;">
+          <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
-              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem;">SMS METRICS</div>
-              <div class="h5 fw-bold text-muted mb-0 mt-1">N/A</div>
+              <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">SMS METRICS</div>
+              <div class="stat-card-number mt-1">{{ channels.sms ? (stats.sms_sent || 0) : 'N/A' }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ channels.sms ? 'Total SMS sent' : 'Channel Not Active' }}</small>
             </div>
-            <div class="stat-icon-badge text-muted">
+            <div class="stat-icon-badge" style="background-color: #f5f3ff; color: #7c3aed;">
               <i class="bi bi-chat-dots"></i>
             </div>
           </div>
-          <i class="bi bi-chat-dots position-absolute text-muted" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
+          <i class="bi bi-chat-dots position-absolute text-purple" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
         </div>
       </div>
     </div>
@@ -125,36 +128,159 @@
       <div class="tab-pane fade show active" id="tab-clients">
         <div class="card shadow-sm">
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h5 class="card-title mb-0">Clients in this campaign</h5>
-              <div class="d-flex gap-2">
-                <button 
-                  v-if="selectedClients.length > 0"
-                  class="btn btn-sm btn-outline-danger" 
-                  @click="removeSelectedClients" 
-                  :disabled="!canManageCampaign"
-                >
-                  <i class="bi bi-trash me-1"></i>
-                  Remove Selected ({{ selectedClients.length }})
-                </button>
+            
+            <!-- Active Tracking Channel Selector -->
+            <div class="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between gap-2 mb-3 pb-2 border-bottom">
+              <div class="d-flex align-items-center gap-2">
+                <span class="small fw-bold text-muted text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">TRACKING CHANNEL:</span>
+                <div class="btn-group btn-group-sm" role="group">
+                  <button
+                    v-if="channels.whatsapp"
+                    type="button"
+                    class="btn fw-semibold"
+                    :class="activeChannelTab === 'whatsapp' ? 'btn-success' : 'btn-outline-success'"
+                    @click="activeChannelTab = 'whatsapp'"
+                  >
+                    <i class="bi bi-whatsapp me-1"></i> WhatsApp
+                  </button>
+                  <button
+                    v-if="channels.email"
+                    type="button"
+                    class="btn fw-semibold"
+                    :class="activeChannelTab === 'email' ? 'btn-primary' : 'btn-outline-primary'"
+                    @click="activeChannelTab = 'email'"
+                  >
+                    <i class="bi bi-envelope me-1"></i> Email
+                  </button>
+                  <button
+                    v-if="channels.sms"
+                    type="button"
+                    class="btn fw-semibold"
+                    :class="activeChannelTab === 'sms' ? 'btn-info text-white' : 'btn-outline-info'"
+                    @click="activeChannelTab = 'sms'"
+                  >
+                    <i class="bi bi-chat-left-text me-1"></i> SMS
+                  </button>
+                </div>
+              </div>
+              <div class="small text-muted">
+                Showing status tracking & batch selection for <strong class="text-uppercase text-dark">{{ activeChannelTab }}</strong>
+              </div>
+            </div>
+
+            <!-- Delivery Tracking Metric Strip -->
+            <div class="row g-2 mb-3">
+              <div class="col-6 col-md-3">
+                <div class="p-2 border rounded bg-light text-center shadow-xs">
+                  <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
+                  <div class="fs-5 fw-bold text-dark mb-0">{{ clientStats.total }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="p-2 border rounded bg-success bg-opacity-10 border-success border-opacity-25 text-center shadow-xs">
+                  <div class="text-success small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">{{ activeChannelTab.toUpperCase() }} SENT</div>
+                  <div class="fs-5 fw-bold text-success mb-0">{{ clientStats.sent }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="p-2 border rounded bg-warning bg-opacity-10 border-warning border-opacity-25 text-center shadow-xs">
+                  <div class="text-warning-emphasis small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">REMAINING (UNSENT)</div>
+                  <div class="fs-5 fw-bold text-warning-emphasis mb-0">{{ clientStats.unsent }}</div>
+                </div>
+              </div>
+              <div class="col-6 col-md-3">
+                <div class="p-2 border rounded bg-danger bg-opacity-10 border-danger border-opacity-25 text-center shadow-xs">
+                  <div class="text-danger small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">{{ activeChannelTab.toUpperCase() }} FAILED</div>
+                  <div class="fs-5 fw-bold text-danger mb-0">{{ clientStats.failed }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Toolbar Header -->
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2 mb-3">
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <h5 class="card-title mb-0 me-1">Campaign Clients</h5>
+
+                <!-- Search Input -->
+                <div class="input-group input-group-sm" style="width: 190px;">
+                  <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+                  <input
+                    type="text"
+                    v-model="clientSearchQuery"
+                    class="form-control form-control-sm border-start-0"
+                    placeholder="Search clients..."
+                  />
+                </div>
+
+                <!-- Status Filter Dropdown -->
+                <select v-model="clientStatusFilter" class="form-select form-select-sm" style="width: 185px;">
+                  <option value="all">All Statuses ({{ clientStats.total }})</option>
+                  <option value="unsent">Unsent {{ activeChannelTab.toUpperCase() }} ({{ clientStats.unsent }})</option>
+                  <option value="sent">Sent / Delivered ({{ clientStats.sent }})</option>
+                  <option value="failed">Failed Only ({{ clientStats.failed }})</option>
+                </select>
+              </div>
+
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <!-- Batch Selection Dropdown -->
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-outline-primary dropdown-toggle d-flex align-items-center gap-1 shadow-sm" type="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-check2-square"></i> Select Unsent Batch
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow">
+                    <li><h6 class="dropdown-header">Select unsent batch for {{ activeChannelTab.toUpperCase() }}</h6></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(25)"><i class="bi bi-list-check me-2 text-primary"></i>Next 25 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(50)"><i class="bi bi-list-check me-2 text-primary"></i>Next 50 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(100)"><i class="bi bi-list-check me-2 text-primary"></i>Next 100 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(250)"><i class="bi bi-list-check me-2 text-primary"></i>Next 250 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(500)"><i class="bi bi-list-check me-2 text-primary"></i>Next 500 Unsent</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch(1000)"><i class="bi bi-list-check me-2 text-primary"></i>Next 1000 Unsent</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item fw-semibold" href="#" @click.prevent="selectUnsentBatch('all_unsent')"><i class="bi bi-check-all me-2 text-success"></i>All Unsent {{ activeChannelTab.toUpperCase() }} ({{ clientStats.unsent }})</a></li>
+                    <li><a class="dropdown-item" href="#" @click.prevent="selectUnsentBatch('all_campaign')"><i class="bi bi-people me-2 text-secondary"></i>All Campaign Clients ({{ clientStats.total }})</a></li>
+                    <li v-if="selectedClients.length > 0"><hr class="dropdown-divider"></li>
+                    <li v-if="selectedClients.length > 0"><a class="dropdown-item text-danger" href="#" @click.prevent="selectedClients = []"><i class="bi bi-x-circle me-2"></i>Clear Selection</a></li>
+                  </ul>
+                </div>
+
                 <button class="btn btn-sm btn-outline-secondary" @click="exportClients">
-                  <i class="bi bi-filetype-csv me-1"></i>
-                  Export CSV
+                  <i class="bi bi-filetype-csv me-1"></i> Export CSV
                 </button>
-                <button class="btn btn-sm btn-primary" @click="openAddClientsModal" :disabled="!canManageCampaign">
-                  <i class="bi bi-person-plus me-1"></i>
-                  Add Clients to Campaign
+                <button 
+                  class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1" 
+                  @click="openAddClientsModal" 
+                  :disabled="!canManageCampaign || loadingClients"
+                >
+                  <span
+                    v-if="loadingClients"
+                    class="spinner-border spinner-border-sm"
+                    role="status"
+                    aria-hidden="true"
+                  ></span>
+                  <i v-else class="bi bi-person-plus"></i>
+                  <span>{{ loadingClients ? 'Loading Clients...' : 'Add Clients' }}</span>
                 </button>
               </div>
             </div>
-            <!-- Bulk Actions Bar -->
-            <div v-if="selectedClients.length > 0" class="d-flex align-items-center justify-content-between mb-3 px-3 py-2 bg-primary bg-opacity-10 rounded border border-primary border-opacity-25 shadow-sm">
-              <div>
-                <span class="fw-bold text-primary">{{ selectedClients.length }}</span> <span class="text-secondary small fw-medium">client(s) selected</span>
+
+            <!-- Multi-Channel Bulk Actions Bar -->
+            <div v-if="selectedClients.length > 0" class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3 px-3 py-2 bg-light rounded border shadow-sm">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary fs-6">{{ selectedClients.length }}</span>
+                <span class="text-dark fw-semibold small">client(s) selected for batch dispatch</span>
               </div>
-              <div class="d-flex gap-2">
+              <div class="d-flex gap-2 flex-wrap">
+                <button v-if="channels.whatsapp" class="btn btn-sm btn-success fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendWhatsappToSelected">
+                  <i class="bi bi-whatsapp"></i> Send WhatsApp ({{ selectedClients.length }})
+                </button>
+                <button v-if="channels.email" class="btn btn-sm btn-primary fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendEmailToSelected">
+                  <i class="bi bi-envelope"></i> Send Email ({{ selectedClients.length }})
+                </button>
+                <button v-if="channels.sms" class="btn btn-sm btn-info text-white fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendSmsToSelected">
+                  <i class="bi bi-chat-left-text"></i> Send SMS ({{ selectedClients.length }})
+                </button>
                 <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkRemoveClients" :disabled="bulkActionLoading">
-                  <i class="bi bi-person-dash"></i> Remove from Campaign
+                  <i class="bi bi-person-dash"></i> Remove
                 </button>
               </div>
             </div>
@@ -174,7 +300,6 @@
                   <th>Bank</th>
                   <th>Assigned Owner</th>
                   <th>Departments</th>
-                  <th>Opt-In Status</th>
                   <th>WhatsApp</th>
                   <th>Email</th>
                   <th>SMS</th>
@@ -182,7 +307,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="cl in clients" :key="cl.id">
+                <tr v-for="cl in paginatedCampaignClients" :key="cl.id">
                   <td class="ps-4 py-1">
                     <div class="form-check m-0">
                       <input class="form-check-input" type="checkbox" :value="cl.id" v-model="selectedClients">
@@ -206,18 +331,12 @@
                     <span v-else class="text-muted">-</span>
                   </td>
                   <td>
-                    <span v-if="cl.whatsapp_opted_out_at || cl.opt_in === 'no'" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
-                      <i class="bi bi-x-circle me-1"></i> Opted Out
-                    </span>
-                    <span v-else-if="cl.whatsapp_opted_in_at" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                      <i class="bi bi-check-circle me-1"></i> Opted In
-                    </span>
-                    <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
-                      <i class="bi bi-dash-circle me-1"></i> None
-                    </span>
-                  </td>
-                  <td>
-                    <span class="badge" :class="statusColor(cl.whatsapp_status)">
+                    <span
+                      class="badge"
+                      :class="statusColor(cl.whatsapp_status)"
+                      :title="(cl.whatsapp_status && cl.whatsapp_status.toLowerCase() === 'failed' || cl.whatsapp_error_message || cl.whatsapp_error_code) ? getRecipientErrorMessage(cl) : null"
+                      :style="(cl.whatsapp_status && cl.whatsapp_status.toLowerCase() === 'failed' || cl.whatsapp_error_message || cl.whatsapp_error_code) ? 'cursor: help;' : ''"
+                    >
                       {{ cl.whatsapp_status || '-' }}
                     </span>
                   </td>
@@ -242,13 +361,76 @@
                     </div>
                   </td>
                 </tr>
-                <tr v-if="clients.length === 0">
-                  <td colspan="11" class="text-center text-muted py-3">
-                    No clients added to this campaign yet.
+                <tr v-if="loadingCampaignClients">
+                  <td colspan="11" class="text-center py-5">
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                      <div class="spinner-border text-primary spinner-border-sm" role="status" style="width: 1.5rem; height: 1.5rem;">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                      <span class="text-muted fw-medium small ms-1">Loading campaign clients...</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-else-if="filteredCampaignClients.length === 0">
+                  <td colspan="11" class="text-center text-muted py-4">
+                    <div v-if="clientStatusFilter !== 'all' || clientSearchQuery">
+                      <i class="bi bi-funnel text-muted fs-4 d-block mb-1"></i>
+                      No clients found matching the selected filter or search term.
+                    </div>
+                    <div v-else>
+                      No clients added to this campaign yet.
+                    </div>
                   </td>
                 </tr>
               </tbody>
             </table>
+            </div>
+          </div>
+
+          <!-- Footer Strip with Rows Per Page & Pagination -->
+          <div class="card-footer bg-white py-3 px-4 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 border-top">
+            <div class="d-flex align-items-center gap-3">
+              <small class="text-muted fw-medium">
+                {{ campaignClientPaginationInfo }}
+              </small>
+              <div class="d-flex align-items-center gap-2">
+                <label class="small text-muted fw-medium mb-0">Rows per page:</label>
+                <select
+                  v-model.number="clientTablePerPage"
+                  class="form-select form-select-sm border-secondary-subtle"
+                  style="width: 85px; font-size: 0.8rem;"
+                  @change="clientTableCurrentPage = 1"
+                >
+                  <option :value="25">25</option>
+                  <option :value="50">50</option>
+                  <option :value="100">100</option>
+                  <option :value="250">250</option>
+                  <option :value="500">500</option>
+                  <option :value="1000">1000</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+              <button
+                class="btn btn-sm btn-light border p-1 px-2"
+                :disabled="clientTableCurrentPage <= 1"
+                @click="clientTableCurrentPage--"
+                title="Previous Page"
+              >
+                <i class="bi bi-chevron-left"></i>
+              </button>
+              <span class="small fw-semibold text-dark px-1">
+                Page {{ clientTableCurrentPage }} of {{ totalCampaignClientPages }}
+              </span>
+              <button
+                class="btn btn-sm btn-light border p-1 px-2"
+                :disabled="clientTableCurrentPage >= totalCampaignClientPages"
+                @click="clientTableCurrentPage++"
+                title="Next Page"
+              >
+                <i class="bi bi-chevron-right"></i>
+              </button>
             </div>
           </div>
         </div>
@@ -296,6 +478,7 @@
                   <th>Failed</th>
                   <th>Pending</th>
                   <th>Chat Request</th>
+                  <th>Email Notif</th>
                   <th>Responses</th>
                   <th class="text-end pe-4">Action</th>
                 </tr>
@@ -329,8 +512,25 @@
                   <td>{{ w.failed }}</td>
                   <td>{{ w.pending }}</td>
                   <td>
-                    <span :class="w.enable_live_chat ? 'badge bg-success' : 'badge bg-secondary'">
+                    <span
+                      :class="w.enable_live_chat ? 'badge bg-success' : 'badge bg-secondary'"
+                      style="cursor: pointer;"
+                      :title="'Click to toggle Live Chat (Currently ' + (w.enable_live_chat ? 'Enabled' : 'Disabled') + ')'"
+                      @click="toggleLiveChat(w)"
+                    >
+                      <i :class="w.enable_live_chat ? 'bi bi-check-circle me-1' : 'bi bi-x-circle me-1'"></i>
                       {{ w.enable_live_chat ? 'Enabled' : 'Disabled' }}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      :class="(w.enable_email_notification !== false) ? 'badge bg-success' : 'badge bg-secondary'"
+                      style="cursor: pointer;"
+                      :title="'Click to toggle Email Notification on reply (Currently ' + (w.enable_email_notification !== false ? 'Enabled' : 'Disabled') + ')'"
+                      @click="toggleEmailNotification(w)"
+                    >
+                      <i :class="(w.enable_email_notification !== false) ? 'bi bi-envelope-check me-1' : 'bi bi-envelope-x me-1'"></i>
+                      {{ (w.enable_email_notification !== false) ? 'Enabled' : 'Disabled' }}
                     </span>
                   </td>
                   <td>
@@ -373,8 +573,18 @@
                     </div>
                   </td>
                 </tr>
-                <tr v-if="whatsappMessages.length === 0">
-                  <td colspan="10" class="text-center text-muted py-3">
+                <tr v-if="loadingWhatsappMessages">
+                  <td colspan="11" class="text-center py-4">
+                    <div class="d-flex align-items-center justify-content-center gap-2">
+                      <div class="spinner-border text-primary spinner-border-sm" role="status" style="width: 1.25rem; height: 1.25rem;">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                      <span class="text-muted fw-medium small ms-1">Loading WhatsApp sends...</span>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-else-if="whatsappMessages.length === 0">
+                  <td colspan="11" class="text-center text-muted py-3">
                     No WhatsApp sends yet.
                   </td>
                 </tr>
@@ -715,14 +925,13 @@
                         <th>PHONE NUMBER</th>
                         <th>BANK / CONTEXT</th>
                         <th>DEPARTMENT</th>
-                        <th>OPT-IN</th>
                         <th>STATUS</th>
                         <th class="text-end pe-4">ACTIONS</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr v-for="(r, idx) in filteredRecipients" :key="r.id">
-                        <td class="ps-4 text-muted small fw-bold">{{ idx + 1 }}</td>
+                      <tr v-for="(r, idx) in paginatedRecipients" :key="r.id">
+                        <td class="ps-4 text-muted small fw-bold">{{ (recipientModal.currentPage - 1) * (recipientModal.perPage || 25) + idx + 1 }}</td>
                         <td class="fw-bold text-dark">{{ r.phone || r.client_name || '+1 (555) 019-2834' }}</td>
                         <td>
                           <span :class="idx % 2 === 0 ? 'badge bg-primary-subtle text-primary border' : 'badge bg-danger-subtle text-danger border'" class="px-2 py-1 fw-bold" style="font-size: 0.75rem;">
@@ -731,22 +940,21 @@
                         </td>
                         <td class="small fw-medium text-dark">{{ r.department_names || (idx % 2 === 0 ? 'Retail Recovery' : 'Auto Finance') }}</td>
                         <td>
-                          <span v-if="r.opt_in === 'no' || r.whatsapp_opted_out" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size: 0.72rem;">
-                            <i class="bi bi-x-circle me-1"></i> Opted Out
-                          </span>
-                          <span v-else-if="r.whatsapp_opted_in_at" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 0.72rem;">
-                            <i class="bi bi-check-circle me-1"></i> Opted In
-                          </span>
-                          <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" style="font-size: 0.72rem;">
-                            <i class="bi bi-dash-circle me-1"></i> None
-                          </span>
-                        </td>
-                        <td>
-                          <span :class="getStatusBadgeClass(r.status)">
-                            <i v-if="getStatusBadgeClass(r.status).includes('pending')" class="bi bi-clock-history me-1"></i>
+                          <span
+                            :class="getStatusBadgeClass(r.status)"
+                            :title="(r.error_message || r.error_code) ? getRecipientErrorMessage(r) : null"
+                            :style="(r.error_message || r.error_code) ? 'cursor: help;' : ''"
+                          >
+                            <i v-if="r.status && r.status.toLowerCase().includes('ecosystem')" class="bi bi-exclamation-triangle-fill me-1 text-warning"></i>
+                            <i v-else-if="getStatusBadgeClass(r.status).includes('pending')" class="bi bi-clock-history me-1"></i>
                             <i v-else-if="getStatusBadgeClass(r.status).includes('delivered')" class="bi bi-check2-all me-1"></i>
                             <i v-else-if="getStatusBadgeClass(r.status).includes('failed')" class="bi bi-exclamation-circle me-1"></i>
                             {{ r.status || 'Queued' }}
+                            <i
+                              v-if="r.error_message && getRecipientErrorMessage(r)"
+                              :class="r.status && r.status.toLowerCase().includes('ecosystem') ? 'bi bi-info-circle-fill ms-1 text-warning opacity-75' : 'bi bi-info-circle-fill ms-1 text-danger opacity-75'"
+                              :title="getRecipientErrorMessage(r)"
+                            ></i>
                           </span>
                         </td>
                         <td class="text-end pe-4">
@@ -776,17 +984,46 @@
                 </div>
               </div>
 
-              <!-- Footer Strip -->
-              <div class="card-footer bg-white py-3 px-4 d-flex justify-content-between align-items-center border-top">
-                <small class="text-muted fw-medium">
-                  Showing {{ filteredRecipients.length }} of {{ filteredRecipients.length }} records
-                </small>
+              <!-- Footer Strip with Rows Per Page & Pagination -->
+              <div class="card-footer bg-white py-3 px-4 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 border-top">
+                <div class="d-flex align-items-center gap-3">
+                  <small class="text-muted fw-medium">
+                    {{ recipientPaginationInfo }}
+                  </small>
+                  <div class="d-flex align-items-center gap-2">
+                    <label class="small text-muted fw-medium mb-0">Rows per page:</label>
+                    <select
+                      v-model.number="recipientModal.perPage"
+                      class="form-select form-select-sm border-secondary-subtle"
+                      style="width: 80px; font-size: 0.8rem;"
+                      @change="recipientModal.currentPage = 1"
+                    >
+                      <option :value="10">10</option>
+                      <option :value="25">25</option>
+                      <option :value="50">50</option>
+                      <option :value="100">100</option>
+                    </select>
+                  </div>
+                </div>
 
-                <div class="d-flex align-items-center gap-1">
-                  <button class="btn btn-sm btn-light border p-1 px-2" disabled>
+                <div class="d-flex align-items-center gap-2">
+                  <button
+                    class="btn btn-sm btn-light border p-1 px-2"
+                    :disabled="recipientModal.currentPage <= 1"
+                    @click="recipientModal.currentPage--"
+                    title="Previous Page"
+                  >
                     <i class="bi bi-chevron-left"></i>
                   </button>
-                  <button class="btn btn-sm btn-light border p-1 px-2" disabled>
+                  <span class="small fw-semibold text-dark px-1">
+                    Page {{ recipientModal.currentPage }} of {{ totalRecipientPages }}
+                  </span>
+                  <button
+                    class="btn btn-sm btn-light border p-1 px-2"
+                    :disabled="recipientModal.currentPage >= totalRecipientPages"
+                    @click="recipientModal.currentPage++"
+                    title="Next Page"
+                  >
                     <i class="bi bi-chevron-right"></i>
                   </button>
                 </div>
@@ -815,23 +1052,38 @@
             </p>
 
             <!-- Search and filter -->
-            <div class="row mb-3">
-              <div class="col-md-6">
+            <div class="row g-2 mb-3 align-items-center">
+              <div class="col-md-5">
                 <div class="input-group input-group-sm">
-                  <span class="input-group-text">
-                    <i class="bi bi-search"></i>
+                  <span class="input-group-text bg-light border-end-0">
+                    <i class="bi bi-search text-muted"></i>
                   </span>
                   <input
                     v-model="clientSearch"
                     type="text"
-                    class="form-control"
-                    placeholder="Search clients by name, email, phone..."
+                    class="form-control border-start-0 ps-0"
+                    placeholder="Search by name, email, phone, ID..."
                     @input="filterClients"
                   />
                 </div>
               </div>
-              <div class="col-md-6">
-                <div class="form-check form-check-inline">
+              <div class="col-md-4">
+                <select
+                  v-model="clientSourceFilter"
+                  class="form-select form-select-sm"
+                  @change="filterClients"
+                >
+                  <option value="">All Client Sources / Batches</option>
+                  <option value="manual">Manually Created Clients</option>
+                  <optgroup label="Import Batches" v-if="clientBatchOptions.length">
+                    <option v-for="batch in clientBatchOptions" :key="batch" :value="batch">
+                      Batch {{ batch }}
+                    </option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="col-md-3 text-end">
+                <div class="form-check form-check-inline mb-0">
                   <input
                     class="form-check-input"
                     type="checkbox"
@@ -839,23 +1091,69 @@
                     v-model="showSelectedOnly"
                     @change="filterClients"
                   />
-                  <label class="form-check-label" for="showSelectedOnly">
+                  <label class="form-check-label small" for="showSelectedOnly">
                     Show selected only
                   </label>
                 </div>
               </div>
             </div>
 
+            <!-- Opt-In Status Filter Checkboxes -->
+            <div class="p-2 mb-3 bg-light rounded border d-flex flex-wrap align-items-center gap-3">
+              <span class="small fw-bold text-muted text-uppercase me-1" style="font-size: 0.72rem; letter-spacing: 0.05em;">
+                <i class="bi bi-funnel me-1"></i>Opt-In Status Filter:
+              </span>
+              
+              <div class="form-check form-check-inline mb-0">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="optInFilterYes"
+                  v-model="optInFilterYes"
+                  @change="filterClients"
+                />
+                <label class="form-check-label small fw-semibold text-success" for="optInFilterYes" style="cursor: pointer;">
+                  <i class="bi bi-check-circle-fill me-1 text-success"></i>Opt-In
+                </label>
+              </div>
+
+              <div class="form-check form-check-inline mb-0">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="optInFilterNone"
+                  v-model="optInFilterNone"
+                  @change="filterClients"
+                />
+                <label class="form-check-label small fw-semibold text-secondary" for="optInFilterNone" style="cursor: pointer;">
+                  <i class="bi bi-dash-circle me-1 text-muted"></i>Opt-In None
+                </label>
+              </div>
+
+              <div class="form-check form-check-inline mb-0">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="optInFilterNo"
+                  v-model="optInFilterNo"
+                  @change="filterClients"
+                />
+                <label class="form-check-label small fw-semibold text-danger" for="optInFilterNo" style="cursor: pointer;">
+                  <i class="bi bi-x-circle-fill me-1 text-danger"></i>Opt-Out
+                </label>
+              </div>
+            </div>
+
             <!-- VueMultiselect for client selection -->
             <div class="mb-3">
-              <label class="form-label">Select Clients</label>
+              <label class="form-label fw-semibold">Select Clients</label>
               <vue-multiselect
                 v-model="selectedClients"
                 :options="filteredAvailableClients"
                 :multiple="true"
                 :close-on-select="false"
                 :clear-on-select="false"
-                placeholder="Type to search clients..."
+                placeholder="Type to search or filter clients..."
                 label="nameWithDetails"
                 track-by="id"
                 :searchable="true"
@@ -866,16 +1164,29 @@
                 class="mb-2"
               >
                 <template #noResult>No clients found</template>
-                <template #noOptions>Type to search clients</template>
+                <template #noOptions>No clients available</template>
                 <template #option="{ option }">
-                  <div class="client-option">
-                    <strong>{{ option.name }}</strong>
+                  <div class="client-option py-1">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div class="d-flex align-items-center gap-2">
+                        <strong>{{ option.name }}</strong>
+                        <span v-if="option.whatsapp_opted_out_at || option.opt_in === 'no'" class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-Out</span>
+                        <span v-else-if="option.whatsapp_opted_in_at" class="badge bg-success bg-opacity-10 text-success border border-success-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-In</span>
+                        <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-In None</span>
+                      </div>
+                      <span v-if="!option.import_batch_number" class="badge bg-secondary bg-opacity-10 text-secondary border">
+                        Manual
+                      </span>
+                      <span v-else class="badge bg-info bg-opacity-10 text-info border">
+                        Batch: {{ option.import_batch_number }}
+                      </span>
+                    </div>
                     <div class="small text-muted">
                       <span v-if="option.email">{{ option.email }}</span>
                       <span v-if="option.email && option.phone"> • </span>
                       <span v-if="option.phone">{{ option.phone }}</span>
                     </div>
-                    <div class="small">
+                    <div class="small mt-1">
                       <span
                         v-for="dept in (option.departments || [])"
                         :key="dept.id"
@@ -895,29 +1206,32 @@
               </vue-multiselect>
 
               <!-- Selection summary -->
-              <div class="d-flex justify-content-between align-items-center mt-2">
+              <div class="d-flex flex-wrap justify-content-between align-items-center mt-2 gap-2">
                 <small class="text-muted">
                   <span v-if="selectedClients.length > 0">
-                    {{ selectedClients.length }} client(s) selected
+                    <strong>{{ selectedClients.length }}</strong> client(s) selected
                   </span>
                   <span v-else>
                     No clients selected
                   </span>
                   · {{ filteredAvailableClients.length }} available
+                  <span v-if="clientSourceFilter === 'manual'" class="text-primary fw-semibold"> (Filtered: Manual)</span>
+                  <span v-else-if="clientSourceFilter" class="text-primary fw-semibold"> (Filtered: Batch {{ clientSourceFilter }})</span>
                 </small>
                 <div>
                   <button
                     type="button"
-                    class="btn btn-link btn-sm p-0 me-2"
+                    class="btn btn-link btn-sm p-0 me-3 text-decoration-none fw-semibold"
                     @click="selectAllFilteredClients"
                     :disabled="filteredAvailableClients.length === 0"
                   >
-                    Select all shown
+                    <i class="bi bi-check-all me-1"></i>Select all shown ({{ filteredAvailableClients.length }})
                   </button>
                   <button
                     type="button"
-                    class="btn btn-link btn-sm p-0 text-danger"
+                    class="btn btn-link btn-sm p-0 text-danger text-decoration-none fw-semibold"
                     @click="clearSelection"
+                    :disabled="selectedClients.length === 0"
                   >
                     Clear all
                   </button>
@@ -926,8 +1240,8 @@
             </div>
 
             <!-- Selected clients preview -->
-            <div v-if="selectedClients.length > 0" class="border rounded p-3 mb-3">
-              <h6 class="mb-2">Selected Clients ({{ selectedClients.length }})</h6>
+            <div v-if="selectedClients.length > 0" class="border rounded p-3 mb-3 bg-light bg-opacity-50">
+              <h6 class="mb-2 text-dark">Selected Clients ({{ selectedClients.length }})</h6>
               <div class="selected-clients-container">
                 <div
                   v-for="client in selectedClients"
@@ -937,6 +1251,12 @@
                   <div class="d-flex justify-content-between align-items-center">
                     <div>
                       <strong>{{ client.name }}</strong>
+                      <span v-if="!client.import_batch_number" class="badge bg-secondary bg-opacity-10 text-secondary border ms-2">
+                        Manual
+                      </span>
+                      <span v-else class="badge bg-info bg-opacity-10 text-info border ms-2">
+                        Batch: {{ client.import_batch_number }}
+                      </span>
                       <div class="small text-muted">
                         {{ client.email || client.phone || 'No contact details' }}
                       </div>
@@ -1101,65 +1421,83 @@
 
                 <!-- Recipients via vue-multiselect -->
                 <div class="mb-3">
-                <label class="form-label">Recipients (Campaign Clients)</label>
-                <vue-multiselect
-                    v-model="whatsappForm.selectedClients"
-                    :options="campaignClientOptions"
-                    :multiple="true"
-                    :close-on-select="false"
-                    :clear-on-select="false"
-                    placeholder="Select campaign clients (leave empty for ALL)"
-                    label="nameWithDetails"
-                    track-by="id"
-                    :searchable="true"
-                    :show-labels="false"
-                    class="mb-1"
-                >
-                    <template #noResult>No clients found</template>
-                    <template #noOptions>No clients loaded</template>
-                    <template #option="{ option }">
-                    <div class="client-option">
-                        <strong>{{ option.name }}</strong>
-                        <div class="small text-muted">
-                        <span v-if="option.email">{{ option.email }}</span>
-                        <span v-if="option.email && option.phone"> • </span>
-                        <span v-if="option.phone">{{ option.phone }}</span>
-                        </div>
-                        <div class="small">
-                        <span
-                            v-for="dept in (option.departments || [])"
-                            :key="dept.id"
-                            class="badge bg-light text-dark border me-1"
-                        >
-                            {{ dept.name }}
-                        </span>
-                        </div>
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="form-label mb-0 fw-semibold">Recipients (Campaign Clients)</label>
+                    <div class="small text-muted" v-if="clientStats.unsent > 0">
+                      <span class="badge bg-warning text-dark">{{ clientStats.unsent }} unsent remaining</span>
                     </div>
-                    </template>
-                </vue-multiselect>
+                  </div>
 
-                <div class="d-flex justify-content-between mt-1">
-                    <small class="text-muted">
-                    Leave empty to send to <strong>all {{ clients.length }}</strong> campaign clients.
-                    </small>
-                    <div>
-                    <button
-                        type="button"
-                        class="btn btn-link btn-sm p-0 me-2"
-                        @click="selectAllCampaignClients('whatsapp')"
-                        :disabled="campaignClientOptions.length === 0"
-                    >
-                        Select all
-                    </button>
-                    <button
-                        type="button"
-                        class="btn btn-link btn-sm p-0 text-danger"
-                        @click="clearCampaignClientSelection('whatsapp')"
-                    >
-                        Clear
-                    </button>
-                    </div>
-                </div>
+                  <!-- Quick Batch Presets Bar in Modal -->
+                  <div class="p-2 mb-2 bg-light rounded border d-flex flex-wrap align-items-center gap-1">
+                    <span class="small fw-semibold text-muted me-1" style="font-size: 0.78rem;">Select Unsent Batch:</span>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(25)">Next 25</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(50)">Next 50</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(100)">Next 100</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(250)">Next 250</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(500)">Next 500</button>
+                    <button type="button" class="btn btn-xs btn-outline-primary py-0 px-2 rounded-pill" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal(1000)">Next 1000</button>
+                    <button type="button" class="btn btn-xs btn-outline-success py-0 px-2 rounded-pill ms-auto" style="font-size: 0.75rem;" @click="selectUnsentBatchInModal('all_unsent')">All Unsent ({{ clientStats.unsent }})</button>
+                  </div>
+
+                  <vue-multiselect
+                      v-model="whatsappForm.selectedClients"
+                      :options="campaignClientOptions"
+                      :multiple="true"
+                      :close-on-select="false"
+                      :clear-on-select="false"
+                      placeholder="Select campaign clients (leave empty for ALL)"
+                      label="nameWithDetails"
+                      track-by="id"
+                      :searchable="true"
+                      :show-labels="false"
+                      class="mb-1"
+                  >
+                      <template #noResult>No clients found</template>
+                      <template #noOptions>No clients loaded</template>
+                      <template #option="{ option }">
+                      <div class="client-option">
+                          <strong>{{ option.name }}</strong>
+                          <div class="small text-muted">
+                          <span v-if="option.email">{{ option.email }}</span>
+                          <span v-if="option.email && option.phone"> • </span>
+                          <span v-if="option.phone">{{ option.phone }}</span>
+                          </div>
+                          <div class="small">
+                          <span
+                              v-for="dept in (option.departments || [])"
+                              :key="dept.id"
+                              class="badge bg-light text-dark border me-1"
+                          >
+                              {{ dept.name }}
+                          </span>
+                          </div>
+                      </div>
+                      </template>
+                  </vue-multiselect>
+
+                  <div class="d-flex justify-content-between mt-1">
+                      <small class="text-muted">
+                        Targeting <strong>{{ whatsappForm.selectedClients.length || clients.length }}</strong> client(s). Leave empty to send to all {{ clients.length }}.
+                      </small>
+                      <div>
+                      <button
+                          type="button"
+                          class="btn btn-link btn-sm p-0 me-2"
+                          @click="selectAllCampaignClients('whatsapp')"
+                          :disabled="campaignClientOptions.length === 0"
+                      >
+                          Select all
+                      </button>
+                      <button
+                          type="button"
+                          class="btn btn-link btn-sm p-0 text-danger"
+                          @click="clearCampaignClientSelection('whatsapp')"
+                      >
+                          Clear
+                      </button>
+                      </div>
+                  </div>
                 </div>
 
                 <!-- Options -->
@@ -1187,6 +1525,19 @@
                     />
                     <label class="form-check-label" for="waEnableLiveChat">
                         Offer live chat with agent on reply
+                    </label>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check mb-2">
+                    <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="waEnableEmailNotification"
+                        v-model="whatsappForm.enableEmailNotification"
+                    />
+                    <label class="form-check-label" for="waEnableEmailNotification">
+                        Send email notification on reply
                     </label>
                     </div>
                 </div>
@@ -1341,8 +1692,6 @@
                                 <option value="client.branch_code">Client Branch Code</option>
                                 <option value="client.outstanding_balance">Client Outstanding Balance</option>
                                 <option value="client.arrears_amount">Client Arrears Amount</option>
-                                <option value="client.settlement_amount">Client Settlement Amount</option>
-                                <option value="client.three_months_amount">Client 3 Months Amount</option>
                                 <option value="client.installment_amount">Client Installment Amount</option>
                                 <option value="campaign.name">Campaign Name</option>
                                 <option value="campaign.status">Campaign Status</option>
@@ -1796,10 +2145,17 @@ export default {
 
       // clients in campaign
       clients: [],
+      loadingCampaignClients: true,
       selectedClients: [],
+      clientTablePerPage: 25,
+      clientTableCurrentPage: 1,
+      clientStatusFilter: 'all',
+      clientSearchQuery: '',
+      activeChannelTab: 'whatsapp',
 
       // channel messages
       whatsappMessages: [],
+      loadingWhatsappMessages: true,
       emails: [],
       smsMessages: [],
       editingWhatsappMessageId: null,
@@ -1828,6 +2184,8 @@ export default {
           can_send: false,
         },
         filter: '',
+        currentPage: 1,
+        perPage: 25,
       },
 
       // add clients modal
@@ -1836,6 +2194,11 @@ export default {
       filteredAvailableClients: [],
       selectedClients: [],
       clientSearch: '',
+      clientSourceFilter: '',
+      clientBatchOptions: [],
+      optInFilterYes: true,
+      optInFilterNo: false,
+      optInFilterNone: true,
       showSelectedOnly: false,
       loadingClients: false,
       addClientsForm: {
@@ -1855,7 +2218,8 @@ export default {
         clientsMode: 'all',
         selectedClients: [],
         trackResponses: false,
-        enableLiveChat: false,
+        enableLiveChat: true,
+        enableEmailNotification: true,
         showSamplePreview: false,
         sending: false,
       },
@@ -1973,13 +2337,6 @@ export default {
         return cards.filter(c => c.show);
     },
 
-    totalWhatsappQueued() {
-      if (this.stats && (this.stats.whatsapp_sent !== undefined && this.stats.whatsapp_sent !== null)) {
-        return this.stats.whatsapp_sent;
-      }
-      return (this.whatsappMessages || []).reduce((acc, w) => acc + (Number(w.total) || 0), 0);
-    },
-
     canSend() {
       if (!this.canManageCampaign || !this.campaign) return false;
       return ['Draft', 'Scheduled', 'Active'].includes(this.campaign.status);
@@ -2021,8 +2378,82 @@ export default {
       }
       return cards;
     },
+    clientStats() {
+      const list = this.clients || [];
+      let total = list.length;
+      let sent = 0;
+      let delivered = 0;
+      let failed = 0;
+      let unsent = 0;
+
+      list.forEach(c => {
+        const statusVal = this.getClientChannelStatus(c, this.activeChannelTab);
+        const st = String(statusVal || 'Pending').trim().toLowerCase();
+
+        if (['delivered', 'read', 'opened', 'clicked'].includes(st)) {
+          delivered++;
+          sent++;
+        } else if (st === 'sent') {
+          sent++;
+        } else if (st === 'failed' || st === 'bounced' || (this.activeChannelTab === 'whatsapp' && (c.whatsapp_error_message || c.whatsapp_error_code))) {
+          failed++;
+        } else {
+          unsent++;
+        }
+      });
+
+      return { total, sent, delivered, failed, unsent };
+    },
+    filteredCampaignClients() {
+      let list = this.clients || [];
+
+      // Filter by status for active channel
+      if (this.clientStatusFilter === 'unsent') {
+        list = list.filter(c => this.isClientUnsent(c, this.activeChannelTab));
+      } else if (this.clientStatusFilter === 'sent') {
+        list = list.filter(c => this.isClientSent(c, this.activeChannelTab));
+      } else if (this.clientStatusFilter === 'failed') {
+        list = list.filter(c => this.isClientFailed(c, this.activeChannelTab));
+      }
+
+      // Filter by search query
+      if (this.clientSearchQuery && this.clientSearchQuery.trim() !== '') {
+        const q = this.clientSearchQuery.trim().toLowerCase();
+        list = list.filter(c => {
+          return (
+            (c.name && c.name.toLowerCase().includes(q)) ||
+            (c.email && c.email.toLowerCase().includes(q)) ||
+            (c.phone && c.phone.toLowerCase().includes(q)) ||
+            (c.bank_name && c.bank_name.toLowerCase().includes(q)) ||
+            (c.import_batch_number && String(c.import_batch_number).toLowerCase().includes(q))
+          );
+        });
+      }
+
+      return list;
+    },
     selectAllClients() {
-      return this.clients.length > 0 && this.selectedClients.length === this.clients.length;
+      return this.filteredCampaignClients.length > 0 && this.selectedClients.length === this.filteredCampaignClients.length;
+    },
+    paginatedCampaignClients() {
+      const list = this.filteredCampaignClients;
+      const perPage = Number(this.clientTablePerPage) || 25;
+      if (perPage <= 0) return list;
+      const start = (this.clientTableCurrentPage - 1) * perPage;
+      return list.slice(start, start + perPage);
+    },
+    totalCampaignClientPages() {
+      const perPage = Number(this.clientTablePerPage) || 25;
+      if (perPage <= 0) return 1;
+      return Math.max(1, Math.ceil(this.filteredCampaignClients.length / perPage));
+    },
+    campaignClientPaginationInfo() {
+      const total = this.filteredCampaignClients.length;
+      if (total === 0) return 'Showing 0 of 0 records';
+      const perPage = Number(this.clientTablePerPage) || 25;
+      const start = (this.clientTableCurrentPage - 1) * perPage + 1;
+      const end = Math.min(start + perPage - 1, total);
+      return `Showing ${start} to ${end} of ${total} records`;
     },
     filteredRecipients() {
       const rows = this.recipientModal.rows || [];
@@ -2035,10 +2466,32 @@ export default {
           r.phone,
           r.department_names,
           r.status,
+          r.error_message,
+          r.error_code,
         ]
           .filter(Boolean)
           .some((val) => String(val).toLowerCase().includes(q));
       });
+    },
+    paginatedRecipients() {
+      const list = this.filteredRecipients;
+      const perPage = Number(this.recipientModal.perPage) || 25;
+      if (perPage <= 0) return list;
+      const start = (this.recipientModal.currentPage - 1) * perPage;
+      return list.slice(start, start + perPage);
+    },
+    totalRecipientPages() {
+      const perPage = Number(this.recipientModal.perPage) || 25;
+      if (perPage <= 0) return 1;
+      return Math.max(1, Math.ceil(this.filteredRecipients.length / perPage));
+    },
+    recipientPaginationInfo() {
+      const total = this.filteredRecipients.length;
+      if (total === 0) return 'Showing 0 of 0 records';
+      const perPage = Number(this.recipientModal.perPage) || 25;
+      const start = (this.recipientModal.currentPage - 1) * perPage + 1;
+      const end = Math.min(start + perPage - 1, total);
+      return `Showing ${start} to ${end} of ${total} records`;
     },
     currentWhatsappTemplate() {
         if (!this.whatsappForm.templateId) return null;
@@ -2123,9 +2576,138 @@ export default {
       }
       return false;
     },
+    getClientChannelStatus(cl, channel = this.activeChannelTab) {
+      if (!cl) return 'Pending';
+      if (channel === 'email') return cl.email_status || 'Pending';
+      if (channel === 'sms') return cl.sms_status || 'Pending';
+      return cl.whatsapp_status || 'Pending';
+    },
+    isClientUnsent(cl, channel = this.activeChannelTab) {
+      if (!cl) return true;
+      const st = String(this.getClientChannelStatus(cl, channel)).trim().toLowerCase();
+      return ['pending', 'unsent', 'not_sent', ''].includes(st);
+    },
+    isClientSent(cl, channel = this.activeChannelTab) {
+      if (!cl) return false;
+      const st = String(this.getClientChannelStatus(cl, channel)).trim().toLowerCase();
+      return ['sent', 'delivered', 'read', 'opened', 'clicked'].includes(st);
+    },
+    isClientFailed(cl, channel = this.activeChannelTab) {
+      if (!cl) return false;
+      const st = String(this.getClientChannelStatus(cl, channel)).trim().toLowerCase();
+      return st === 'failed' || st === 'bounced' || (channel === 'whatsapp' && (!!cl.whatsapp_error_message || !!cl.whatsapp_error_code));
+    },
+    selectUnsentBatch(count) {
+      const unsentList = (this.clients || []).filter(c => this.isClientUnsent(c, this.activeChannelTab));
+      let targets = [];
+      if (count === 'all_unsent') {
+        targets = unsentList;
+      } else if (count === 'all_campaign') {
+        targets = this.clients || [];
+      } else {
+        const n = Number(count) || 25;
+        targets = unsentList.slice(0, n);
+      }
+
+      this.selectedClients = targets.map(c => c.id);
+      const chName = this.activeChannelTab.toUpperCase();
+      if (targets.length > 0) {
+        notify.info(`Selected next ${targets.length} unsent client(s) for ${chName}.`, 'Campaigns');
+      } else {
+        notify.warning(`No unsent clients remaining for ${chName} in this campaign.`, 'Campaigns');
+      }
+    },
+    selectUnsentBatchInModal(count) {
+      const unsentList = (this.clients || []).filter(c => this.isClientUnsent(c, 'whatsapp'));
+      let targets = [];
+      if (count === 'all_unsent') {
+        targets = unsentList;
+      } else if (count === 'all_campaign') {
+        targets = this.clients || [];
+      } else {
+        const n = Number(count) || 25;
+        targets = unsentList.slice(0, n);
+      }
+
+      this.whatsappForm.selectedClients = targets.map(c => {
+        return this.campaignClientOptions.find(opt => opt.id === c.id) || {
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          departments: c.departments,
+          nameWithDetails: `${c.name}${c.phone ? ' (' + c.phone + ')' : ''}`,
+        };
+      });
+
+      if (targets.length > 0) {
+        notify.info(`Selected ${targets.length} unsent recipient(s) for WhatsApp.`, 'WhatsApp');
+      } else {
+        notify.warning('No unsent clients remaining in this campaign.', 'WhatsApp');
+      }
+    },
+    sendWhatsappToSelected() {
+      if (this.selectedClients.length === 0) return;
+      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+      
+      const mappedClients = selectedObjects.map(c => {
+        return this.campaignClientOptions.find(opt => opt.id === c.id) || {
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: c.phone,
+          departments: c.departments,
+          nameWithDetails: `${c.name}${c.phone ? ' (' + c.phone + ')' : ''}`,
+        };
+      });
+
+      this.openAddWhatsappTemplateModal(mappedClients);
+    },
+    sendEmailToSelected() {
+      if (this.selectedClients.length === 0) return;
+      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+      
+      this.emailForm = {
+        mode: 'new',
+        subject: '',
+        body: '',
+        templateId: '',
+        clientsMode: 'selected',
+        selectedClients: selectedObjects,
+        selectedClientIds: selectedObjects.map(c => c.id),
+        sending: false,
+      };
+
+      axios.get('/api/email-templates').then((res) => {
+        this.emailTemplates = res.data.data || res.data;
+      }).catch(() => {
+        this.emailTemplates = [];
+      }).finally(() => {
+        if (this.addEmailModal) {
+          this.addEmailModal.show();
+        }
+      });
+    },
+    sendSmsToSelected() {
+      if (this.selectedClients.length === 0) return;
+      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+
+      this.smsForm = {
+        subject: '',
+        text: '',
+        clientsMode: 'selected',
+        selectedClients: selectedObjects,
+        selectedClientIds: selectedObjects.map(c => c.id),
+        sending: false,
+      };
+
+      if (this.addSmsModal) {
+        this.addSmsModal.show();
+      }
+    },
     toggleSelectAllClients(event) {
       if (event.target.checked) {
-        this.selectedClients = this.clients.map(c => c.id);
+        this.selectedClients = this.filteredCampaignClients.map(c => c.id);
       } else {
         this.selectedClients = [];
       }
@@ -2213,6 +2795,7 @@ export default {
     statusColor(status) {
       if (!status) return 'bg-light text-dark';
       const s = status.toLowerCase();
+      if (s.includes('ecosystem')) return 'bg-warning text-dark';
       if (s.includes('delivered') || s.includes('sent') || s.includes('success')) return 'bg-success';
       if (s.includes('fail') || s.includes('bounce') || s.includes('error')) return 'bg-danger';
       if (s.includes('pending') || s.includes('queue')) return 'bg-warning text-dark';
@@ -2264,18 +2847,24 @@ export default {
     },
     fetchClients() {
       const id = this.$route.params.id;
-      axios.get(`/api/campaigns/${id}/clients`).then((res) => {
+      this.loadingCampaignClients = true;
+      axios.get(`/api/campaigns/${id}/clients?all=1`).then((res) => {
         this.clients = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
       }).catch(() => {
         this.clients = [];
+      }).finally(() => {
+        this.loadingCampaignClients = false;
       });
     },
     fetchWhatsApp() {
       const id = this.$route.params.id;
+      this.loadingWhatsappMessages = true;
       axios.get(`/api/campaigns/${id}/whatsapp-messages`).then((res) => {
         this.whatsappMessages = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
       }).catch(() => {
         this.whatsappMessages = [];
+      }).finally(() => {
+        this.loadingWhatsappMessages = false;
       });
     },
     fetchEmails() {
@@ -2464,9 +3053,23 @@ export default {
     getStatusBadgeClass(status) {
       if (!status) return 'badge-status-pending text-primary bg-primary-subtle';
       const s = status.toLowerCase();
-      if (s === 'delivered' || s === 'sent' || s === 'completed' || s === 'active') return 'badge-status-delivered text-success bg-success-subtle';
+      if (s.includes('ecosystem')) return 'badge-status-warning text-warning-emphasis bg-warning-subtle border border-warning';
+      if (s === 'delivered' || s.includes('delivered') || s === 'sent' || s === 'completed' || s === 'active') return 'badge-status-delivered text-success bg-success-subtle';
       if (s === 'failed' || s === 'error') return 'badge-status-failed text-danger bg-danger-subtle';
       return 'badge-status-pending text-primary bg-primary-subtle';
+    },
+    getRecipientErrorMessage(r) {
+      if (!r) return 'Delivery failed';
+      if (r.error_message && r.error_code) {
+        return `${r.error_message} (Error Code: ${r.error_code})`;
+      }
+      if (r.error_message) {
+        return r.error_message;
+      }
+      if (r.error_code) {
+        return `Error Code: ${r.error_code}`;
+      }
+      return 'Message delivery failed';
     },
 
     // Export helpers
@@ -2543,6 +3146,10 @@ export default {
 
       this.selectedClients = [];
       this.clientSearch = '';
+      this.clientSourceFilter = '';
+      this.optInFilterYes = true;
+      this.optInFilterNo = false;
+      this.optInFilterNone = true;
       this.showSelectedOnly = false;
       this.addClientsForm.saving = false;
       this.loadingClients = true;
@@ -2555,12 +3162,21 @@ export default {
             ...client,
             nameWithDetails: `${client.name} (${client.email || client.phone || 'No contact details'})`,
           }));
-          this.filteredAvailableClients = [...this.availableClients];
+
+          const batchSet = new Set();
+          clients.forEach(c => {
+            if (c.import_batch_number && String(c.import_batch_number).trim() !== '') {
+              batchSet.add(String(c.import_batch_number).trim());
+            }
+          });
+          this.clientBatchOptions = Array.from(batchSet).sort().reverse();
+          this.filterClients();
         })
         .catch((error) => {
           console.error('Failed to load available clients:', error);
           this.availableClients = [];
           this.filteredAvailableClients = [];
+          this.clientBatchOptions = [];
         })
         .finally(() => {
           this.loadingClients = false;
@@ -2568,16 +3184,33 @@ export default {
         });
     },
     filterClients() {
-      let filtered = [];
+      let filtered = [...this.availableClients];
 
-      if (!this.clientSearch.trim()) {
-        filtered = [...this.availableClients];
-      } else {
+      // Opt-In Filter
+      filtered = filtered.filter(c => {
+        const isOptedOut = !!c.whatsapp_opted_out_at || c.opt_in === 'no';
+        const isOptedIn = !isOptedOut && !!c.whatsapp_opted_in_at;
+        if (isOptedOut) return this.optInFilterNo;
+        if (isOptedIn) return this.optInFilterYes;
+        return this.optInFilterNone;
+      });
+
+      // Source / Batch filter
+      if (this.clientSourceFilter === 'manual') {
+        filtered = filtered.filter(c => !c.import_batch_number || String(c.import_batch_number).trim() === '');
+      } else if (this.clientSourceFilter) {
+        filtered = filtered.filter(c => String(c.import_batch_number || '').trim() === String(this.clientSourceFilter).trim());
+      }
+
+      // Text Search
+      if (this.clientSearch.trim()) {
         const search = this.clientSearch.toLowerCase();
-        filtered = this.availableClients.filter(client =>
-          client.name.toLowerCase().includes(search) ||
+        filtered = filtered.filter(client =>
+          (client.name && client.name.toLowerCase().includes(search)) ||
           (client.email && client.email.toLowerCase().includes(search)) ||
           (client.phone && client.phone.includes(search)) ||
+          (client.id_number && client.id_number.includes(search)) ||
+          (client.account_number && client.account_number.includes(search)) ||
           (client.departments && client.departments.some(dept =>
             dept.name.toLowerCase().includes(search)
           ))
@@ -2640,7 +3273,9 @@ export default {
     },
 
     // WhatsApp Template flow
-    openAddWhatsappTemplateModal() {
+    openAddWhatsappTemplateModal(preselectedClients = null) {
+      const existingSelected = preselectedClients !== null ? preselectedClients : [];
+
       this.whatsappModalLoading = true;
       this.editingWhatsappMessageId = null;
       this.whatsappForm = {
@@ -2648,9 +3283,10 @@ export default {
         templateId: '',
         flowId: '',
         templateVariables: {},
-        selectedClients: [],
-        trackResponses: false,
-        enableLiveChat: false,
+        selectedClients: existingSelected,
+        trackResponses: true,
+        enableLiveChat: true,
+        enableEmailNotification: true,
         sending: false,
         action: null,
       };
@@ -2695,6 +3331,7 @@ export default {
         client_ids: hasSelection ? this.whatsappForm.selectedClients.map((c) => c.id) : [],
         send_now: sendNow,
         enable_live_chat: this.whatsappForm.enableLiveChat,
+        enable_email_notification: this.whatsappForm.enableEmailNotification,
       };
 
       this.whatsappForm.sending = true;
@@ -2713,7 +3350,9 @@ export default {
 
           this.addWhatsappModal.hide();
           this.fetchWhatsApp();
+          this.fetchClients();
           this.fetchStats();
+          this.selectedClients = [];
           this.editingWhatsappMessageId = null;
         })
         .catch((error) => {
@@ -2723,6 +3362,28 @@ export default {
         .finally(() => {
           this.whatsappForm.sending = false;
           this.whatsappForm.action = null;
+        });
+    },
+    toggleLiveChat(message) {
+      const campaignId = this.$route.params.id;
+      axios.patch(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/toggle-live-chat`)
+        .then((res) => {
+          message.enable_live_chat = res.data.enable_live_chat;
+          notify.success(res.data.message || 'Live chat status updated.', 'WhatsApp');
+        })
+        .catch((error) => {
+          notify.error(error.response?.data?.message || 'Failed to update live chat status.', 'WhatsApp');
+        });
+    },
+    toggleEmailNotification(message) {
+      const campaignId = this.$route.params.id;
+      axios.patch(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/toggle-email-notification`)
+        .then((res) => {
+          message.enable_email_notification = res.data.enable_email_notification;
+          notify.success(res.data.message || 'Email notification status updated.', 'WhatsApp');
+        })
+        .catch((error) => {
+          notify.error(error.response?.data?.message || 'Failed to update email notification status.', 'WhatsApp');
         });
     },
     editWhatsappTemplate(message) {
@@ -2763,6 +3424,7 @@ export default {
         selectedClients: [],
         trackResponses: true,
         enableLiveChat: !!message.enable_live_chat,
+        enableEmailNotification: message.enable_email_notification !== false,
         sending: false,
         action: null,
       };

@@ -6,8 +6,8 @@
 @source '../**/*.js';
 
 @theme {
-  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-    'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
 }
 
 /* ==========================================================================
@@ -55,11 +55,18 @@
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
 }
 
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
 body {
   background-color: var(--bg-canvas) !important;
   color: var(--text-primary) !important;
   font-family: var(--font-sans);
   transition: background-color 0.25s ease, color 0.25s ease;
+  padding-right: 0 !important;
+  margin: 0 !important;
 }
 
 /* Sidebar Specific Mockup Styling */
@@ -114,24 +121,20 @@ body {
   font-weight: 500;
   transition: all 0.2s ease;
 }
-
 .btn-primary {
   background-color: var(--accent-primary) !important;
   border-color: var(--accent-primary) !important;
   color: #ffffff !important;
 }
-
 .btn-primary:hover {
   background-color: #0c2459 !important;
   border-color: #0c2459 !important;
 }
-
 .btn-success {
   background-color: var(--accent-success) !important;
   border-color: var(--accent-success) !important;
   color: #ffffff !important;
 }
-
 .btn-success:hover {
   background-color: #059669 !important;
   border-color: #059669 !important;
@@ -148,7 +151,6 @@ body {
   border: none;
   transition: background-color 0.2s ease, transform 0.15s ease;
 }
-
 .btn-sidebar-cta:hover {
   background-color: #0c2459 !important;
   transform: translateY(-1px);
@@ -181,7 +183,6 @@ body {
   color: var(--text-primary);
   width: 100%;
 }
-
 .header-search-input::placeholder {
   color: var(--text-muted);
 }
@@ -197,11 +198,9 @@ body {
 .card-accent-green {
   border-left: 4px solid #10b981 !important;
 }
-
 .card-accent-blue {
   border-left: 4px solid #3b82f6 !important;
 }
-
 .card-accent-dark {
   border-left: 4px solid #1e293b !important;
 }
@@ -245,9 +244,7 @@ body {
 }
 
 /* Status Pills */
-.badge-status-active,
-.badge-status-delivered,
-.badge-status-completed {
+.badge-status-active, .badge-status-delivered, .badge-status-completed {
   background-color: #dcfce7 !important;
   color: #15803d !important;
   font-weight: 600;
@@ -256,8 +253,7 @@ body {
   border-radius: 9999px;
 }
 
-.badge-status-pending,
-.badge-status-queued {
+.badge-status-pending, .badge-status-queued {
   background-color: #f1f5f9 !important;
   color: #475569 !important;
   font-weight: 600;
@@ -286,7 +282,6 @@ body {
   border: none;
   transition: opacity 0.15s ease;
 }
-
 .btn-dark-pill:hover {
   opacity: 0.9;
 }
@@ -318,11 +313,9 @@ body {
 .modal {
   z-index: 1060 !important;
 }
-
 .modal-backdrop {
   z-index: 1050 !important;
 }
-
 .modal-content {
   background-color: var(--bg-surface) !important;
   border: 1px solid var(--border-medium) !important;
@@ -330,7 +323,6 @@ body {
   border-radius: var(--radius-lg) !important;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2) !important;
 }
-
 .modal-header {
   background-color: var(--bg-muted) !important;
   border-bottom: 1px solid var(--border-medium) !important;
@@ -338,7 +330,6 @@ body {
   border-top-left-radius: calc(var(--radius-lg) - 1px);
   border-top-right-radius: calc(var(--radius-lg) - 1px);
 }
-
 .modal-title {
   font-weight: 700 !important;
   color: var(--text-primary) !important;
@@ -347,11 +338,9 @@ body {
   align-items: center;
   gap: 0.5rem;
 }
-
 .modal-title i {
   color: var(--accent-primary);
 }
-
 .modal-footer {
   background-color: var(--bg-muted) !important;
   border-top: 1px solid var(--border-medium) !important;
@@ -359,34 +348,28 @@ body {
   border-bottom-left-radius: calc(var(--radius-lg) - 1px);
   border-bottom-right-radius: calc(var(--radius-lg) - 1px);
 }
-
 .btn-close {
   opacity: 0.5;
   transition: opacity 0.2s ease;
   background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000000'%3e%3cpath d='M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat !important;
   filter: invert(0) !important;
 }
-
 .btn-close:hover {
   opacity: 1;
 }
-
 .modal-backdrop.show {
   opacity: 0.65;
   backdrop-filter: blur(4px);
 }
 
 /* Form Controls & Inputs */
-.form-control,
-.form-select {
+.form-control, .form-select {
   background-color: var(--bg-surface) !important;
   color: var(--text-primary) !important;
   border: 1px solid var(--border-medium) !important;
   border-radius: var(--radius-sm) !important;
 }
-
-.form-control:focus,
-.form-select:focus {
+.form-control:focus, .form-select:focus {
   border-color: var(--accent-primary) !important;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
 }
