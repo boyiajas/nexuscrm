@@ -62,7 +62,7 @@
                 <div class="dropdown chat-list-dropdown">
                   <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
                   <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-lines-fill text-muted me-3"></i>Contact info</a></li>
+                    <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-vcard text-primary me-3"></i>Client Info</a></li>
                     <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search text-muted me-3"></i>Search</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li class="dropdown-header text-uppercase small fw-bold text-muted">Opt-In Status</li>
@@ -110,8 +110,11 @@
             <i class="bi bi-person-fill"></i>
           </div>
           <div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
               <div class="fw-semibold">{{ activeSession.client_name }}</div>
+              <span v-if="activeSession.client?.easy_pay_number" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 ms-1" title="Easy Pay Number">
+                <i class="bi bi-credit-card me-1"></i>EasyPay: {{ activeSession.client.easy_pay_number }}
+              </span>
               <span v-if="(activeSession.client?.opt_in || activeSession.opt_in) === 'yes'" class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 ms-1" title="Opted In">
                 <i class="bi bi-check-circle-fill me-1"></i>Opt-In: Yes
               </span>
@@ -123,7 +126,9 @@
               </span>
             </div>
             <small class="text-muted">
-              {{ activeSession.platform }} <span v-if="activeSession.agent">• Assigned to {{ activeSession.agent.name }}</span>
+              {{ activeSession.platform }}
+              <span v-if="activeSession.client?.easy_pay_number"> • EasyPay: <strong class="text-dark">{{ activeSession.client.easy_pay_number }}</strong></span>
+              <span v-if="activeSession.agent"> • Assigned to {{ activeSession.agent.name }}</span>
             </small>
           </div>
           <div class="ms-auto text-muted d-flex gap-3 fs-5 align-items-center">
@@ -131,7 +136,7 @@
             <div class="dropdown">
               <i class="bi bi-three-dots-vertical" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" title="Menu"></i>
               <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 220px;">
-                <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(activeSession)"><i class="bi bi-person-lines-fill me-2 text-muted"></i>Contact info</a></li>
+                <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(activeSession)"><i class="bi bi-person-vcard me-2 text-primary"></i>Client Info</a></li>
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search me-2 text-muted"></i>Search</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li class="dropdown-header text-uppercase small fw-bold text-muted">Set Opt-In Status</li>
@@ -222,33 +227,115 @@
       </div>
     </div>
     
-    <!-- Contact Info Modal -->
+    <!-- Client Info Modal -->
     <div class="modal fade" id="contactInfoModal" tabindex="-1" ref="contactInfoModal">
-      <div class="modal-dialog modal-sm">
-        <div class="modal-content">
-          <div class="modal-header border-0 pb-0">
+      <div class="modal-dialog modal-md modal-dialog-centered">
+        <div class="modal-content shadow border-0">
+          <div class="modal-header border-bottom py-3">
+            <h5 class="modal-title h6 mb-0 text-dark fw-bold">
+              <i class="bi bi-person-vcard text-primary me-2"></i>Client Information
+            </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
-          <div class="modal-body text-center pt-0" v-if="contactInfoSession">
-            <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center mx-auto mb-3" style="width: 120px; height: 120px; font-size: 4rem;">
-              <i class="bi bi-person-fill"></i>
+          <div class="modal-body p-4" v-if="contactInfoSession">
+            <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
+              <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0" style="width: 52px; height: 52px; font-size: 1.8rem;">
+                <i class="bi bi-person-fill"></i>
+              </div>
+              <div>
+                <h5 class="mb-1 text-dark fw-bold">{{ contactInfoSession.client_name }}</h5>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                  <span v-if="contactInfoSession.client?.status" class="badge bg-secondary">
+                    {{ contactInfoSession.client.status }}
+                  </span>
+                  <span v-if="(contactInfoSession.client?.opt_in || contactInfoSession.opt_in) === 'yes'" class="badge bg-success">
+                    <i class="bi bi-check-circle-fill me-1"></i>Opt-In: Yes
+                  </span>
+                  <span v-else-if="(contactInfoSession.client?.opt_in || contactInfoSession.opt_in) === 'no'" class="badge bg-danger">
+                    <i class="bi bi-x-circle-fill me-1"></i>Opt-In: No
+                  </span>
+                  <span v-else class="badge bg-secondary">
+                    <i class="bi bi-dash-circle me-1"></i>Opt-In: None
+                  </span>
+                </div>
+              </div>
             </div>
-            <h4 class="mb-1">{{ contactInfoSession.client_name }}</h4>
-            <p class="text-muted mb-4">{{ contactInfoSession.client?.phone || 'No phone number' }}</p>
-            <div class="text-start">
-              <p v-if="contactInfoSession.client?.email"><strong>Email:</strong> {{ contactInfoSession.client.email }}</p>
-              <p v-if="contactInfoSession.client?.status"><strong>Status:</strong> <span class="badge bg-secondary">{{ contactInfoSession.client.status }}</span></p>
-              <p v-if="contactInfoSession.client?.id_number"><strong>ID Number:</strong> {{ contactInfoSession.client.id_number }}</p>
-              <p>
-                <strong>Opt-In Status:</strong>
-                <span v-if="(contactInfoSession.client?.opt_in || contactInfoSession.opt_in) === 'yes'" class="badge bg-success ms-1">Yes</span>
-                <span v-else-if="(contactInfoSession.client?.opt_in || contactInfoSession.opt_in) === 'no'" class="badge bg-danger ms-1">No</span>
-                <span v-else class="badge bg-secondary ms-1">None</span>
-              </p>
-              <p v-if="contactInfoSession.client?.opt_in_updated_at || contactInfoSession.client?.whatsapp_opted_in_at">
-                <strong>Opt-In Timestamp:</strong> <span class="small text-muted">{{ contactInfoSession.client?.opt_in_updated_at || contactInfoSession.client?.whatsapp_opted_in_at }}</span>
-              </p>
+
+            <div class="row g-3">
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">Easy Pay Number</label>
+                <div class="fw-bold text-primary font-monospace bg-light p-2 rounded border">
+                  {{ contactInfoSession.client?.easy_pay_number || '-' }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">Account Number</label>
+                <div class="fw-semibold text-dark bg-light p-2 rounded border font-monospace">
+                  {{ contactInfoSession.client?.account_number || '-' }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">ID Number</label>
+                <div class="text-dark bg-light p-2 rounded border small">
+                  {{ contactInfoSession.client?.id_number || '-' }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">Phone Number</label>
+                <div class="text-dark bg-light p-2 rounded border small">
+                  {{ contactInfoSession.client?.phone || contactInfoSession.phone || '-' }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">Outstanding Balance</label>
+                <div class="fw-semibold text-danger bg-light p-2 rounded border">
+                  {{ formatCurrency(contactInfoSession.client?.outstanding_balance) }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">Arrears Amount</label>
+                <div class="fw-semibold text-dark bg-light p-2 rounded border">
+                  {{ formatCurrency(contactInfoSession.client?.arrears_amount) }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">Installment Amount</label>
+                <div class="text-dark bg-light p-2 rounded border small">
+                  {{ formatCurrency(contactInfoSession.client?.installment_amount) }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">Bank / Institution</label>
+                <div class="text-dark bg-light p-2 rounded border small text-truncate">
+                  {{ contactInfoSession.client?.bank?.name || contactInfoSession.client?.bank_name || '-' }}
+                </div>
+              </div>
+
+              <div class="col-12">
+                <label class="small text-muted fw-medium d-block mb-1">Email Address</label>
+                <div class="text-dark bg-light p-2 rounded border small">
+                  {{ contactInfoSession.client?.email || '-' }}
+                </div>
+              </div>
+
+              <div class="col-12" v-if="contactInfoSession.client?.opt_in_updated_at || contactInfoSession.client?.whatsapp_opted_in_at">
+                <label class="small text-muted fw-medium d-block mb-1">Opt-In Updated Timestamp</label>
+                <div class="text-muted bg-light p-2 rounded border small">
+                  <i class="bi bi-clock me-1"></i>
+                  {{ contactInfoSession.client?.opt_in_updated_at || contactInfoSession.client?.whatsapp_opted_in_at }}
+                </div>
+              </div>
             </div>
+          </div>
+          <div class="modal-footer bg-light py-2">
+            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
           </div>
         </div>
       </div>
@@ -520,11 +607,33 @@ export default {
     },
     showContactInfo(session) {
       if (!session) return;
-      this.contactInfoSession = session;
-      if (!this.modalInstance) {
-        this.modalInstance = new bootstrap.Modal(this.$refs.contactInfoModal);
+      if (session.id) {
+        axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
+          this.contactInfoSession = res.data;
+          if (!this.modalInstance) {
+            this.modalInstance = new bootstrap.Modal(this.$refs.contactInfoModal);
+          }
+          this.modalInstance.show();
+        }).catch(() => {
+          this.contactInfoSession = session;
+          if (!this.modalInstance) {
+            this.modalInstance = new bootstrap.Modal(this.$refs.contactInfoModal);
+          }
+          this.modalInstance.show();
+        });
+      } else {
+        this.contactInfoSession = session;
+        if (!this.modalInstance) {
+          this.modalInstance = new bootstrap.Modal(this.$refs.contactInfoModal);
+        }
+        this.modalInstance.show();
       }
-      this.modalInstance.show();
+    },
+    formatCurrency(val) {
+      if (val === null || val === undefined || val === '') return '-';
+      const num = Number(val);
+      if (isNaN(num)) return '-';
+      return 'R ' + num.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     },
     toggleSearch() {
       this.isSearching = true;
