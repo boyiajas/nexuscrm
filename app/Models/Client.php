@@ -42,8 +42,6 @@ class Client extends Model
         'whatsapp_contact_basis_details',
         'whatsapp_opted_in_at',
         'whatsapp_opt_in_source',
-        'opt_in',
-        'opt_in_updated_at',
         // Note: removed 'department' column since we're using many-to-many
     ];
 
@@ -57,7 +55,6 @@ class Client extends Model
         'total_payment_amount' => 'decimal:2',
         'whatsapp_opted_out_at' => 'datetime',
         'whatsapp_opted_in_at' => 'datetime',
-        'opt_in_updated_at' => 'datetime',
     ];
 
     // Many-to-many departments (NEW)
@@ -151,40 +148,19 @@ class Client extends Model
         return !$this->isWhatsappSuppressed() && $this->hasWhatsappLawfulBasis();
     }
 
-    public function setOptIn(string $status, ?string $reason = null): void
-    {
-        $status = strtolower(trim($status));
-        if (!in_array($status, ['yes', 'no', 'none'], true)) {
-            $status = 'none';
-        }
-
-        $attributes = [
-            'opt_in' => $status,
-            'opt_in_updated_at' => now(),
-        ];
-
-        if ($status === 'no') {
-            $attributes['whatsapp_opted_out_at'] = now();
-            $attributes['whatsapp_opt_out_reason'] = $reason ?? 'Opt-Out';
-        } elseif ($status === 'yes') {
-            $attributes['whatsapp_opted_in_at'] = now();
-            $attributes['whatsapp_opted_out_at'] = null;
-            $attributes['whatsapp_opt_out_reason'] = null;
-        } elseif ($status === 'none') {
-            $attributes['whatsapp_opted_out_at'] = null;
-            $attributes['whatsapp_opt_out_reason'] = null;
-        }
-
-        $this->forceFill($attributes)->save();
-    }
-
     public function markWhatsappOptOut(string $reason = 'stop'): void
     {
-        $this->setOptIn('no', $reason);
+        $this->forceFill([
+            'whatsapp_opted_out_at' => now(),
+            'whatsapp_opt_out_reason' => $reason,
+        ])->save();
     }
 
     public function clearWhatsappOptOut(): void
     {
-        $this->setOptIn('none');
+        $this->forceFill([
+            'whatsapp_opted_out_at' => null,
+            'whatsapp_opt_out_reason' => null,
+        ])->save();
     }
 }

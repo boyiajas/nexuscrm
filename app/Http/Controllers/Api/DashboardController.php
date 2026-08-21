@@ -309,7 +309,7 @@ class DashboardController extends Controller
                 });
             })
             ->orderByDesc('updated_at')
-            ->take(2000)
+            ->take(500)
             ->get()
             ->map(function ($session) {
                 $departments = $session->client?->departments?->pluck('name')->join(', ') ?: null;

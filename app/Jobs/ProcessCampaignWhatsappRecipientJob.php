@@ -61,7 +61,7 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
             return;
         }
 
-        if (in_array($recipient->status, ['Delivered', 'Delivered (Ecosystem Warning)', 'Suppressed', 'No Lawful Basis', 'No Phone'], true)) {
+        if (in_array($recipient->status, ['Delivered', 'Suppressed', 'No Lawful Basis', 'No Phone'], true)) {
             $batchService->syncMessageProgress($message);
             return;
         }
@@ -173,53 +173,17 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
             $batchService->completeAttempt($attempt, $recipient->fresh(), $status, $providerMessageId);
             $batchService->syncMessageProgress($message->fresh());
         } catch (\Throwable $e) {
-            $errorMsg = $e->getMessage();
-            $isEcosystemWarning = str_contains(strtolower($errorMsg), 'maintain healthy ecosystem engagement')
-                || str_contains($errorMsg, '131049')
-                || str_contains($errorMsg, '131026');
-
-            if ($isEcosystemWarning) {
-                Log::info('WhatsApp send generated ecosystem engagement advisory (message delivered)', [
-                    'campaign_id' => $campaign->id,
-                    'message_id' => $message->id,
-                    'recipient_id' => $recipient->id,
-                    'client_id' => $client?->id,
-                    'advisory' => $errorMsg,
-                ]);
-
-                $recipient->update([
-                    'status' => 'Delivered',
-                    'delivered_at' => $recipient->delivered_at ?: now(),
-                    'error_code' => '131049',
-                    'error_message' => $errorMsg,
-                ]);
-
-                if ($client) {
-                    CampaignClient::where('campaign_id', $campaign->id)
-                        ->where('client_id', $client->id)
-                        ->update([
-                            'whatsapp_status' => 'Delivered',
-                            'whatsapp_sent_at' => $recipient->delivered_at ?: now(),
-                            'updated_at' => now(),
-                        ]);
-                }
-
-                $batchService->completeAttempt($attempt, $recipient->fresh(), 'Delivered', null, '131049', $errorMsg);
-                $batchService->syncMessageProgress($message->fresh());
-                return;
-            }
-
             Log::error('Queued WhatsApp recipient send failed', [
                 'campaign_id' => $campaign->id,
                 'message_id' => $message->id,
                 'recipient_id' => $recipient->id,
                 'client_id' => $client?->id,
-                'error' => $errorMsg,
+                'error' => $e->getMessage(),
             ]);
 
             $recipient->update([
                 'status' => 'Failed',
-                'error_message' => $errorMsg,
+                'error_message' => $e->getMessage(),
             ]);
 
             if ($client) {
@@ -231,7 +195,7 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                     ]);
             }
 
-            $batchService->completeAttempt($attempt, $recipient->fresh(), 'Failed', null, null, $errorMsg);
+            $batchService->completeAttempt($attempt, $recipient->fresh(), 'Failed', null, null, $e->getMessage());
             $batchService->syncMessageProgress($message->fresh());
 
             throw $e;

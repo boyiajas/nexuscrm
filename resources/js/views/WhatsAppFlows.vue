@@ -13,27 +13,13 @@
     </div>
 
     <div class="card shadow-sm border mb-4">
-      <div class="card-header bg-white py-3 px-4 border-bottom d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
-        <div class="d-flex align-items-center gap-2">
-          <h5 class="card-title mb-0">All WhatsApp Flows</h5>
-          <span class="badge bg-secondary">{{ filteredFlows.length }}</span>
-        </div>
-        <div class="input-group input-group-sm" style="max-width: 350px;">
-          <span class="input-group-text bg-light border-end-0">
-            <i class="bi bi-search text-muted"></i>
-          </span>
-          <input
-            v-model="search"
-            type="text"
-            class="form-control border-start-0 ps-0"
-            placeholder="Search flows..."
-            @input="currentPage = 1"
-          />
-        </div>
+      <div class="card-header bg-transparent border-bottom-0 pt-3 pb-2 d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">All WhatsApp Flows</h5>
+        <span class="badge bg-secondary">{{ flows.length }}</span>
       </div>
       <div class="card-body p-0">
         <TableLoadingWrapper :loading="loadingFlows" message="Loading WhatsApp flows..." min-height="220px">
-          <div v-if="filteredFlows.length">
+          <div v-if="flows.length">
             <div class="table-responsive">
               <table class="table table-hover mb-0 align-middle">
                 <thead>
@@ -46,7 +32,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="flow in paginatedFlows" :key="flow.id">
+                  <tr v-for="flow in flows" :key="flow.id">
                     <td class="ps-4 py-3 fw-semibold">{{ flow.name }}</td>
                     <td>
                       <div class="small">
@@ -81,56 +67,9 @@
             </div>
           </div>
           <div v-else-if="!loadingFlows" class="text-center text-muted py-5">
-            No WhatsApp flows found.
+            No WhatsApp flows yet. Create your first flow to get started.
           </div>
         </TableLoadingWrapper>
-      </div>
-
-      <!-- Footer Strip with Rows Per Page & Pagination -->
-      <div class="card-footer bg-white py-3 px-4 d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3 border-top">
-        <div class="d-flex align-items-center gap-3">
-          <small class="text-muted fw-medium">
-            {{ paginationInfo }}
-          </small>
-          <div class="d-flex align-items-center gap-2">
-            <label class="small text-muted fw-medium mb-0">Rows per page:</label>
-            <select
-              v-model.number="perPage"
-              class="form-select form-select-sm border-secondary-subtle"
-              style="width: 85px; font-size: 0.8rem;"
-              @change="currentPage = 1"
-            >
-              <option :value="25">25</option>
-              <option :value="50">50</option>
-              <option :value="100">100</option>
-              <option :value="250">250</option>
-              <option :value="500">500</option>
-              <option :value="1000">1000</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="d-flex align-items-center gap-2">
-          <button
-            class="btn btn-sm btn-light border p-1 px-2"
-            :disabled="currentPage <= 1"
-            @click="currentPage--"
-            title="Previous Page"
-          >
-            <i class="bi bi-chevron-left"></i>
-          </button>
-          <span class="small fw-semibold text-dark px-1">
-            Page {{ currentPage }} of {{ totalPages }}
-          </span>
-          <button
-            class="btn btn-sm btn-light border p-1 px-2"
-            :disabled="currentPage >= totalPages"
-            @click="currentPage++"
-            title="Next Page"
-          >
-            <i class="bi bi-chevron-right"></i>
-          </button>
-        </div>
       </div>
     </div>
 
@@ -528,9 +467,6 @@ export default {
       showModal: false,
       editingFlowId: null,
       diagramFlow: null,
-      search: '',
-      perPage: 25,
-      currentPage: 1,
       flowForm: {
         name: '',
         description: '',
@@ -549,33 +485,6 @@ export default {
     };
   },
   computed: {
-    filteredFlows() {
-      if (!this.search.trim()) {
-        return this.flows;
-      }
-      const q = this.search.toLowerCase().trim();
-      return this.flows.filter((f) =>
-        (f.name && f.name.toLowerCase().includes(q)) ||
-        (f.template_name && f.template_name.toLowerCase().includes(q)) ||
-        (f.template_sid && f.template_sid.toLowerCase().includes(q)) ||
-        (f.status && f.status.toLowerCase().includes(q)) ||
-        (f.description && f.description.toLowerCase().includes(q))
-      );
-    },
-    totalPages() {
-      return Math.ceil(this.filteredFlows.length / this.perPage) || 1;
-    },
-    paginatedFlows() {
-      const start = (this.currentPage - 1) * this.perPage;
-      return this.filteredFlows.slice(start, start + this.perPage);
-    },
-    paginationInfo() {
-      const total = this.filteredFlows.length;
-      if (total === 0) return 'Showing 0 of 0 records';
-      const start = (this.currentPage - 1) * this.perPage + 1;
-      const end = Math.min(this.currentPage * this.perPage, total);
-      return `Showing ${start} to ${end} of ${total} records`;
-    },
     currentUser() {
       try {
         return JSON.parse(localStorage.getItem('nexus_user') || '{}');

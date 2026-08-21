@@ -45,7 +45,6 @@ return new class extends Migration
             ['code' => 'import_clients', 'name' => 'Import Clients (CSV)', 'module' => 'Clients', 'description' => 'Upload bulk client records via CSV files.'],
             ['code' => 'bypass_bank_scoping', 'name' => 'Access All Banks Data', 'module' => 'Clients', 'description' => 'Bypass bank assignment restrictions and view data across all banks.'],
             ['code' => 'portfolio_scoped_only', 'name' => 'Restrict to Assigned Portfolio', 'module' => 'Clients', 'description' => 'Limit data view strictly to clients explicitly assigned to the user.'],
-            ['code' => 'view_all_imported_clients', 'name' => 'View Clients Imported by Other Users', 'module' => 'Clients', 'description' => 'View and select client records imported by any user across all departments and batches.'],
 
             // Campaigns & Communications
             ['code' => 'view_campaigns', 'name' => 'View Campaigns', 'module' => 'Campaigns & Messaging', 'description' => 'View marketing campaigns and campaign delivery metrics.'],

@@ -9,7 +9,6 @@ use App\Models\CampaignWhatsappMessage;
 use App\Models\CampaignWhatsappRecipient;
 use App\Models\ChatSession;
 use App\Models\Client;
-use App\Mail\WhatsAppInboundReplyNotification;
 use App\Services\MetaWhatsAppService;
 use App\Services\WhatsAppBatchService;
 use Carbon\Carbon;
@@ -17,7 +16,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class WhatsAppWebhookController extends Controller
 {
@@ -104,15 +102,6 @@ class WhatsAppWebhookController extends Controller
         }
 
         $mappedStatus = $this->mapStatus($statusName);
-        $errorCode = $status['errors'][0]['code'] ?? null;
-        $errorTitle = $status['errors'][0]['title'] ?? $status['errors'][0]['message'] ?? '';
-
-        $isEcosystemWarning = in_array((string)$errorCode, ['131049', '131026'], true)
-            || str_contains(strtolower((string)$errorTitle), 'maintain healthy ecosystem engagement');
-
-        if ($isEcosystemWarning) {
-            $mappedStatus = 'Delivered';
-        }
 
         $recipient->status = $mappedStatus;
         $recipient->message_sid = $messageId ?: $recipient->message_sid;
@@ -121,12 +110,10 @@ class WhatsAppWebhookController extends Controller
         $recipient->provider_status_payload = $payload;
 
         if ($mappedStatus === 'Delivered') {
-            $recipient->delivered_at = $recipient->delivered_at ?: Carbon::now();
-        }
-
-        if ($errorCode || $errorTitle) {
-            $recipient->error_code = $errorCode ?: $recipient->error_code;
-            $recipient->error_message = $errorTitle ?: $recipient->error_message;
+            $recipient->delivered_at = Carbon::now();
+        } elseif ($mappedStatus === 'Failed') {
+            $recipient->error_code = $status['errors'][0]['code'] ?? $recipient->error_code;
+            $recipient->error_message = $status['errors'][0]['title'] ?? $recipient->error_message;
         }
 
         $recipient->save();
@@ -284,15 +271,9 @@ class WhatsAppWebhookController extends Controller
             }
         }
 
-        if ($client) {
-            if ($isOptOut) {
-                $client->setOptIn('no', strtolower(trim($body)));
-            } else {
-                $client->setOptIn('yes', 'inbound_reply');
-            }
+        if ($client && $isOptOut) {
+            $client->markWhatsappOptOut(strtolower(trim($body)));
         }
-
-        $this->sendInboundReplyNotificationEmail($messageBatch, $client, $recipient, $body, $from);
 
         if (!$shouldOpenLiveChat) {
             Log::info('Meta WhatsApp reply tracked without opening live chat session.', [
@@ -486,8 +467,6 @@ class WhatsAppWebhookController extends Controller
             'unsubscribe',
             'opt out',
             'optout',
-            'opt-out',
-            'opt_out',
             'cancel',
             'end',
             'quit',
@@ -592,48 +571,5 @@ class WhatsAppWebhookController extends Controller
         Cache::put($key, true, now()->addDay());
 
         return false;
-    }
-
-    protected function sendInboundReplyNotificationEmail(?CampaignWhatsappMessage $messageBatch, ?Client $client, ?CampaignWhatsappRecipient $recipient, string $body, string $from): void
-    {
-        try {
-            if ($messageBatch && isset($messageBatch->enable_email_notification) && !$messageBatch->enable_email_notification) {
-                Log::info('WhatsApp inbound reply email notification skipped (disabled for batch).', [
-                    'message_batch_id' => $messageBatch->id,
-                    'from' => $from,
-                ]);
-                return;
-            }
-
-            $targetUser = $messageBatch?->createdBy
-                ?: $messageBatch?->campaign?->user
-                ?: $client?->assignedTo;
-
-            if ($targetUser && $targetUser->email) {
-                Mail::to($targetUser->email)->queue(
-                    new WhatsAppInboundReplyNotification(
-                        $targetUser,
-                        $client,
-                        $recipient,
-                        $messageBatch,
-                        $body,
-                        $from
-                    )
-                );
-
-                Log::info('WhatsApp inbound reply email notification dispatched.', [
-                    'target_user_id' => $targetUser->id,
-                    'target_email'   => $targetUser->email,
-                    'client_id'      => $client?->id,
-                    'from'           => $from,
-                ]);
-            }
-        } catch (\Throwable $e) {
-            Log::error('Failed to dispatch WhatsApp inbound reply email notification.', [
-                'error'     => $e->getMessage(),
-                'client_id' => $client?->id,
-                'from'      => $from,
-            ]);
-        }
     }
 }

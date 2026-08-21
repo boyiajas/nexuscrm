@@ -24,7 +24,7 @@ class ChatController extends Controller
     {
         $user = $this->authorizeView();
 
-        $query = ChatSession::with(['client', 'agent', 'latestMessage'])
+        $query = ChatSession::with('client', 'agent')
             ->orderByDesc('updated_at');
 
         if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
@@ -45,35 +45,12 @@ class ChatController extends Controller
         }
 
         if ($status = $request->get('status')) {
-            if ($status === 'unread') {
-                $query->where('unread_count', '>', 0);
-            } elseif ($status === 'read') {
-                $query->where(function ($q) {
-                    $q->where('unread_count', 0)->orWhereNull('unread_count');
-                });
-            } elseif ($status !== 'all') {
+            if ($status !== 'all') {
                 $query->where('status', $status);
             }
         }
 
-        if ($search = $request->get('search')) {
-            $search = trim($search);
-            $query->where(function ($q) use ($search) {
-                $q->where('client_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('last_message', 'like', "%{$search}%")
-                  ->orWhereHas('client', function ($cq) use ($search) {
-                      $cq->where('name', 'like', "%{$search}%")
-                        ->orWhere('phone', 'like', "%{$search}%")
-                        ->orWhere('account_number', 'like', "%{$search}%")
-                        ->orWhere('id_number', 'like', "%{$search}%");
-                  });
-            });
-        }
-
-        $perPage = min((int) $request->get('per_page', 100), 500);
-
-        return $query->paginate($perPage);
+        return $query->paginate(20);
     }
 
     public function show(ChatSession $session)

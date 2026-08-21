@@ -44,7 +44,7 @@ class ClientController extends Controller
 
         // Department scoping for non-system-admin users
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -92,21 +92,7 @@ class ClientController extends Controller
             }
         }
 
-        if ($optIn = $request->get('opt_in')) {
-            if (!in_array($optIn, ['All', 'all', ''], true)) {
-                $query->where('opt_in', strtolower($optIn));
-            }
-        }
-
-        $batchOptionsQuery = Client::query();
-        $this->applyBankScope($batchOptionsQuery, $user);
-        if ($user && !$user->canManageSystemSettings() && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $batchOptionsQuery->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
-        }
-
-        $batchOptions = $batchOptionsQuery
+        $batchOptions = (clone $query)
             ->whereNotNull('import_batch_number')
             ->where('import_batch_number', '!=', '')
             ->distinct()
@@ -152,8 +138,6 @@ class ClientController extends Controller
                 'created_by_label' => $createdByLabel,
                 'id_number_masked' => $client->maskedIdNumber(),
                 'account_number_masked' => $client->maskedAccountNumber(),
-                'opt_in' => $client->opt_in ?: 'none',
-                'opt_in_updated_at' => optional($client->opt_in_updated_at)->toDateTimeString(),
                 'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
                 'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
                 'whatsapp_can_receive' => $client->canReceiveWhatsapp(),
@@ -199,8 +183,6 @@ class ClientController extends Controller
             'account_number' => $this->shouldMaskSensitiveFields($user) ? $client->maskedAccountNumber() : $client->account_number,
             'id_number_masked' => $client->maskedIdNumber(),
             'account_number_masked' => $client->maskedAccountNumber(),
-            'opt_in' => $client->opt_in ?: 'none',
-            'opt_in_updated_at' => optional($client->opt_in_updated_at)->toDateTimeString(),
             'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
             'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
             'whatsapp_can_receive' => $client->canReceiveWhatsapp(),
@@ -246,7 +228,6 @@ class ClientController extends Controller
             'whatsapp_opt_in_source' => ['nullable', 'string', 'max:255'],
             'whatsapp_opted_out' => ['sometimes', 'boolean'],
             'whatsapp_opt_out_reason' => ['nullable', 'string', 'max:255'],
-            'opt_in' => ['nullable', 'string', Rule::in(['yes', 'no', 'none'])],
             'department_ids' => ['required', 'array', 'min:1'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
             'assigned_to_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -290,10 +271,6 @@ class ClientController extends Controller
                 'assigned_to_id' => $this->resolveAssignedUserId($user, $bankId, $data['assigned_to_id'] ?? null),
                 'tags' => $data['tags'] ?? null,
             ]);
-
-            if (!empty($data['opt_in'])) {
-                $client->setOptIn($data['opt_in'], $data['whatsapp_opt_out_reason'] ?? 'manual');
-            }
 
             // Sync departments
             $client->departments()->sync($data['department_ids']);
@@ -359,7 +336,6 @@ class ClientController extends Controller
             'whatsapp_opt_in_source' => ['nullable', 'string', 'max:255'],
             'whatsapp_opted_out' => ['sometimes', 'boolean'],
             'whatsapp_opt_out_reason' => ['nullable', 'string', 'max:255'],
-            'opt_in' => ['nullable', 'string', Rule::in(['yes', 'no', 'none'])],
             'department_ids' => ['sometimes', 'array'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
             'assigned_to_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -413,10 +389,6 @@ class ClientController extends Controller
                 'tags' => $data['tags'] ?? $client->tags,
             ]);
 
-            if (array_key_exists('opt_in', $data) && !empty($data['opt_in'])) {
-                $client->setOptIn($data['opt_in'], $data['whatsapp_opt_out_reason'] ?? 'manual');
-            }
-
             // Update departments if provided
             if (isset($data['department_ids'])) {
                 $client->departments()->sync($data['department_ids']);
@@ -460,8 +432,9 @@ class ClientController extends Controller
             abort(403, 'You are not allowed to import clients.');
         }
 
+        $maxFileKb = (int) env('IMPORT_MAX_FILE_SIZE_KB', 131072);
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:10240'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx', "max:{$maxFileKb}"],
             'bank_id' => ['nullable', 'integer', 'exists:banks,id'],
             'department_ids' => ['required', 'array', 'min:1'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
@@ -524,6 +497,35 @@ class ClientController extends Controller
             return response()->json([
                 'message' => 'Import failed: the file header is invalid. Expected at least a name column and only supported client fields.',
             ], 422);
+        }
+
+        DB::disableQueryLog();
+
+        $existingAccounts = [];
+        $existingEasyPay = [];
+        $existingEmails = [];
+
+        if ($bankId) {
+            $existingAccounts = Client::query()
+                ->where('bank_id', $bankId)
+                ->whereNotNull('account_number')
+                ->where('account_number', '!=', '')
+                ->pluck('id', 'account_number')
+                ->toArray();
+
+            $existingEasyPay = Client::query()
+                ->where('bank_id', $bankId)
+                ->whereNotNull('easy_pay_number')
+                ->where('easy_pay_number', '!=', '')
+                ->pluck('id', 'easy_pay_number')
+                ->toArray();
+
+            $existingEmails = Client::query()
+                ->where('bank_id', $bankId)
+                ->whereNotNull('email')
+                ->where('email', '!=', '')
+                ->pluck('id', 'email')
+                ->toArray();
         }
 
         DB::beginTransaction();
@@ -635,7 +637,7 @@ class ClientController extends Controller
                 $departmentIds = array_values(array_unique(array_merge($selectedDepartmentIds, $departmentIds)));
 
                 // Create or update client
-                    $clientData = [
+                $clientData = [
                     'bank_id' => $bankId,
                     'name' => $fullName,
                     'title' => $this->cleanImportString($data['title'] ?? null),
@@ -668,29 +670,17 @@ class ClientController extends Controller
                         : [],
                 ];
 
-                $matchAttributes = null;
-                if (!empty($clientData['account_number'])) {
-                    $matchAttributes = [
-                        'bank_id' => $bankId,
-                        'account_number' => $clientData['account_number'],
-                    ];
-                } elseif (!empty($clientData['easy_pay_number'])) {
-                    $matchAttributes = [
-                        'bank_id' => $bankId,
-                        'easy_pay_number' => $clientData['easy_pay_number'],
-                    ];
-                } elseif (!empty($emailValue)) {
-                    $matchAttributes = [
-                        'bank_id' => $bankId,
-                        'email' => $emailValue,
-                    ];
+                $existingId = null;
+                if (!empty($clientData['account_number']) && isset($existingAccounts[$clientData['account_number']])) {
+                    $existingId = $existingAccounts[$clientData['account_number']];
+                } elseif (!empty($clientData['easy_pay_number']) && isset($existingEasyPay[$clientData['easy_pay_number']])) {
+                    $existingId = $existingEasyPay[$clientData['easy_pay_number']];
+                } elseif (!empty($emailValue) && isset($existingEmails[$emailValue])) {
+                    $existingId = $existingEmails[$emailValue];
                 }
 
-                if ($matchAttributes) {
-                    $existing = Client::query()
-                        ->where($matchAttributes)
-                        ->first();
-
+                if ($existingId) {
+                    $existing = Client::find($existingId);
                     if ($existing) {
                         $existing->fill($clientData);
                         $existing->save();
@@ -701,10 +691,21 @@ class ClientController extends Controller
                         $createdCount++;
                     }
                 } else {
-                    $client = Client::create(array_merge($clientData, [
-                        'email' => 'import_' . time() . '_' . $importCount . '@example.com',
-                    ]));
+                    if (empty($clientData['email'])) {
+                        $clientData['email'] = 'import_' . time() . '_' . $importCount . '@example.com';
+                    }
+                    $client = Client::create($clientData);
                     $createdCount++;
+                }
+
+                if (!empty($client->account_number)) {
+                    $existingAccounts[$client->account_number] = $client->id;
+                }
+                if (!empty($client->easy_pay_number)) {
+                    $existingEasyPay[$client->easy_pay_number] = $client->id;
+                }
+                if (!empty($client->email)) {
+                    $existingEmails[$client->email] = $client->id;
                 }
 
                 // Sync departments if we found any
@@ -1445,7 +1446,7 @@ class ClientController extends Controller
 
     protected function applyPortfolioScope($query, $user): void
     {
-        if ($user && $user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
+        if ($user && $user->isPortfolioScoped()) {
             $query->where('assigned_to_id', $user->id);
         }
     }
@@ -1463,7 +1464,7 @@ class ClientController extends Controller
 
     protected function authorizeClientPortfolio($user, Client $client, string $action = 'view'): void
     {
-        if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients() && (int) $client->assigned_to_id !== (int) $user->id) {
+        if ($user->isPortfolioScoped() && (int) $client->assigned_to_id !== (int) $user->id) {
             abort(403, "You are not allowed to {$action} this client.");
         }
     }
@@ -1868,6 +1869,7 @@ class ClientController extends Controller
 
     protected function extendImportExecutionLimits(): void
     {
+        @ini_set('memory_limit', (string) env('IMPORT_MEMORY_LIMIT', '1024M'));
         @ini_set('max_execution_time', '0');
 
         if (function_exists('set_time_limit')) {
@@ -1880,41 +1882,6 @@ class ClientController extends Controller
         if (function_exists('set_time_limit')) {
             @set_time_limit($seconds);
         }
-    }
-
-    public function updateOptIn(Request $request, Client $client)
-    {
-        $user = Auth::user();
-        if (!$user || !$user->canEditClients()) {
-            abort(403, 'You do not have permission to update client opt-in status.');
-        }
-
-        $data = $request->validate([
-            'opt_in' => ['required', 'string', Rule::in(['yes', 'no', 'none'])],
-            'reason' => ['nullable', 'string', 'max:255'],
-        ]);
-
-        $client->setOptIn($data['opt_in'], $data['reason'] ?? 'Manual status update');
-
-        $this->audit(
-            action: "Updated client #{$client->id} Opt-In status to {$data['opt_in']}",
-            module: 'Clients',
-            meta: [
-                'client_id' => $client->id,
-                'opt_in' => $data['opt_in'],
-                'reason' => $data['reason'] ?? null,
-            ]
-        );
-
-        return response()->json([
-            'message' => 'Opt-in status updated successfully',
-            'client' => array_merge($client->toArray(), [
-                'opt_in' => $client->opt_in,
-                'opt_in_updated_at' => optional($client->opt_in_updated_at)->toDateTimeString(),
-                'whatsapp_opted_out_at' => optional($client->whatsapp_opted_out_at)->toDateTimeString(),
-                'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
-            ]),
-        ]);
     }
 
     protected function generateImportBatchNumber(): string

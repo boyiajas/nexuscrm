@@ -356,11 +356,6 @@ class User extends Authenticatable
         return $this->hasPermission('import_clients');
     }
 
-    public function canViewAllImportedClients(): bool
-    {
-        return $this->isSuperAdmin() || $this->isAdmin() || $this->hasPermission('view_all_imported_clients');
-    }
-
     public function canViewOperationalData(): bool
     {
         return $this->hasPermission([
@@ -541,11 +536,11 @@ class User extends Authenticatable
 
     public function isPortfolioScoped(): bool
     {
-        if ($this->canViewAllImportedClients()) {
+        if ($this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN])) {
             return false;
         }
 
-        return $this->hasPermission('portfolio_scoped_only');
+        return in_array('portfolio_scoped_only', $this->permissions(), true);
     }
 
     public function isActive(): bool
