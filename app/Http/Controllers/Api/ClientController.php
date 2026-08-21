@@ -932,6 +932,9 @@ class ClientController extends Controller
         
         DB::beginTransaction();
         try {
+            // Nullify related chat sessions first to satisfy foreign key constraints
+            ChatSession::query()->where('client_id', $clientId)->update(['client_id' => null]);
+
             // Detach from departments first
             $client->departments()->detach();
             
@@ -1062,10 +1065,13 @@ class ClientController extends Controller
             ], 404);
         }
 
+        $clientIds = $clients->pluck('id')->all();
         $deletedCount = 0;
 
         DB::beginTransaction();
         try {
+            ChatSession::whereIn('client_id', $clientIds)->update(['client_id' => null]);
+
             foreach ($clients as $client) {
                 $client->departments()->detach();
                 $client->campaigns()->detach();
@@ -1194,9 +1200,13 @@ class ClientController extends Controller
             ], 404);
         }
 
+        $clientIds = $clients->pluck('id')->all();
         $deletedCount = 0;
+
         DB::beginTransaction();
         try {
+            ChatSession::whereIn('client_id', $clientIds)->update(['client_id' => null]);
+
             foreach ($clients as $client) {
                 $client->departments()->detach();
                 $client->campaigns()->detach();
