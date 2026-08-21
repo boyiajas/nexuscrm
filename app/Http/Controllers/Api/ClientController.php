@@ -97,9 +97,14 @@ class ClientController extends Controller
             if (in_array($optIn, ['opted_in', 'yes', 'Opted In'], true)) {
                 $query->whereNull('whatsapp_opted_out_at')
                       ->where(function ($q) {
+                          $q->whereNull('opt_in')->orWhere('opt_in', '!=', 'no');
+                      })
+                      ->where(function ($q) {
                           $q->where('opt_in', 'yes')
                             ->orWhereNotNull('whatsapp_opted_in_at')
-                            ->orWhereNotNull('whatsapp_contact_basis');
+                            ->orWhere(function ($sub) {
+                                $sub->whereNotNull('whatsapp_contact_basis')->where('whatsapp_contact_basis', '!=', '');
+                            });
                       });
             } elseif (in_array($optIn, ['opted_out', 'no', 'Opted Out'], true)) {
                 $query->where(function ($q) {
@@ -109,10 +114,13 @@ class ClientController extends Controller
             } elseif (in_array($optIn, ['none', 'None'], true)) {
                 $query->whereNull('whatsapp_opted_out_at')
                       ->where(function ($q) {
-                          $q->whereNull('opt_in')->orWhere('opt_in', 'none')->orWhere('opt_in', '');
+                          $q->whereNull('opt_in')
+                            ->orWhereNotIn('opt_in', ['yes', 'no']);
                       })
                       ->whereNull('whatsapp_opted_in_at')
-                      ->whereNull('whatsapp_contact_basis');
+                      ->where(function ($q) {
+                          $q->whereNull('whatsapp_contact_basis')->orWhere('whatsapp_contact_basis', '');
+                      });
             }
         }
 
