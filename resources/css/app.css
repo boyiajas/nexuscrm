@@ -55,11 +55,18 @@
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
 }
 
+html, body {
+  overflow-x: hidden !important;
+  max-width: 100vw !important;
+}
+
 body {
   background-color: var(--bg-canvas) !important;
   color: var(--text-primary) !important;
   font-family: var(--font-sans);
   transition: background-color 0.25s ease, color 0.25s ease;
+  padding-right: 0 !important;
+  margin: 0 !important;
 }
 
 /* Sidebar Specific Mockup Styling */
