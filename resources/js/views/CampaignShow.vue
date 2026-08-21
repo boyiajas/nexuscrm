@@ -1692,6 +1692,8 @@
                                 <option value="client.branch_code">Client Branch Code</option>
                                 <option value="client.outstanding_balance">Client Outstanding Balance</option>
                                 <option value="client.arrears_amount">Client Arrears Amount</option>
+                                <option value="client.settlement_amount">Client Settlement Amount</option>
+                                <option value="client.three_months_amount">Client 3 Months Amount</option>
                                 <option value="client.installment_amount">Client Installment Amount</option>
                                 <option value="campaign.name">Campaign Name</option>
                                 <option value="campaign.status">Campaign Status</option>
