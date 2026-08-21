@@ -49,8 +49,13 @@
           </div>
           <div class="flex-grow-1 overflow-hidden">
             <div class="d-flex justify-content-between align-items-baseline mb-1">
-              <span class="fw-semibold text-truncate">{{ session.client_name }}</span>
-              <small class="text-muted timestamp">{{ session.updated_at ? session.updated_at.split('T')[0] : '' }}</small>
+              <div class="d-flex align-items-center gap-1 overflow-hidden me-1">
+                <span class="fw-semibold text-truncate">{{ session.client_name }}</span>
+                <div v-if="loadingSessionId === session.id" class="spinner-border spinner-border-sm text-primary flex-shrink-0 ms-1" style="width: 0.85rem; height: 0.85rem; border-width: 0.15em;" role="status">
+                  <span class="visually-hidden">Loading...</span>
+                </div>
+              </div>
+              <small class="text-muted timestamp flex-shrink-0">{{ session.updated_at ? session.updated_at.split('T')[0] : '' }}</small>
             </div>
             <div class="d-flex justify-content-between align-items-center">
               <small class="text-muted text-truncate d-block w-100 pe-2">
@@ -177,24 +182,42 @@
 
         <!-- Messages Area -->
         <div class="chat-messages flex-grow-1 overflow-auto p-4" ref="messagesContainer">
-          <div
-            v-for="msg in filteredMessages"
-            :key="msg.id"
-            class="message-wrapper d-flex mb-1"
-            :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
-          >
-            <div class="chat-bubble position-relative shadow-sm" :class="msg.sender === 'agent' ? 'bubble-out' : 'bubble-in'">
-              <div class="message-content">
-                {{ msg.content }}
-              </div>
-              <div class="message-meta d-flex justify-content-end align-items-center mt-1">
-                <small class="timestamp text-muted ms-3">
-                  {{ formatTime(msg.sent_at || msg.created_at) }}
-                </small>
-                <i v-if="msg.sender === 'agent'" class="bi bi-check-all ms-1 text-primary" style="font-size: 1.1em;"></i>
+          <!-- Loading State -->
+          <div v-if="loadingMessages" class="h-100 d-flex flex-column align-items-center justify-content-center py-5">
+            <div class="spinner-border text-primary mb-3" style="width: 2.5rem; height: 2.5rem;" role="status">
+              <span class="visually-hidden">Loading conversation history...</span>
+            </div>
+            <div class="fw-semibold text-secondary mb-1">Loading conversation history...</div>
+            <small class="text-muted">Fetching latest WhatsApp messages for {{ activeSession?.client_name }}</small>
+          </div>
+
+          <!-- Empty State -->
+          <div v-else-if="filteredMessages.length === 0" class="h-100 d-flex flex-column align-items-center justify-content-center text-muted">
+            <i class="bi bi-chat-left-dots fs-1 mb-2 opacity-50"></i>
+            <span>No messages found in this chat history.</span>
+          </div>
+
+          <!-- Messages -->
+          <template v-else>
+            <div
+              v-for="msg in filteredMessages"
+              :key="msg.id"
+              class="message-wrapper d-flex mb-1"
+              :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
+            >
+              <div class="chat-bubble position-relative shadow-sm" :class="msg.sender === 'agent' ? 'bubble-out' : 'bubble-in'">
+                <div class="message-content">
+                  {{ msg.content }}
+                </div>
+                <div class="message-meta d-flex justify-content-end align-items-center mt-1">
+                  <small class="timestamp text-muted ms-3">
+                    {{ formatTime(msg.sent_at || msg.created_at) }}
+                  </small>
+                  <i v-if="msg.sender === 'agent'" class="bi bi-check-all ms-1 text-primary" style="font-size: 1.1em;"></i>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
         </div>
 
         <!-- Composer -->
@@ -208,9 +231,9 @@
               class="form-control rounded-pill border-0 shadow-none py-2 px-4 flex-grow-1 me-3"
               style="background-color: #ffffff;"
               placeholder="Type a message"
-              :disabled="!activeSession || !canManageChat"
+              :disabled="!activeSession || loadingMessages || !canManageChat"
             />
-            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || !newMessage.trim() || !canManageChat">
+            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || loadingMessages || !newMessage.trim() || !canManageChat">
               <i class="bi bi-send-fill" :class="{'text-primary': newMessage.trim()}"></i>
             </button>
           </form>
@@ -367,6 +390,8 @@ export default {
       contactInfoSession: null,
       modalInstance: null,
       showClientInfoModal: false,
+      loadingSessionId: null,
+      loadingMessages: false,
     };
   },
   computed: {
@@ -448,10 +473,21 @@ export default {
       if (event && event.target.closest('.chat-list-dropdown')) {
         return;
       }
+      this.activeSession = session;
+      this.loadingSessionId = session.id;
+      this.loadingMessages = true;
+      this.messages = [];
+
       axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
         this.activeSession = res.data;
         this.messages = res.data.messages || [];
         this.$nextTick(this.scrollToBottom);
+      }).catch((err) => {
+        console.error('Failed to load chat history', err);
+        notify.error('Failed to load chat history.', 'Chat');
+      }).finally(() => {
+        this.loadingSessionId = null;
+        this.loadingMessages = false;
       });
     },
     startPolling() {
@@ -482,8 +518,8 @@ export default {
           });
       }
 
-      // Soft refresh active session messages
-      if (this.activeSession) {
+      // Soft refresh active session messages (only when not loading a new session)
+      if (this.activeSession && !this.loadingMessages) {
         axios.get(`/api/chat/sessions/${this.activeSession.id}`).then((res) => {
           const fetchedMessages = res.data.messages || [];
           if (fetchedMessages.length > this.messages.length) {
