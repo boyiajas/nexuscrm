@@ -228,14 +228,20 @@
     </div>
     
     <!-- Client Info Modal -->
-    <div class="modal fade" id="contactInfoModal" tabindex="-1" ref="contactInfoModal">
+    <div
+      class="modal fade"
+      :class="{ show: showClientInfoModal }"
+      :style="showClientInfoModal ? 'display: block;' : ''"
+      tabindex="-1"
+      ref="contactInfoModal"
+    >
       <div class="modal-dialog modal-md modal-dialog-centered">
         <div class="modal-content shadow border-0">
           <div class="modal-header border-bottom py-3">
             <h5 class="modal-title h6 mb-0 text-dark fw-bold">
               <i class="bi bi-person-vcard text-primary me-2"></i>Client Information
             </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <button type="button" class="btn-close" @click="closeContactInfoModal" aria-label="Close"></button>
           </div>
           <div class="modal-body p-4" v-if="contactInfoSession">
             <div class="d-flex align-items-center mb-3 pb-3 border-bottom">
@@ -335,11 +341,12 @@
             </div>
           </div>
           <div class="modal-footer bg-light py-2">
-            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="closeContactInfoModal">Close</button>
           </div>
         </div>
       </div>
     </div>
+    <div v-if="showClientInfoModal" class="modal-backdrop fade show" @click="closeContactInfoModal"></div>
     
   </div>
 </template>
@@ -347,6 +354,7 @@
 <script>
 import axios from '../axios';
 import { notify } from '../utils/notify';
+import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import './Chat.css';
 
 export default {
@@ -365,6 +373,7 @@ export default {
       searchQuery: '',
       contactInfoSession: null,
       modalInstance: null,
+      showClientInfoModal: false,
     };
   },
   computed: {
@@ -399,6 +408,14 @@ export default {
   },
   beforeUnmount() {
     this.stopPolling();
+    if (this.modalInstance) {
+      try {
+        disposeManagedModal(this.modalInstance);
+      } catch (e) {
+        // ignore
+      }
+      this.modalInstance = null;
+    }
   },
   methods: {
     hasPermission(permCode) {
@@ -607,26 +624,45 @@ export default {
     },
     showContactInfo(session) {
       if (!session) return;
+      const triggerModal = () => {
+        this.showClientInfoModal = true;
+        this.$nextTick(() => {
+          if (this.$refs.contactInfoModal) {
+            try {
+              if (!this.modalInstance) {
+                this.modalInstance = createManagedModal(this.$refs.contactInfoModal);
+              }
+              if (this.modalInstance) {
+                this.modalInstance.show();
+              }
+            } catch (e) {
+              console.warn('Bootstrap modal managed fallback active', e);
+            }
+          }
+        });
+      };
+
       if (session.id) {
         axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
           this.contactInfoSession = res.data;
-          if (!this.modalInstance) {
-            this.modalInstance = new bootstrap.Modal(this.$refs.contactInfoModal);
-          }
-          this.modalInstance.show();
+          triggerModal();
         }).catch(() => {
           this.contactInfoSession = session;
-          if (!this.modalInstance) {
-            this.modalInstance = new bootstrap.Modal(this.$refs.contactInfoModal);
-          }
-          this.modalInstance.show();
+          triggerModal();
         });
       } else {
         this.contactInfoSession = session;
-        if (!this.modalInstance) {
-          this.modalInstance = new bootstrap.Modal(this.$refs.contactInfoModal);
+        triggerModal();
+      }
+    },
+    closeContactInfoModal() {
+      this.showClientInfoModal = false;
+      if (this.modalInstance) {
+        try {
+          this.modalInstance.hide();
+        } catch (e) {
+          // ignore
         }
-        this.modalInstance.show();
       }
     },
     formatCurrency(val) {
