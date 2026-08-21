@@ -58,9 +58,10 @@
               <small class="text-muted timestamp flex-shrink-0">{{ session.updated_at ? session.updated_at.split('T')[0] : '' }}</small>
             </div>
             <div class="d-flex justify-content-between align-items-center">
-              <small class="text-muted text-truncate d-block w-100 pe-2">
-                <i v-if="session.last_message === 'quick reply'" class="bi bi-reply-fill text-muted me-1"></i>
-                {{ session.last_message || 'No messages yet' }}
+              <small class="text-muted text-truncate w-100 pe-2 d-flex align-items-center">
+                <i v-if="isLastMessageFromUser(session)" class="bi bi-check2-all text-primary me-1 flex-shrink-0" style="font-size: 1.05rem;" title="Replied"></i>
+                <i v-else-if="session.last_message === 'quick reply'" class="bi bi-reply-fill text-muted me-1 flex-shrink-0"></i>
+                <span class="text-truncate">{{ session.last_message || 'No messages yet' }}</span>
               </small>
               <div class="d-flex align-items-center gap-2">
                 <span v-if="session.unread_count > 0" class="badge rounded-pill bg-success unread-badge">{{ session.unread_count }}</span>
@@ -444,6 +445,29 @@ export default {
 
       if (Array.isArray(this.currentUser.permission_codes)) {
         return this.currentUser.permission_codes.includes(permCode);
+      }
+
+      return false;
+    },
+    isLastMessageFromUser(session) {
+      if (!session || !session.last_message) return false;
+
+      // 1. Active session with locally loaded messages
+      if (this.activeSession && this.activeSession.id === session.id && this.messages && this.messages.length > 0) {
+        const lastMsg = this.messages[this.messages.length - 1];
+        if (lastMsg) {
+          return lastMsg.sender !== 'client';
+        }
+      }
+
+      // 2. Eager loaded latest_message object
+      if (session.latest_message && session.latest_message.sender) {
+        return session.latest_message.sender !== 'client';
+      }
+
+      // 3. Fallback direct last_sender check
+      if (session.last_sender) {
+        return session.last_sender !== 'client';
       }
 
       return false;

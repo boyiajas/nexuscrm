@@ -24,7 +24,7 @@ class ChatController extends Controller
     {
         $user = $this->authorizeView();
 
-        $query = ChatSession::with('client', 'agent')
+        $query = ChatSession::with(['client', 'agent', 'latestMessage'])
             ->orderByDesc('updated_at');
 
         if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
