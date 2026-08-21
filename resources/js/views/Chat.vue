@@ -228,13 +228,7 @@
     </div>
     
     <!-- Client Info Modal -->
-    <div
-      class="modal fade"
-      :class="{ show: showClientInfoModal }"
-      :style="showClientInfoModal ? 'display: block;' : ''"
-      tabindex="-1"
-      ref="contactInfoModal"
-    >
+    <div class="modal fade" id="contactInfoModal" tabindex="-1" ref="contactInfoModal">
       <div class="modal-dialog modal-md modal-dialog-centered">
         <div class="modal-content shadow border-0">
           <div class="modal-header border-bottom py-3">
@@ -346,7 +340,6 @@
         </div>
       </div>
     </div>
-    <div v-if="showClientInfoModal" class="modal-backdrop fade show" @click="closeContactInfoModal"></div>
     
   </div>
 </template>
@@ -624,19 +617,15 @@ export default {
     },
     showContactInfo(session) {
       if (!session) return;
-      const triggerModal = () => {
-        this.showClientInfoModal = true;
+      const openModal = (data) => {
+        this.contactInfoSession = data;
         this.$nextTick(() => {
           if (this.$refs.contactInfoModal) {
-            try {
-              if (!this.modalInstance) {
-                this.modalInstance = createManagedModal(this.$refs.contactInfoModal);
-              }
-              if (this.modalInstance) {
-                this.modalInstance.show();
-              }
-            } catch (e) {
-              console.warn('Bootstrap modal managed fallback active', e);
+            if (!this.modalInstance) {
+              this.modalInstance = createManagedModal(this.$refs.contactInfoModal);
+            }
+            if (this.modalInstance) {
+              this.modalInstance.show();
             }
           }
         });
@@ -644,25 +633,17 @@ export default {
 
       if (session.id) {
         axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
-          this.contactInfoSession = res.data;
-          triggerModal();
+          openModal(res.data);
         }).catch(() => {
-          this.contactInfoSession = session;
-          triggerModal();
+          openModal(session);
         });
       } else {
-        this.contactInfoSession = session;
-        triggerModal();
+        openModal(session);
       }
     },
     closeContactInfoModal() {
-      this.showClientInfoModal = false;
       if (this.modalInstance) {
-        try {
-          this.modalInstance.hide();
-        } catch (e) {
-          // ignore
-        }
+        this.modalInstance.hide();
       }
     },
     formatCurrency(val) {
