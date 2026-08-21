@@ -437,6 +437,14 @@
                   <input v-model="form.arrears_amount" type="number" step="0.01" class="form-control" />
                 </div>
                 <div class="col-md-4">
+                  <label class="form-label">Settlement Amount</label>
+                  <input v-model="form.settlement_amount" type="number" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">3 Months Amount</label>
+                  <input v-model="form.three_months_amount" type="number" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-6">
                   <label class="form-label">Installment Amount</label>
                   <input v-model="form.installment_amount" type="number" step="0.01" class="form-control" />
                 </div>
@@ -673,9 +681,11 @@
                   <div class="col-md-6 mb-2"><strong>Account Number:</strong> {{ viewClient.account_number_masked || viewClient.account_number || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Branch Code:</strong> {{ viewClient.branch_code || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Easy Pay Number:</strong> {{ viewClient.easy_pay_number || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ viewClient.arrears_amount || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>Outstanding Balance:</strong> {{ viewClient.outstanding_balance || '-' }}</div>
-                  <div class="col-md-6 mb-2"><strong>Installment Amount:</strong> {{ viewClient.installment_amount || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ viewClient.arrears_amount ? 'R' + Number(viewClient.arrears_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.arrears_amount || '-') }}</div>
+                  <div class="col-md-6 mb-2"><strong>Outstanding Balance:</strong> {{ viewClient.outstanding_balance ? 'R' + Number(viewClient.outstanding_balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.outstanding_balance || '-') }}</div>
+                  <div class="col-md-6 mb-2"><strong>Settlement Amount:</strong> {{ viewClient.settlement_amount ? 'R' + Number(viewClient.settlement_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.settlement_amount || '-') }}</div>
+                  <div class="col-md-6 mb-2"><strong>3 Months Amount:</strong> {{ viewClient.three_months_amount ? 'R' + Number(viewClient.three_months_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.three_months_amount || '-') }}</div>
+                  <div class="col-md-6 mb-2"><strong>Installment Amount:</strong> {{ viewClient.installment_amount ? 'R' + Number(viewClient.installment_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.installment_amount || '-') }}</div>
                   <div class="col-md-6 mb-2"><strong>Last Payment Amount:</strong> {{ viewClient.last_payment_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Total Payment Amount:</strong> {{ viewClient.total_payment_amount || '-' }}</div>
                 </div>
@@ -1133,6 +1143,8 @@ export default {
         easy_pay_number: '',
         outstanding_balance: '',
         arrears_amount: '',
+        settlement_amount: '',
+        three_months_amount: '',
         installment_amount: '',
         assigned_to_id: this.canChooseAssignee ? '' : (this.currentUser?.id || ''),
         department_ids: [],
@@ -1175,6 +1187,8 @@ export default {
           easy_pay_number: fullClient.easy_pay_number || '',
           outstanding_balance: fullClient.outstanding_balance || '',
           arrears_amount: fullClient.arrears_amount || '',
+          settlement_amount: fullClient.settlement_amount || '',
+          three_months_amount: fullClient.three_months_amount || '',
           installment_amount: fullClient.installment_amount || '',
           assigned_to_id: fullClient.assigned_to_id || '',
           department_ids: fullClient.departments ? fullClient.departments.map(d => d.id) : [],
