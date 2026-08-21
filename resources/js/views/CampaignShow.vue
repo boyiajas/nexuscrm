@@ -174,6 +174,7 @@
                   <th>Bank</th>
                   <th>Assigned Owner</th>
                   <th>Departments</th>
+                  <th>Opt-In Status</th>
                   <th>WhatsApp</th>
                   <th>Email</th>
                   <th>SMS</th>
@@ -203,6 +204,17 @@
                       </span>
                     </template>
                     <span v-else class="text-muted">-</span>
+                  </td>
+                  <td>
+                    <span v-if="cl.whatsapp_opted_out_at || cl.opt_in === 'no'" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                      <i class="bi bi-x-circle me-1"></i> Opted Out
+                    </span>
+                    <span v-else-if="cl.opt_in === 'yes' || cl.whatsapp_opted_in_at || cl.whatsapp_contact_basis" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                      <i class="bi bi-check-circle me-1"></i> Opted In
+                    </span>
+                    <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                      <i class="bi bi-dash-circle me-1"></i> None
+                    </span>
                   </td>
                   <td>
                     <span class="badge" :class="statusColor(cl.whatsapp_status)">
@@ -703,6 +715,7 @@
                         <th>PHONE NUMBER</th>
                         <th>BANK / CONTEXT</th>
                         <th>DEPARTMENT</th>
+                        <th>OPT-IN</th>
                         <th>STATUS</th>
                         <th class="text-end pe-4">ACTIONS</th>
                       </tr>
@@ -717,6 +730,17 @@
                           </span>
                         </td>
                         <td class="small fw-medium text-dark">{{ r.department_names || (idx % 2 === 0 ? 'Retail Recovery' : 'Auto Finance') }}</td>
+                        <td>
+                          <span v-if="r.opt_in === 'no' || r.whatsapp_opted_out" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size: 0.72rem;">
+                            <i class="bi bi-x-circle me-1"></i> Opted Out
+                          </span>
+                          <span v-else-if="r.opt_in === 'yes' || r.whatsapp_opted_in_at || r.whatsapp_contact_basis" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 0.72rem;">
+                            <i class="bi bi-check-circle me-1"></i> Opted In
+                          </span>
+                          <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1" style="font-size: 0.72rem;">
+                            <i class="bi bi-dash-circle me-1"></i> None
+                          </span>
+                        </td>
                         <td>
                           <span :class="getStatusBadgeClass(r.status)">
                             <i v-if="getStatusBadgeClass(r.status).includes('pending')" class="bi bi-clock-history me-1"></i>
@@ -1317,6 +1341,8 @@
                                 <option value="client.branch_code">Client Branch Code</option>
                                 <option value="client.outstanding_balance">Client Outstanding Balance</option>
                                 <option value="client.arrears_amount">Client Arrears Amount</option>
+                                <option value="client.settlement_amount">Client Settlement Amount</option>
+                                <option value="client.three_months_amount">Client 3 Months Amount</option>
                                 <option value="client.installment_amount">Client Installment Amount</option>
                                 <option value="campaign.name">Campaign Name</option>
                                 <option value="campaign.status">Campaign Status</option>

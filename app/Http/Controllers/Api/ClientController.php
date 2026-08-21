@@ -93,6 +93,29 @@ class ClientController extends Controller
             }
         }
 
+        if ($optIn = $request->get('opt_in')) {
+            if (in_array($optIn, ['opted_in', 'yes', 'Opted In'], true)) {
+                $query->whereNull('whatsapp_opted_out_at')
+                      ->where(function ($q) {
+                          $q->where('opt_in', 'yes')
+                            ->orWhereNotNull('whatsapp_opted_in_at')
+                            ->orWhereNotNull('whatsapp_contact_basis');
+                      });
+            } elseif (in_array($optIn, ['opted_out', 'no', 'Opted Out'], true)) {
+                $query->where(function ($q) {
+                    $q->whereNotNull('whatsapp_opted_out_at')
+                      ->orWhere('opt_in', 'no');
+                });
+            } elseif (in_array($optIn, ['none', 'None'], true)) {
+                $query->whereNull('whatsapp_opted_out_at')
+                      ->where(function ($q) {
+                          $q->whereNull('opt_in')->orWhere('opt_in', 'none')->orWhere('opt_in', '');
+                      })
+                      ->whereNull('whatsapp_opted_in_at')
+                      ->whereNull('whatsapp_contact_basis');
+            }
+        }
+
         $batchOptions = (clone $query)
             ->whereNotNull('import_batch_number')
             ->where('import_batch_number', '!=', '')
@@ -219,6 +242,8 @@ class ClientController extends Controller
             'easy_pay_number' => ['nullable', 'string', 'max:255'],
             'outstanding_balance' => ['nullable', 'numeric'],
             'arrears_amount' => ['nullable', 'numeric'],
+            'settlement_amount' => ['nullable', 'numeric'],
+            'three_months_amount' => ['nullable', 'numeric'],
             'installment_amount' => ['nullable', 'numeric'],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'account_number' => ['nullable', 'string', 'max:255'],
@@ -259,6 +284,8 @@ class ClientController extends Controller
                 'easy_pay_number' => $data['easy_pay_number'] ?? null,
                 'outstanding_balance' => $data['outstanding_balance'] ?? null,
                 'arrears_amount' => $data['arrears_amount'] ?? null,
+                'settlement_amount' => $data['settlement_amount'] ?? null,
+                'three_months_amount' => $data['three_months_amount'] ?? null,
                 'installment_amount' => $data['installment_amount'] ?? null,
                 'bank_name' => $this->resolveBankName($bankId, $data['bank_name'] ?? null),
                 'account_number' => $data['account_number'] ?? null,
@@ -327,6 +354,8 @@ class ClientController extends Controller
             'easy_pay_number' => ['nullable', 'string', 'max:255'],
             'outstanding_balance' => ['nullable', 'numeric'],
             'arrears_amount' => ['nullable', 'numeric'],
+            'settlement_amount' => ['nullable', 'numeric'],
+            'three_months_amount' => ['nullable', 'numeric'],
             'installment_amount' => ['nullable', 'numeric'],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'account_number' => ['nullable', 'string', 'max:255'],
@@ -372,6 +401,8 @@ class ClientController extends Controller
                 'easy_pay_number' => $data['easy_pay_number'] ?? $client->easy_pay_number,
                 'outstanding_balance' => array_key_exists('outstanding_balance', $data) ? $data['outstanding_balance'] : $client->outstanding_balance,
                 'arrears_amount' => array_key_exists('arrears_amount', $data) ? $data['arrears_amount'] : $client->arrears_amount,
+                'settlement_amount' => array_key_exists('settlement_amount', $data) ? $data['settlement_amount'] : $client->settlement_amount,
+                'three_months_amount' => array_key_exists('three_months_amount', $data) ? $data['three_months_amount'] : $client->three_months_amount,
                 'installment_amount' => array_key_exists('installment_amount', $data) ? $data['installment_amount'] : $client->installment_amount,
                 'bank_name' => $this->resolveBankName($bankId, $data['bank_name'] ?? $client->bank_name),
                 'account_number' => $data['account_number'] ?? $client->account_number,
@@ -657,6 +688,8 @@ class ClientController extends Controller
                     'branch_code' => $this->cleanImportString($data['branch_code'] ?? null),
                     'arrears_amount' => $this->parseImportAmount($data['arrears_amount'] ?? null),
                     'outstanding_balance' => $this->parseImportAmount($data['outstanding_balance'] ?? null),
+                    'settlement_amount' => $this->parseImportAmount($data['settlement_amount'] ?? null),
+                    'three_months_amount' => $this->parseImportAmount($data['three_months_amount'] ?? $data['3_months'] ?? null),
                     'installment_amount' => $this->parseImportAmount($data['installment_amount'] ?? null),
                     'last_payment_amount' => $this->parseImportAmount($data['last_payment_amount'] ?? null),
                     'total_payment_amount' => $this->parseImportAmount($data['total_payment_amount'] ?? null),
@@ -1833,6 +1866,16 @@ class ClientController extends Controller
             'outstandingbalance' => 'outstanding_balance',
             'installmentamount' => 'installment_amount',
             'arrearsamount' => 'arrears_amount',
+            'settlement' => 'settlement_amount',
+            'settlementamount' => 'settlement_amount',
+            'settlement_amount' => 'settlement_amount',
+            '3_months' => 'three_months_amount',
+            '3_month' => 'three_months_amount',
+            '3months' => 'three_months_amount',
+            '3month' => 'three_months_amount',
+            'three_months' => 'three_months_amount',
+            'three_month' => 'three_months_amount',
+            'three_months_amount' => 'three_months_amount',
             'lastpaymentamount' => 'last_payment_amount',
             'totalpaymentamount' => 'total_payment_amount',
         ];

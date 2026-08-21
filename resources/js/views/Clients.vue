@@ -65,6 +65,14 @@
                 </optgroup>
               </select>
 
+              <!-- Opt-In Filter -->
+              <select v-model="filters.opt_in" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
+                <option value="">All Opt-Ins</option>
+                <option value="opted_in">Opted In</option>
+                <option value="opted_out">Opted Out</option>
+                <option value="none">None</option>
+              </select>
+
               <!-- Status Filter -->
               <select v-model="filters.status" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
                 <option value="">All Statuses</option>
@@ -128,11 +136,12 @@
                       <input type="checkbox" class="form-check-input" :checked="isAllSelected" @change="toggleSelectAll" />
                     </th>
                     <th class="ps-4">CLIENT NAME</th>
-                    <th>ID / REF</th>
-                    <th>CONTACT</th>
-                    <th>INSTITUTION</th>
-                    <th>STATUS</th>
-                    <th class="text-end pe-4">ACTIONS</th>
+                    <th style="width: 140px;">ID / REF</th>
+                    <th style="width: 180px;">CONTACT</th>
+                    <th style="width: 150px;">INSTITUTION</th>
+                    <th style="width: 130px;">OPT-IN</th>
+                    <th style="width: 110px;">STATUS</th>
+                    <th style="width: 110px;" class="text-end pe-4">ACTIONS</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -154,21 +163,32 @@
                         </div>
                       </div>
                     </td>
-                    <td class="small fw-semibold text-secondary">
+                    <td class="small fw-semibold text-secondary text-nowrap">
                       NX-{{ 8000 + c.id }}-{{ getInitials(c.name) }}
                     </td>
-                    <td>
+                    <td class="text-nowrap">
                       <div class="small text-dark">{{ c.email || c.phone || '-' }}</div>
                     </td>
-                    <td>
+                    <td class="text-nowrap">
                       <div class="small fw-medium text-dark">{{ c.bank_name || 'Standard Bank' }}</div>
                     </td>
-                    <td>
+                    <td class="text-nowrap">
+                      <span v-if="c.whatsapp_opted_out_at || c.opt_in === 'no'" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                        <i class="bi bi-x-circle me-1"></i> Opted Out
+                      </span>
+                      <span v-else-if="c.opt_in === 'yes' || c.whatsapp_opted_in_at || c.whatsapp_contact_basis" class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                        <i class="bi bi-check-circle me-1"></i> Opted In
+                      </span>
+                      <span v-else class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">
+                        <i class="bi bi-dash-circle me-1"></i> None
+                      </span>
+                    </td>
+                    <td class="text-nowrap">
                       <span class="badge" :class="getStatusBadgeClass(c.status || 'Active')">
                         {{ c.status || 'Active' }}
                       </span>
                     </td>
-                    <td class="text-end pe-4">
+                    <td class="text-end pe-4 text-nowrap">
                       <div class="btn-group btn-group-sm" role="group">
                         <button class="btn btn-light text-secondary border-0 p-1 px-2" title="View" @click="openViewModal(c)">
                           <i class="bi bi-eye"></i>
@@ -183,7 +203,7 @@
                     </td>
                   </tr>
                   <tr v-if="!loading && clients.length === 0">
-                    <td :colspan="canManage ? 7 : 6" class="text-center text-muted py-5">
+                    <td :colspan="canManage ? 8 : 7" class="text-center text-muted py-5">
                       No clients found.
                     </td>
                   </tr>
@@ -415,6 +435,14 @@
                 <div class="col-md-4">
                   <label class="form-label">Arrears Amount</label>
                   <input v-model="form.arrears_amount" type="number" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">Settlement Amount</label>
+                  <input v-model="form.settlement_amount" type="number" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">3 Months Amount</label>
+                  <input v-model="form.three_months_amount" type="number" step="0.01" class="form-control" />
                 </div>
                 <div class="col-md-4">
                   <label class="form-label">Installment Amount</label>
@@ -660,6 +688,8 @@
                   <div class="col-md-6 mb-2"><strong>Easy Pay Number:</strong> {{ viewClient.easy_pay_number || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ viewClient.arrears_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Outstanding Balance:</strong> {{ viewClient.outstanding_balance || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Settlement Amount:</strong> {{ viewClient.settlement_amount || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>3 Months Amount:</strong> {{ viewClient.three_months_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Installment Amount:</strong> {{ viewClient.installment_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Last Payment Amount:</strong> {{ viewClient.last_payment_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Total Payment Amount:</strong> {{ viewClient.total_payment_amount || '-' }}</div>
@@ -730,6 +760,7 @@ export default {
         import_batch_number: '',
         bank_id: '',
         status: '',
+        opt_in: '',
       },
       pageSize: 25,
       pageSizeOptions: [25, 50, 100, 200, 300, 500, 1000],
@@ -1020,6 +1051,7 @@ export default {
         import_batch_number: this.filters.import_batch_number || undefined,
         bank_id: this.filters.bank_id || undefined,
         status: this.filters.status || undefined,
+        opt_in: this.filters.opt_in || undefined,
         per_page: this.pageSize,
       };
 
@@ -1056,7 +1088,7 @@ export default {
       this.fetchClients(1);
     },
     resetFilters() {
-      this.filters = { q: '', department: '', import_batch_number: '', bank_id: '', status: '' };
+      this.filters = { q: '', department: '', import_batch_number: '', bank_id: '', status: '', opt_in: '' };
       this.fetchClients(1);
     },
     changePageSize() {
@@ -1084,6 +1116,8 @@ export default {
         easy_pay_number: '',
         outstanding_balance: '',
         arrears_amount: '',
+        settlement_amount: '',
+        three_months_amount: '',
         installment_amount: '',
         assigned_to_id: this.canChooseAssignee ? '' : (this.currentUser?.id || ''),
         department_ids: [],
@@ -1125,6 +1159,8 @@ export default {
           easy_pay_number: fullClient.easy_pay_number || '',
           outstanding_balance: fullClient.outstanding_balance || '',
           arrears_amount: fullClient.arrears_amount || '',
+          settlement_amount: fullClient.settlement_amount || '',
+          three_months_amount: fullClient.three_months_amount || '',
           installment_amount: fullClient.installment_amount || '',
           assigned_to_id: fullClient.assigned_to_id || '',
           department_ids: fullClient.departments ? fullClient.departments.map(d => d.id) : [],
@@ -1545,12 +1581,14 @@ export default {
           import_batch_number: this.filters.import_batch_number || '',
           bank_id: this.filters.bank_id || '',
           status: this.filters.status || '',
+          opt_in: this.filters.opt_in || '',
         },
         summaryRows: [
           { label: 'Search', value: this.filters.q || 'All clients' },
           { label: 'Department', value: this.filters.department || 'All departments' },
           { label: 'Source / Batch', value: this.filters.import_batch_number === 'manual' ? 'Manually Created' : (this.filters.import_batch_number || 'All batches') },
           { label: 'Bank Scope', value: this.selectedBankName || 'Current access scope' },
+          { label: 'Opt-In Status', value: this.filters.opt_in || 'All opt-ins' },
           { label: 'Status', value: this.filters.status || 'All statuses' },
         ],
         fallbackName: 'clients.csv',
