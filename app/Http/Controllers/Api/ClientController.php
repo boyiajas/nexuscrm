@@ -6,6 +6,7 @@ use App\Concerns\GuardsSensitiveExports;
 use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
 use App\Models\Bank;
+use App\Models\ChatSession;
 use App\Models\Client;
 use App\Models\Department;
 use App\Models\ExportRequest;
