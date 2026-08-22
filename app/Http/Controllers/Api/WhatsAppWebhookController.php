@@ -658,10 +658,12 @@ class WhatsAppWebhookController extends Controller
 
             $targetUser = $messageBatch?->createdBy
                 ?: $messageBatch?->campaign?->user
-                ?: $client?->assignedTo;
+                ?: $client?->assignedTo
+                ?: \App\Models\User::where('role', 'admin')->first()
+                ?: \App\Models\User::first();
 
             if ($targetUser && $targetUser->email) {
-                Mail::to($targetUser->email)->queue(
+                Mail::to($targetUser->email)->send(
                     new WhatsAppInboundReplyNotification(
                         $targetUser,
                         $client,

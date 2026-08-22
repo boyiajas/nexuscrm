@@ -14,7 +14,7 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class WhatsAppInboundReplyNotification extends Mailable implements ShouldQueue
+class WhatsAppInboundReplyNotification extends Mailable
 {
     use Queueable, SerializesModels;
 
@@ -38,7 +38,6 @@ class WhatsAppInboundReplyNotification extends Mailable implements ShouldQueue
         public string $clientMessage,
         public string $phone
     ) {
-        $this->onQueue('whatsapp');
         $this->appName = SystemSetting::first()?->app_name ?: 'NexusCRM';
         
         $baseUrl = config('app.url', url('/'));
@@ -55,7 +54,7 @@ class WhatsAppInboundReplyNotification extends Mailable implements ShouldQueue
         $this->bankName = (string) ($client?->bank_name ?: ($messageBatch?->campaign?->bank?->name ?: 'N/A'));
         $this->campaignName = (string) ($messageBatch?->campaign?->name ?: 'N/A');
         $this->templateName = (string) ($messageBatch?->template_name ?: ($messageBatch?->flow_name ?: 'WhatsApp Message'));
-        $this->sentAt = (string) ($recipient?->whatsapp_sent_at?->format('Y-m-d H:i') ?: ($messageBatch?->sent_at?->format('Y-m-d H:i') ?: 'N/A'));
+        $this->sentAt = (string) ($recipient?->delivered_at?->format('Y-m-d H:i') ?: ($recipient?->last_attempted_at?->format('Y-m-d H:i') ?: ($messageBatch?->sent_at?->format('Y-m-d H:i') ?: 'N/A')));
         $this->outboundBody = (string) ($messageBatch?->preview_body ?: 'N/A');
     }
 

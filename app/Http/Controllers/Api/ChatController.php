@@ -12,6 +12,7 @@ use App\Models\CampaignWhatsappRecipient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ChatController extends Controller
 {
