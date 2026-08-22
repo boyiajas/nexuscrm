@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ChatSession;
 use App\Models\ChatMessage;
 use App\Models\Client;
+use App\Models\CampaignWhatsappRecipient;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
