@@ -1,36 +1,36 @@
 <x-mail::message>
 # 💬 New WhatsApp Reply Received!
 
-Hi {{ $targetUser->first_name ?? $targetUser->name }},
+Hi {{ $targetUser->first_name ?? $targetUser->name ?? 'Team' }},
 
-A client has replied to a WhatsApp campaign message on **{{ $appName }}**.
+A client has replied to a WhatsApp campaign message on **{{ $appName ?? 'NexusCRM' }}**.
 
 <x-mail::panel>
 **Client Message:**
-"{{ $clientMessage }}"
+"{{ $clientMessage ?? '' }}"
 </x-mail::panel>
 
 ---
 
 ### 👤 Client Details
-- **Name:** {{ $clientName }}
-- **Phone:** {{ $clientPhone }}
-- **Email:** {{ $clientEmail }}
-- **Account Number:** {{ $accountNumber }}
-- **Bank / Portfolio:** {{ $bankName }}
+- **Name:** {{ $clientName ?? $client?->name ?? 'N/A' }}
+- **Phone:** {{ $clientPhone ?? $phone ?? 'N/A' }}
+- **Email:** {{ $clientEmail ?? $client?->email ?? 'N/A' }}
+- **Account Number:** {{ $accountNumber ?? $client?->account_number ?? 'N/A' }}
+- **Bank / Portfolio:** {{ $bankName ?? 'N/A' }}
 
 ---
 
 ### 📩 WhatsApp Campaign Details
-- **Campaign Name:** {{ $campaignName }}
-- **Template / Flow:** {{ $templateName }}
-- **Sent Date:** {{ $sentAt }}
-- **Original Message Preview:** {{ $outboundBody }}
+- **Campaign Name:** {{ $campaignName ?? 'N/A' }}
+- **Template / Flow:** {{ $templateName ?? 'N/A' }}
+- **Sent Date:** {{ $sentAt ?? 'N/A' }}
+- **Original Message Preview:** {{ $outboundBody ?? 'N/A' }}
 
-<x-mail::button :url="$chatUrl">
+<x-mail::button :url="$chatUrl ?? '#'">
 Open Client Live Chat
 </x-mail::button>
 
 Thanks,<br>
-{{ $appName }}
+{{ $appName ?? 'NexusCRM' }}
 </x-mail::message>

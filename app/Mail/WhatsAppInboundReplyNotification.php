@@ -20,6 +20,15 @@ class WhatsAppInboundReplyNotification extends Mailable implements ShouldQueue
 
     public string $appName;
     public string $chatUrl;
+    public string $clientName;
+    public string $clientPhone;
+    public string $clientEmail;
+    public string $accountNumber;
+    public string $bankName;
+    public string $campaignName;
+    public string $templateName;
+    public string $sentAt;
+    public string $outboundBody;
 
     public function __construct(
         public User $targetUser,
@@ -38,11 +47,21 @@ class WhatsAppInboundReplyNotification extends Mailable implements ShouldQueue
         } else {
             $this->chatUrl = rtrim($baseUrl, '/') . '/chat';
         }
+
+        $this->clientName = (string) ($client?->name ?: 'Unknown Client');
+        $this->clientPhone = (string) ($phone ?: ($client?->phone ?: 'N/A'));
+        $this->clientEmail = (string) ($client?->email ?: 'N/A');
+        $this->accountNumber = (string) ($client?->account_number ?: 'N/A');
+        $this->bankName = (string) ($client?->bank_name ?: ($messageBatch?->campaign?->bank?->name ?: 'N/A'));
+        $this->campaignName = (string) ($messageBatch?->campaign?->name ?: 'N/A');
+        $this->templateName = (string) ($messageBatch?->template_name ?: ($messageBatch?->flow_name ?: 'WhatsApp Message'));
+        $this->sentAt = (string) ($recipient?->whatsapp_sent_at?->format('Y-m-d H:i') ?: ($messageBatch?->sent_at?->format('Y-m-d H:i') ?: 'N/A'));
+        $this->outboundBody = (string) ($messageBatch?->preview_body ?: 'N/A');
     }
 
     public function envelope(): Envelope
     {
-        $clientName = $this->client?->name ?: $this->phone;
+        $clientName = $this->clientName ?: $this->phone;
         return new Envelope(
             subject: "New WhatsApp Reply from {$clientName} - {$this->appName}",
         );
@@ -55,15 +74,15 @@ class WhatsAppInboundReplyNotification extends Mailable implements ShouldQueue
             with: [
                 'appName' => $this->appName,
                 'chatUrl' => $this->chatUrl,
-                'clientName' => $this->client?->name ?: 'Unknown Client',
-                'clientPhone' => $this->phone,
-                'clientEmail' => $this->client?->email ?: 'N/A',
-                'accountNumber' => $this->client?->account_number ?: 'N/A',
-                'bankName' => $this->client?->bank_name ?: ($this->messageBatch?->campaign?->bank?->name ?: 'N/A'),
-                'campaignName' => $this->messageBatch?->campaign?->name ?: 'N/A',
-                'templateName' => $this->messageBatch?->template_name ?: ($this->messageBatch?->flow_name ?: 'WhatsApp Message'),
-                'sentAt' => $this->recipient?->whatsapp_sent_at?->format('Y-m-d H:i') ?: ($this->messageBatch?->sent_at?->format('Y-m-d H:i') ?: 'N/A'),
-                'outboundBody' => $this->messageBatch?->preview_body ?: 'N/A',
+                'clientName' => $this->clientName,
+                'clientPhone' => $this->clientPhone,
+                'clientEmail' => $this->clientEmail,
+                'accountNumber' => $this->accountNumber,
+                'bankName' => $this->bankName,
+                'campaignName' => $this->campaignName,
+                'templateName' => $this->templateName,
+                'sentAt' => $this->sentAt,
+                'outboundBody' => $this->outboundBody,
             ],
         );
     }
