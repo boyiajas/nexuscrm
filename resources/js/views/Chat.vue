@@ -193,15 +193,28 @@
           </div>
 
           <!-- Empty State -->
-          <div v-else-if="filteredMessages.length === 0" class="h-100 d-flex flex-column align-items-center justify-content-center text-muted">
+          <div v-else-if="displayedMessages.length === 0" class="h-100 d-flex flex-column align-items-center justify-content-center text-muted">
             <i class="bi bi-chat-left-dots fs-1 mb-2 opacity-50"></i>
             <span>No messages found in this chat history.</span>
           </div>
 
           <!-- Messages -->
           <template v-else>
+            <!-- Load Previous / View More Button -->
+            <div v-if="hasMoreMessages && !searchQuery" class="text-center mb-3">
+              <button
+                type="button"
+                class="btn btn-sm btn-light border rounded-pill px-3 py-1 shadow-sm text-secondary"
+                style="font-size: 0.825rem; background-color: #ffffff;"
+                @click="loadMoreMessages"
+              >
+                <i class="bi bi-clock-history me-1 text-primary"></i>
+                View More Messages ({{ totalRemainingMessages }} older message{{ totalRemainingMessages === 1 ? '' : 's' }})
+              </button>
+            </div>
+
             <div
-              v-for="msg in filteredMessages"
+              v-for="msg in displayedMessages"
               :key="msg.id"
               class="message-wrapper d-flex mb-1"
               :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
@@ -414,6 +427,7 @@ export default {
       sessions: [],
       activeSession: null,
       messages: [],
+      visibleCount: 20,
       newMessage: '',
       selectedFile: null,
       uploadingFile: false,
@@ -452,6 +466,19 @@ export default {
       if (!this.searchQuery) return this.messages;
       const query = this.searchQuery.toLowerCase();
       return this.messages.filter(msg => msg.content && msg.content.toLowerCase().includes(query));
+    },
+    displayedMessages() {
+      if (this.searchQuery) return this.filteredMessages;
+      if (this.messages.length <= this.visibleCount) return this.messages;
+      return this.messages.slice(this.messages.length - this.visibleCount);
+    },
+    hasMoreMessages() {
+      if (this.searchQuery) return false;
+      return this.messages.length > this.visibleCount;
+    },
+    totalRemainingMessages() {
+      if (this.messages.length <= this.visibleCount) return 0;
+      return this.messages.length - this.visibleCount;
     }
   },
   mounted() {
@@ -536,6 +563,7 @@ export default {
       this.loadingSessionId = session.id;
       this.loadingMessages = true;
       this.messages = [];
+      this.visibleCount = 20;
 
       axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
         this.activeSession = res.data;
@@ -547,6 +575,19 @@ export default {
       }).finally(() => {
         this.loadingSessionId = null;
         this.loadingMessages = false;
+      });
+    },
+    loadMoreMessages() {
+      const container = this.$refs.messagesContainer;
+      const oldScrollHeight = container ? container.scrollHeight : 0;
+      const oldScrollTop = container ? container.scrollTop : 0;
+
+      this.visibleCount += 20;
+
+      this.$nextTick(() => {
+        if (container) {
+          container.scrollTop = container.scrollHeight - oldScrollHeight + oldScrollTop;
+        }
       });
     },
     startPolling() {
@@ -596,6 +637,7 @@ export default {
         axios.get(`/api/chat/sessions/${sessionId}`).then((res) => {
           this.activeSession = res.data;
           this.messages = res.data.messages || [];
+          this.visibleCount = 20;
           this.fetchSessions();
           this.$nextTick(this.scrollToBottom);
         }).catch((err) => {
@@ -614,6 +656,7 @@ export default {
         .then((res) => {
           this.activeSession = res.data;
           this.messages = res.data.messages || [];
+          this.visibleCount = 20;
           this.fetchSessions();
           this.$nextTick(this.scrollToBottom);
         })
