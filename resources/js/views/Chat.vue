@@ -207,6 +207,27 @@
               :class="msg.sender === 'agent' ? 'justify-content-end' : 'justify-content-start'"
             >
               <div class="chat-bubble position-relative shadow-sm" :class="msg.sender === 'agent' ? 'bubble-out' : 'bubble-in'">
+                <!-- Media Attachment Preview -->
+                <div v-if="msg.media_url" class="media-preview mb-2">
+                  <template v-if="msg.media_type === 'image'">
+                    <a :href="msg.media_url" target="_blank" rel="noopener">
+                      <img :src="msg.media_url" class="img-fluid rounded border" style="max-height: 250px; object-fit: cover;" alt="Attachment" />
+                    </a>
+                  </template>
+                  <template v-else-if="msg.media_type === 'video'">
+                    <video :src="msg.media_url" controls class="w-100 rounded border" style="max-height: 250px;"></video>
+                  </template>
+                  <template v-else-if="msg.media_type === 'audio'">
+                    <audio :src="msg.media_url" controls class="w-100 mb-1"></audio>
+                  </template>
+                  <template v-else>
+                    <a :href="msg.media_url" target="_blank" rel="noopener" class="btn btn-sm btn-light border text-start text-dark d-inline-flex align-items-center gap-2">
+                      <i class="bi bi-file-earmark-arrow-down-fill text-primary fs-5"></i>
+                      <span class="text-truncate" style="max-width: 200px;">Download Attachment</span>
+                    </a>
+                  </template>
+                </div>
+
                 <div class="message-content">
                   {{ msg.content }}
                 </div>
@@ -221,21 +242,33 @@
           </template>
         </div>
 
+        <!-- Attachment Preview Banner -->
+        <div v-if="selectedFile" class="px-3 py-2 bg-light border-top border-bottom d-flex align-items-center justify-content-between text-muted small">
+          <span class="text-truncate me-2">
+            <i class="bi bi-paperclip me-1 text-primary"></i>
+            <strong>Attachment:</strong> {{ selectedFile.name }} ({{ formatFileSize(selectedFile.size) }})
+          </span>
+          <button type="button" class="btn-close btn-close-sm" @click="clearSelectedFile" aria-label="Remove file"></button>
+        </div>
+
         <!-- Composer -->
         <div class="chat-composer p-3 border-top">
           <form @submit.prevent="sendMessage" class="d-flex align-items-center">
-            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none"><i class="bi bi-emoji-smile"></i></button>
-            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none"><i class="bi bi-paperclip"></i></button>
+            <input type="file" ref="fileInput" class="d-none" @change="onFileSelected" />
+            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none" @click="triggerFileInput" title="Attach file" :disabled="!activeSession || loadingMessages || !canManageChat">
+              <i class="bi bi-paperclip" :class="{'text-primary': selectedFile}"></i>
+            </button>
             <input
               v-model="newMessage"
               type="text"
               class="form-control rounded-pill border-0 shadow-none py-2 px-4 flex-grow-1 me-3"
               style="background-color: #ffffff;"
-              placeholder="Type a message"
-              :disabled="!activeSession || loadingMessages || !canManageChat"
+              placeholder="Type a message or select an attachment..."
+              :disabled="!activeSession || loadingMessages || !canManageChat || uploadingFile"
             />
-            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || loadingMessages || !newMessage.trim() || !canManageChat">
-              <i class="bi bi-send-fill" :class="{'text-primary': newMessage.trim()}"></i>
+            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || loadingMessages || (!newMessage.trim() && !selectedFile) || !canManageChat || uploadingFile">
+              <span v-if="uploadingFile" class="spinner-border spinner-border-sm text-primary" role="status"></span>
+              <i v-else class="bi bi-send-fill" :class="{'text-primary': newMessage.trim() || selectedFile}"></i>
             </button>
           </form>
         </div>
@@ -382,6 +415,8 @@ export default {
       activeSession: null,
       messages: [],
       newMessage: '',
+      selectedFile: null,
+      uploadingFile: false,
       filterStatus: 'all',
       sidebarSearch: '',
       searchTimeout: null,
@@ -586,22 +621,73 @@ export default {
           console.error('Unable to open chat for client', err);
         });
     },
+    triggerFileInput() {
+      if (this.$refs.fileInput) {
+        this.$refs.fileInput.click();
+      }
+    },
+    onFileSelected(event) {
+      const files = event.target.files;
+      if (files && files.length > 0) {
+        this.selectedFile = files[0];
+      }
+    },
+    clearSelectedFile() {
+      this.selectedFile = null;
+      if (this.$refs.fileInput) {
+        this.$refs.fileInput.value = '';
+      }
+    },
+    formatFileSize(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    },
     sendMessage() {
-      if (!this.canManageChat) return;
+      if (!this.canManageChat || !this.activeSession) return;
 
       const content = this.newMessage.trim();
-      if (!content || !this.activeSession) return;
+      if (!content && !this.selectedFile) return;
 
-      axios
-        .post(`/api/chat/sessions/${this.activeSession.id}/messages`, {
+      this.uploadingFile = true;
+
+      let requestPromise;
+      if (this.selectedFile) {
+        const formData = new FormData();
+        if (content) {
+          formData.append('content', content);
+        }
+        formData.append('file', this.selectedFile);
+        formData.append('is_template', '0');
+
+        requestPromise = axios.post(`/api/chat/sessions/${this.activeSession.id}/messages`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      } else {
+        requestPromise = axios.post(`/api/chat/sessions/${this.activeSession.id}/messages`, {
           content,
           is_template: false,
-        })
+        });
+      }
+
+      requestPromise
         .then((res) => {
           this.messages.push(res.data);
           this.newMessage = '';
+          this.clearSelectedFile();
           this.$nextTick(this.scrollToBottom);
-          this.fetchSessions(); // refresh preview/unread
+          this.fetchSessions();
+        })
+        .catch((err) => {
+          console.error('Failed to send message', err);
+          notify.error(err.response?.data?.message || 'Failed to send message.');
+        })
+        .finally(() => {
+          this.uploadingFile = false;
         });
     },
     scrollToBottom() {

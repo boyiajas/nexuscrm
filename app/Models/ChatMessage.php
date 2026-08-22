@@ -13,6 +13,8 @@ class ChatMessage extends Model
         'chat_session_id',
         'sender',
         'content',
+        'media_url',
+        'media_type',
         'is_template',
         'sent_at',
     ];

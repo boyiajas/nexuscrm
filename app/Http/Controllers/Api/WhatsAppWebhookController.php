@@ -333,6 +333,8 @@ class WhatsAppWebhookController extends Controller
         $session->messages()->create([
             'sender' => 'client',
             'content' => $body,
+            'media_url' => $reply['media_url'] ?? null,
+            'media_type' => $reply['media_type'] ?? null,
             'sent_at' => Carbon::now(),
         ]);
 
@@ -504,7 +506,7 @@ class WhatsAppWebhookController extends Controller
 
     protected function extractInboundReply(array $message): array
     {
-        $messageType = strtolower((string) ($message['type'] ?? ''));
+        $messageType = strtolower((string) ($message['type'] ?? 'text'));
         $interactiveType = strtolower((string) ($message['interactive']['type'] ?? ''));
 
         $textBody = trim((string) ($message['text']['body'] ?? ''));
@@ -514,6 +516,53 @@ class WhatsAppWebhookController extends Controller
         $interactiveButtonId = trim((string) ($message['interactive']['button_reply']['id'] ?? ''));
         $interactiveListTitle = trim((string) ($message['interactive']['list_reply']['title'] ?? ''));
         $interactiveListId = trim((string) ($message['interactive']['list_reply']['id'] ?? ''));
+
+        $mediaUrl = null;
+        $mediaType = null;
+
+        if (in_array($messageType, ['image', 'document', 'audio', 'video', 'sticker'], true)) {
+            $mediaData = $message[$messageType] ?? [];
+            $mediaId = $mediaData['id'] ?? null;
+            $caption = trim((string) ($mediaData['caption'] ?? ''));
+            $filename = trim((string) ($mediaData['filename'] ?? ''));
+            $mediaType = $messageType;
+
+            if ($mediaId) {
+                try {
+                    $downloaded = app(MetaWhatsAppService::class)->downloadMedia($mediaId);
+                    if ($downloaded && !empty($downloaded['content'])) {
+                        $extMap = [
+                            'image/jpeg' => 'jpg',
+                            'image/png' => 'png',
+                            'image/webp' => 'webp',
+                            'audio/ogg' => 'ogg',
+                            'audio/mpeg' => 'mp3',
+                            'video/mp4' => 'mp4',
+                            'application/pdf' => 'pdf',
+                        ];
+                        $ext = $extMap[$downloaded['mime_type']] ?? (pathinfo($filename, PATHINFO_EXTENSION) ?: 'bin');
+                        $localPath = 'whatsapp_media/' . uniqid('wa_') . '.' . $ext;
+                        \Illuminate\Support\Facades\Storage::disk('public')->put($localPath, $downloaded['content']);
+                        $mediaUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($localPath);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Could not download inbound Meta WhatsApp media locally', ['media_id' => $mediaId, 'error' => $e->getMessage()]);
+                }
+            }
+
+            if ($messageType === 'image') {
+                $textBody = $caption !== '' ? "[📷 Image] {$caption}" : '[📷 Image Attachment]';
+            } elseif ($messageType === 'document') {
+                $docLabel = $filename ?: 'Document';
+                $textBody = $caption !== '' ? "[📄 {$docLabel}] {$caption}" : "[📄 {$docLabel}]";
+            } elseif ($messageType === 'audio') {
+                $textBody = '[🎵 Audio Message]';
+            } elseif ($messageType === 'video') {
+                $textBody = $caption !== '' ? "[🎥 Video] {$caption}" : '[🎥 Video Attachment]';
+            } elseif ($messageType === 'sticker') {
+                $textBody = '[🎨 Sticker]';
+            }
+        }
 
         $displayText = collect([
             $interactiveButtonTitle,
@@ -529,6 +578,8 @@ class WhatsAppWebhookController extends Controller
             'display_text' => trim((string) $displayText),
             'message_type' => $messageType,
             'interactive_type' => $interactiveType !== '' ? $interactiveType : null,
+            'media_url' => $mediaUrl,
+            'media_type' => $mediaType,
             'keywords' => array_values(array_filter([
                 $interactiveButtonTitle,
                 $interactiveButtonId,

@@ -482,7 +482,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         }
 
         $senderContext = $this->resolveSenderContext($overrideFrom);
-        $response = $this->post("{$this->phoneNumberId}/messages", [
+        $response = $this->post("{$senderContext['phone_number_id']}/messages", [
             'messaging_product' => 'whatsapp',
             'recipient_type' => 'individual',
             'to' => ltrim($to, '+'),
@@ -503,6 +503,89 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'display_phone_number' => $senderContext['display_phone_number'],
             'raw' => $response,
         ];
+    }
+
+    public function sendMediaWhatsapp(
+        string $toE164,
+        string $mediaType,
+        string $mediaUrl,
+        ?string $caption = null,
+        ?string $filename = null,
+        ?string $overrideFrom = null
+    ): array {
+        $to = self::normalizePhoneNumber($toE164);
+        if (!$to) {
+            throw new \InvalidArgumentException('Invalid recipient number provided.');
+        }
+
+        $senderContext = $this->resolveSenderContext($overrideFrom);
+        $type = strtolower($mediaType);
+
+        $mediaObject = [
+            'link' => $mediaUrl,
+        ];
+
+        if ($caption !== null && trim($caption) !== '') {
+            $mediaObject['caption'] = $caption;
+        }
+
+        if ($filename !== null && trim($filename) !== '' && $type === 'document') {
+            $mediaObject['filename'] = $filename;
+        }
+
+        $payload = [
+            'messaging_product' => 'whatsapp',
+            'recipient_type' => 'individual',
+            'to' => ltrim($to, '+'),
+            'type' => $type,
+            $type => $mediaObject,
+        ];
+
+        $response = $this->post("{$senderContext['phone_number_id']}/messages", $payload);
+        $messageId = $response['messages'][0]['id'] ?? null;
+
+        return [
+            'sid' => $messageId,
+            'message_id' => $messageId,
+            'status' => 'accepted',
+            'phone_number_id' => $senderContext['phone_number_id'],
+            'display_phone_number' => $senderContext['display_phone_number'],
+            'raw' => $response,
+        ];
+    }
+
+    public function downloadMedia(string $mediaId): ?array
+    {
+        try {
+            $metaResponse = Http::withToken($this->accessToken)->get("{$this->baseUrl}/{$mediaId}");
+            if (!$metaResponse->successful()) {
+                Log::warning('Meta media metadata request failed', ['media_id' => $mediaId, 'status' => $metaResponse->status()]);
+                return null;
+            }
+
+            $mediaUrl = $metaResponse->json('url');
+            $mimeType = $metaResponse->json('mime_type');
+            if (!$mediaUrl) {
+                return null;
+            }
+
+            $fileResponse = Http::withToken($this->accessToken)->get($mediaUrl);
+            if (!$fileResponse->successful()) {
+                Log::warning('Meta media file download request failed', ['media_url' => $mediaUrl, 'status' => $fileResponse->status()]);
+                return null;
+            }
+
+            return [
+                'content' => $fileResponse->body(),
+                'mime_type' => $mimeType ?: 'application/octet-stream',
+            ];
+        } catch (\Throwable $e) {
+            Log::error('Failed downloading WhatsApp media by ID', [
+                'media_id' => $mediaId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     public function getWhatsAppTemplates(bool $onlyApproved = true, int $pageSize = 50): array

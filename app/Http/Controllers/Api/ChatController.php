@@ -96,31 +96,76 @@ class ChatController extends Controller
     public function storeMessage(Request $request, ChatSession $session)
     {
         $this->authorizeManage();
+        $this->authorizeSessionScope(Auth::user(), $session);
 
         $data = $request->validate([
-            'content'     => ['required', 'string'],
+            'content'     => ['nullable', 'string'],
+            'file'        => ['nullable', 'file', 'max:25600'],
             'is_template' => ['sometimes', 'boolean'],
         ]);
+
+        if (!$request->filled('content') && !$request->hasFile('file')) {
+            return response()->json(['message' => 'Either text content or a file attachment is required.'], 422);
+        }
 
         if ($session->platform === 'whatsapp') {
             $this->enforceMetaPermissionHealthForProduction('Live chat WhatsApp sending');
         }
 
+        $mediaUrl = null;
+        $mediaType = null;
+        $originalFilename = null;
+
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $originalFilename = $file->getClientOriginalName();
+            $mime = $file->getClientMimeType() ?: 'application/octet-stream';
+            
+            if (str_starts_with($mime, 'image/')) {
+                $mediaType = 'image';
+            } elseif (str_starts_with($mime, 'video/')) {
+                $mediaType = 'video';
+            } elseif (str_starts_with($mime, 'audio/')) {
+                $mediaType = 'audio';
+            } else {
+                $mediaType = 'document';
+            }
+
+            $path = $file->store('chat_attachments', 'public');
+            $mediaUrl = Storage::disk('public')->url($path);
+        }
+
+        $content = trim((string) ($data['content'] ?? ''));
+        if ($content === '' && $mediaUrl) {
+            $content = match ($mediaType) {
+                'image' => '[📷 Image Attachment]',
+                'video' => '[🎥 Video Attachment]',
+                'audio' => '[🎵 Audio Attachment]',
+                default => "[📄 {$originalFilename}]",
+            };
+        }
+
         $message = $session->messages()->create([
-            'sender'      => 'agent', // future: use 'system' or 'user' as needed
-            'content'     => $data['content'],
+            'sender'      => 'agent',
+            'content'     => $content,
+            'media_url'   => $mediaUrl,
+            'media_type'  => $mediaType,
             'is_template' => $data['is_template'] ?? false,
             'sent_at'     => now(),
         ]);
 
         $session->update([
-            'last_message' => $data['content'],
+            'last_message' => $content,
             'updated_at'   => now(),
         ]);
 
         // Try sending outbound WhatsApp for live chat sessions
         if ($session->platform === 'whatsapp') {
-            $this->sendWhatsappReply($session, $data['content']);
+            if ($mediaUrl) {
+                $this->sendWhatsappMediaReply($session, $mediaType, $mediaUrl, $data['content'] ?? null, $originalFilename);
+            } else {
+                $this->sendWhatsappReply($session, $content);
+            }
         }
 
         return response()->json($message, 201);
@@ -219,61 +264,46 @@ class ChatController extends Controller
             return $session;
         }
 
-        $chatMessages = $session->messages;
+        $client = $session->client;
+        if (!$client) {
+            return $session;
+        }
 
-        $batchService = app(\App\Services\WhatsAppBatchService::class);
-        $campaignMessages = \App\Models\CampaignWhatsappRecipient::with(['message.campaign', 'message.autoReplies', 'client'])
-            ->where('client_id', $session->client_id)
+        $recipients = CampaignWhatsappRecipient::where('client_id', $client->id)
+            ->with(['message', 'message.campaign'])
+            ->whereNotNull('whatsapp_sent_at')
+            ->orderBy('whatsapp_sent_at')
             ->get();
 
-        $mappedCampaignMessages = $campaignMessages->map(function ($recipient) use ($session, $batchService) {
-            $content = $recipient->message ? $recipient->message->preview_body : 'Campaign Message';
-            $sentAt = $recipient->delivered_at ?? $recipient->queued_at ?? $recipient->created_at;
+        $campaignMessages = collect();
 
-            if ($recipient->message && $recipient->client && $recipient->message->campaign) {
-                $values = $batchService->resolveTemplateVariableValues(
-                    $recipient->message->template_variables ?? [],
-                    $recipient->client,
-                    $recipient->message->campaign
-                );
+        foreach ($recipients as $recipient) {
+            $batch = $recipient->message;
+            if (!$batch) continue;
 
-                foreach ($values as $key => $val) {
-                    if (str_starts_with($key, 'body_')) {
-                        $index = str_replace('body_', '', $key);
-                        $content = str_replace('{{' . $index . '}}', $val, $content);
-                    }
-                }
-            }
+            $sentAt = $recipient->whatsapp_sent_at ?: $batch->sent_at;
+            $body = $batch->preview_body ?: "Template: " . ($batch->template_name ?: 'Campaign Message');
+            $campaignName = $batch->campaign?->name ?: 'WhatsApp Campaign';
 
-            $buttons = [];
-            if ($recipient->message && $recipient->message->autoReplies && $recipient->message->autoReplies->isNotEmpty()) {
-                foreach ($recipient->message->autoReplies as $reply) {
-                    $buttons[] = "🔘 " . $reply->trigger_keyword;
-                }
-            }
-
-            if (!empty($buttons)) {
-                $content .= "\n\n" . implode("  ", $buttons);
-            }
-
-            $msg = new ChatMessage([
+            $campaignMessages->push([
+                'id' => 'campaign_' . $recipient->id,
                 'chat_session_id' => $session->id,
                 'sender' => 'agent',
-                'content' => "📄 [Template Sent]\n" . $content,
+                'content' => "📢 [Campaign: {$campaignName}]\n{$body}",
                 'is_template' => true,
+                'sent_at' => $sentAt ? $sentAt->toIso8601String() : null,
+                'created_at' => $sentAt ? $sentAt->toIso8601String() : null,
+                'updated_at' => $sentAt ? $sentAt->toIso8601String() : null,
             ]);
-            
-            // Force the ID and timestamps
-            $msg->setAttribute('id', 'camp_' . $recipient->id);
-            $msg->setAttribute('sent_at', $sentAt);
-            $msg->setAttribute('created_at', $recipient->created_at);
+        }
 
-            return $msg;
-        });
+        $merged = collect($session->messages)->map(function ($msg) {
+            return is_array($msg) ? $msg : $msg->toArray();
+        })->concat($campaignMessages)->sortBy(function ($msg) {
+            return $msg['sent_at'] ?? $msg['created_at'] ?? '';
+        })->values();
 
-        $allMessages = $chatMessages->concat($mappedCampaignMessages)->sortBy('sent_at')->values();
-
-        $session->setRelation('messages', $allMessages);
+        $session->setRelation('messages', $merged);
 
         return $session;
     }
@@ -345,6 +375,43 @@ class ChatController extends Controller
             $this->whatsApp->sendPlainWhatsapp($to, $body, $overrideFrom);
         } catch (\Throwable $e) {
             Log::error('Failed to send WhatsApp chat reply', [
+                'session_id' => $session->id,
+                'to'         => $to,
+                'error'      => $e->getMessage(),
+            ]);
+        }
+    }
+
+    protected function sendWhatsappMediaReply(ChatSession $session, string $mediaType, string $mediaUrl, ?string $caption = null, ?string $filename = null): void
+    {
+        $client = $session->client;
+        $to = $client?->phone ?: $session->phone;
+        if (!$to) {
+            Log::warning('Chat WhatsApp media reply skipped: no phone on session', ['session_id' => $session->id]);
+            return;
+        }
+
+        try {
+            Log::info('Chat WhatsApp media reply attempt', [
+                'session_id' => $session->id,
+                'client_id' => $session->client_id,
+                'to' => $to,
+                'media_type' => $mediaType,
+                'media_url' => $mediaUrl,
+            ]);
+
+            $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
+                ? $this->whatsApp->resolveSenderForClient($client)
+                : null;
+            $overrideFrom = $senderContext['display_phone_number'] ?? null;
+
+            if (method_exists($this->whatsApp, 'sendMediaWhatsapp')) {
+                $this->whatsApp->sendMediaWhatsapp($to, $mediaType, $mediaUrl, $caption, $filename, $overrideFrom);
+            } else {
+                $this->whatsApp->sendPlainWhatsapp($to, $caption ?: "[Attachment: {$mediaUrl}]", $overrideFrom);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Failed to send WhatsApp chat media reply', [
                 'session_id' => $session->id,
                 'to'         => $to,
                 'error'      => $e->getMessage(),
