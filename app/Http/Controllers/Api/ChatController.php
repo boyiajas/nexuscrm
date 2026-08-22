@@ -322,7 +322,8 @@ class ChatController extends Controller
 
     protected function sendWhatsappReply(ChatSession $session, string $body): void
     {
-        $to = $session->client?->phone ?: $session->phone;
+        $client = $session->client;
+        $to = $client?->phone ?: $session->phone;
         if (!$to) {
             Log::warning('Chat WhatsApp reply skipped: no phone on session', ['session_id' => $session->id]);
             return;
@@ -335,7 +336,13 @@ class ChatController extends Controller
                 'to' => $to,
                 'body_length' => mb_strlen($body),
             ]);
-            $this->whatsApp->sendPlainWhatsapp($to, $body);
+
+            $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
+                ? $this->whatsApp->resolveSenderForClient($client)
+                : null;
+            $overrideFrom = $senderContext['display_phone_number'] ?? null;
+
+            $this->whatsApp->sendPlainWhatsapp($to, $body, $overrideFrom);
         } catch (\Throwable $e) {
             Log::error('Failed to send WhatsApp chat reply', [
                 'session_id' => $session->id,

@@ -16,6 +16,7 @@ class Department extends Model
         'description',
         'primary_whatsapp_number',
         'secondary_whatsapp_numbers',
+        'whatsapp_account_id',
     ];
 
     protected $casts = [

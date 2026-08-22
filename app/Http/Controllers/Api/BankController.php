@@ -41,7 +41,7 @@ class BankController extends Controller
         $perPage = max(1, min($perPage, 200));
 
         return response()->json(
-            $query->paginate($perPage, ['id', 'name', 'code', 'status', 'created_at', 'updated_at'])
+            $query->paginate($perPage, ['id', 'name', 'code', 'status', 'primary_whatsapp_number', 'secondary_whatsapp_numbers', 'whatsapp_account_id', 'created_at', 'updated_at'])
         );
     }
 
@@ -53,6 +53,9 @@ class BankController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:banks,name'],
             'code' => ['required', 'string', 'max:255', 'unique:banks,code'],
             'status' => ['required', 'string', 'in:Active,Inactive'],
+            'primary_whatsapp_number' => ['nullable', 'string', 'max:50'],
+            'secondary_whatsapp_numbers' => ['nullable', 'array'],
+            'whatsapp_account_id' => ['nullable', 'integer'],
             'department_ids' => ['nullable', 'array'],
             'department_ids.*' => ['exists:departments,id'],
         ]);
@@ -82,6 +85,9 @@ class BankController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:banks,name,' . $bank->id],
             'code' => ['required', 'string', 'max:255', 'unique:banks,code,' . $bank->id],
             'status' => ['required', 'string', 'in:Active,Inactive'],
+            'primary_whatsapp_number' => ['nullable', 'string', 'max:50'],
+            'secondary_whatsapp_numbers' => ['nullable', 'array'],
+            'whatsapp_account_id' => ['nullable', 'integer'],
             'department_ids' => ['nullable', 'array'],
             'department_ids.*' => ['exists:departments,id'],
         ]);

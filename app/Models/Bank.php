@@ -13,6 +13,13 @@ class Bank extends Model
         'name',
         'code',
         'status',
+        'primary_whatsapp_number',
+        'secondary_whatsapp_numbers',
+        'whatsapp_account_id',
+    ];
+
+    protected $casts = [
+        'secondary_whatsapp_numbers' => 'array',
     ];
 
     public function departments()

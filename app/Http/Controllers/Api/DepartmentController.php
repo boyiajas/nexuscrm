@@ -37,6 +37,7 @@ class DepartmentController extends Controller
             'primary_whatsapp_number' => ['nullable', 'string'],
             'secondary_whatsapp_numbers' => ['nullable', 'array'],
             'secondary_whatsapp_numbers.*' => ['string'],
+            'whatsapp_account_id' => ['nullable', 'integer'],
         ]);
 
         if (empty($data['primary_whatsapp_number'])) {
@@ -69,6 +70,7 @@ class DepartmentController extends Controller
             'primary_whatsapp_number' => ['nullable', 'string'],
             'secondary_whatsapp_numbers' => ['nullable', 'array'],
             'secondary_whatsapp_numbers.*' => ['string'],
+            'whatsapp_account_id' => ['nullable', 'integer'],
         ]);
 
         if (array_key_exists('primary_whatsapp_number', $data) && empty($data['primary_whatsapp_number'])) {

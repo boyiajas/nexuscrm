@@ -45,136 +45,155 @@
               <thead>
                 <tr>
                   <th class="ps-4">Name</th>
-                <th>Code</th>
-                <th>Departments</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th style="width: 120px;" class="text-end pe-4">Actions</th>
-              </tr>
-            </thead>
+                  <th>Code</th>
+                  <th>WhatsApp Number</th>
+                  <th>Departments</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th style="width: 120px;" class="text-end pe-4">Actions</th>
+                </tr>
+              </thead>
 
-            <tbody>
-              <tr v-for="bank in banks" :key="bank.id">
-                <td class="ps-4 py-1">{{ bank.name }}</td>
-                <td><code>{{ bank.code }}</code></td>
-                <td>
-                  <span v-if="!bank.departments || bank.departments.length === 0" class="text-muted small">None</span>
-                  <div v-else class="d-flex gap-1 flex-wrap">
-                    <span v-for="d in bank.departments" :key="d.id" class="badge bg-light text-dark border">
-                      {{ d.name }}
+              <tbody>
+                <tr v-for="bank in banks" :key="bank.id">
+                  <td class="ps-4 py-1">{{ bank.name }}</td>
+                  <td><code>{{ bank.code }}</code></td>
+                  <td>
+                    <span v-if="bank.primary_whatsapp_number" class="badge bg-info-subtle text-info border">
+                      <i class="bi bi-whatsapp me-1"></i>{{ bank.primary_whatsapp_number }}
                     </span>
-                  </div>
-                </td>
-                <td>
-                  <span class="badge" :class="bank.status === 'Active' ? 'bg-success' : 'bg-secondary'">
-                    {{ bank.status }}
-                  </span>
-                </td>
-                <td>{{ formatDate(bank.created_at) }}</td>
-                <td class="text-end pe-4">
-                  <div class="btn-group btn-group-sm" role="group">
-                    <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(bank)">
-                      <i class="bi bi-pencil-square"></i>
-                    </button>
-                    <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(bank)">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
+                    <span v-else class="text-muted small">Default</span>
+                  </td>
+                  <td>
+                    <span v-if="!bank.departments || bank.departments.length === 0" class="text-muted small">None</span>
+                    <div v-else class="d-flex gap-1 flex-wrap">
+                      <span v-for="d in bank.departments" :key="d.id" class="badge bg-light text-dark border">
+                        {{ d.name }}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge" :class="bank.status === 'Active' ? 'bg-success' : 'bg-secondary'">
+                      {{ bank.status }}
+                    </span>
+                  </td>
+                  <td>{{ formatDate(bank.created_at) }}</td>
+                  <td class="text-end pe-4">
+                    <div class="btn-group btn-group-sm" role="group">
+                      <button class="btn btn-light text-secondary border-0 p-1 px-2" title="Edit" @click="openEditModal(bank)">
+                        <i class="bi bi-pencil-square"></i>
+                      </button>
+                      <button class="btn btn-light text-danger border-0 p-1 px-2" title="Delete" @click="remove(bank)">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
 
-              <tr v-if="!loading && banks.length === 0">
-                <td colspan="6" class="text-center text-muted py-5">
-                  No banks found.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          </div>
-        </TableLoadingWrapper>
-      </div>
-
-      <div class="card-footer d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center gap-3">
-          <small class="text-muted">
-            Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
-            of {{ pagination.total || 0 }}
-          </small>
-          <div class="d-flex align-items-center gap-2">
-            <small class="text-muted">Rows:</small>
-            <select class="form-select form-select-sm w-auto" v-model="perPage" @change="fetchBanks(1)">
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="250">250</option>
-              <option value="500">500</option>
-              <option value="1000">1000</option>
-            </select>
-          </div>
+                <tr v-if="!loading && banks.length === 0">
+                  <td colspan="7" class="text-center text-muted py-5">
+                    No banks found.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            </div>
+          </TableLoadingWrapper>
         </div>
 
-        <ul class="pagination mb-0 pagination-sm">
-          <li class="page-item" :class="{ disabled: !pagination.prevPage }">
-            <button class="page-link" @click="goToPage(pagination.prevPage)">«</button>
-          </li>
-
-          <li
-            v-for="p in pagination.pages"
-            :key="p"
-            class="page-item"
-            :class="{ active: p === pagination.currentPage }"
-          >
-            <button class="page-link" @click="goToPage(p)">{{ p }}</button>
-          </li>
-
-          <li class="page-item" :class="{ disabled: !pagination.nextPage }">
-            <button class="page-link" @click="goToPage(pagination.nextPage)">»</button>
-          </li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="modal fade" tabindex="-1" ref="modalRef">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">{{ isEdit ? 'Edit Bank' : 'Add Bank' }}</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <div class="card-footer d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center gap-3">
+            <small class="text-muted">
+              Showing {{ pagination.from || 0 }}–{{ pagination.to || 0 }}
+              of {{ pagination.total || 0 }}
+            </small>
+            <div class="d-flex align-items-center gap-2">
+              <small class="text-muted">Rows:</small>
+              <select class="form-select form-select-sm w-auto" v-model="perPage" @change="fetchBanks(1)">
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="250">250</option>
+                <option value="500">500</option>
+                <option value="1000">1000</option>
+              </select>
+            </div>
           </div>
 
-          <div class="modal-body">
-            <form @submit.prevent="save">
-              <div class="mb-3">
-                <label class="form-label">Bank Name</label>
-                <input v-model="form.name" type="text" class="form-control" required />
-              </div>
+          <ul class="pagination mb-0 pagination-sm">
+            <li class="page-item" :class="{ disabled: !pagination.prevPage }">
+              <button class="page-link" @click="goToPage(pagination.prevPage)">«</button>
+            </li>
 
-              <div class="mb-3">
-                <label class="form-label">Code</label>
-                <input v-model="form.code" type="text" class="form-control" required />
-                <small class="text-muted">Use a unique short code or slug.</small>
-              </div>
+            <li
+              v-for="p in pagination.pages"
+              :key="p"
+              class="page-item"
+              :class="{ active: p === pagination.currentPage }"
+            >
+              <button class="page-link" @click="goToPage(p)">{{ p }}</button>
+            </li>
 
-              <div class="mb-3">
-                <label class="form-label">Departments</label>
-                <VueMultiselect
-                  v-model="form.department_ids"
-                  :options="departments.map(d => d.id)"
-                  :custom-label="(id) => (departments.find(d => d.id === id) || {}).name || id"
-                  :multiple="true"
-                  :close-on-select="false"
-                  :clear-on-select="false"
-                  placeholder="Select departments"
-                />
-              </div>
+            <li class="page-item" :class="{ disabled: !pagination.nextPage }">
+              <button class="page-link" @click="goToPage(pagination.nextPage)">»</button>
+            </li>
+          </ul>
+        </div>
+      </div>
 
-              <div class="mb-3">
-                <label class="form-label">Status</label>
-                <select v-model="form.status" class="form-select">
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
+      <div class="modal fade" tabindex="-1" ref="modalRef">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">{{ isEdit ? 'Edit Bank' : 'Add Bank' }}</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+              <form @submit.prevent="save">
+                <div class="mb-3">
+                  <label class="form-label">Bank Name</label>
+                  <input v-model="form.name" type="text" class="form-control" required />
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Code</label>
+                  <input v-model="form.code" type="text" class="form-control" required />
+                  <small class="text-muted">Use a unique short code or slug.</small>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Primary WhatsApp Profile Number</label>
+                  <select v-model="form.primary_whatsapp_number" class="form-select mb-1" v-if="senders.length > 0">
+                    <option value="">-- Use Department / System Default --</option>
+                    <option v-for="s in senders" :key="s.number" :value="s.number">
+                      {{ s.number }} <span v-if="s.label">({{ s.label }})</span>
+                    </option>
+                  </select>
+                  <input v-else v-model="form.primary_whatsapp_number" type="text" class="form-control" placeholder="+27..." />
+                  <small class="text-muted">Bank-specific WhatsApp profile phone number (overrides Department and System Default).</small>
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Departments</label>
+                  <VueMultiselect
+                    v-model="form.department_ids"
+                    :options="departments.map(d => d.id)"
+                    :custom-label="(id) => (departments.find(d => d.id === id) || {}).name || id"
+                    :multiple="true"
+                    :close-on-select="false"
+                    :clear-on-select="false"
+                    placeholder="Select departments"
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label class="form-label">Status</label>
+                  <select v-model="form.status" class="form-select">
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
 
               <div class="text-end">
                 <button type="button" class="btn btn-outline-secondary me-2" data-bs-dismiss="modal">
@@ -211,6 +230,7 @@ export default {
     return {
       banks: [],
       departments: [],
+      senders: [],
       loading: false,
       filters: {
         search: '',
@@ -232,6 +252,7 @@ export default {
         name: '',
         code: '',
         status: 'Active',
+        primary_whatsapp_number: '',
         department_ids: [],
       },
       isEdit: false,
@@ -242,11 +263,19 @@ export default {
     this.modal = createManagedModal(this.$refs.modalRef);
     this.fetchBanks();
     this.fetchDepartments();
+    this.fetchSenders();
   },
   beforeUnmount() {
     disposeManagedModal(this.modal);
   },
   methods: {
+    fetchSenders() {
+      axios.get('/api/whatsapp/senders').then((res) => {
+        this.senders = res.data || [];
+      }).catch(() => {
+        this.senders = [];
+      });
+    },
     fetchDepartments() {
       axios.get('/api/departments', { params: { per_page: 100 } })
         .then((res) => {
@@ -304,7 +333,7 @@ export default {
     },
     openCreateModal() {
       this.isEdit = false;
-      this.form = { id: null, name: '', code: '', status: 'Active', department_ids: [] };
+      this.form = { id: null, name: '', code: '', status: 'Active', primary_whatsapp_number: '', department_ids: [] };
       this.modal.show();
     },
     openEditModal(bank) {
@@ -314,6 +343,7 @@ export default {
         name: bank.name,
         code: bank.code,
         status: bank.status || 'Active',
+        primary_whatsapp_number: bank.primary_whatsapp_number || '',
         department_ids: (bank.departments || []).map(d => d.id),
       };
       this.modal.show();

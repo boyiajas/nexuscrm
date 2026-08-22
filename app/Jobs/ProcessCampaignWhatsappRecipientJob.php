@@ -97,12 +97,14 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
             return;
         }
 
-        $senderContext = method_exists($whatsApp, 'resolveSenderContext')
-            ? $whatsApp->resolveSenderContext($message->provider_display_phone_number ?: $campaign->whatsapp_from)
-            : [
-                'phone_number_id' => $message->provider_phone_number_id,
-                'display_phone_number' => $message->provider_display_phone_number ?: $campaign->whatsapp_from,
-            ];
+        $senderContext = method_exists($whatsApp, 'resolveSenderForClient')
+            ? $whatsApp->resolveSenderForClient($client, $campaign->bank, null)
+            : (method_exists($whatsApp, 'resolveSenderContext')
+                ? $whatsApp->resolveSenderContext($message->provider_display_phone_number ?: $campaign->whatsapp_from)
+                : [
+                    'phone_number_id' => $message->provider_phone_number_id,
+                    'display_phone_number' => $message->provider_display_phone_number ?: $campaign->whatsapp_from,
+                ]);
 
         $now = now();
 
@@ -142,7 +144,7 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                 $subject,
                 $bodyVar,
                 $resolvedTemplateVariables,
-                $campaign->whatsapp_from
+                $senderContext['display_phone_number'] ?? $campaign->whatsapp_from
             );
 
             $status = $this->mapProviderStatus($response['status'] ?? 'queued');

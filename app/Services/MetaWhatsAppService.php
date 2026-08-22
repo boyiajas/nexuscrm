@@ -250,6 +250,44 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ];
     }
 
+    /**
+     * Resolves the active WhatsApp sender context using the strict hierarchy:
+     * 1. Bank's primary_whatsapp_number or assigned WhatsApp account (Highest)
+     * 2. Department's primary_whatsapp_number or assigned WhatsApp account (Fallback)
+     * 3. System Settings Default Active WhatsApp Profile (System Default)
+     */
+    public function resolveSenderForClient(?\App\Models\Client $client = null, ?\App\Models\Bank $bank = null, ?\App\Models\Department $department = null): array
+    {
+        // 1. Resolve Bank context
+        $activeBank = $bank;
+        if (!$activeBank && $client && $client->bank_id) {
+            $activeBank = $client->bank ?: \App\Models\Bank::find($client->bank_id);
+        }
+
+        if ($activeBank && !empty($activeBank->primary_whatsapp_number)) {
+            $context = $this->resolveSenderContext($activeBank->primary_whatsapp_number);
+            if (!empty($context['phone_number_id'])) {
+                return $context;
+            }
+        }
+
+        // 2. Resolve Department context
+        $activeDept = $department;
+        if (!$activeDept && $client) {
+            $activeDept = $client->departments->first();
+        }
+
+        if ($activeDept && !empty($activeDept->primary_whatsapp_number)) {
+            $context = $this->resolveSenderContext($activeDept->primary_whatsapp_number);
+            if (!empty($context['phone_number_id'])) {
+                return $context;
+            }
+        }
+
+        // 3. Fallback to System Default Profile
+        return $this->resolveSenderContext(null);
+    }
+
     public function getPhoneNumberProfile(): array
     {
         $fields = [
