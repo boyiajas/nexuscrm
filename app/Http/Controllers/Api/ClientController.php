@@ -32,7 +32,7 @@ class ClientController extends Controller
     {
         $user = Auth::user();
         $this->authorizeView($user);
-        $query = Client::query()->with(['departments', 'assignedTo:id,name,bank_id']);
+        $query = Client::query()->with(['bank', 'departments', 'assignedTo:id,name,bank_id']);
         $allowedPerPage = [25, 50, 100, 200, 300, 500, 1000];
         $perPage = (int) $request->integer('per_page', 25);
         if (!in_array($perPage, $allowedPerPage, true)) {

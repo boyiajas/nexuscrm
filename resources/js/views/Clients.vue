@@ -139,6 +139,7 @@
                     <th style="width: 140px;">ID / REF</th>
                     <th style="width: 180px;">CONTACT</th>
                     <th style="width: 150px;">INSTITUTION</th>
+                    <th style="width: 150px;">WA NUMBER</th>
                     <th style="width: 130px;">OPT-IN</th>
                     <th style="width: 110px;">STATUS</th>
                     <th style="width: 110px;" class="text-end pe-4">ACTIONS</th>
@@ -173,6 +174,15 @@
                       <div class="small fw-medium text-dark">{{ c.bank_name || 'Standard Bank' }}</div>
                     </td>
                     <td class="text-nowrap">
+                      <span v-if="c.bank?.primary_whatsapp_number" class="badge bg-info-subtle text-info border" title="Bank WhatsApp Profile">
+                        <i class="bi bi-whatsapp me-1"></i>{{ c.bank.primary_whatsapp_number }}
+                      </span>
+                      <span v-else-if="c.departments && c.departments[0]?.primary_whatsapp_number" class="badge bg-light text-dark border" title="Department WhatsApp Profile">
+                        <i class="bi bi-whatsapp me-1"></i>{{ c.departments[0].primary_whatsapp_number }}
+                      </span>
+                      <span v-else class="text-muted small">Default</span>
+                    </td>
+                    <td class="text-nowrap">
                       <span v-if="c.whatsapp_opted_out_at || c.opt_in === 'no'" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
                         <i class="bi bi-x-circle me-1"></i> Opted Out
                       </span>
@@ -203,7 +213,7 @@
                     </td>
                   </tr>
                   <tr v-if="!loading && clients.length === 0">
-                    <td :colspan="canManage ? 7 : 6" class="text-center text-muted py-5">
+                    <td :colspan="canManage ? 9 : 8" class="text-center text-muted py-5">
                       No clients found.
                     </td>
                   </tr>

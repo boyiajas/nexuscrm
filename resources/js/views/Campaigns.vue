@@ -24,95 +24,105 @@
               <thead>
                 <tr>
                   <th class="ps-4">Name</th>
-              <th>Bank</th>
-              <th>Department</th>
-              <th>Channels</th>
-              <th>Status</th>
-              <th>Recipients</th>
-              <th>Created</th>
-              <th class="text-end pe-4">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="c in campaigns" :key="c.id">
-              <td class="ps-4 py-1">
-                <router-link
-                  :to="{ name: 'campaign.show', params: { id: c.id } }"
-                  class="fw-semibold text-decoration-none"
-                >
-                  {{ c.name }}
-                </router-link>
-              </td>
-              <td>{{ c.bank?.name || '-' }}</td>
-              <td>
-                <template v-if="c.departments && c.departments.length">
-                    <span
-                    v-for="d in c.departments"
-                    :key="d.id"
-                    class="badge bg-light text-dark border me-1"
+                  <th>Bank</th>
+                  <th>Department</th>
+                  <th>WhatsApp Number</th>
+                  <th>Channels</th>
+                  <th>Status</th>
+                  <th>Recipients</th>
+                  <th>Created</th>
+                  <th class="text-end pe-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="c in campaigns" :key="c.id">
+                  <td class="ps-4 py-1">
+                    <router-link
+                      :to="{ name: 'campaign.show', params: { id: c.id } }"
+                      class="fw-semibold text-decoration-none"
                     >
-                    {{ d.name }}
+                      {{ c.name }}
+                    </router-link>
+                  </td>
+                  <td>{{ c.bank?.name || '-' }}</td>
+                  <td>
+                    <template v-if="c.departments && c.departments.length">
+                        <span
+                        v-for="d in c.departments"
+                        :key="d.id"
+                        class="badge bg-light text-dark border me-1"
+                        >
+                        {{ d.name }}
+                        </span>
+                    </template>
+                    <span v-else class="text-muted">
+                        All / Global
                     </span>
-                </template>
-                <span v-else class="text-muted">
-                    All / Global
-                </span>
-                </td>
-              <td>
-                <span
-                  v-for="ch in c.channels || []"
-                  :key="ch"
-                  class="badge bg-secondary me-1"
-                >
-                  {{ ch }}
-                </span>
-                <span v-if="!c.channels || c.channels.length === 0" class="text-muted">
-                  -
-                </span>
-              </td>
-              <td>
-                <span class="badge"
-                      :class="statusBadgeClass(c.status)">
-                  {{ c.status }}
-                </span>
-              </td>
-              <td>{{ c.total_recipients || 0 }}</td>
-              <td>{{ c.created_at }}</td>
-              <td class="text-end pe-4">
-                <div class="btn-group btn-group-sm" role="group">
-                  <button
-                    class="btn btn-light text-secondary border-0 p-1 px-2"
-                    title="Edit"
-                    @click="openEditModal(c)"
-                    :disabled="!canEdit"
-                  >
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
-                  <button
-                    class="btn btn-light text-success border-0 p-1 px-2"
-                    title="Send"
-                    @click="sendCampaign(c)"
-                    :disabled="!canSend(c)"
-                  >
-                    <i class="bi bi-send-check"></i>
-                  </button>
-                  <button
-                    class="btn btn-light text-danger border-0 p-1 px-2"
-                    title="Delete"
-                    @click="deleteCampaign(c)"
-                    :disabled="!canDelete"
-                  >
-                    <i class="bi bi-trash"></i>
-                  </button>
-                </div>
-              </td>
-            </tr>
+                  </td>
+                  <td>
+                    <span v-if="c.whatsapp_from" class="badge bg-info-subtle text-info border" title="Campaign Specific Sender">
+                      <i class="bi bi-whatsapp me-1"></i>{{ c.whatsapp_from }}
+                    </span>
+                    <span v-else-if="c.bank?.primary_whatsapp_number" class="badge bg-light text-dark border" title="Bank Profile Sender">
+                      <i class="bi bi-whatsapp me-1"></i>{{ c.bank.primary_whatsapp_number }}
+                    </span>
+                    <span v-else class="text-muted small">Default</span>
+                  </td>
+                  <td>
+                    <span
+                      v-for="ch in c.channels || []"
+                      :key="ch"
+                      class="badge bg-secondary me-1"
+                    >
+                      {{ ch }}
+                    </span>
+                    <span v-if="!c.channels || c.channels.length === 0" class="text-muted">
+                      -
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge"
+                          :class="statusBadgeClass(c.status)">
+                      {{ c.status }}
+                    </span>
+                  </td>
+                  <td>{{ c.total_recipients || 0 }}</td>
+                  <td>{{ c.created_at }}</td>
+                  <td class="text-end pe-4">
+                    <div class="btn-group btn-group-sm" role="group">
+                      <button
+                        class="btn btn-light text-secondary border-0 p-1 px-2"
+                        title="Edit"
+                        @click="openEditModal(c)"
+                        :disabled="!canEdit"
+                      >
+                        <i class="bi bi-pencil-square"></i>
+                      </button>
+                      <button
+                        class="btn btn-light text-success border-0 p-1 px-2"
+                        title="Send"
+                        @click="sendCampaign(c)"
+                        :disabled="!canSend(c)"
+                      >
+                        <i class="bi bi-send-check"></i>
+                      </button>
+                      <button
+                        class="btn btn-light text-danger border-0 p-1 px-2"
+                        title="Delete"
+                        @click="deleteCampaign(c)"
+                        :disabled="!canDelete"
+                      >
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
 
-            <tr v-if="!loading && campaigns.length === 0">
-              <td colspan="8" class="text-center py-5 text-muted">
-                No campaigns.
-              </td>
-            </tr>
+                <tr v-if="!loading && campaigns.length === 0">
+                  <td colspan="9" class="text-center py-5 text-muted">
+                    No campaigns.
+                  </td>
+                </tr>
           </tbody>
         </table>
         </div>
