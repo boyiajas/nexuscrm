@@ -271,9 +271,13 @@ class ChatController extends Controller
         }
 
         $recipients = CampaignWhatsappRecipient::where('client_id', $client->id)
+            ->where(function ($query) {
+                $query->whereIn('status', ['Sent', 'Delivered', 'Read', 'sent', 'delivered', 'read'])
+                    ->orWhereNotNull('delivered_at')
+                    ->orWhereNotNull('last_attempted_at');
+            })
             ->with(['message', 'message.campaign'])
-            ->whereNotNull('whatsapp_sent_at')
-            ->orderBy('whatsapp_sent_at')
+            ->orderBy('created_at')
             ->get();
 
         $campaignMessages = collect();
@@ -282,7 +286,7 @@ class ChatController extends Controller
             $batch = $recipient->message;
             if (!$batch) continue;
 
-            $sentAt = $recipient->whatsapp_sent_at ?: $batch->sent_at;
+            $sentAt = $recipient->delivered_at ?: ($recipient->last_attempted_at ?: ($recipient->created_at ?: $batch?->sent_at));
             $body = $batch->preview_body ?: "Template: " . ($batch->template_name ?: 'Campaign Message');
             $campaignName = $batch->campaign?->name ?: 'WhatsApp Campaign';
 
