@@ -887,7 +887,7 @@ class CampaignController extends Controller
                 $queued = (clone $recipientQuery)->whereRaw("LOWER(status) = 'queued'")->count();
                 $processing = (clone $recipientQuery)->whereRaw("LOWER(status) = 'processing'")->count();
                 $paused = (clone $recipientQuery)->whereRaw("LOWER(status) = 'paused'")->count();
-                $pending = (clone $recipientQuery)->whereRaw("LOWER(status) in ('pending','queued','processing','paused','scheduled')")->count();
+                $pending = (clone $recipientQuery)->whereRaw("LOWER(status) in ('pending','queued','processing','paused','scheduled','sent')")->count();
                 $repliesCount = (clone $recipientQuery)->whereNotNull('last_response')->count();
                 $yesResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['yes'])->count();
                 $noResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['no'])->count();
@@ -1851,7 +1851,7 @@ class CampaignController extends Controller
         })->count();
 
         $pending = $recipients->filter(function ($r) {
-            return in_array(strtolower($r['status']), ['pending', 'queued', 'processing', 'paused', 'scheduled'], true);
+            return in_array(strtolower($r['status']), ['pending', 'queued', 'processing', 'paused', 'scheduled', 'sent'], true);
         })->count();
         $queued = $recipients->where('status', 'Queued')->count();
         $processing = $recipients->where('status', 'Processing')->count();
