@@ -214,7 +214,7 @@ class User extends Authenticatable
 
     public function hasPermission(string|array $permissions): bool
     {
-        if ($this->hasRole([self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN])) {
+        if ($this->hasRole([self::ROLE_SUPER_ADMIN])) {
             return true;
         }
 
@@ -536,7 +536,7 @@ class User extends Authenticatable
 
     public function canAccessAllBanks(): bool
     {
-        return $this->hasPermission('bypass_bank_scoping') || $this->canManageSystemSettings();
+        return $this->isSuperAdmin() || $this->hasPermission('bypass_bank_scoping');
     }
 
     public function isPortfolioScoped(): bool
