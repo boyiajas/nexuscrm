@@ -603,13 +603,13 @@ class ClientController extends Controller
                 $normalizedPhone = $primaryPhone ? preg_replace('/\D+/', '', (string) $primaryPhone) : null;
 
                 if ($normalizedEmail && isset($seenEmails[$normalizedEmail])) {
-                    $errors[] = "Row {$rowNumber} skipped: duplicate email found in import file ({$data['email']}).";
+                    $errors[] = "Row {$rowNumber} skipped: duplicate email found in import file ({$emailValue}).";
                     $duplicateCount++;
                     continue;
                 }
 
                 if ($normalizedPhone && isset($seenPhones[$normalizedPhone])) {
-                    $errors[] = "Row {$rowNumber} skipped: duplicate phone found in import file ({$data['phone']}).";
+                    $errors[] = "Row {$rowNumber} skipped: duplicate phone found in import file ({$primaryPhone}).";
                     $duplicateCount++;
                     continue;
                 }
