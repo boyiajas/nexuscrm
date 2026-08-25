@@ -46,6 +46,8 @@ class Client extends Model
         'whatsapp_opt_in_source',
         'opt_in',
         'opt_in_updated_at',
+        'account_type',
+        'type',
         // Note: removed 'department' column since we're using many-to-many
     ];
 

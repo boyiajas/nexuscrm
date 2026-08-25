@@ -107,6 +107,18 @@ class ClientController extends Controller
             }
         }
 
+        if ($accountType = $request->get('account_type')) {
+            if (!in_array($accountType, ['All', 'all', ''], true)) {
+                $query->where('account_type', $accountType);
+            }
+        }
+
+        if ($type = $request->get('type')) {
+            if (!in_array($type, ['All', 'all', ''], true)) {
+                $query->where('type', $type);
+            }
+        }
+
         $batchOptionsQuery = Client::query();
         $this->applyBankScope($batchOptionsQuery, $user);
         if ($user && !$user->canManageSystemSettings() && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
@@ -667,6 +679,8 @@ class ClientController extends Controller
                     'id_number' => $this->cleanImportString($data['id_number'] ?? null),
                     'bank_name' => $bankName ?? $this->cleanImportString($data['bank_name'] ?? null),
                     'account_number' => $this->cleanImportString($data['account_number'] ?? null),
+                    'account_type' => $this->cleanImportString($data['account_type'] ?? null),
+                    'type' => $this->cleanImportString($data['type'] ?? null),
                     'easy_pay_number' => $this->cleanImportString($data['easy_pay_number'] ?? null),
                     'branch_code' => $this->cleanImportString($data['branch_code'] ?? null),
                     'arrears_amount' => $this->parseImportAmount($data['arrears_amount'] ?? null),
