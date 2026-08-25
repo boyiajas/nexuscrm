@@ -80,6 +80,11 @@
                 <option value="no">Opt-In: No</option>
                 <option value="none">Opt-In: None</option>
               </select>
+              <!-- Account Type Filter -->
+              <input type="text" v-model="filters.account_type" class="form-control form-control-sm rounded-pill" style="width: 130px;" placeholder="Account Type..." @keyup.enter="applyFilters" @blur="applyFilters" />
+
+              <!-- Type Filter -->
+              <input type="text" v-model="filters.type" class="form-control form-control-sm rounded-pill" style="width: 100px;" placeholder="Type..." @keyup.enter="applyFilters" @blur="applyFilters" />
             </div>
 
             <div class="d-flex align-items-center gap-3">
@@ -430,6 +435,14 @@
                     autocomplete="off"
                   />
                 </div>
+                <div class="col-md-3">
+                  <label class="form-label">Account Type</label>
+                  <input v-model="form.account_type" type="text" class="form-control" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Type</label>
+                  <input v-model="form.type" type="text" class="form-control" />
+                </div>
                 <div class="col-md-6">
                   <label class="form-label">Branch Code</label>
                   <input v-model="form.branch_code" type="text" class="form-control" />
@@ -689,6 +702,8 @@
                 <div class="row">
                   <div class="col-md-6 mb-2"><strong>Bank:</strong> {{ viewClient.bank_name || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Account Number:</strong> {{ viewClient.account_number_masked || viewClient.account_number || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Account Type:</strong> {{ viewClient.account_type || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Type:</strong> {{ viewClient.type || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Branch Code:</strong> {{ viewClient.branch_code || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Easy Pay Number:</strong> {{ viewClient.easy_pay_number || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ viewClient.arrears_amount ? 'R' + Number(viewClient.arrears_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.arrears_amount || '-') }}</div>
@@ -798,6 +813,8 @@ export default {
         bank_id: '',
         status: '',
         opt_in: '',
+        account_type: '',
+        type: '',
       },
       pageSize: 25,
       pageSizeOptions: [25, 50, 100, 250, 500, 1000],
@@ -818,6 +835,8 @@ export default {
         phone: '',
         bank_id: '',
         bank_name: '',
+        account_type: '',
+        type: '',
         assigned_to_id: '',
         department_ids: [], // Changed from single department to array of IDs
         tags: [],
@@ -1192,6 +1211,8 @@ export default {
           bank_id: fullClient.bank_id || '',
           id_number: fullClient.id_number || '',
           bank_name: fullClient.bank_name || '',
+          account_type: fullClient.account_type || '',
+          type: fullClient.type || '',
           account_number: fullClient.account_number || '',
           branch_code: fullClient.branch_code || '',
           easy_pay_number: fullClient.easy_pay_number || '',

@@ -219,6 +219,12 @@
                   <option value="sent">Sent / Delivered ({{ clientStats.sent }})</option>
                   <option value="failed">Failed Only ({{ clientStats.failed }})</option>
                 </select>
+
+                <!-- Account Type Filter -->
+                <input type="text" v-model="clientAccountTypeFilter" class="form-control form-control-sm" style="width: 130px;" placeholder="Account Type..." />
+
+                <!-- Type Filter -->
+                <input type="text" v-model="clientTypeFilter" class="form-control form-control-sm" style="width: 100px;" placeholder="Type..." />
               </div>
 
               <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -2152,6 +2158,8 @@ export default {
       clientTablePerPage: 25,
       clientTableCurrentPage: 1,
       clientStatusFilter: 'all',
+      clientAccountTypeFilter: '',
+      clientTypeFilter: '',
       clientSearchQuery: '',
       activeChannelTab: 'whatsapp',
 
@@ -2430,6 +2438,18 @@ export default {
             (c.import_batch_number && String(c.import_batch_number).toLowerCase().includes(q))
           );
         });
+      }
+
+      // Filter by Account Type
+      if (this.clientAccountTypeFilter && this.clientAccountTypeFilter.trim() !== '') {
+        const q = this.clientAccountTypeFilter.trim().toLowerCase();
+        list = list.filter(c => c.account_type && c.account_type.toLowerCase().includes(q));
+      }
+
+      // Filter by Type
+      if (this.clientTypeFilter && this.clientTypeFilter.trim() !== '') {
+        const q = this.clientTypeFilter.trim().toLowerCase();
+        list = list.filter(c => c.type && c.type.toLowerCase().includes(q));
       }
 
       return list;
@@ -3213,6 +3233,8 @@ export default {
           (client.phone && client.phone.includes(search)) ||
           (client.id_number && client.id_number.includes(search)) ||
           (client.account_number && client.account_number.includes(search)) ||
+          (client.account_type && client.account_type.toLowerCase().includes(search)) ||
+          (client.type && client.type.toLowerCase().includes(search)) ||
           (client.departments && client.departments.some(dept =>
             dept.name.toLowerCase().includes(search)
           ))
