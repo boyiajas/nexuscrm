@@ -44,7 +44,7 @@ class ClientController extends Controller
 
         // Department scoping for non-system-admin users
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -121,7 +121,7 @@ class ClientController extends Controller
 
         $batchOptionsQuery = Client::query();
         $this->applyBankScope($batchOptionsQuery, $user);
-        if ($user && !$user->canManageSystemSettings() && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $batchOptionsQuery->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -354,7 +354,7 @@ class ClientController extends Controller
 
         // Department-based access control for non-super admins
         $this->authorizeClientBank($user, $client, 'update');
-        if (!$user->canManageSystemSettings()) {
+        if (!$user->canViewAllImportedClients()) {
             $clientDepartments = $client->departments->pluck('id')->all();
             if (empty(array_intersect($user->resolvedDepartmentIds(), $clientDepartments))) {
                 abort(403, 'You are not allowed to update this client.');
@@ -836,7 +836,7 @@ class ClientController extends Controller
 
         // Department scoping for non-system-admin users
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -1010,7 +1010,7 @@ class ClientController extends Controller
         $this->applyPortfolioScope($query, $user);
 
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -1078,7 +1078,7 @@ class ClientController extends Controller
         $this->applyPortfolioScope($query, $user);
 
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -1150,7 +1150,7 @@ class ClientController extends Controller
         $this->applyPortfolioScope($query, $user);
 
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -1212,7 +1212,7 @@ class ClientController extends Controller
         $this->applyPortfolioScope($query, $user);
 
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -1281,7 +1281,7 @@ class ClientController extends Controller
         $this->applyPortfolioScope($query, $user);
 
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
                 $q->whereIn('departments.id', $userDepartmentIds);
             });
@@ -1342,7 +1342,7 @@ class ClientController extends Controller
 
         // Department scoping for non-system-admin users
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
             $query->whereIn('id', $userDepartmentIds);
         }
 
@@ -1365,7 +1365,7 @@ class ClientController extends Controller
 
     protected function authorizeClientDepartment($user, Client $client, string $action = 'view'): void
     {
-        if ($user->canManageSystemSettings()) {
+        if ($user->canViewAllImportedClients()) {
             return;
         }
 
@@ -1611,7 +1611,7 @@ class ClientController extends Controller
         }
 
         $allowedDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canManageSystemSettings() && !empty($allowedDepartmentIds)) {
+        if ($user && !$user->canViewAllImportedClients() && !empty($allowedDepartmentIds)) {
             $invalid = array_diff($resolved, $allowedDepartmentIds);
             if (!empty($invalid)) {
                 abort(403, 'You are not allowed to import clients into one or more selected departments.');

@@ -65,7 +65,7 @@ class CampaignController extends Controller
         }
 
         // Department scoping (same logic as before)
-        if ($user && !$user->canManageSystemSettings()) {
+        if ($user && !$user->canViewAllImportedClients()) {
             $query->where(function ($q) use ($userDeptIds) {
                 $q->whereDoesntHave('departments');
 
@@ -126,7 +126,7 @@ class CampaignController extends Controller
             }
         }
 
-        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients() && !$user->canManageSystemSettings())) {
+        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients())) {
             $query->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -194,7 +194,7 @@ class CampaignController extends Controller
             }
         }
 
-        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients() && !$user->canManageSystemSettings())) {
+        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients())) {
             $allowedClientsQuery->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -227,7 +227,7 @@ class CampaignController extends Controller
                 ], 422);
             }
 
-            if ($user && ($user->canViewAllImportedClients() || $user->canManageSystemSettings())) {
+            if ($user && ($user->canViewAllImportedClients() || $user->canViewAllImportedClients())) {
                 $clientIdsToAttach = Client::whereIn('id', $clientIds)
                     ->whereNotIn('id', $alreadyAttachedIds)
                     ->pluck('id')

@@ -26,7 +26,7 @@ class DashboardController extends Controller
         if (!$user->canAccessAllBanks() && !empty($userBankIds)) {
             $totalClientsQuery->whereIn('bank_id', $userBankIds);
         }
-        if (!$user->canManageSystemSettings() && !empty($userDeptIds)) {
+        if (!$user->canViewAllImportedClients() && !empty($userDeptIds)) {
             $totalClientsQuery->whereHas('departments', function ($q) use ($userDeptIds) {
                 $q->whereIn('departments.id', $userDeptIds);
             });
@@ -41,7 +41,7 @@ class DashboardController extends Controller
         if (!$user->canAccessAllBanks() && !empty($userBankIds)) {
             $campaignQuery->whereIn('bank_id', $userBankIds);
         }
-        if (!$user->canManageSystemSettings()) {
+        if (!$user->canViewAllImportedClients()) {
             $campaignQuery->where(function ($q) use ($userDeptIds) {
                 $q->whereDoesntHave('departments');
 
@@ -251,7 +251,7 @@ class DashboardController extends Controller
             ->when(!$user?->canAccessAllBanks() && !empty($user?->resolvedBankIds()), function ($q) use ($user) {
                 $q->whereIn('bank_id', $user->resolvedBankIds());
             })
-            ->when($user && !$user->canManageSystemSettings(), function ($q) use ($userDeptIds) {
+            ->when($user && !$user->canViewAllImportedClients(), function ($q) use ($userDeptIds) {
                 $q->where(function ($inner) use ($userDeptIds) {
                     $inner->whereDoesntHave('departments');
 

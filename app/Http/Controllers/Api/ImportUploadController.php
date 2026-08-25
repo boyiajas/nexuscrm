@@ -22,7 +22,7 @@ class ImportUploadController extends Controller
             $query->whereIn('bank_id', $user->resolvedBankIds());
         }
 
-        if (!$user->canManageSystemSettings() && !$user->canViewAllImportedClients()) {
+        if (!$user->canViewAllImportedClients()) {
             $query->where('user_id', $user->id);
         }
 
