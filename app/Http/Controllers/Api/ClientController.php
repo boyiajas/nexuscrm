@@ -1896,6 +1896,7 @@ class ClientController extends Controller
     protected function extendImportExecutionLimits(): void
     {
         @ini_set('max_execution_time', '0');
+        @ini_set('memory_limit', '1024M');
 
         if (function_exists('set_time_limit')) {
             @set_time_limit(0);
