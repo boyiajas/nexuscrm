@@ -358,7 +358,7 @@ class User extends Authenticatable
 
     public function canViewAllImportedClients(): bool
     {
-        return $this->isSuperAdmin() || $this->isAdmin() || $this->hasPermission('view_all_imported_clients');
+        return $this->isSuperAdmin() || $this->hasPermission('view_all_imported_clients');
     }
 
     public function canViewOperationalData(): bool
