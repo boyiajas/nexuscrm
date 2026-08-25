@@ -78,7 +78,7 @@ Defined in `app/Models/User.php` and managed via `Roles.vue`.
 - Dynamic Database-Driven RBAC Architecture:
   - Permissions are stored in `permissions` table and linked to roles via `permission_role` table.
   - Hardcoded role bypass arrays for non-admin roles have been completely removed from capability checks.
-  - `User::hasPermission($permCode)` checks database permission assignments. `SUPER_ADMIN` and `ADMIN` maintain implicit administrative root bypass.
+  - `User::hasPermission($permCode)` checks database permission assignments. `SUPER_ADMIN` maintains implicit administrative root bypass.
   - All capability helpers strictly invoke dynamic checks:
     - `canCreateClients()` -> `hasPermission('create_clients')`
     - `canEditClients()` -> `hasPermission('edit_clients')`
@@ -532,6 +532,14 @@ These are still not fully implemented and should not be restated as complete unt
 
 ### Completed recently
 
+- **Access & Permissions**: Decoupled bank scoping bypass from system settings and removed the hardcoded `ADMIN` role permission bypass. The `ADMIN` role is now strictly scoped to their assigned bank(s) unless explicitly granted `bypass_bank_scoping`.
+- **User Management**: Resolved data persistence bugs for multi-bank and multi-department assignments, added UI badges to the user list, and implemented a secure admin password reset tool that revokes sessions and enforces a password change on next login.
+- **WhatsApp Communications**: Fixed media attachment sending errors, restored immediate SMTP dispatch for inbound WhatsApp notifications (with user fallbacks), and added message history pagination to the Chat UI.
+- **Campaign Dashboard**: Modernized the Batch Overview modal to use a compact inline metrics strip, expanded modal width for better data density, and fixed the "Pending" count calculation to correctly include 'Sent' status recipients.
+- **Dashboard Analytics**: Added overall delivery statistics to the main dashboard and implemented a real-time notification dropdown for incoming WhatsApp replies.
+- **UI / Landing Page**: Completely refactored the public landing page to achieve a premium aesthetic matching high-fidelity mockups, and resolved horizontal scrolling/overlap issues in mobile views.
+- **Table / Bulk Actions**: Fixed table column overlap in the Clients interface, repaired the "Select All" functionality in campaign client selection, and expanded bulk assignment to support assigning clients by import batch number.
+- **System Stability**: Updated `ServeSpaShell` middleware to correctly intercept new SPA routes (preventing 404s on reload) and optimized PHP configurations to prevent `UPLOAD_ERR_INI_SIZE` failures during large CSV imports.
 - Strict dynamic database-driven RBAC migration (permissions & permission_role tables, user model capability checks, roles checkbox matrix, router meta permission guards)
 - Removed all legacy hardcoded role bypass lists (`STAFF`, `AGENT`, etc.) across model, controllers (`ClientController`, `CampaignController`), and frontend SPA views (`Clients.vue`, `Campaigns.vue`, `CampaignShow.vue`, `MainLayout.vue`)
 - Top utility header user avatar dropdown menu (View Profile, Logout, Activity Logs)

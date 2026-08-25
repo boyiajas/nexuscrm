@@ -478,7 +478,7 @@ class ClientController extends Controller
         }
 
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:10240'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx', 'max:102400'],
             'bank_id' => ['nullable', 'integer', 'exists:banks,id'],
             'department_ids' => ['required', 'array', 'min:1'],
             'department_ids.*' => ['integer', 'exists:departments,id'],
