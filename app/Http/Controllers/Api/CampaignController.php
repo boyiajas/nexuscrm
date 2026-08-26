@@ -468,20 +468,20 @@ class CampaignController extends Controller
             $statusColumn = "{$channel}_status";
             if ($statusFilter === 'unsent') {
                 $baseQuery->where(function ($q) use ($statusColumn) {
-                    $q->whereNull("campaign_client.{$statusColumn}")
-                      ->orWhereIn("campaign_client.{$statusColumn}", ['Pending', 'Unsent', '']);
+                    $q->whereNull("campaign_clients.{$statusColumn}")
+                      ->orWhereIn("campaign_clients.{$statusColumn}", ['Pending', 'Unsent', '']);
                 });
             } elseif ($statusFilter === 'sent') {
-                $baseQuery->whereIn("campaign_client.{$statusColumn}", ['Sent', 'Delivered', 'Read', 'Opened', 'Clicked']);
+                $baseQuery->whereIn("campaign_clients.{$statusColumn}", ['Sent', 'Delivered', 'Read', 'Opened', 'Clicked']);
             } elseif ($statusFilter === 'failed') {
                 if ($channel === 'whatsapp') {
                     $baseQuery->where(function ($q) {
-                        $q->whereIn("campaign_client.whatsapp_status", ['Failed', 'Bounced'])
-                          ->orWhereNotNull("campaign_client.whatsapp_error_message")
-                          ->orWhereNotNull("campaign_client.whatsapp_error_code");
+                        $q->whereIn("campaign_clients.whatsapp_status", ['Failed', 'Bounced'])
+                          ->orWhereNotNull("campaign_clients.whatsapp_error_message")
+                          ->orWhereNotNull("campaign_clients.whatsapp_error_code");
                     });
                 } else {
-                    $baseQuery->whereIn("campaign_client.{$statusColumn}", ['Failed', 'Bounced']);
+                    $baseQuery->whereIn("campaign_clients.{$statusColumn}", ['Failed', 'Bounced']);
                 }
             }
         }
@@ -495,10 +495,10 @@ class CampaignController extends Controller
         
         // Optimize the stats query by selecting only what we need
         $statsRows = $statsQuery->get([
-            'campaign_client.whatsapp_status', 
-            'campaign_client.whatsapp_error_message',
-            'campaign_client.email_status',
-            'campaign_client.sms_status'
+            'campaign_clients.whatsapp_status', 
+            'campaign_clients.whatsapp_error_message',
+            'campaign_clients.email_status',
+            'campaign_clients.sms_status'
         ]);
 
         $total = $statsRows->count();
