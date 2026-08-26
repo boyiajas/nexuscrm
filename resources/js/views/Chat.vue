@@ -727,7 +727,10 @@ export default {
 
       requestPromise
         .then((res) => {
-          this.messages.push(res.data);
+          const exists = this.messages.some(m => m.id === res.data.id);
+          if (!exists) {
+            this.messages.push(res.data);
+          }
           this.newMessage = '';
           if (this.$refs.messageInput) {
             this.$refs.messageInput.style.height = 'auto';
