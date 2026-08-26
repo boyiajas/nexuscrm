@@ -453,35 +453,77 @@ class CampaignController extends Controller
             $baseQuery->where('clients.import_batch_number', $importBatchNumber);
         }
 
-        if ($request->boolean('all')) {
-            $clients = $baseQuery
-                ->orderBy('clients.name')
-                ->get()
-                ->map(function ($client) {
-                    $pivot = $client->pivot;
-
-                    return array_merge($client->toArray(), [
-                        'phone' => $this->resolveClientPhone($client),
-                        'assigned_to_name' => $client->assignedTo?->name,
-                        'departments' => $client->departments->map(function ($dept) {
-                            return ['id' => $dept->id, 'name' => $dept->name];
-                        }),
-                        'whatsapp_status' => $pivot?->whatsapp_status ?? 'Pending',
-                        'whatsapp_sent_at' => $pivot?->whatsapp_sent_at,
-                        'email_status' => $pivot?->email_status ?? 'Pending',
-                        'email_sent_at' => $pivot?->email_sent_at,
-                        'sms_status' => $pivot?->sms_status ?? 'Pending',
-                        'sms_sent_at' => $pivot?->sms_sent_at,
-                        'created_at' => $pivot?->created_at ?? $client->created_at,
-                    ]);
-                })
-                ->values();
-
-            return response()->json([
-                'data' => $clients,
-                'batch_options' => $batchOptions,
-            ]);
+        if ($accountType = trim((string) $request->get('account_type'))) {
+            $baseQuery->where('clients.account_type', $accountType);
         }
+
+        if ($clientType = trim((string) $request->get('type'))) {
+            $baseQuery->where('clients.type', $clientType);
+        }
+
+        $channel = $request->get('channel', 'whatsapp');
+        $statusFilter = $request->get('status', 'all');
+
+        if ($statusFilter !== 'all') {
+            $statusColumn = "{$channel}_status";
+            if ($statusFilter === 'unsent') {
+                $baseQuery->where(function ($q) use ($statusColumn) {
+                    $q->whereNull("campaign_client.{$statusColumn}")
+                      ->orWhereIn("campaign_client.{$statusColumn}", ['Pending', 'Unsent', '']);
+                });
+            } elseif ($statusFilter === 'sent') {
+                $baseQuery->whereIn("campaign_client.{$statusColumn}", ['Sent', 'Delivered', 'Read', 'Opened', 'Clicked']);
+            } elseif ($statusFilter === 'failed') {
+                if ($channel === 'whatsapp') {
+                    $baseQuery->where(function ($q) {
+                        $q->whereIn("campaign_client.whatsapp_status", ['Failed', 'Bounced'])
+                          ->orWhereNotNull("campaign_client.whatsapp_error_message")
+                          ->orWhereNotNull("campaign_client.whatsapp_error_code");
+                    });
+                } else {
+                    $baseQuery->whereIn("campaign_client.{$statusColumn}", ['Failed', 'Bounced']);
+                }
+            }
+        }
+
+        // Calculate Stats
+        $statsQuery = clone $baseQuery;
+        // Reset limit/offset/order for stats
+        $statsQuery->orders = [];
+        $statsQuery->limit = null;
+        $statsQuery->offset = null;
+        
+        // Optimize the stats query by selecting only what we need
+        $statsRows = $statsQuery->get([
+            'campaign_client.whatsapp_status', 
+            'campaign_client.whatsapp_error_message',
+            'campaign_client.email_status',
+            'campaign_client.sms_status'
+        ]);
+
+        $total = $statsRows->count();
+        $sent = 0; $failed = 0; $unsent = 0;
+
+        foreach ($statsRows as $row) {
+            $st = trim(strtolower($row->{"{$channel}_status"} ?? ''));
+            
+            if (in_array($st, ['sent', 'delivered', 'read', 'opened', 'clicked'])) {
+                $sent++;
+            } elseif ($st === 'failed' || $st === 'bounced' || ($channel === 'whatsapp' && !empty($row->whatsapp_error_message))) {
+                $failed++;
+            } else {
+                $unsent++;
+            }
+        }
+
+        $clientStats = [
+            'total' => $total,
+            'sent' => $sent,
+            'failed' => $failed,
+            'unsent' => $unsent,
+        ];
+
+        // Removed ?all=1 support to prevent memory exhaustion
 
         $paginator = $baseQuery
             ->orderBy('clients.name')
@@ -508,6 +550,7 @@ class CampaignController extends Controller
 
         return response()->json(array_merge($paginator->toArray(), [
             'batch_options' => $batchOptions,
+            'client_stats' => $clientStats,
         ]));
     }
 

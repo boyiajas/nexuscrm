@@ -2107,8 +2107,12 @@ export default {
 
       // clients in campaign
       clients: [],
+      clientStatsServer: { total: 0, sent: 0, failed: 0, unsent: 0 },
+      totalCampaignClients: 0,
+      totalCampaignClientPages: 1,
       loadingCampaignClients: true,
       selectedClients: [],
+      selectedClientObjects: [],
       clientTablePerPage: 25,
       clientTableCurrentPage: 1,
       clientStatusFilter: 'all',
@@ -2347,88 +2351,21 @@ export default {
       return cards;
     },
     clientStats() {
-      const list = this.clients || [];
-      let total = list.length;
-      let sent = 0;
-      let delivered = 0;
-      let failed = 0;
-      let unsent = 0;
-
-      list.forEach(c => {
-        const statusVal = this.getClientChannelStatus(c, this.activeChannelTab);
-        const st = String(statusVal || 'Pending').trim().toLowerCase();
-
-        if (['delivered', 'read', 'opened', 'clicked'].includes(st)) {
-          delivered++;
-          sent++;
-        } else if (st === 'sent') {
-          sent++;
-        } else if (st === 'failed' || st === 'bounced' || (this.activeChannelTab === 'whatsapp' && (c.whatsapp_error_message || c.whatsapp_error_code))) {
-          failed++;
-        } else {
-          unsent++;
-        }
-      });
-
-      return { total, sent, delivered, failed, unsent };
+      return this.clientStatsServer;
     },
     filteredCampaignClients() {
-      let list = this.clients || [];
-
-      // Filter by status for active channel
-      if (this.clientStatusFilter === 'unsent') {
-        list = list.filter(c => this.isClientUnsent(c, this.activeChannelTab));
-      } else if (this.clientStatusFilter === 'sent') {
-        list = list.filter(c => this.isClientSent(c, this.activeChannelTab));
-      } else if (this.clientStatusFilter === 'failed') {
-        list = list.filter(c => this.isClientFailed(c, this.activeChannelTab));
-      }
-
-      // Filter by search query
-      if (this.clientSearchQuery && this.clientSearchQuery.trim() !== '') {
-        const q = this.clientSearchQuery.trim().toLowerCase();
-        list = list.filter(c => {
-          return (
-            (c.name && c.name.toLowerCase().includes(q)) ||
-            (c.email && c.email.toLowerCase().includes(q)) ||
-            (c.phone && c.phone.toLowerCase().includes(q)) ||
-            (c.bank_name && c.bank_name.toLowerCase().includes(q)) ||
-            (c.import_batch_number && String(c.import_batch_number).toLowerCase().includes(q))
-          );
-        });
-      }
-
-      // Filter by Account Type
-      if (this.clientAccountTypeFilter && this.clientAccountTypeFilter.trim() !== '') {
-        const q = this.clientAccountTypeFilter.trim().toLowerCase();
-        list = list.filter(c => c.account_type && c.account_type.toLowerCase().includes(q));
-      }
-
-      // Filter by Type
-      if (this.clientTypeFilter && this.clientTypeFilter.trim() !== '') {
-        const q = this.clientTypeFilter.trim().toLowerCase();
-        list = list.filter(c => c.type && c.type.toLowerCase().includes(q));
-      }
-
-      return list;
+      // Handled by backend now
+      return this.clients || [];
     },
     selectAllClients() {
-      return this.filteredCampaignClients.length > 0 && this.selectedClients.length === this.filteredCampaignClients.length;
+      return this.clients.length > 0 && this.selectedClients.length === this.clients.length;
     },
     paginatedCampaignClients() {
-      const list = this.filteredCampaignClients;
-      const perPage = Number(this.clientTablePerPage) || 25;
-      if (perPage <= 0) return list;
-      const start = (this.clientTableCurrentPage - 1) * perPage;
-      return list.slice(start, start + perPage);
-    },
-    totalCampaignClientPages() {
-      const perPage = Number(this.clientTablePerPage) || 25;
-      if (perPage <= 0) return 1;
-      return Math.max(1, Math.ceil(this.filteredCampaignClients.length / perPage));
+      // Handled by backend now
+      return this.clients || [];
     },
     campaignClientPaginationInfo() {
-      const total = this.filteredCampaignClients.length;
+      const total = this.totalCampaignClients;
       if (total === 0) return 'Showing 0 of 0 records';
       const perPage = Number(this.clientTablePerPage) || 25;
       const start = (this.clientTableCurrentPage - 1) * perPage + 1;
@@ -2541,6 +2478,38 @@ export default {
     disposeManagedModal(this.recipientPreviewModal);
     cleanupManagedModalArtifacts(true);
   },
+  watch: {
+    clientTableCurrentPage() {
+      this.fetchClients();
+    },
+    clientTablePerPage() {
+      this.clientTableCurrentPage = 1;
+      this.fetchClients();
+    },
+    clientStatusFilter() {
+      this.clientTableCurrentPage = 1;
+      this.fetchClients();
+    },
+    activeChannelTab() {
+      this.clientTableCurrentPage = 1;
+      this.fetchClients();
+    },
+    clientAccountTypeFilter() {
+      this.clientTableCurrentPage = 1;
+      this.fetchClients();
+    },
+    clientTypeFilter() {
+      this.clientTableCurrentPage = 1;
+      this.fetchClients();
+    },
+    clientSearchQuery() {
+      this.clientTableCurrentPage = 1;
+      if (this.clientSearchTimeout) clearTimeout(this.clientSearchTimeout);
+      this.clientSearchTimeout = setTimeout(() => {
+        this.fetchClients();
+      }, 500);
+    }
+  },
   methods: {
     hasPermission(permCode) {
       if (!this.currentUser) return false;
@@ -2578,60 +2547,73 @@ export default {
       return st === 'failed' || st === 'bounced' || (channel === 'whatsapp' && (!!cl.whatsapp_error_message || !!cl.whatsapp_error_code));
     },
     selectUnsentBatch(count) {
-      const unsentList = (this.clients || []).filter(c => this.isClientUnsent(c, this.activeChannelTab));
-      let targets = [];
-      if (count === 'all_unsent') {
-        targets = unsentList;
-      } else if (count === 'all_campaign') {
-        targets = this.clients || [];
-      } else {
-        const n = Number(count) || 25;
-        targets = unsentList.slice(0, n);
+      const id = this.$route.params.id;
+      if (count === 'all_campaign') {
+        // Fetch all client IDs for the campaign without instantiating full objects if possible
+        // Actually since we removed all=1, we can't easily fetch all campaign client IDs
+        notify.warning('Selecting all campaign clients is no longer supported directly from the table. Use the modal options instead.', 'Campaigns');
+        return;
       }
-
-      this.selectedClients = targets.map(c => c.id);
+      
+      const n = count === 'all_unsent' ? 1000 : (Number(count) || 25);
       const chName = this.activeChannelTab.toUpperCase();
-      if (targets.length > 0) {
-        notify.info(`Selected next ${targets.length} unsent client(s) for ${chName}.`, 'Campaigns');
-      } else {
-        notify.warning(`No unsent clients remaining for ${chName} in this campaign.`, 'Campaigns');
-      }
+      
+      notify.info(`Fetching ${count === 'all_unsent' ? 'unsent' : `next ${n} unsent`} clients for ${chName}...`, 'Campaigns');
+      
+      axios.get(`/api/campaigns/${id}/clients?status=unsent&channel=${this.activeChannelTab}&per_page=${n}`).then((res) => {
+        const targets = res.data.data || res.data || [];
+        this.selectedClientObjects = targets;
+        this.selectedClients = targets.map(c => c.id);
+        
+        if (targets.length > 0) {
+          notify.success(`Selected ${targets.length} unsent client(s) for ${chName}.`, 'Campaigns');
+        } else {
+          notify.warning(`No unsent clients remaining for ${chName} in this campaign.`, 'Campaigns');
+        }
+      });
     },
     selectUnsentBatchInModal(count) {
-      const unsentList = (this.clients || []).filter(c => this.isClientUnsent(c, 'whatsapp'));
-      let targets = [];
-      if (count === 'all_unsent') {
-        targets = unsentList;
-      } else if (count === 'all_campaign') {
-        targets = this.clients || [];
-      } else {
-        const n = Number(count) || 25;
-        targets = unsentList.slice(0, n);
+      const id = this.$route.params.id;
+      if (count === 'all_campaign') {
+        this.whatsappForm.selectedClients = [];
+        return;
       }
+      
+      const n = count === 'all_unsent' ? 1000 : (Number(count) || 25);
+      
+      notify.info(`Fetching ${count === 'all_unsent' ? 'unsent' : `next ${n} unsent`} clients for WhatsApp...`, 'WhatsApp');
+      
+      axios.get(`/api/campaigns/${id}/clients?status=unsent&channel=whatsapp&per_page=${n}`).then((res) => {
+        const targets = res.data.data || res.data || [];
+        
+        this.whatsappForm.selectedClients = targets.map(c => {
+          return {
+            id: c.id,
+            name: c.name,
+            email: c.email,
+            phone: c.phone,
+            departments: c.departments,
+            nameWithDetails: `${c.name}${c.phone ? ' (' + c.phone + ')' : ''}`,
+          };
+        });
 
-      this.whatsappForm.selectedClients = targets.map(c => {
-        return this.campaignClientOptions.find(opt => opt.id === c.id) || {
-          id: c.id,
-          name: c.name,
-          email: c.email,
-          phone: c.phone,
-          departments: c.departments,
-          nameWithDetails: `${c.name}${c.phone ? ' (' + c.phone + ')' : ''}`,
-        };
+        if (targets.length > 0) {
+          notify.success(`Selected ${targets.length} unsent recipient(s) for WhatsApp.`, 'WhatsApp');
+        } else {
+          notify.warning('No unsent clients remaining in this campaign.', 'WhatsApp');
+        }
       });
-
-      if (targets.length > 0) {
-        notify.info(`Selected ${targets.length} unsent recipient(s) for WhatsApp.`, 'WhatsApp');
-      } else {
-        notify.warning('No unsent clients remaining in this campaign.', 'WhatsApp');
-      }
     },
     sendWhatsappToSelected() {
       if (this.selectedClients.length === 0) return;
-      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+      const selectedObjects = this.selectedClients.map(id => {
+        return this.selectedClientObjects.find(c => c.id === id) || 
+               (this.clients || []).find(c => c.id === id) || 
+               { id: id, name: `Client #${id}`, email: '', phone: '' };
+      });
       
       const mappedClients = selectedObjects.map(c => {
-        return this.campaignClientOptions.find(opt => opt.id === c.id) || {
+        return {
           id: c.id,
           name: c.name,
           email: c.email,
@@ -2645,7 +2627,11 @@ export default {
     },
     sendEmailToSelected() {
       if (this.selectedClients.length === 0) return;
-      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+      const selectedObjects = this.selectedClients.map(id => {
+        return this.selectedClientObjects.find(c => c.id === id) || 
+               (this.clients || []).find(c => c.id === id) || 
+               { id: id, name: `Client #${id}`, email: '', phone: '' };
+      });
       
       this.emailForm = {
         mode: 'new',
@@ -2672,7 +2658,11 @@ export default {
     },
     sendSmsToSelected() {
       if (this.selectedClients.length === 0) return;
-      const selectedObjects = (this.clients || []).filter(c => this.selectedClients.includes(c.id));
+      const selectedObjects = this.selectedClients.map(id => {
+        return this.selectedClientObjects.find(c => c.id === id) || 
+               (this.clients || []).find(c => c.id === id) || 
+               { id: id, name: `Client #${id}`, email: '', phone: '' };
+      });
 
       this.smsForm = {
         subject: '',
@@ -2830,10 +2820,28 @@ export default {
     fetchClients() {
       const id = this.$route.params.id;
       this.loadingCampaignClients = true;
-      axios.get(`/api/campaigns/${id}/clients?all=1`).then((res) => {
+      
+      const params = new URLSearchParams({
+        page: this.clientTableCurrentPage,
+        per_page: this.clientTablePerPage,
+        channel: this.activeChannelTab,
+        status: this.clientStatusFilter,
+      });
+
+      if (this.clientSearchQuery) params.append('search', this.clientSearchQuery);
+      if (this.clientAccountTypeFilter) params.append('account_type', this.clientAccountTypeFilter);
+      if (this.clientTypeFilter) params.append('type', this.clientTypeFilter);
+
+      axios.get(`/api/campaigns/${id}/clients?${params.toString()}`).then((res) => {
         this.clients = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
+        this.clientStatsServer = res.data.client_stats || { total: 0, sent: 0, failed: 0, unsent: 0 };
+        this.totalCampaignClients = res.data.total || this.clients.length;
+        this.totalCampaignClientPages = res.data.last_page || 1;
       }).catch(() => {
         this.clients = [];
+        this.clientStatsServer = { total: 0, sent: 0, failed: 0, unsent: 0 };
+        this.totalCampaignClients = 0;
+        this.totalCampaignClientPages = 1;
       }).finally(() => {
         this.loadingCampaignClients = false;
       });
