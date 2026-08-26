@@ -57,6 +57,12 @@ class WhatsAppWebhookController extends Controller
         foreach (($payload['entry'] ?? []) as $entry) {
             foreach (($entry['changes'] ?? []) as $change) {
                 $value = $change['value'] ?? [];
+                $field = $change['field'] ?? '';
+
+                if (in_array($field, ['account_update', 'phone_number_quality_update', 'message_template_quality_update'])) {
+                    $this->handleAccountAlert($field, $value, (string) ($entry['id'] ?? 'unknown'));
+                    continue;
+                }
 
                 foreach (($value['statuses'] ?? []) as $status) {
                     if ($this->isDuplicateStatusEvent($status)) {
@@ -687,6 +693,46 @@ class WhatsAppWebhookController extends Controller
                 'client_id' => $client?->id,
                 'from'      => $from,
             ]);
+        }
+    }
+
+    protected function handleAccountAlert(string $field, array $value, string $wabaId): void
+    {
+        Log::critical("Meta WhatsApp Account Alert Received: {$field}", ['waba_id' => $wabaId, 'payload' => $value]);
+
+        $event = $value['event'] ?? 'UNKNOWN_EVENT';
+        $reason = $value['reason'] ?? '';
+        $phoneOrAccount = $value['display_phone_number'] ?? 'WABA: ' . $wabaId;
+        
+        $alertType = strtoupper($field) . ' - ' . $event;
+        $eventDetails = "Event: {$event}\nReason: {$reason}";
+
+        if (in_array($event, ['RESTRICTED', 'DISABLED', 'FLAGGED', 'DOWNGRADED'])) {
+            // Auto-pause active campaigns
+            try {
+                $activeCampaigns = \App\Models\Campaign::where('type', 'whatsapp')
+                    ->whereIn('status', ['running', 'processing'])
+                    ->get();
+
+                foreach ($activeCampaigns as $campaign) {
+                    $campaign->update(['status' => 'paused']);
+                    Log::critical("Auto-paused WhatsApp Campaign #{$campaign->id} due to Meta Account Alert.");
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to auto-pause campaigns on Meta alert: ' . $e->getMessage());
+            }
+
+            // Send Email to Admins
+            try {
+                $admins = \App\Models\User::where('role', 'admin')->orWhere('role', 'super_admin')->get();
+                foreach ($admins as $admin) {
+                    Mail::to($admin->email)->send(
+                        new \App\Mail\WhatsAppAccountAlertNotification($alertType, $wabaId, $phoneOrAccount, $eventDetails)
+                    );
+                }
+            } catch (\Exception $e) {
+                Log::error('Failed to send Meta account alert email: ' . $e->getMessage());
+            }
         }
     }
 }
