@@ -276,14 +276,17 @@
                 <span class="text-dark fw-semibold small">client(s) selected for batch dispatch</span>
               </div>
               <div class="d-flex gap-2 flex-wrap">
-                <button v-if="channels.whatsapp" class="btn btn-sm btn-success fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendWhatsappToSelected">
-                  <i class="bi bi-whatsapp"></i> Send WhatsApp ({{ selectedClients.length }})
+                <button v-if="channels.whatsapp" class="btn btn-sm btn-success fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendWhatsappToSelected" :disabled="whatsappModalLoading">
+                  <span v-if="whatsappModalLoading" class="spinner-border spinner-border-sm"></span>
+                  <i v-else class="bi bi-whatsapp"></i> Send WhatsApp ({{ selectedClients.length }})
                 </button>
-                <button v-if="channels.email" class="btn btn-sm btn-primary fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendEmailToSelected">
-                  <i class="bi bi-envelope"></i> Send Email ({{ selectedClients.length }})
+                <button v-if="channels.email" class="btn btn-sm btn-primary fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendEmailToSelected" :disabled="emailModalLoading">
+                  <span v-if="emailModalLoading" class="spinner-border spinner-border-sm"></span>
+                  <i v-else class="bi bi-envelope"></i> Send Email ({{ selectedClients.length }})
                 </button>
-                <button v-if="channels.sms" class="btn btn-sm btn-info text-white fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendSmsToSelected">
-                  <i class="bi bi-chat-left-text"></i> Send SMS ({{ selectedClients.length }})
+                <button v-if="channels.sms" class="btn btn-sm btn-info text-white fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendSmsToSelected" :disabled="smsModalLoading">
+                  <span v-if="smsModalLoading" class="spinner-border spinner-border-sm"></span>
+                  <i v-else class="bi bi-chat-left-text"></i> Send SMS ({{ selectedClients.length }})
                 </button>
                 <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkRemoveClients" :disabled="bulkActionLoading">
                   <i class="bi bi-person-dash"></i> Remove
@@ -1406,6 +1409,8 @@
                       track-by="id"
                       :searchable="true"
                       :show-labels="false"
+                      :limit="5"
+                      :options-limit="50"
                       class="mb-1"
                   >
                       <template #noResult>No clients found</template>
@@ -2169,6 +2174,8 @@ export default {
       // WhatsApp template modal
       addWhatsappModal: null,
       whatsappModalLoading: false,
+      emailModalLoading: false,
+      smsModalLoading: false,
       whatsappTemplates: [],
       whatsappFlows: [],
       whatsappForm: {
@@ -2651,11 +2658,13 @@ export default {
         sending: false,
       };
 
+      this.emailModalLoading = true;
       axios.get('/api/email-templates').then((res) => {
         this.emailTemplates = res.data.data || res.data;
       }).catch(() => {
         this.emailTemplates = [];
       }).finally(() => {
+        this.emailModalLoading = false;
         if (this.addEmailModal) {
           this.addEmailModal.show();
         }
