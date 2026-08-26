@@ -697,7 +697,7 @@ export default {
       return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     },
     sendMessage() {
-      if (!this.canManageChat || !this.activeSession) return;
+      if (!this.canManageChat || !this.activeSession || this.uploadingFile) return;
 
       const content = this.newMessage.trim();
       if (!content && !this.selectedFile) return;
