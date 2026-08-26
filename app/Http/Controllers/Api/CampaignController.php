@@ -536,7 +536,7 @@ class CampaignController extends Controller
         if (empty($data['whatsapp_from'])) {
             if (!empty($deptIds)) {
                 $firstDept = \App\Models\Department::find($deptIds[0]);
-                $firstNumber = $firstDept?->whatsapp_numbers[0] ?? null;
+                $firstNumber = $firstDept?->primary_whatsapp_number ?? null;
                 if ($firstNumber) {
                     $data['whatsapp_from'] = $firstNumber;
                 }
@@ -582,7 +582,7 @@ class CampaignController extends Controller
         if (array_key_exists('whatsapp_from', $data) && empty($data['whatsapp_from'])) {
             if (!empty($deptIds)) {
                 $firstDept = \App\Models\Department::find($deptIds[0]);
-                $firstNumber = $firstDept?->whatsapp_numbers[0] ?? null;
+                $firstNumber = $firstDept?->primary_whatsapp_number ?? null;
                 if ($firstNumber) {
                     $data['whatsapp_from'] = $firstNumber;
                 }

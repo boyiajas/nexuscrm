@@ -60,11 +60,14 @@
                     </span>
                   </td>
                   <td>
-                    <span v-if="c.whatsapp_from" class="badge bg-info-subtle text-info border" title="Campaign Specific Sender">
-                      <i class="bi bi-whatsapp me-1"></i>{{ c.whatsapp_from }}
-                    </span>
-                    <span v-else-if="c.bank?.primary_whatsapp_number" class="badge bg-light text-dark border" title="Bank Profile Sender">
+                    <span v-if="c.bank?.primary_whatsapp_number" class="badge bg-light text-dark border" title="Bank Profile Sender">
                       <i class="bi bi-whatsapp me-1"></i>{{ c.bank.primary_whatsapp_number }}
+                    </span>
+                    <span v-else-if="c.departments && c.departments.length && c.departments[0].primary_whatsapp_number" class="badge bg-light text-dark border" title="Department Profile Sender">
+                      <i class="bi bi-whatsapp me-1"></i>{{ c.departments[0].primary_whatsapp_number }}
+                    </span>
+                    <span v-else-if="c.whatsapp_from" class="badge bg-info-subtle text-info border" title="Campaign Specific Sender">
+                      <i class="bi bi-whatsapp me-1"></i>{{ c.whatsapp_from }}
                     </span>
                     <span v-else class="text-muted small">Default</span>
                   </td>
@@ -585,9 +588,9 @@ export default {
       const nums = [];
       this.departments.forEach((d) => {
         if (selectedIds.length === 0 || selectedIds.includes(d.id)) {
-          (d.whatsapp_numbers || []).forEach((n) => {
-            if (n && !nums.includes(n)) nums.push(n);
-          });
+          if (d.primary_whatsapp_number && !nums.includes(d.primary_whatsapp_number)) {
+            nums.push(d.primary_whatsapp_number);
+          }
         }
       });
       this.availableWhatsappNumbers = nums;
