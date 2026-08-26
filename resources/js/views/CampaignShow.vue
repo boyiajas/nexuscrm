@@ -1051,203 +1051,150 @@
 
           <div class="modal-body">
             <p class="text-muted small mb-3">
-              Select one or more clients to attach to this campaign.
-              Use <strong>Select All</strong> to add all clients from the list.
+              Select one or more clients to attach to this campaign. 
               <br>
               <small>Only shows clients from departments matching this campaign.</small>
             </p>
 
-            <!-- Search and filter -->
-            <div class="row g-2 mb-3 align-items-center">
-              <div class="col-md-5">
-                <div class="input-group input-group-sm">
-                  <span class="input-group-text bg-light border-end-0">
-                    <i class="bi bi-search text-muted"></i>
-                  </span>
-                  <input
-                    v-model="clientSearch"
-                    type="text"
-                    class="form-control border-start-0 ps-0"
-                    placeholder="Search by name, email, phone, ID..."
-                    @input="filterClients"
-                  />
-                </div>
-              </div>
-              <div class="col-md-4">
-                <select
-                  v-model="clientSourceFilter"
-                  class="form-select form-select-sm"
-                  @change="filterClients"
-                >
-                  <option value="">All Client Sources / Batches</option>
-                  <option value="manual">Manually Created Clients</option>
+            <!-- Assignment Mode Toggle -->
+            <div class="d-flex bg-light p-1 rounded mb-4" style="max-width: 400px; margin: 0 auto;">
+              <button 
+                class="btn flex-fill fw-semibold btn-sm" 
+                :class="clientAssignmentMode === 'batch' ? 'btn-primary shadow-sm' : 'btn-light text-muted'" 
+                @click="clientAssignmentMode = 'batch'"
+              >
+                <i class="bi bi-collection me-1"></i> Add Entire Batch
+              </button>
+              <button 
+                class="btn flex-fill fw-semibold btn-sm" 
+                :class="clientAssignmentMode === 'individual' ? 'btn-primary shadow-sm' : 'btn-light text-muted'" 
+                @click="clientAssignmentMode = 'individual'"
+              >
+                <i class="bi bi-person-lines-fill me-1"></i> Add Specific Clients
+              </button>
+            </div>
+
+            <div v-if="clientAssignmentMode === 'batch'" class="p-4 border rounded bg-white text-center">
+              <h5 class="mb-3"><i class="bi bi-database-fill-down text-primary mb-2" style="font-size: 2rem;"></i><br>Select a Batch to Import</h5>
+              <p class="text-muted small mb-4">
+                This mode attaches all allowed clients from the selected batch instantly. 
+                It bypasses UI limits and is highly recommended for campaigns exceeding 1,000 clients.
+              </p>
+              
+              <div class="mx-auto" style="max-width: 350px;">
+                <label class="form-label fw-bold text-start w-100">Client Import Batch</label>
+                <select v-model="selectedBatchOption" class="form-select form-select-lg mb-3 shadow-sm border-primary">
+                  <option value="" disabled>-- Choose a Batch --</option>
+                  <option value="all" class="fw-bold text-primary">All Allowed Clients (Entire Database)</option>
                   <optgroup label="Import Batches" v-if="clientBatchOptions.length">
                     <option v-for="batch in clientBatchOptions" :key="batch" :value="batch">
-                      Batch {{ batch }}
+                      Batch: {{ batch }}
                     </option>
                   </optgroup>
                 </select>
-              </div>
-              <div class="col-md-3 text-end">
-                <div class="form-check form-check-inline mb-0">
-                  <input
-                    class="form-check-input"
-                    type="checkbox"
-                    id="showSelectedOnly"
-                    v-model="showSelectedOnly"
-                    @change="filterClients"
-                  />
-                  <label class="form-check-label small" for="showSelectedOnly">
-                    Show selected only
-                  </label>
-                </div>
+                <button 
+                  type="button" 
+                  class="btn btn-primary w-100 py-2 fw-bold" 
+                  @click="saveClientsToCampaign" 
+                  :disabled="addClientsForm.saving || !selectedBatchOption"
+                >
+                  <span v-if="addClientsForm.saving" class="spinner-border spinner-border-sm me-2"></span>
+                  <i v-else class="bi bi-person-plus-fill me-2"></i>
+                  Add Selected Batch
+                </button>
               </div>
             </div>
 
-            <!-- Opt-In Status Filter Checkboxes -->
-            <div class="p-2 mb-3 bg-light rounded border d-flex flex-wrap align-items-center gap-3">
-              <span class="small fw-bold text-muted text-uppercase me-1" style="font-size: 0.72rem; letter-spacing: 0.05em;">
-                <i class="bi bi-funnel me-1"></i>Opt-In Status Filter:
-              </span>
-              
-              <div class="form-check form-check-inline mb-0">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
-                  id="optInFilterYes"
-                  v-model="optInFilterYes"
-                  @change="filterClients"
-                />
-                <label class="form-check-label small fw-semibold text-success" for="optInFilterYes" style="cursor: pointer;">
-                  <i class="bi bi-check-circle-fill me-1 text-success"></i>Opt-In
-                </label>
-              </div>
-
-              <div class="form-check form-check-inline mb-0">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
-                  id="optInFilterNone"
-                  v-model="optInFilterNone"
-                  @change="filterClients"
-                />
-                <label class="form-check-label small fw-semibold text-secondary" for="optInFilterNone" style="cursor: pointer;">
-                  <i class="bi bi-dash-circle me-1 text-muted"></i>Opt-In None
-                </label>
-              </div>
-
-              <div class="form-check form-check-inline mb-0">
-                <input
-                  class="form-check-input"
-                  type="checkbox"
-                  id="optInFilterNo"
-                  v-model="optInFilterNo"
-                  @change="filterClients"
-                />
-                <label class="form-check-label small fw-semibold text-danger" for="optInFilterNo" style="cursor: pointer;">
-                  <i class="bi bi-x-circle-fill me-1 text-danger"></i>Opt-Out
-                </label>
-              </div>
-            </div>
-
-            <!-- VueMultiselect for client selection -->
-            <div class="mb-3">
-              <label class="form-label fw-semibold">Select Clients</label>
-              <vue-multiselect
-                v-model="selectedClients"
-                :options="filteredAvailableClients"
-                :multiple="true"
-                :close-on-select="false"
-                :clear-on-select="false"
-                placeholder="Type to search or filter clients..."
-                label="nameWithDetails"
-                track-by="id"
-                :searchable="true"
-                :allow-empty="true"
-                :show-labels="false"
-                :loading="loadingClients"
-                @search-change="filterClients"
-                class="mb-2"
-              >
-                <template #noResult>No clients found</template>
-                <template #noOptions>No clients available</template>
-                <template #option="{ option }">
-                  <div class="client-option py-1">
-                    <div class="d-flex justify-content-between align-items-center">
-                      <div class="d-flex align-items-center gap-2">
-                        <strong>{{ option.name }}</strong>
-                        <span v-if="option.whatsapp_opted_out_at || option.opt_in === 'no'" class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-Out</span>
-                        <span v-else-if="option.whatsapp_opted_in_at" class="badge bg-success bg-opacity-10 text-success border border-success-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-In</span>
-                        <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-In None</span>
+            <div v-else>
+              <!-- VueMultiselect for async individual client selection -->
+              <div class="mb-3">
+                <label class="form-label fw-semibold">Search and Select Clients</label>
+                <p class="small text-muted mb-2"><i class="bi bi-info-circle me-1"></i> Start typing a name, email, or phone number to search.</p>
+                <vue-multiselect
+                  v-model="selectedClients"
+                  :options="availableClients"
+                  :multiple="true"
+                  :close-on-select="false"
+                  :clear-on-select="false"
+                  placeholder="Type to search clients (e.g. John Doe)..."
+                  label="nameWithDetails"
+                  track-by="id"
+                  :searchable="true"
+                  :allow-empty="true"
+                  :show-labels="false"
+                  :loading="loadingClients"
+                  :internal-search="false"
+                  @search-change="onClientSearch"
+                  class="mb-2 shadow-sm"
+                >
+                  <template #noResult>No clients found matching query</template>
+                  <template #noOptions>Type to search...</template>
+                  <template #option="{ option }">
+                    <div class="client-option py-1">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-2">
+                          <strong>{{ option.name }}</strong>
+                          <span v-if="option.whatsapp_opted_out_at || option.opt_in === 'no'" class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-Out</span>
+                          <span v-else-if="option.whatsapp_opted_in_at" class="badge bg-success bg-opacity-10 text-success border border-success-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-In</span>
+                          <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle py-0 px-1" style="font-size: 0.7rem;">Opt-In None</span>
+                        </div>
+                        <span v-if="!option.import_batch_number" class="badge bg-secondary bg-opacity-10 text-secondary border">
+                          Manual
+                        </span>
+                        <span v-else class="badge bg-info bg-opacity-10 text-info border">
+                          Batch: {{ option.import_batch_number }}
+                        </span>
                       </div>
-                      <span v-if="!option.import_batch_number" class="badge bg-secondary bg-opacity-10 text-secondary border">
-                        Manual
-                      </span>
-                      <span v-else class="badge bg-info bg-opacity-10 text-info border">
-                        Batch: {{ option.import_batch_number }}
-                      </span>
+                      <div class="small text-muted">
+                        <span v-if="option.email">{{ option.email }}</span>
+                        <span v-if="option.email && option.phone"> • </span>
+                        <span v-if="option.phone">{{ option.phone }}</span>
+                      </div>
+                      <div class="small mt-1">
+                        <span
+                          v-for="dept in (option.departments || [])"
+                          :key="dept.id"
+                          class="badge bg-light text-dark border me-1"
+                        >
+                          {{ dept.name }}
+                        </span>
+                      </div>
                     </div>
-                    <div class="small text-muted">
-                      <span v-if="option.email">{{ option.email }}</span>
-                      <span v-if="option.email && option.phone"> • </span>
-                      <span v-if="option.phone">{{ option.phone }}</span>
-                    </div>
-                    <div class="small mt-1">
-                      <span
-                        v-for="dept in (option.departments || [])"
-                        :key="dept.id"
-                        class="badge bg-light text-dark border me-1"
-                      >
-                        {{ dept.name }}
-                      </span>
-                    </div>
-                  </div>
-                </template>
-                <template #tag="{ option, remove }">
-                  <span class="multiselect__tag">
-                    <span>{{ option.name }}</span>
-                    <i class="multiselect__tag-icon" @click="remove(option)"></i>
-                  </span>
-                </template>
-              </vue-multiselect>
+                  </template>
+                  <template #tag="{ option, remove }">
+                    <span class="multiselect__tag">
+                      <span>{{ option.name }}</span>
+                      <i class="multiselect__tag-icon" @click="remove(option)"></i>
+                    </span>
+                  </template>
+                </vue-multiselect>
 
-              <!-- Selection summary -->
-              <div class="d-flex flex-wrap justify-content-between align-items-center mt-2 gap-2">
-                <small class="text-muted">
-                  <span v-if="selectedClients.length > 0">
-                    <strong>{{ selectedClients.length }}</strong> client(s) selected
-                  </span>
-                  <span v-else>
-                    No clients selected
-                  </span>
-                  · {{ filteredAvailableClients.length }} available
-                  <span v-if="clientSourceFilter === 'manual'" class="text-primary fw-semibold"> (Filtered: Manual)</span>
-                  <span v-else-if="clientSourceFilter" class="text-primary fw-semibold"> (Filtered: Batch {{ clientSourceFilter }})</span>
-                </small>
-                <div>
-                  <button
-                    type="button"
-                    class="btn btn-link btn-sm p-0 me-3 text-decoration-none fw-semibold"
-                    @click="selectAllFilteredClients"
-                    :disabled="filteredAvailableClients.length === 0"
-                  >
-                    <i class="bi bi-check-all me-1"></i>Select all shown ({{ filteredAvailableClients.length }})
-                  </button>
-                  <button
-                    type="button"
-                    class="btn btn-link btn-sm p-0 text-danger text-decoration-none fw-semibold"
-                    @click="clearSelection"
-                    :disabled="selectedClients.length === 0"
-                  >
-                    Clear all
-                  </button>
+                <!-- Selection summary -->
+                <div class="d-flex flex-wrap justify-content-between align-items-center mt-2 gap-2">
+                  <small class="text-muted">
+                    <span v-if="selectedClients.length > 0">
+                      <strong>{{ selectedClients.length }}</strong> client(s) selected
+                    </span>
+                    <span v-else>
+                      No clients selected
+                    </span>
+                  </small>
+                  <div>
+                    <button
+                      type="button"
+                      class="btn btn-link btn-sm p-0 text-danger text-decoration-none fw-semibold"
+                      @click="selectedClients = []"
+                      :disabled="selectedClients.length === 0"
+                    >
+                      Clear all
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <!-- Selected clients preview -->
-            <div v-if="selectedClients.length > 0" class="border rounded p-3 mb-3 bg-light bg-opacity-50">
-              <h6 class="mb-2 text-dark">Selected Clients ({{ selectedClients.length }})</h6>
+              <!-- Selected clients preview -->
+              <div v-if="selectedClients.length > 0" class="border rounded p-3 mb-3 bg-light bg-opacity-50">
+                <h6 class="mb-2 text-dark">Selected Clients ({{ selectedClients.length }})</h6>
               <div class="selected-clients-container">
                 <div
                   v-for="client in selectedClients"
@@ -1278,6 +1225,7 @@
                 </div>
               </div>
             </div>
+            </div>
           </div>
 
           <div class="modal-footer">
@@ -1290,6 +1238,7 @@
               Cancel
             </button>
             <button
+              v-show="clientAssignmentMode === 'individual'"
               type="button"
               class="btn btn-primary"
               @click="saveClientsToCampaign"
@@ -2200,6 +2149,8 @@ export default {
 
       // add clients modal
       addClientsModal: null,
+      clientAssignmentMode: 'batch', // 'batch' or 'individual'
+      selectedBatchOption: '',
       availableClients: [],
       filteredAvailableClients: [],
       selectedClients: [],
@@ -3175,34 +3126,56 @@ export default {
       this.showSelectedOnly = false;
       this.addClientsForm.saving = false;
       this.loadingClients = true;
+      this.selectedBatchOption = '';
+      this.clientAssignmentMode = 'batch';
+      this.selectedClients = [];
+      this.availableClients = [];
+      this.filteredAvailableClients = [];
+      this.clientSearch = '';
 
+      // First fetch the batches
       axios
-        .get(`/api/campaigns/${id}/available-clients`)
+        .get(`/api/campaigns/${id}/available-client-batches`)
         .then((res) => {
-          const clients = res.data.data || res.data;
-          this.availableClients = clients.map(client => ({
-            ...client,
-            nameWithDetails: `${client.name} (${client.email || client.phone || 'No contact details'})`,
-          }));
-
-          const batchSet = new Set();
-          clients.forEach(c => {
-            if (c.import_batch_number && String(c.import_batch_number).trim() !== '') {
-              batchSet.add(String(c.import_batch_number).trim());
-            }
-          });
-          this.clientBatchOptions = Array.from(batchSet).sort().reverse();
-          this.filterClients();
+          this.clientBatchOptions = res.data || [];
         })
         .catch((error) => {
-          console.error('Failed to load available clients:', error);
-          this.availableClients = [];
-          this.filteredAvailableClients = [];
+          console.error('Failed to load available batches:', error);
           this.clientBatchOptions = [];
         })
         .finally(() => {
           this.loadingClients = false;
           this.addClientsModal.show();
+        });
+    },
+    
+    // Triggered by vue-multiselect when user types in search
+    onClientSearch(query) {
+      if (this.clientAssignmentMode !== 'individual') return;
+      
+      const id = this.$route.params.id;
+      this.loadingClients = true;
+      
+      // We pass the search term and current filters
+      let url = `/api/campaigns/${id}/available-clients?per_page=50`;
+      if (query && query.trim() !== '') {
+        url += `&search=${encodeURIComponent(query.trim())}`;
+      }
+      
+      axios.get(url)
+        .then(res => {
+          const clients = res.data.data || res.data;
+          this.availableClients = clients.map(client => ({
+            ...client,
+            nameWithDetails: `${client.name} (${client.email || client.phone || 'No contact details'})`,
+          }));
+          this.filterClients();
+        })
+        .catch(err => {
+          console.error('Failed to async search clients:', err);
+        })
+        .finally(() => {
+          this.loadingClients = false;
         });
     },
     filterClients() {
@@ -3268,19 +3241,30 @@ export default {
       this.filterClients();
     },
     saveClientsToCampaign() {
-      if (this.selectedClients.length === 0) {
+      if (this.clientAssignmentMode === 'individual' && this.selectedClients.length === 0) {
         notify.warning('Please select at least one client.', 'Campaigns');
+        return;
+      }
+      if (this.clientAssignmentMode === 'batch' && !this.selectedBatchOption) {
+        notify.warning('Please select a batch to add.', 'Campaigns');
         return;
       }
 
       const id = this.$route.params.id;
       this.addClientsForm.saving = true;
+      
+      const payload = {
+        add_all: this.clientAssignmentMode === 'batch',
+      };
+      
+      if (this.clientAssignmentMode === 'batch') {
+        payload.import_batch_number = this.selectedBatchOption === 'all' ? null : this.selectedBatchOption;
+      } else {
+        payload.client_ids = this.selectedClients.map(c => c.id);
+      }
 
       axios
-        .post(`/api/campaigns/${id}/attach-clients`, {
-          add_all: false,
-          client_ids: this.selectedClients.map(c => c.id),
-        })
+        .post(`/api/campaigns/${id}/attach-clients`, payload)
         .then((response) => {
           notify.success(`Successfully added ${response.data.attached_count || this.selectedClients.length} client(s) to the campaign.`, 'Campaigns');
           this.addClientsModal.hide();

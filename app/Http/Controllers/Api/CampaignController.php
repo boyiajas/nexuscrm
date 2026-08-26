@@ -143,24 +143,87 @@ class CampaignController extends Controller
             $query->whereNotIn('clients.id', $alreadyAttachedIds);
         }
 
-        // Get the results
-        $clients = $query
-            ->orderBy('clients.name')
-            ->get()
-            ->map(function ($client) {
-                return array_merge($client->toArray(), [
-                    'phone' => $this->resolveClientPhone($client),
-                    'departments' => $client->departments->map(function ($dept) {
-                        return [
-                            'id' => $dept->id,
-                            'name' => $dept->name
-                        ];
-                    }),
-                    'department_names' => $client->departments->pluck('name')->join(', '),
-                ]);
+        // Apply search if provided
+        if ($search = trim((string) request()->get('search', request()->get('q')))) {
+            $query->where(function ($q) use ($search) {
+                $q->where('clients.name', 'like', "%{$search}%")
+                    ->orWhere('clients.email', 'like', "%{$search}%")
+                    ->orWhere('clients.phone', 'like', "%{$search}%")
+                    ->orWhere('clients.cell_phone', 'like', "%{$search}%")
+                    ->orWhere('clients.id_number', 'like', "%{$search}%")
+                    ->orWhere('clients.import_batch_number', 'like', "%{$search}%");
             });
+        }
 
-        return response()->json($clients);
+        // Apply batch filter if provided
+        if ($batch = trim((string) request()->get('batch'))) {
+            $query->where('clients.import_batch_number', $batch);
+        }
+
+        $perPage = (int) request()->get('per_page', 50);
+
+        // Get the paginated results
+        $paginator = $query
+            ->orderBy('clients.name')
+            ->paginate($perPage);
+
+        $paginator->getCollection()->transform(function ($client) {
+            return array_merge($client->toArray(), [
+                'phone' => $this->resolveClientPhone($client),
+                'departments' => $client->departments->map(function ($dept) {
+                    return [
+                        'id' => $dept->id,
+                        'name' => $dept->name
+                    ];
+                }),
+                'department_names' => $client->departments->pluck('name')->join(', '),
+            ]);
+        });
+
+        return response()->json($paginator);
+    }
+
+    /**
+     * List only distinct batches available for this campaign to avoid huge payloads
+     */
+    public function availableClientBatches(Campaign $campaign)
+    {
+        $this->authorizeView($campaign);
+        $campaign->loadMissing('departments');
+        $deptIds = $campaign->departments->pluck('id')->all();
+
+        $query = Client::query();
+
+        if ($user = Auth::user()) {
+            if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
+                $query->where('clients.assigned_to_id', $user->id);
+            }
+        }
+
+        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients())) {
+            $query->whereHas('departments', function ($q) use ($deptIds) {
+                $q->whereIn('departments.id', $deptIds);
+            });
+        }
+
+        // Exclude clients already attached to this campaign? 
+        // For batch list, we don't strictly need to exclude them if we just want a list of batches.
+        // But doing so makes it accurate.
+        $alreadyAttachedIds = $campaign->clients()->pluck('clients.id')->all();
+        if (!empty($alreadyAttachedIds)) {
+            $query->whereNotIn('clients.id', $alreadyAttachedIds);
+        }
+
+        $batches = $query
+            ->whereNotNull('import_batch_number')
+            ->where('import_batch_number', '!=', '')
+            ->distinct()
+            ->pluck('import_batch_number')
+            ->sort()
+            ->reverse()
+            ->values();
+
+        return response()->json($batches);
     }
 
     /**

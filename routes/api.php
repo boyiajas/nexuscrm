@@ -84,6 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/campaigns/{campaign}/clients/{client}', [CampaignController::class, 'detachClient']);
     Route::post('/campaigns/{campaign}/detach-clients', [CampaignController::class, 'detachClients']);
     Route::get('/campaigns/{campaign}/available-clients', [CampaignController::class, 'availableClients']);
+    Route::get('/campaigns/{campaign}/available-client-batches', [CampaignController::class, 'availableClientBatches']);
     Route::post('/campaigns/{campaign}/attach-clients', [CampaignController::class, 'attachClients']);
 
     Route::get('/campaigns/{campaign}/whatsapp-messages', [CampaignController::class, 'whatsappMessages']);
