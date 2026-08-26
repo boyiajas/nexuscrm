@@ -2548,17 +2548,23 @@ export default {
     },
     selectUnsentBatch(count) {
       const id = this.$route.params.id;
-      if (count === 'all_campaign') {
-        // Fetch all client IDs for the campaign without instantiating full objects if possible
-        // Actually since we removed all=1, we can't easily fetch all campaign client IDs
-        notify.warning('Selecting all campaign clients is no longer supported directly from the table. Use the modal options instead.', 'Campaigns');
+      if (count === 'all_campaign' || count === 'all_unsent') {
+        const mode = count === 'all_campaign' ? 'all' : 'unsent';
+        const dummyObject = [{
+          id: 'ALL',
+          nameWithDetails: count === 'all_campaign' ? `All Campaign Clients (${this.clientStatsServer.total})` : `All Unsent Clients (${this.clientStats.unsent})`
+        }];
+        
+        if (this.activeChannelTab === 'whatsapp') {
+          this.openAddWhatsappTemplateModal(dummyObject, mode);
+        }
         return;
       }
       
-      const n = count === 'all_unsent' ? 1000 : (Number(count) || 25);
+      const n = Number(count) || 25;
       const chName = this.activeChannelTab.toUpperCase();
       
-      notify.info(`Fetching ${count === 'all_unsent' ? 'unsent' : `next ${n} unsent`} clients for ${chName}...`, 'Campaigns');
+      notify.info(`Fetching next ${n} unsent clients for ${chName}...`, 'Campaigns');
       
       axios.get(`/api/campaigns/${id}/clients?status=unsent&channel=${this.activeChannelTab}&per_page=${n}`).then((res) => {
         const targets = res.data.data || res.data || [];
@@ -2574,14 +2580,19 @@ export default {
     },
     selectUnsentBatchInModal(count) {
       const id = this.$route.params.id;
-      if (count === 'all_campaign') {
-        this.whatsappForm.selectedClients = [];
+      if (count === 'all_campaign' || count === 'all_unsent') {
+        const mode = count === 'all_campaign' ? 'all' : 'unsent';
+        this.whatsappForm.clientsMode = mode;
+        this.whatsappForm.selectedClients = [{
+          id: 'ALL',
+          nameWithDetails: count === 'all_campaign' ? `All Campaign Clients (${this.clientStatsServer.total})` : `All Unsent Clients (${this.clientStats.unsent})`
+        }];
         return;
       }
       
-      const n = count === 'all_unsent' ? 1000 : (Number(count) || 25);
-      
-      notify.info(`Fetching ${count === 'all_unsent' ? 'unsent' : `next ${n} unsent`} clients for WhatsApp...`, 'WhatsApp');
+      const n = Number(count) || 25;
+      this.whatsappForm.clientsMode = 'selected';
+      notify.info(`Fetching next ${n} unsent clients for WhatsApp...`, 'WhatsApp');
       
       axios.get(`/api/campaigns/${id}/clients?status=unsent&channel=whatsapp&per_page=${n}`).then((res) => {
         const targets = res.data.data || res.data || [];
@@ -2612,18 +2623,8 @@ export default {
                { id: id, name: `Client #${id}`, email: '', phone: '' };
       });
       
-      const mappedClients = selectedObjects.map(c => {
-        return {
-          id: c.id,
-          name: c.name,
-          email: c.email,
-          phone: c.phone,
-          departments: c.departments,
-          nameWithDetails: `${c.name}${c.phone ? ' (' + c.phone + ')' : ''}`,
-        };
-      });
-
-      this.openAddWhatsappTemplateModal(mappedClients);
+      this.whatsappForm.clientsMode = 'selected';
+      this.openAddWhatsappTemplateModal(selectedObjects);
     },
     sendEmailToSelected() {
       if (this.selectedClients.length === 0) return;
@@ -3298,7 +3299,7 @@ export default {
     },
 
     // WhatsApp Template flow
-    openAddWhatsappTemplateModal(preselectedClients = null) {
+    openAddWhatsappTemplateModal(preselectedClients = null, clientsMode = 'selected') {
       const existingSelected = preselectedClients !== null ? preselectedClients : [];
 
       this.whatsappModalLoading = true;
@@ -3308,6 +3309,7 @@ export default {
         templateId: '',
         flowId: '',
         templateVariables: {},
+        clientsMode: clientsMode,
         selectedClients: existingSelected,
         trackResponses: true,
         enableLiveChat: true,
@@ -3346,14 +3348,13 @@ export default {
       if (isFlow && !this.whatsappForm.flowId) return;
 
       const id = this.$route.params.id;
-      const hasSelection = this.whatsappForm.selectedClients.length > 0;
       const payload = {
         mode: this.whatsappForm.mode,
+        clients_mode: this.whatsappForm.clientsMode,
+        client_ids: this.whatsappForm.clientsMode === 'selected' ? this.whatsappForm.selectedClients.map(c => c.id).filter(id => id !== 'ALL') : [],
         template_id: isTemplate ? this.whatsappForm.templateId : null,
         flow_id: isFlow ? this.whatsappForm.flowId : null,
         template_variables: isTemplate ? this.whatsappForm.templateVariables : {},
-        clients_mode: hasSelection ? 'selected' : 'all',
-        client_ids: hasSelection ? this.whatsappForm.selectedClients.map((c) => c.id) : [],
         send_now: sendNow,
         enable_live_chat: this.whatsappForm.enableLiveChat,
         enable_email_notification: this.whatsappForm.enableEmailNotification,

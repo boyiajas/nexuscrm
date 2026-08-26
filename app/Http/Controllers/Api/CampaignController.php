@@ -1126,7 +1126,7 @@ class CampaignController extends Controller
             'template_id'      => ['nullable', 'string'],
             'flow_id'          => ['nullable', 'integer', 'exists:whatsapp_flows,id'],
             'template_variables' => ['sometimes', 'array'],
-            'clients_mode'     => ['required', 'in:all,selected'],
+            'clients_mode'     => ['required', 'in:all,selected,unsent'],
             'client_ids'       => ['array'],
             'client_ids.*'     => ['integer', 'exists:clients,id'],
             'send_now'         => ['sometimes', 'boolean'],
@@ -1160,6 +1160,11 @@ class CampaignController extends Controller
         $clientsQuery = $campaign->clients();
         if ($data['clients_mode'] === 'selected') {
             $clientsQuery->whereIn('clients.id', $data['client_ids']);
+        } elseif ($data['clients_mode'] === 'unsent') {
+            $clientsQuery->where(function ($q) {
+                $q->whereNull('campaign_clients.whatsapp_status')
+                  ->orWhereIn('campaign_clients.whatsapp_status', ['Pending', 'Unsent', '']);
+            });
         }
 
         $clients = $clientsQuery->get([
@@ -2037,7 +2042,7 @@ class CampaignController extends Controller
             'template_id'      => ['nullable', 'string'],
             'flow_id'          => ['nullable', 'integer', 'exists:whatsapp_flows,id'],
             'template_variables' => ['sometimes', 'array'],
-            'clients_mode'     => ['required', 'in:all,selected'],
+            'clients_mode'     => ['required', 'in:all,selected,unsent'],
             'client_ids'       => ['array'],
             'client_ids.*'     => ['integer', 'exists:clients,id'],
             'track_responses'  => ['sometimes', 'boolean'],
@@ -2076,6 +2081,11 @@ class CampaignController extends Controller
         if ($data['clients_mode'] === 'selected') {
             $ids = $data['client_ids'] ?? [];
             $clientsQuery->whereIn('clients.id', $ids);
+        } elseif ($data['clients_mode'] === 'unsent') {
+            $clientsQuery->where(function ($q) {
+                $q->whereNull('campaign_clients.whatsapp_status')
+                  ->orWhereIn('campaign_clients.whatsapp_status', ['Pending', 'Unsent', '']);
+            });
         }
 
         $clients = $clientsQuery->get([
