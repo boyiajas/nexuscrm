@@ -475,11 +475,7 @@ class CampaignController extends Controller
                 $baseQuery->whereIn("campaign_clients.{$statusColumn}", ['Sent', 'Delivered', 'Read', 'Opened', 'Clicked']);
             } elseif ($statusFilter === 'failed') {
                 if ($channel === 'whatsapp') {
-                    $baseQuery->where(function ($q) {
-                        $q->whereIn("campaign_clients.whatsapp_status", ['Failed', 'Bounced'])
-                          ->orWhereNotNull("campaign_clients.whatsapp_error_message")
-                          ->orWhereNotNull("campaign_clients.whatsapp_error_code");
-                    });
+                    $baseQuery->whereIn("campaign_clients.whatsapp_status", ['Failed', 'Bounced']);
                 } else {
                     $baseQuery->whereIn("campaign_clients.{$statusColumn}", ['Failed', 'Bounced']);
                 }
@@ -496,7 +492,6 @@ class CampaignController extends Controller
         // Optimize the stats query by selecting only what we need
         $statsRows = $statsQuery->get([
             'campaign_clients.whatsapp_status', 
-            'campaign_clients.whatsapp_error_message',
             'campaign_clients.email_status',
             'campaign_clients.sms_status'
         ]);
@@ -509,7 +504,7 @@ class CampaignController extends Controller
             
             if (in_array($st, ['sent', 'delivered', 'read', 'opened', 'clicked'])) {
                 $sent++;
-            } elseif ($st === 'failed' || $st === 'bounced' || ($channel === 'whatsapp' && !empty($row->whatsapp_error_message))) {
+            } elseif ($st === 'failed' || $st === 'bounced') {
                 $failed++;
             } else {
                 $unsent++;
