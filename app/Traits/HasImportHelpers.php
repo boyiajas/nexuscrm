@@ -5,6 +5,11 @@ namespace App\Traits;
 use Illuminate\Support\Str;
 use ZipArchive;
 use SimpleXMLElement;
+use App\Models\Client;
+use App\Models\ImportUpload;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 trait HasImportHelpers
 {
