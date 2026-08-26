@@ -63,7 +63,8 @@ class ClientController extends Controller
                   ->orWhere('cell_phone', 'like', "%$search%")
                   ->orWhere('id_number', 'like', "%$search%")
                   ->orWhere('account_number', 'like', "%$search%")
-                  ->orWhere('easy_pay_number', 'like', "%$search%");
+                  ->orWhere('easy_pay_number', 'like', "%$search%")
+                  ->orWhere('store_number', 'like', "%$search%");
             });
         }
 
@@ -258,6 +259,7 @@ class ClientController extends Controller
             'first_name' => ['nullable', 'string', 'max:255'],
             'surname' => ['nullable', 'string', 'max:255'],
             'easy_pay_number' => ['nullable', 'string', 'max:255'],
+            'store_number' => ['nullable', 'string', 'max:255'],
             'outstanding_balance' => ['nullable', 'numeric'],
             'arrears_amount' => ['nullable', 'numeric'],
             'settlement_amount' => ['nullable', 'numeric'],
@@ -303,6 +305,7 @@ class ClientController extends Controller
                 'first_name' => $data['first_name'] ?? null,
                 'surname' => $data['surname'] ?? null,
                 'easy_pay_number' => $data['easy_pay_number'] ?? null,
+                'store_number' => $data['store_number'] ?? null,
                 'outstanding_balance' => $data['outstanding_balance'] ?? null,
                 'arrears_amount' => $data['arrears_amount'] ?? null,
                 'settlement_amount' => $data['settlement_amount'] ?? null,
@@ -379,6 +382,7 @@ class ClientController extends Controller
             'first_name' => ['nullable', 'string', 'max:255'],
             'surname' => ['nullable', 'string', 'max:255'],
             'easy_pay_number' => ['nullable', 'string', 'max:255'],
+            'store_number' => ['nullable', 'string', 'max:255'],
             'outstanding_balance' => ['nullable', 'numeric'],
             'arrears_amount' => ['nullable', 'numeric'],
             'settlement_amount' => ['nullable', 'numeric'],
@@ -429,6 +433,7 @@ class ClientController extends Controller
                 'first_name' => $data['first_name'] ?? $client->first_name,
                 'surname' => $data['surname'] ?? $client->surname,
                 'easy_pay_number' => $data['easy_pay_number'] ?? $client->easy_pay_number,
+                'store_number' => $data['store_number'] ?? $client->store_number,
                 'outstanding_balance' => array_key_exists('outstanding_balance', $data) ? $data['outstanding_balance'] : $client->outstanding_balance,
                 'arrears_amount' => array_key_exists('arrears_amount', $data) ? $data['arrears_amount'] : $client->arrears_amount,
                 'settlement_amount' => array_key_exists('settlement_amount', $data) ? $data['settlement_amount'] : $client->settlement_amount,
@@ -595,7 +600,8 @@ class ClientController extends Controller
                     ->orWhere('cell_phone', 'like', "%$search%")
                     ->orWhere('id_number', 'like', "%$search%")
                     ->orWhere('account_number', 'like', "%$search%")
-                    ->orWhere('easy_pay_number', 'like', "%$search%");
+                    ->orWhere('easy_pay_number', 'like', "%$search%")
+                    ->orWhere('store_number', 'like', "%$search%");
             });
         }
 

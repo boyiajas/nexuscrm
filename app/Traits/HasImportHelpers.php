@@ -299,6 +299,8 @@ trait HasImportHelpers
             'emailpersonal' => 'email_personal',
             'easy_pay' => 'easy_pay_number',
             'easypay' => 'easy_pay_number',
+            'store_number' => 'store_number',
+            'storenumber' => 'store_number',
             'idno' => 'id_number',
             'known_as' => 'name',
             'patient_cell' => 'cell_phone',

@@ -451,6 +451,10 @@
                   <label class="form-label">Easy Pay Number</label>
                   <input v-model="form.easy_pay_number" type="text" class="form-control" />
                 </div>
+                <div class="col-md-6">
+                  <label class="form-label">Store Number</label>
+                  <input v-model="form.store_number" type="text" class="form-control" />
+                </div>
                 <div class="col-md-4">
                   <label class="form-label">Outstanding Balance</label>
                   <input v-model="form.outstanding_balance" type="number" step="0.01" class="form-control" />
@@ -714,6 +718,7 @@
                   <div class="col-md-6 mb-2"><strong>Type:</strong> {{ viewClient.type || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Branch Code:</strong> {{ viewClient.branch_code || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Easy Pay Number:</strong> {{ viewClient.easy_pay_number || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Store Number:</strong> {{ viewClient.store_number || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ viewClient.arrears_amount ? 'R' + Number(viewClient.arrears_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.arrears_amount || '-') }}</div>
                   <div class="col-md-6 mb-2"><strong>Outstanding Balance:</strong> {{ viewClient.outstanding_balance ? 'R' + Number(viewClient.outstanding_balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.outstanding_balance || '-') }}</div>
                   <div class="col-md-6 mb-2"><strong>Settlement Amount:</strong> {{ viewClient.settlement_amount ? 'R' + Number(viewClient.settlement_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.settlement_amount || '-') }}</div>
@@ -1178,6 +1183,7 @@ export default {
         account_number: '',
         branch_code: '',
         easy_pay_number: '',
+        store_number: '',
         outstanding_balance: '',
         arrears_amount: '',
         settlement_amount: '',
@@ -1226,6 +1232,7 @@ export default {
           account_number: fullClient.account_number || '',
           branch_code: fullClient.branch_code || '',
           easy_pay_number: fullClient.easy_pay_number || '',
+          store_number: fullClient.store_number || '',
           outstanding_balance: fullClient.outstanding_balance || '',
           arrears_amount: fullClient.arrears_amount || '',
           settlement_amount: fullClient.settlement_amount || '',

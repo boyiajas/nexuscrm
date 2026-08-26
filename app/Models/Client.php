@@ -27,6 +27,7 @@ class Client extends Model
         'account_number',
         'branch_code',
         'easy_pay_number',
+        'store_number',
         'cell_phone',
         'home_phone',
         'work_phone',
