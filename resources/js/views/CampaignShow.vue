@@ -38,7 +38,7 @@
           <div class="card-body p-3 d-flex justify-content-between align-items-start position-relative z-1">
             <div>
               <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
-              <div class="stat-card-number mt-1">{{ clients.length || stats.total_clients || campaign?.total_recipients || 0 }}</div>
+              <div class="stat-card-number mt-1">{{ clientStatsServer.total || totalCampaignClients || stats.total_clients || 0 }}</div>
               <small class="text-muted" style="font-size: 0.75rem;">Campaign Recipients</small>
             </div>
             <div class="stat-icon-badge">
