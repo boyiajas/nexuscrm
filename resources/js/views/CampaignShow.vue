@@ -270,26 +270,34 @@
             </div>
 
             <!-- Multi-Channel Bulk Actions Bar -->
-            <div v-if="selectedClients.length > 0" class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3 px-3 py-2 bg-light rounded border shadow-sm">
+            <div v-if="selectedClients.length > 0 || globalSelectionMode" class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3 px-3 py-2 bg-light rounded border shadow-sm">
               <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-primary fs-6">{{ selectedClients.length }}</span>
-                <span class="text-dark fw-semibold small">client(s) selected for batch dispatch</span>
+                <span class="badge bg-primary fs-6">
+                  {{ globalSelectionMode === 'all_campaign' ? clientStatsServer.total : (globalSelectionMode === 'all_unsent' ? clientStats.unsent : selectedClients.length) }}
+                </span>
+                <span class="text-dark fw-semibold small">
+                  client(s) selected for batch dispatch
+                  <span v-if="globalSelectionMode" class="badge bg-warning text-dark ms-2">Global Selection</span>
+                </span>
               </div>
               <div class="d-flex gap-2 flex-wrap">
                 <button v-if="channels.whatsapp" class="btn btn-sm btn-success fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendWhatsappToSelected" :disabled="whatsappModalLoading">
                   <span v-if="whatsappModalLoading" class="spinner-border spinner-border-sm"></span>
-                  <i v-else class="bi bi-whatsapp"></i> Send WhatsApp ({{ selectedClients.length }})
+                  <i v-else class="bi bi-whatsapp"></i> Send WhatsApp ({{ globalSelectionMode === 'all_campaign' ? clientStatsServer.total : (globalSelectionMode === 'all_unsent' ? clientStats.unsent : selectedClients.length) }})
                 </button>
                 <button v-if="channels.email" class="btn btn-sm btn-primary fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendEmailToSelected" :disabled="emailModalLoading">
                   <span v-if="emailModalLoading" class="spinner-border spinner-border-sm"></span>
-                  <i v-else class="bi bi-envelope"></i> Send Email ({{ selectedClients.length }})
+                  <i v-else class="bi bi-envelope"></i> Send Email ({{ globalSelectionMode === 'all_campaign' ? clientStatsServer.total : (globalSelectionMode === 'all_unsent' ? clientStats.unsent : selectedClients.length) }})
                 </button>
                 <button v-if="channels.sms" class="btn btn-sm btn-info text-white fw-semibold shadow-sm d-flex align-items-center gap-1" @click="sendSmsToSelected" :disabled="smsModalLoading">
                   <span v-if="smsModalLoading" class="spinner-border spinner-border-sm"></span>
-                  <i v-else class="bi bi-chat-left-text"></i> Send SMS ({{ selectedClients.length }})
+                  <i v-else class="bi bi-chat-left-text"></i> Send SMS ({{ globalSelectionMode === 'all_campaign' ? clientStatsServer.total : (globalSelectionMode === 'all_unsent' ? clientStats.unsent : selectedClients.length) }})
                 </button>
-                <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkRemoveClients" :disabled="bulkActionLoading">
+                <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkRemoveClients" :disabled="bulkActionLoading || globalSelectionMode">
                   <i class="bi bi-person-dash"></i> Remove
+                </button>
+                <button v-if="globalSelectionMode" class="btn btn-sm btn-secondary fw-medium shadow-sm ms-2" @click="clearSelection">
+                  <i class="bi bi-x-circle me-1"></i> Clear Selection
                 </button>
               </div>
             </div>
@@ -300,7 +308,7 @@
                 <tr>
                   <th class="ps-4" style="width: 40px;">
                     <div class="form-check m-0">
-                      <input class="form-check-input" type="checkbox" :checked="selectAllClients" @change="toggleSelectAllClients($event)">
+                      <input class="form-check-input" type="checkbox" :checked="selectAllClients || globalSelectionMode !== null" @change="toggleSelectAllClients($event)" :disabled="globalSelectionMode !== null">
                     </div>
                   </th>
                   <th>Name</th>
@@ -319,7 +327,7 @@
                 <tr v-for="cl in paginatedCampaignClients" :key="cl.id">
                   <td class="ps-4 py-1">
                     <div class="form-check m-0">
-                      <input class="form-check-input" type="checkbox" :value="cl.id" v-model="selectedClients">
+                      <input class="form-check-input" type="checkbox" :value="cl.id" v-model="selectedClients" :disabled="globalSelectionMode !== null">
                     </div>
                   </td>
                   <td class="py-3">{{ cl.name }}</td>
@@ -2113,6 +2121,7 @@ export default {
       loadingCampaignClients: true,
       selectedClients: [],
       selectedClientObjects: [],
+      globalSelectionMode: null, // 'all_campaign' or 'all_unsent'
       clientTablePerPage: 25,
       clientTableCurrentPage: 1,
       clientStatusFilter: 'all',
@@ -2549,15 +2558,9 @@ export default {
     selectUnsentBatch(count) {
       const id = this.$route.params.id;
       if (count === 'all_campaign' || count === 'all_unsent') {
-        const mode = count === 'all_campaign' ? 'all' : 'unsent';
-        const dummyObject = [{
-          id: 'ALL',
-          nameWithDetails: count === 'all_campaign' ? `All Campaign Clients (${this.clientStatsServer.total})` : `All Unsent Clients (${this.clientStats.unsent})`
-        }];
-        
-        if (this.activeChannelTab === 'whatsapp') {
-          this.openAddWhatsappTemplateModal(dummyObject, mode);
-        }
+        this.globalSelectionMode = count;
+        this.selectedClients = []; // Clear individual selections
+        this.selectedClientObjects = [];
         return;
       }
       
@@ -2616,6 +2619,16 @@ export default {
       });
     },
     sendWhatsappToSelected() {
+      if (this.globalSelectionMode) {
+        const mode = this.globalSelectionMode === 'all_campaign' ? 'all' : 'unsent';
+        const dummyObject = [{
+          id: 'ALL',
+          nameWithDetails: this.globalSelectionMode === 'all_campaign' ? `All Campaign Clients (${this.clientStatsServer.total})` : `All Unsent Clients (${this.clientStats.unsent})`
+        }];
+        this.openAddWhatsappTemplateModal(dummyObject, mode);
+        return;
+      }
+
       if (this.selectedClients.length === 0) return;
       const selectedObjects = this.selectedClients.map(id => {
         return this.selectedClientObjects.find(c => c.id === id) || 
@@ -2623,8 +2636,7 @@ export default {
                { id: id, name: `Client #${id}`, email: '', phone: '' };
       });
       
-      this.whatsappForm.clientsMode = 'selected';
-      this.openAddWhatsappTemplateModal(selectedObjects);
+      this.openAddWhatsappTemplateModal(selectedObjects, 'selected');
     },
     sendEmailToSelected() {
       if (this.selectedClients.length === 0) return;
@@ -3249,6 +3261,8 @@ export default {
     },
     clearSelection() {
       this.selectedClients = [];
+      this.selectedClientObjects = [];
+      this.globalSelectionMode = null;
       this.filterClients();
     },
     removeFromSelection(client) {
