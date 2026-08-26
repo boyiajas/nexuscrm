@@ -710,13 +710,12 @@ class WhatsAppWebhookController extends Controller
         if (in_array($event, ['RESTRICTED', 'DISABLED', 'FLAGGED', 'DOWNGRADED'])) {
             // Auto-pause active campaigns
             try {
-                $activeCampaigns = \App\Models\Campaign::where('type', 'whatsapp')
-                    ->whereIn('status', ['running', 'processing'])
-                    ->get();
+                $activeBatches = \App\Models\CampaignWhatsappMessage::whereIn('status', ['Queued', 'Processing'])->get();
+                $batchService = app(\App\Services\WhatsAppBatchService::class);
 
-                foreach ($activeCampaigns as $campaign) {
-                    $campaign->update(['status' => 'paused']);
-                    Log::critical("Auto-paused WhatsApp Campaign #{$campaign->id} due to Meta Account Alert.");
+                foreach ($activeBatches as $batch) {
+                    $batchService->pauseMessage($batch, 'Auto-paused due to Meta Account Alert.');
+                    Log::critical("Auto-paused WhatsApp Batch #{$batch->id} due to Meta Account Alert.");
                 }
             } catch (\Exception $e) {
                 Log::error('Failed to auto-pause campaigns on Meta alert: ' . $e->getMessage());
