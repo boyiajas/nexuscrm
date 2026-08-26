@@ -829,9 +829,16 @@ class ClientController extends Controller
         }
 
         $deletedCount = 0;
+        $clientIds = $clients->pluck('id');
 
         DB::beginTransaction();
         try {
+            $chatSessionIds = DB::table('chat_sessions')->whereIn('client_id', $clientIds)->pluck('id');
+            if ($chatSessionIds->isNotEmpty()) {
+                DB::table('chat_messages')->whereIn('chat_session_id', $chatSessionIds)->delete();
+                DB::table('chat_sessions')->whereIn('id', $chatSessionIds)->delete();
+            }
+
             foreach ($clients as $client) {
                 $client->departments()->detach();
                 $client->campaigns()->detach();
