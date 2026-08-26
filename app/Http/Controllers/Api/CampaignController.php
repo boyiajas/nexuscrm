@@ -489,27 +489,17 @@ class CampaignController extends Controller
         $statsQuery->limit = null;
         $statsQuery->offset = null;
         
-        // Optimize the stats query by selecting only what we need
-        $statsRows = $statsQuery->get([
-            'campaign_clients.whatsapp_status', 
-            'campaign_clients.email_status',
-            'campaign_clients.sms_status'
-        ]);
+        // Optimize the stats query by using SQL aggregations instead of loading all rows into memory
+        $stats = $statsQuery->toBase()->selectRaw("
+            COUNT(*) as total,
+            SUM(CASE WHEN campaign_clients.{$channel}_status IN ('Sent', 'Delivered', 'Read', 'Opened', 'Clicked') THEN 1 ELSE 0 END) as sent,
+            SUM(CASE WHEN campaign_clients.{$channel}_status IN ('Failed', 'Bounced') THEN 1 ELSE 0 END) as failed
+        ")->first();
 
-        $total = $statsRows->count();
-        $sent = 0; $failed = 0; $unsent = 0;
-
-        foreach ($statsRows as $row) {
-            $st = trim(strtolower($row->{"{$channel}_status"} ?? ''));
-            
-            if (in_array($st, ['sent', 'delivered', 'read', 'opened', 'clicked'])) {
-                $sent++;
-            } elseif ($st === 'failed' || $st === 'bounced') {
-                $failed++;
-            } else {
-                $unsent++;
-            }
-        }
+        $total = (int) ($stats->total ?? 0);
+        $sent = (int) ($stats->sent ?? 0);
+        $failed = (int) ($stats->failed ?? 0);
+        $unsent = $total - $sent - $failed;
 
         $clientStats = [
             'total' => $total,
