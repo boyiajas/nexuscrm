@@ -90,23 +90,29 @@
                 <div class="small text-muted mt-1" v-if="upload.error_message">{{ upload.error_message }}</div>
               </td>
               <td class="small">
-                <template v-if="upload.import_summary">
-                  <div v-if="upload.import_status === 'importing'">
-                     <div class="progress mb-1" style="height: 6px;">
-                       <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
-                            :style="{ width: ((upload.import_summary.processed_rows || 0) / (upload.import_summary.total_rows || 1)) * 100 + '%' }"></div>
-                     </div>
-                     <div class="text-muted" style="font-size: 0.8rem;">
-                       Processing: {{ upload.import_summary.processed_rows || 0 }} / {{ upload.import_summary.total_rows || '?' }}
-                     </div>
-                  </div>
-                  <div v-else>
-                    <div>Imported: {{ upload.import_summary.imported ?? 0 }}</div>
-                    <div>Created: {{ upload.import_summary.created ?? 0 }}</div>
-                    <div>Updated: {{ upload.import_summary.updated ?? 0 }}</div>
-                    <div>Duplicates: {{ upload.import_summary.duplicates ?? 0 }}</div>
-                    <div>Skipped: {{ upload.import_summary.skipped ?? 0 }}</div>
-                  </div>
+                <template v-if="['uploaded', 'scanning', 'scan_passed', 'importing', 'deleting'].includes(upload.import_status)">
+                   <div class="progress mb-1" style="height: 6px;">
+                     <div :class="['progress-bar progress-bar-striped progress-bar-animated', upload.import_status === 'deleting' ? 'bg-danger' : 'bg-info']" 
+                          :style="{ width: upload.import_status === 'deleting' ? (((upload.import_summary?.deleted_rows || 0) / (upload.import_summary?.total_to_delete || 1)) * 100 + '%') : (((upload.import_summary?.processed_rows || 0) / (upload.import_summary?.total_rows || 1)) * 100 + '%') }"></div>
+                   </div>
+                   <div class="text-muted" style="font-size: 0.8rem;">
+                     <template v-if="upload.import_status === 'importing'">
+                       Processing: {{ upload.import_summary?.processed_rows || 0 }} / {{ upload.import_summary?.total_rows || '?' }}
+                     </template>
+                     <template v-else-if="upload.import_status === 'deleting'">
+                       Deleting: {{ upload.import_summary?.deleted_rows || 0 }} / {{ upload.import_summary?.total_to_delete || '?' }}
+                     </template>
+                     <template v-else>
+                       Waiting in queue...
+                     </template>
+                   </div>
+                </template>
+                <template v-else-if="upload.import_summary && Object.keys(upload.import_summary).length">
+                  <div>Imported: {{ upload.import_summary.imported ?? 0 }}</div>
+                  <div>Created: {{ upload.import_summary.created ?? 0 }}</div>
+                  <div>Updated: {{ upload.import_summary.updated ?? 0 }}</div>
+                  <div>Duplicates: {{ upload.import_summary.duplicates ?? 0 }}</div>
+                  <div>Skipped: {{ upload.import_summary.skipped ?? 0 }}</div>
                 </template>
                 <span v-else class="text-muted">-</span>
               </td>
@@ -168,7 +174,7 @@ export default {
         scan_status: 'all',
         bank_id: '',
       },
-      importStatuses: ['uploaded', 'scanning', 'scan_passed', 'importing', 'rejected_invalid', 'rejected_malware', 'scanner_error', 'imported', 'import_failed'],
+      importStatuses: ['uploaded', 'scanning', 'scan_passed', 'importing', 'deleting', 'rejected_invalid', 'rejected_malware', 'scanner_error', 'imported', 'import_failed', 'deleted'],
       scanStatuses: ['skipped', 'clean', 'infected', 'error'],
       perPage: 25,
       pollInterval: null,
@@ -250,7 +256,7 @@ export default {
           nextPage: data.next_page_url ? data.current_page + 1 : null,
         };
 
-        const isProcessing = this.uploads.some(u => ['scanning', 'importing'].includes(u.import_status));
+        const isProcessing = this.uploads.some(u => ['uploaded', 'scanning', 'scan_passed', 'importing', 'deleting'].includes(u.import_status));
         if (isProcessing && !this.pollInterval) {
           this.pollInterval = setInterval(() => {
             this.fetchUploads(page);
@@ -300,6 +306,8 @@ export default {
         scanner_error: 'bg-warning text-dark',
         imported: 'bg-success',
         import_failed: 'bg-danger',
+        deleting: 'bg-warning text-dark',
+        deleted: 'bg-secondary',
       }[status] || 'bg-secondary';
     },
   },

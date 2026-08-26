@@ -1534,12 +1534,13 @@ export default {
 
             this.clearSelectedClients();
             this.filters.import_batch_number = '';
-            await this.fetchClients(1);
 
             notify.success(
-              `Deleted ${response.data?.deleted_count || 0} client(s) from batch "${batchNumber}".`,
+              `Batch deletion queued successfully. You can track progress on the Import Data page.`,
               'Clients'
             );
+            
+            this.$router.push({ name: 'import-uploads' });
           } catch (error) {
             console.error('Failed to delete clients by batch:', error);
             notify.error(
@@ -1629,7 +1630,7 @@ export default {
             console.warn('Import errors:', data.errors);
           }
           this.importModal.hide();
-          this.fetchClients(1);
+          this.$router.push({ name: 'import-uploads' });
         })
         .catch(error => {
           console.error('Import failed:', error);

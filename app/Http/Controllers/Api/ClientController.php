@@ -819,57 +819,25 @@ class ClientController extends Controller
             });
         }
 
-        $clients = $query
-            ->where('import_batch_number', $batchNumber)
-            ->get();
+        $exists = $query->where('import_batch_number', $batchNumber)->exists();
 
-        if ($clients->isEmpty()) {
+        if (!$exists) {
             return response()->json([
                 'message' => 'No clients found for the selected import batch.',
             ], 404);
         }
 
-        $deletedCount = 0;
-        $clientIds = $clients->pluck('id');
-
-        DB::beginTransaction();
-        try {
-            $chatSessionIds = DB::table('chat_sessions')->whereIn('client_id', $clientIds)->pluck('id');
-            if ($chatSessionIds->isNotEmpty()) {
-                DB::table('chat_messages')->whereIn('chat_session_id', $chatSessionIds)->delete();
-                DB::table('chat_sessions')->whereIn('id', $chatSessionIds)->delete();
-            }
-
-            foreach ($clients as $client) {
-                $client->departments()->detach();
-                $client->campaigns()->detach();
-                $client->delete();
-                $deletedCount++;
-            }
-
-            DB::commit();
-
-            $this->audit(
-                action: "Deleted {$deletedCount} clients from import batch {$batchNumber}",
-                module: 'Clients',
-                meta: [
-                    'import_batch_number' => $batchNumber,
-                    'deleted_count' => $deletedCount,
-                ]
-            );
-
-            return response()->json([
-                'message' => 'Clients deleted successfully.',
-                'deleted_count' => $deletedCount,
-                'import_batch_number' => $batchNumber,
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-
-            return response()->json([
-                'message' => 'Failed to delete clients for batch: ' . $e->getMessage(),
-            ], 500);
+        $upload = \App\Models\ImportUpload::query()->where('import_batch_number', $batchNumber)->first();
+        if ($upload) {
+            $upload->update(['import_status' => 'deleting']);
         }
+
+        \App\Jobs\DeleteBatchJob::dispatch($batchNumber, $user->id);
+
+        return response()->json([
+            'message' => 'Batch deletion queued successfully. You can track progress on the Import Data page.',
+            'import_batch_number' => $batchNumber,
+        ]);
     }
 
     public function bulkAssign(Request $request)
@@ -1266,37 +1234,6 @@ class ClientController extends Controller
         }
 
         return $ids[0];
-    }
-
-    protected function resolveAssignedUserId($user, ?int $bankId, $requestedAssignedUserId): ?int
-    {
-        if ($user && $user->isPortfolioScoped()) {
-            return (int) $user->id;
-        }
-
-        if (!$requestedAssignedUserId) {
-            return null;
-        }
-
-        $assignee = User::query()->find($requestedAssignedUserId);
-        if (!$assignee) {
-            abort(422, 'The selected assignee is invalid.');
-        }
-
-        if ($bankId && (int) $assignee->bank_id !== (int) $bankId) {
-            abort(422, 'The selected assignee must belong to the same bank as the client.');
-        }
-
-        return (int) $requestedAssignedUserId;
-    }
-
-    protected function resolveBankName(?int $bankId, ?string $fallbackName): ?string
-    {
-        if ($bankId) {
-            return Bank::query()->whereKey($bankId)->value('name') ?? $fallbackName;
-        }
-
-        return $fallbackName;
     }
 
 }

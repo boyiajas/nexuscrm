@@ -7,6 +7,8 @@ use ZipArchive;
 use SimpleXMLElement;
 use App\Models\Client;
 use App\Models\ImportUpload;
+use App\Models\User;
+use App\Models\Bank;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
@@ -424,4 +426,34 @@ trait HasImportHelpers
         return $batchNumber;
     }
 
+    protected function resolveAssignedUserId($user, ?int $bankId, $requestedAssignedUserId): ?int
+    {
+        if ($user && $user->isPortfolioScoped()) {
+            return (int) $user->id;
+        }
+
+        if (!$requestedAssignedUserId) {
+            return null;
+        }
+
+        $assignee = User::query()->find($requestedAssignedUserId);
+        if (!$assignee) {
+            abort(422, 'The selected assignee is invalid.');
+        }
+
+        if ($bankId && (int) $assignee->bank_id !== (int) $bankId) {
+            abort(422, 'The selected assignee must belong to the same bank as the client.');
+        }
+
+        return (int) $requestedAssignedUserId;
+    }
+
+    protected function resolveBankName(?int $bankId, ?string $fallbackName): ?string
+    {
+        if ($bankId) {
+            return Bank::query()->whereKey($bankId)->value('name') ?? $fallbackName;
+        }
+
+        return $fallbackName;
+    }
 }

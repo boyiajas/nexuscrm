@@ -90,15 +90,12 @@ class ImportClientsJob implements ShouldQueue
             $bankId = $this->bankId;
             $bankName = $this->resolveBankName($bankId, null);
             $defaultAssignedToId = $this->resolveAssignedUserId($user, $bankId, null);
-            
             $departmentLookup = Department::query()
                 ->pluck('id', 'name')
                 ->mapWithKeys(function ($id, $name) {
                     return [mb_strtolower(trim((string) $name)) => (int) $id];
                 })
                 ->all();
-
-            DB::beginTransaction();
 
             $rowNumber = 1;
             foreach ($rows as $row) {
@@ -279,8 +276,6 @@ class ImportClientsJob implements ShouldQueue
                 $importCount++;
             }
 
-            DB::commit();
-
             $importUpload->forceFill([
                 'import_status' => 'imported',
                 'imported_at' => now(),
@@ -314,7 +309,6 @@ class ImportClientsJob implements ShouldQueue
             );
 
         } catch (Throwable $e) {
-            DB::rollBack();
             Log::error('ImportClientsJob failed: ' . $e->getMessage(), ['exception' => $e]);
             
             $importUpload->forceFill([
