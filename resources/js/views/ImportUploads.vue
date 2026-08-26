@@ -91,11 +91,22 @@
               </td>
               <td class="small">
                 <template v-if="upload.import_summary">
-                  <div>Imported: {{ upload.import_summary.imported ?? 0 }}</div>
-                  <div>Created: {{ upload.import_summary.created ?? 0 }}</div>
-                  <div>Updated: {{ upload.import_summary.updated ?? 0 }}</div>
-                  <div>Duplicates: {{ upload.import_summary.duplicates ?? 0 }}</div>
-                  <div>Skipped: {{ upload.import_summary.skipped ?? 0 }}</div>
+                  <div v-if="upload.import_status === 'importing'">
+                     <div class="progress mb-1" style="height: 6px;">
+                       <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" 
+                            :style="{ width: ((upload.import_summary.processed_rows || 0) / (upload.import_summary.total_rows || 1)) * 100 + '%' }"></div>
+                     </div>
+                     <div class="text-muted" style="font-size: 0.8rem;">
+                       Processing: {{ upload.import_summary.processed_rows || 0 }} / {{ upload.import_summary.total_rows || '?' }}
+                     </div>
+                  </div>
+                  <div v-else>
+                    <div>Imported: {{ upload.import_summary.imported ?? 0 }}</div>
+                    <div>Created: {{ upload.import_summary.created ?? 0 }}</div>
+                    <div>Updated: {{ upload.import_summary.updated ?? 0 }}</div>
+                    <div>Duplicates: {{ upload.import_summary.duplicates ?? 0 }}</div>
+                    <div>Skipped: {{ upload.import_summary.skipped ?? 0 }}</div>
+                  </div>
                 </template>
                 <span v-else class="text-muted">-</span>
               </td>
@@ -157,9 +168,10 @@ export default {
         scan_status: 'all',
         bank_id: '',
       },
-      importStatuses: ['uploaded', 'scanning', 'scan_passed', 'rejected_invalid', 'rejected_malware', 'scanner_error', 'imported', 'import_failed'],
+      importStatuses: ['uploaded', 'scanning', 'scan_passed', 'importing', 'rejected_invalid', 'rejected_malware', 'scanner_error', 'imported', 'import_failed'],
       scanStatuses: ['skipped', 'clean', 'infected', 'error'],
       perPage: 25,
+      pollInterval: null,
       pagination: {
         from: 0,
         to: 0,
@@ -194,6 +206,11 @@ export default {
       this.fetchBanks();
     }
   },
+  unmounted() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+    }
+  },
   methods: {
     hasPermission(permCode) {
       if (!this.currentUser) return false;
@@ -211,7 +228,7 @@ export default {
       return permissionCodes.some((permissionCode) => this.hasPermission(permissionCode));
     },
     async fetchUploads(page = 1) {
-      this.loading = true;
+      if (!this.pollInterval) this.loading = true;
       try {
         const { data } = await axios.get('/api/import-uploads', {
           params: {
@@ -232,6 +249,16 @@ export default {
           prevPage: data.prev_page_url ? data.current_page - 1 : null,
           nextPage: data.next_page_url ? data.current_page + 1 : null,
         };
+
+        const isProcessing = this.uploads.some(u => ['scanning', 'importing'].includes(u.import_status));
+        if (isProcessing && !this.pollInterval) {
+          this.pollInterval = setInterval(() => {
+            this.fetchUploads(page);
+          }, 3000);
+        } else if (!isProcessing && this.pollInterval) {
+          clearInterval(this.pollInterval);
+          this.pollInterval = null;
+        }
       } finally {
         this.loading = false;
       }
@@ -267,6 +294,7 @@ export default {
         uploaded: 'bg-secondary',
         scanning: 'bg-info text-dark',
         scan_passed: 'bg-primary',
+        importing: 'bg-info text-dark',
         rejected_invalid: 'bg-warning text-dark',
         rejected_malware: 'bg-danger',
         scanner_error: 'bg-warning text-dark',

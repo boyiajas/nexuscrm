@@ -1537,7 +1537,7 @@ export default {
             await this.fetchClients(1);
 
             notify.success(
-              `Deleted ${response.data?.deleted_count || 0} client(s) from batch "${batchNumber}".`,
+              `Batch delete queued successfully for "${batchNumber}". It will be processed in the background.`,
               'Clients'
             );
           } catch (error) {
@@ -1622,7 +1622,7 @@ export default {
         .then((response) => {
           const data = response.data;
           notify.success(
-            `Import completed for batch ${data.import_batch_number || '-'}. Imported: ${data.imported || 0}, created: ${data.created || 0}, updated: ${data.updated || 0}, duplicates: ${data.duplicates || 0}, skipped: ${data.skipped || 0}.`,
+            `Import queued successfully (Batch ${data.import_batch_number || '-'}). You can track its progress on the Import Data page.`,
             'Clients'
           );
           if (data.errors && data.errors.length > 0) {
