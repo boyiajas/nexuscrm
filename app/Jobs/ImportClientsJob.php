@@ -310,8 +310,7 @@ class ImportClientsJob implements ShouldQueue
                     'import_batch_number' => $this->importBatchNumber,
                     'department_ids' => $this->selectedDepartmentIds,
                     'malware_scan' => $this->scanResult,
-                ],
-                userId: $this->userId
+                ]
             );
 
         } catch (Throwable $e) {
@@ -331,8 +330,7 @@ class ImportClientsJob implements ShouldQueue
                     'file' => $this->originalName,
                     'upload_id' => $importUpload->id,
                     'import_batch_number' => $this->importBatchNumber,
-                ],
-                userId: $this->userId
+                ]
             );
             
             throw $e;

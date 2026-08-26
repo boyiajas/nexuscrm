@@ -506,6 +506,7 @@ class ClientController extends Controller
         $originalName = $uploadedFile->getClientOriginalName();
         $storedPath = $uploadedFile->store('imports/quarantine', 'local');
         $path = Storage::disk('local')->path($storedPath);
+        @chmod($path, 0666);
 
         $importUpload = ImportUpload::create([
             'bank_id' => $bankId,
