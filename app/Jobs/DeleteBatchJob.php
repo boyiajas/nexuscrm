@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Client;
 use App\Models\User;
-use App\Traits\Auditable;
+use App\Concerns\HasAuditLogging;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Log;
 
 class DeleteBatchJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, Auditable;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, HasAuditLogging;
 
     public $timeout = 3600;
 

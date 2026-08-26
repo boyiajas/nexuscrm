@@ -7,7 +7,7 @@ use App\Models\Department;
 use App\Models\ImportUpload;
 use App\Models\User;
 use App\Traits\HasImportHelpers;
-use App\Traits\Auditable;
+use App\Concerns\HasAuditLogging;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,7 +19,7 @@ use Throwable;
 
 class ImportClientsJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, HasImportHelpers, Auditable;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, HasImportHelpers, HasAuditLogging;
 
     public $timeout = 3600;
 
