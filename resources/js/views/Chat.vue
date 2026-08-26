@@ -271,14 +271,17 @@
             <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none" @click="triggerFileInput" title="Attach file" :disabled="!activeSession || loadingMessages || !canManageChat">
               <i class="bi bi-paperclip" :class="{'text-primary': selectedFile}"></i>
             </button>
-            <input
+            <textarea
               v-model="newMessage"
-              type="text"
-              class="form-control rounded-pill border-0 shadow-none py-2 px-4 flex-grow-1 me-3"
-              style="background-color: #ffffff;"
-              placeholder="Type a message or select an attachment..."
+              class="form-control rounded-4 border-0 shadow-none py-2 px-3 flex-grow-1 me-3"
+              style="background-color: #ffffff; resize: none; overflow-y: auto; line-height: 1.5;"
+              rows="1"
+              placeholder="Type a message (Shift+Enter for new line)"
               :disabled="!activeSession || loadingMessages || !canManageChat || uploadingFile"
-            />
+              @keydown.enter.exact.prevent="sendMessage"
+              @input="adjustTextareaHeight"
+              ref="messageInput"
+            ></textarea>
             <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || loadingMessages || (!newMessage.trim() && !selectedFile) || !canManageChat || uploadingFile">
               <span v-if="uploadingFile" class="spinner-border spinner-border-sm text-primary" role="status"></span>
               <i v-else class="bi bi-send-fill" :class="{'text-primary': newMessage.trim() || selectedFile}"></i>
@@ -664,6 +667,11 @@ export default {
           console.error('Unable to open chat for client', err);
         });
     },
+    adjustTextareaHeight(e) {
+      const el = e.target;
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    },
     triggerFileInput() {
       if (this.$refs.fileInput) {
         this.$refs.fileInput.click();
@@ -721,6 +729,9 @@ export default {
         .then((res) => {
           this.messages.push(res.data);
           this.newMessage = '';
+          if (this.$refs.messageInput) {
+            this.$refs.messageInput.style.height = 'auto';
+          }
           this.clearSelectedFile();
           this.$nextTick(this.scrollToBottom);
           this.fetchSessions();
