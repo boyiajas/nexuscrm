@@ -293,7 +293,7 @@
                   <span v-if="smsModalLoading" class="spinner-border spinner-border-sm"></span>
                   <i v-else class="bi bi-chat-left-text"></i> Send SMS ({{ globalSelectionMode === 'all_campaign' ? clientStatsServer.total : (globalSelectionMode === 'all_unsent' ? clientStats.unsent : selectedClients.length) }})
                 </button>
-                <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkRemoveClients" :disabled="bulkActionLoading || globalSelectionMode">
+                <button class="btn btn-sm btn-outline-danger bg-white fw-medium shadow-sm" @click="bulkRemoveClients" :disabled="bulkActionLoading">
                   <i class="bi bi-person-dash"></i> Remove
                 </button>
                 <button v-if="globalSelectionMode" class="btn btn-sm btn-secondary fw-medium shadow-sm ms-2" @click="clearSelection">
@@ -3122,19 +3122,28 @@ export default {
     },
 
     bulkRemoveClients() {
-      if (this.selectedClients.length === 0) return;
+      if (this.selectedClients.length === 0 && !this.globalSelectionMode) return;
+      
+      const countLabel = this.globalSelectionMode === 'all_campaign' ? this.clientStatsServer.total : (this.globalSelectionMode === 'all_unsent' ? this.clientStats.unsent : this.selectedClients.length);
 
       this.$refs.confirmModal.open({
         title: 'Remove Selected Clients',
-        message: `Are you sure you want to remove ${this.selectedClients.length} client(s) from this campaign?`,
+        message: `Are you sure you want to remove ${countLabel} client(s) from this campaign?`,
         confirmText: 'Remove Clients',
         confirmClass: 'btn-danger',
         onConfirm: async () => {
           this.bulkActionLoading = true;
           try {
-            await axios.post(`/api/campaigns/${this.$route.params.id}/detach-clients`, {
-              client_ids: this.selectedClients,
-            });
+            const payload = {};
+            if (this.globalSelectionMode) {
+                payload.clients_mode = this.globalSelectionMode === 'all_campaign' ? 'all' : 'unsent';
+                payload.channel = this.activeChannelTab;
+            } else {
+                payload.clients_mode = 'selected';
+                payload.client_ids = this.selectedClients;
+            }
+            
+            await axios.post(`/api/campaigns/${this.$route.params.id}/detach-clients`, payload);
             notify.success('Clients removed successfully', 'Campaigns');
             this.selectedClients = [];
             this.fetchCampaign();

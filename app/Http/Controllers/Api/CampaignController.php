@@ -368,14 +368,17 @@ class CampaignController extends Controller
             'client_ids' => ['nullable', 'array'],
             'client_ids.*' => ['integer', 'exists:clients,id'],
             'import_batch_number' => ['nullable', 'string', 'max:255'],
+            'clients_mode' => ['nullable', 'string', 'in:selected,all,unsent'],
+            'channel' => ['nullable', 'string', 'in:whatsapp,email,sms'],
         ]);
 
         $clientIds = $validated['client_ids'] ?? [];
         $importBatchNumber = $validated['import_batch_number'] ?? null;
+        $clientsMode = $validated['clients_mode'] ?? 'selected';
 
-        if (empty($clientIds) && !$importBatchNumber) {
+        if ($clientsMode === 'selected' && empty($clientIds) && !$importBatchNumber) {
             return response()->json([
-                'message' => 'Select client_ids or provide an import_batch_number.',
+                'message' => 'Select client_ids or provide an import_batch_number when mode is selected.',
             ], 422);
         }
 
@@ -385,12 +388,31 @@ class CampaignController extends Controller
             $query->where('clients.assigned_to_id', Auth::id());
         }
 
-        if (!empty($clientIds)) {
-            $query->whereIn('clients.id', $clientIds);
-        }
-
-        if ($importBatchNumber) {
-            $query->where('clients.import_batch_number', $importBatchNumber);
+        if ($clientsMode === 'selected') {
+            if (!empty($clientIds)) {
+                $query->whereIn('clients.id', $clientIds);
+            }
+            if ($importBatchNumber) {
+                $query->where('clients.import_batch_number', $importBatchNumber);
+            }
+        } elseif ($clientsMode === 'unsent') {
+            $channel = $validated['channel'] ?? 'whatsapp';
+            if ($channel === 'whatsapp') {
+                $query->where(function ($q) {
+                    $q->whereNull('campaign_clients.whatsapp_status')
+                      ->orWhereIn('campaign_clients.whatsapp_status', ['Pending', 'Unsent', '']);
+                });
+            } elseif ($channel === 'email') {
+                $query->where(function ($q) {
+                    $q->whereNull('campaign_clients.email_status')
+                      ->orWhereIn('campaign_clients.email_status', ['Pending', 'Unsent', '']);
+                });
+            } elseif ($channel === 'sms') {
+                $query->where(function ($q) {
+                    $q->whereNull('campaign_clients.sms_status')
+                      ->orWhereIn('campaign_clients.sms_status', ['Pending', 'Unsent', '']);
+                });
+            }
         }
 
         $idsToDetach = $query->pluck('clients.id')->all();
