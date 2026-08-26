@@ -117,8 +117,13 @@ class CampaignController extends Controller
 
         // Base query: only clients in those departments (many-to-many)
         $query = Client::query()
-            ->with('departments')
-            ->select('clients.*');
+            ->with('departments:id,name')
+            ->select(
+                'clients.id', 'clients.name', 'clients.email', 'clients.phone', 
+                'clients.cell_phone', 'clients.home_phone', 'clients.work_phone', 
+                'clients.opt_in', 'clients.whatsapp_opted_in_at', 'clients.whatsapp_opted_out_at', 
+                'clients.import_batch_number'
+            );
 
         if ($user = Auth::user()) {
             if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
