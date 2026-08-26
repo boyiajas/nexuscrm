@@ -1537,7 +1537,7 @@ export default {
             await this.fetchClients(1);
 
             notify.success(
-              `Batch delete queued successfully for "${batchNumber}". It will be processed in the background.`,
+              `Deleted ${response.data?.deleted_count || 0} client(s) from batch "${batchNumber}".`,
               'Clients'
             );
           } catch (error) {

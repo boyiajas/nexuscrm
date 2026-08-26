@@ -8,7 +8,6 @@ use App\Http\Controllers\Controller;
 use App\Models\Bank;
 use App\Models\Client;
 use App\Jobs\ImportClientsJob;
-use App\Jobs\DeleteBatchJob;
 use App\Models\Department;
 use App\Models\ExportRequest;
 use App\Models\ImportUpload;
@@ -808,28 +807,61 @@ class ClientController extends Controller
             ], 422);
         }
 
-        $exists = Client::where('import_batch_number', $batchNumber)->exists();
+        $query = Client::query()->with('departments');
+        $this->applyBankScope($query, $user);
+        $this->applyPortfolioScope($query, $user);
 
-        if (!$exists) {
+        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
+        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
+            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
+                $q->whereIn('departments.id', $userDepartmentIds);
+            });
+        }
+
+        $clients = $query
+            ->where('import_batch_number', $batchNumber)
+            ->get();
+
+        if ($clients->isEmpty()) {
             return response()->json([
                 'message' => 'No clients found for the selected import batch.',
             ], 404);
         }
 
-        $bankIds = $user->canAccessAllBanks() ? [] : $user->resolvedBankIds();
-        $departmentIds = $user->canViewAllImportedClients() ? [] : ($user->resolvedDepartmentIds() ?? []);
+        $deletedCount = 0;
 
-        DeleteBatchJob::dispatch(
-            $user->id,
-            $batchNumber,
-            $bankIds,
-            $departmentIds
-        );
+        DB::beginTransaction();
+        try {
+            foreach ($clients as $client) {
+                $client->departments()->detach();
+                $client->campaigns()->detach();
+                $client->delete();
+                $deletedCount++;
+            }
 
-        return response()->json([
-            'message' => 'Batch deletion queued successfully. Processing in background.',
-            'import_batch_number' => $batchNumber,
-        ]);
+            DB::commit();
+
+            $this->audit(
+                action: "Deleted {$deletedCount} clients from import batch {$batchNumber}",
+                module: 'Clients',
+                meta: [
+                    'import_batch_number' => $batchNumber,
+                    'deleted_count' => $deletedCount,
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Clients deleted successfully.',
+                'deleted_count' => $deletedCount,
+                'import_batch_number' => $batchNumber,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to delete clients for batch: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function bulkAssign(Request $request)
