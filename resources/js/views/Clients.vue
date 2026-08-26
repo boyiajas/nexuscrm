@@ -472,6 +472,14 @@
                   <input v-model="form.installment_amount" type="number" step="0.01" class="form-control" />
                 </div>
                 <div class="col-md-6">
+                  <label class="form-label">Last Payment Amount</label>
+                  <input v-model="form.last_payment_amount" type="number" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Total Payment Amount</label>
+                  <input v-model="form.total_payment_amount" type="number" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-6">
                   <label class="form-label">Assigned Portfolio Owner</label>
                   <select v-model="form.assigned_to_id" class="form-select" :disabled="!canChooseAssignee">
                     <option value="">Unassigned</option>
@@ -1175,6 +1183,8 @@ export default {
         settlement_amount: '',
         three_months_amount: '',
         installment_amount: '',
+        last_payment_amount: '',
+        total_payment_amount: '',
         assigned_to_id: this.canChooseAssignee ? '' : (this.currentUser?.id || ''),
         department_ids: [],
         tags: [],
@@ -1221,6 +1231,8 @@ export default {
           settlement_amount: fullClient.settlement_amount || '',
           three_months_amount: fullClient.three_months_amount || '',
           installment_amount: fullClient.installment_amount || '',
+          last_payment_amount: fullClient.last_payment_amount || '',
+          total_payment_amount: fullClient.total_payment_amount || '',
           assigned_to_id: fullClient.assigned_to_id || '',
           department_ids: fullClient.departments ? fullClient.departments.map(d => d.id) : [],
           tags: fullClient.tags || [],
