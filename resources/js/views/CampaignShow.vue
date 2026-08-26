@@ -1446,7 +1446,12 @@
 
                   <div class="d-flex justify-content-between mt-1">
                       <small class="text-muted">
-                        Targeting <strong>{{ whatsappForm.selectedClients.length || clients.length }}</strong> client(s). Leave empty to send to all {{ clients.length }}.
+                        Targeting <strong>
+                          <span v-if="whatsappForm.clientsMode === 'all'">{{ clientStatsServer.total }}</span>
+                          <span v-else-if="whatsappForm.clientsMode === 'unsent'">{{ clientStats.unsent }}</span>
+                          <span v-else>{{ whatsappForm.selectedClients.length === 0 ? clientStatsServer.total : whatsappForm.selectedClients.length }}</span>
+                        </strong> client(s). 
+                        <span v-if="whatsappForm.clientsMode === 'selected' && whatsappForm.selectedClients.length === 0">Leave empty to send to all {{ clientStatsServer.total }} campaign clients.</span>
                       </small>
                       <div>
                       <button
@@ -3355,17 +3360,31 @@ export default {
         this.whatsappModalLoading = false;
       });
     },
-    saveWhatsappTemplate(sendNow = true) {
+    saveWhatsappTemplate(sendNow = false) {
+      if (this.whatsappForm.sending) return;
+
       const isTemplate = this.whatsappForm.mode === 'template';
       const isFlow = this.whatsappForm.mode === 'flow';
+
       if (isTemplate && !this.whatsappForm.templateId) return;
       if (isFlow && !this.whatsappForm.flowId) return;
 
       const id = this.$route.params.id;
+      
+      let finalClientsMode = this.whatsappForm.clientsMode;
+      let finalClientIds = [];
+
+      if (finalClientsMode === 'selected') {
+        finalClientIds = this.whatsappForm.selectedClients.map(c => c.id).filter(id => id !== 'ALL');
+        if (finalClientIds.length === 0) {
+          finalClientsMode = 'all';
+        }
+      }
+
       const payload = {
         mode: this.whatsappForm.mode,
-        clients_mode: this.whatsappForm.clientsMode,
-        client_ids: this.whatsappForm.clientsMode === 'selected' ? this.whatsappForm.selectedClients.map(c => c.id).filter(id => id !== 'ALL') : [],
+        clients_mode: finalClientsMode,
+        client_ids: finalClientIds,
         template_id: isTemplate ? this.whatsappForm.templateId : null,
         flow_id: isFlow ? this.whatsappForm.flowId : null,
         template_variables: isTemplate ? this.whatsappForm.templateVariables : {},
@@ -3620,19 +3639,22 @@ export default {
     },
 
     selectAllCampaignClients(channel) {
-        const all = this.campaignClientOptions;
-
         if (channel === 'whatsapp') {
-            this.whatsappForm.selectedClients = [...all];
+            this.whatsappForm.clientsMode = 'all';
+            this.whatsappForm.selectedClients = [{
+                id: 'ALL',
+                nameWithDetails: `All Campaign Clients (${this.clientStatsServer.total})`
+            }];
         } else if (channel === 'email') {
-            this.emailForm.selectedClients = [...all];
+            this.emailForm.selectedClients = [...this.campaignClientOptions];
         } else if (channel === 'sms') {
-            this.smsForm.selectedClients = [...all];
+            this.smsForm.selectedClients = [...this.campaignClientOptions];
         }
-        },
+    },
 
     clearCampaignClientSelection(channel) {
         if (channel === 'whatsapp') {
+            this.whatsappForm.clientsMode = 'selected';
             this.whatsappForm.selectedClients = [];
         } else if (channel === 'email') {
             this.emailForm.selectedClients = [];
