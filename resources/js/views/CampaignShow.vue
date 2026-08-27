@@ -3145,9 +3145,9 @@ export default {
             
             await axios.post(`/api/campaigns/${this.$route.params.id}/detach-clients`, payload);
             notify.success('Clients removed successfully', 'Campaigns');
-            this.selectedClients = [];
+            this.clearSelection();
             this.fetchCampaign();
-            this.fetchClients(this.clientsPagination.currentPage);
+            this.fetchClients();
           } catch (err) {
             notify.error(err.response?.data?.message || 'Failed to remove clients', 'Campaigns');
           } finally {
