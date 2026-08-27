@@ -720,6 +720,11 @@ export default {
         this.$refs.fileInput.value = '';
       }
     },
+    formatTime(dateString) {
+      if (!dateString) return '';
+      const date = new Date(dateString);
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
     formatFileSize(bytes) {
       if (!bytes) return '0 B';
       const k = 1024;
