@@ -48,10 +48,6 @@
               <option v-for="bank in availableBanks" :key="bank.id" :value="bank.id">{{ bank.name }}</option>
             </select>
           </div>
-          <select v-model="filterWaba" class="form-select form-select-sm shadow-none" @change="fetchSessions">
-            <option value="all">All WhatsApp Profiles</option>
-            <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">{{ waba.label }} ({{ waba.number }})</option>
-          </select>
         </div>
       </div>
 
