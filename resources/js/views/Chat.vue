@@ -38,14 +38,16 @@
       <!-- Segmentation Filters -->
       <div class="p-2 border-bottom sidebar-filters bg-light">
         <div class="d-flex flex-column gap-2">
-          <select v-model="filterDepartment" class="form-select form-select-sm shadow-none" @change="fetchSessions">
-            <option value="all">All Departments</option>
-            <option v-for="dept in availableDepartments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
-          </select>
-          <select v-model="filterBank" class="form-select form-select-sm shadow-none" @change="fetchSessions">
-            <option value="all">All Branches</option>
-            <option v-for="bank in availableBanks" :key="bank.id" :value="bank.id">{{ bank.name }}</option>
-          </select>
+          <div class="d-flex gap-2">
+            <select v-model="filterDepartment" class="form-select form-select-sm shadow-none w-50" @change="fetchSessions">
+              <option value="all">All Departments</option>
+              <option v-for="dept in availableDepartments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
+            </select>
+            <select v-model="filterBank" class="form-select form-select-sm shadow-none w-50" @change="fetchSessions">
+              <option value="all">All Branches</option>
+              <option v-for="bank in availableBanks" :key="bank.id" :value="bank.id">{{ bank.name }}</option>
+            </select>
+          </div>
           <select v-model="filterWaba" class="form-select form-select-sm shadow-none" @change="fetchSessions">
             <option value="all">All WhatsApp Profiles</option>
             <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">{{ waba.label }} ({{ waba.number }})</option>
