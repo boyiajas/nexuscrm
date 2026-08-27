@@ -323,6 +323,7 @@ class WhatsAppWebhookController extends Controller
                     'bank_id' => $client->bank_id,
                     'status' => 'active',
                     'unread_count' => 0,
+                    'waba_phone_number_id' => $phoneNumberId,
                 ]
             );
         } else {
@@ -332,6 +333,7 @@ class WhatsAppWebhookController extends Controller
                     'phone' => $from,
                     'status' => 'active',
                     'unread_count' => 0,
+                    'waba_phone_number_id' => $phoneNumberId,
                 ]
             );
         }
@@ -353,6 +355,7 @@ class WhatsAppWebhookController extends Controller
             'phone' => $session->phone ?: ($client?->phone ?? $from),
             'bank_id' => $client?->bank_id ?: $session->bank_id,
             'status' => 'active',
+            'waba_phone_number_id' => $phoneNumberId ?: $session->waba_phone_number_id,
         ]);
 
         Log::info('Meta WhatsApp inbound reply routed to live chat.', [

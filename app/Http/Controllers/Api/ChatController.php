@@ -58,6 +58,26 @@ class ChatController extends Controller
             }
         }
 
+        if ($departmentId = $request->get('department_id')) {
+            if ($departmentId !== 'all') {
+                $query->whereHas('client.departments', function ($q) use ($departmentId) {
+                    $q->where('departments.id', $departmentId);
+                });
+            }
+        }
+
+        if ($bankId = $request->get('bank_id')) {
+            if ($bankId !== 'all') {
+                $query->where('bank_id', $bankId);
+            }
+        }
+
+        if ($wabaNumber = $request->get('waba_number')) {
+            if ($wabaNumber !== 'all') {
+                $query->where('waba_phone_number_id', $wabaNumber);
+            }
+        }
+
         if ($search = $request->get('search')) {
             $search = trim($search);
             $query->where(function ($q) use ($search) {
@@ -76,6 +96,34 @@ class ChatController extends Controller
         $perPage = min((int) $request->get('per_page', 100), 500);
 
         return $query->paginate($perPage);
+    }
+
+    public function filters()
+    {
+        $user = Auth::user();
+
+        $banksQuery = \App\Models\Bank::select('id', 'name');
+        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
+            $banksQuery->whereIn('id', $user->resolvedBankIds());
+        }
+        $banks = $banksQuery->get();
+
+        $departmentsQuery = \App\Models\Department::select('id', 'name');
+        // Currently users might not be strictly scoped to departments for viewing chats,
+        // but if they are, we can use resolvedDepartmentIds. For now, returning all they can access.
+        if (!$user->canAccessAllBanks() && !empty($user->resolvedDepartmentIds())) {
+             $departmentsQuery->whereIn('id', $user->resolvedDepartmentIds());
+        }
+        $departments = $departmentsQuery->get();
+
+        $wabas = [];
+        try {
+            $wabas = $this->whatsApp->listWhatsappSenders();
+        } catch (\Throwable $e) {
+            Log::error('Failed to load WABAs for chat filters: ' . $e->getMessage());
+        }
+
+        return response()->json(compact('banks', 'departments', 'wabas'));
     }
 
     public function show(ChatSession $session)

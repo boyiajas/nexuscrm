@@ -35,12 +35,30 @@
         </div>
       </div>
 
+      <!-- Segmentation Filters -->
+      <div class="p-2 border-bottom sidebar-filters bg-light">
+        <div class="d-flex flex-column gap-2">
+          <select v-model="filterDepartment" class="form-select form-select-sm shadow-none" @change="fetchSessions">
+            <option value="all">All Departments</option>
+            <option v-for="dept in availableDepartments" :key="dept.id" :value="dept.id">{{ dept.name }}</option>
+          </select>
+          <select v-model="filterBank" class="form-select form-select-sm shadow-none" @change="fetchSessions">
+            <option value="all">All Branches</option>
+            <option v-for="bank in availableBanks" :key="bank.id" :value="bank.id">{{ bank.name }}</option>
+          </select>
+          <select v-model="filterWaba" class="form-select form-select-sm shadow-none" @change="fetchSessions">
+            <option value="all">All WhatsApp Profiles</option>
+            <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">{{ waba.label }} ({{ waba.number }})</option>
+          </select>
+        </div>
+      </div>
+
       <!-- Chat List -->
       <div class="chat-list flex-grow-1 overflow-auto">
         <div
           v-for="session in sessions"
           :key="session.id"
-          class="chat-list-item d-flex p-3 border-bottom position-relative"
+          class="chat-list-item d-flex p-2 border-bottom position-relative"
           :class="{ 'active-chat': activeSession && activeSession.id === session.id }"
           @click="openSession(session, $event)"
         >
@@ -445,6 +463,12 @@ export default {
       showClientInfoModal: false,
       loadingSessionId: null,
       loadingMessages: false,
+      filterDepartment: 'all',
+      filterBank: 'all',
+      filterWaba: 'all',
+      availableDepartments: [],
+      availableBanks: [],
+      availableWabas: [],
     };
   },
   computed: {
@@ -485,6 +509,7 @@ export default {
     }
   },
   mounted() {
+    this.loadFilters();
     this.fetchSessions().then(() => {
       this.handleQueryClient();
     });
@@ -543,6 +568,9 @@ export default {
           params: {
             status: this.filterStatus,
             search: this.sidebarSearch,
+            department_id: this.filterDepartment,
+            bank_id: this.filterBank,
+            waba_number: this.filterWaba,
             per_page: 100,
           },
         })
@@ -613,6 +641,9 @@ export default {
             params: {
               status: this.filterStatus,
               search: this.sidebarSearch,
+              department_id: this.filterDepartment,
+              bank_id: this.filterBank,
+              waba_number: this.filterWaba,
               per_page: 100,
             },
           })
@@ -798,87 +829,37 @@ export default {
       }
     },
     setOptIn(session, status) {
-      if (!session) return;
+      if (!this.canManageChat || !session) return;
       axios.post(`/api/chat/sessions/${session.id}/opt-in`, { opt_in: status }).then((res) => {
+        notify.success(res.data.message || 'Opt-in status updated successfully.', 'Opt-In');
         if (session.client) {
-          session.client.opt_in = status;
+          session.client.opt_in = res.data.opt_in;
           session.client.opt_in_updated_at = res.data.opt_in_updated_at;
+        } else {
+          session.opt_in = res.data.opt_in;
         }
-        session.opt_in = status;
         if (this.activeSession && this.activeSession.id === session.id) {
           if (this.activeSession.client) {
-            this.activeSession.client.opt_in = status;
+            this.activeSession.client.opt_in = res.data.opt_in;
             this.activeSession.client.opt_in_updated_at = res.data.opt_in_updated_at;
+          } else {
+            this.activeSession.opt_in = res.data.opt_in;
           }
-          this.activeSession.opt_in = status;
         }
-        notify.success(`Opt-In status updated to ${status.toUpperCase()}.`, 'Compliance');
       }).catch((err) => {
-        console.error('Failed to update Opt-In status', err);
-        notify.error(err.response?.data?.message || 'Failed to update Opt-In status.', 'Compliance');
+        console.error('Failed to update opt-in status', err);
+        notify.error('Failed to update opt-in status.');
       });
     },
-    showContactInfo(session) {
-      if (!session) return;
-      const openModal = (data) => {
-        this.contactInfoSession = data;
-        this.$nextTick(() => {
-          if (this.$refs.contactInfoModal) {
-            if (!this.modalInstance) {
-              this.modalInstance = createManagedModal(this.$refs.contactInfoModal);
-            }
-            if (this.modalInstance) {
-              this.modalInstance.show();
-            }
-          }
-        });
-      };
-
-      if (session.id) {
-        axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
-          openModal(res.data);
-        }).catch(() => {
-          openModal(session);
-        });
-      } else {
-        openModal(session);
-      }
-    },
-    closeContactInfoModal() {
-      if (this.modalInstance) {
-        this.modalInstance.hide();
-      }
-    },
-    formatCurrency(val) {
-      if (val === null || val === undefined || val === '') return '-';
-      const num = Number(val);
-      if (isNaN(num)) return '-';
-      return 'R ' + num.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    },
-    toggleSearch() {
-      this.isSearching = true;
-      this.$nextTick(() => {
-        if (this.$refs.searchInput) {
-          this.$refs.searchInput.focus();
-        }
+    loadFilters() {
+      axios.get('/api/chat/filters').then((res) => {
+        this.availableBanks = res.data.banks || [];
+        this.availableDepartments = res.data.departments || [];
+        this.availableWabas = res.data.wabas || [];
+      }).catch((err) => {
+        console.error('Failed to load chat filters', err);
       });
     },
-    closeSearch() {
-      this.isSearching = false;
-      this.searchQuery = '';
-    },
-    formatTime(datetimeString) {
-      if (!datetimeString) return '';
-      const date = new Date(datetimeString);
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
   },
 };
 </script>
-
-<style scoped>
-/* Preserve existing multiselect tag color if used elsewhere in the view */
-:deep(.multiselect__tag) {
-  background: #0d6efd;
-}
-</style>

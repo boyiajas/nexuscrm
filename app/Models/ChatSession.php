@@ -17,6 +17,7 @@ class ChatSession extends Model
         'phone',
         'status',
         'platform',
+        'waba_phone_number_id',
         'last_message',
         'unread_count',
     ];

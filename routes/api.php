@@ -110,6 +110,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::apiResource('whatsapp-flows', WhatsAppFlowController::class);
 
+    Route::get('chat/filters', [ChatController::class, 'filters']);
     Route::get('chat/sessions', [ChatController::class, 'index']);
     Route::get('chat/sessions/{session}', [ChatController::class, 'show']);
     Route::post('chat/sessions/{session}/messages', [ChatController::class, 'storeMessage']);
