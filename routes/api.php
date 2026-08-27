@@ -187,4 +187,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('mfa/setup-email', [MfaController::class, 'setupEmail']);
     Route::post('mfa/verify-email', [MfaController::class, 'verifyEmail']);
     Route::post('mfa/disable', [MfaController::class, 'disable']);
+
+    // Queue Monitor (Super Admin only - checked in controller)
+    Route::get('/queue-monitor', [\App\Http\Controllers\Api\QueueMonitorController::class, 'index']);
+    Route::post('/queue-monitor/retry/{id}', [\App\Http\Controllers\Api\QueueMonitorController::class, 'retry']);
+    Route::delete('/queue-monitor/failed/{id}', [\App\Http\Controllers\Api\QueueMonitorController::class, 'deleteFailed']);
 });

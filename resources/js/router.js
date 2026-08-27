@@ -21,6 +21,7 @@ const Users = () => import('./views/Users.vue');
 const Roles = () => import('./views/Roles.vue');
 const WhatsAppFlows = () => import('./views/WhatsAppFlows.vue');
 const WhatsappReplies = () => import('./views/WhatsappReplies.vue');
+const QueueMonitor = () => import('./views/QueueMonitor.vue');
 const MainLayout = () => import('./components/layout/MainLayout.vue');
 
 const routes = [
@@ -105,7 +106,7 @@ const routes = [
       },
       { path: 'automation/whatsapp-flows', name: 'whatsapp-flows', component: WhatsAppFlows, meta: { requiredPermission: 'manage_whatsapp_flows', sensitiveView: true, pageIcon: 'bi-diagram-3-fill' } },
       { path: 'whatsapp-replies', name: 'whatsapp-replies', component: WhatsappReplies, meta: { requiredAnyPermission: ['view_live_chat', 'send_whatsapp'], sensitiveView: true, pageIcon: 'bi-whatsapp' } },
-      
+      { path: 'queue-monitor', name: 'queue-jobs', component: QueueMonitor, meta: { sensitiveView: true, pageIcon: 'bi-cpu-fill' } },
     ],
 
     meta: { requiresAuth: true },

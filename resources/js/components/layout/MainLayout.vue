@@ -116,6 +116,11 @@
               <i class="bi bi-gear-fill me-2"></i><span class="nav-label">Settings</span>
             </router-link>
           </li>
+          <li class="nav-item" v-if="canViewQueueJobs">
+            <router-link :to="{ name: 'queue-jobs' }" class="nav-link" :class="{ active: isActive('queue-jobs') }">
+              <i class="bi bi-cpu-fill me-2"></i><span class="nav-label">Queue Jobs</span>
+            </router-link>
+          </li>
         </ul>
       </div>
 
@@ -495,7 +500,10 @@ export default {
       return this.hasPermission('create_campaigns');
     },
     canViewAdminSection() {
-      return this.canManageBanks || this.canManageDepartments || this.canManageUsers || this.canManageRoles || this.canAccessSettings;
+      return this.canManageBanks || this.canManageDepartments || this.canManageUsers || this.canManageRoles || this.canAccessSettings || this.canViewQueueJobs;
+    },
+    canViewQueueJobs() {
+      return this.hasAnyRole(['SUPER_ADMIN']);
     },
     roleWatermarkEnabled() {
       if (Array.isArray(this.user?.roles) && this.user.roles.length) {
