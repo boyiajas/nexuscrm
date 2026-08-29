@@ -863,6 +863,62 @@ export default {
         console.error('Failed to load chat filters', err);
       });
     },
+    showContactInfo(session) {
+      if (!session) return;
+      const openModal = (data) => {
+        this.contactInfoSession = data;
+        this.$nextTick(() => {
+          if (this.$refs.contactInfoModal) {
+            if (!this.modalInstance) {
+              this.modalInstance = createManagedModal(this.$refs.contactInfoModal);
+            }
+            if (this.modalInstance) {
+              this.modalInstance.show();
+            }
+          }
+        });
+      };
+
+      if (session.id) {
+        axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
+          openModal(res.data);
+        }).catch(() => {
+          openModal(session);
+        });
+      } else {
+        openModal(session);
+      }
+    },
+    closeContactInfoModal() {
+      if (this.modalInstance) {
+        this.modalInstance.hide();
+      }
+    },
+    formatCurrency(val) {
+      if (val === null || val === undefined || val === '') return '-';
+      const num = Number(val);
+      if (isNaN(num)) return '-';
+      return 'R ' + num.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+    toggleSearch() {
+      this.isSearching = true;
+      this.$nextTick(() => {
+        if (this.$refs.searchInput) {
+          this.$refs.searchInput.focus();
+        }
+      });
+    },
+    closeSearch() {
+      this.isSearching = false;
+      this.searchQuery = '';
+    }
   },
 };
 </script>
+
+<style scoped>
+/* Preserve existing multiselect tag color if used elsewhere in the view */
+:deep(.multiselect__tag) {
+  background: #0d6efd;
+}
+</style>
