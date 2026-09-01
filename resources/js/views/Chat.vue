@@ -19,9 +19,9 @@
         </select>
       </div>
 
-      <!-- Search Bar -->
-      <div class="p-2 border-bottom sidebar-search">
-        <div class="input-group input-group-sm">
+      <!-- Search Bar & WABA Filter -->
+      <div class="p-2 border-bottom sidebar-search d-flex gap-2">
+        <div class="input-group input-group-sm" style="width: 60%;">
           <span class="input-group-text bg-white border-end-0 text-muted">
             <i class="bi bi-search"></i>
           </span>
@@ -29,10 +29,15 @@
             v-model="sidebarSearch"
             type="text"
             class="form-control border-start-0 shadow-none bg-white"
-            placeholder="Search name, phone, account..."
+            placeholder="Search..."
             @input="onSidebarSearchInput"
+            title="Search name, phone, account..."
           />
         </div>
+        <select v-model="filterWaba" class="form-select form-select-sm shadow-none text-truncate" @change="fetchSessions" style="width: 40%; font-size: 0.825rem;" title="Filter by WhatsApp Number">
+          <option value="all">All Numbers</option>
+          <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">{{ waba.number }}</option>
+        </select>
       </div>
 
       <!-- Segmentation Filters -->
@@ -52,7 +57,12 @@
       </div>
 
       <!-- Chat List -->
-      <div class="chat-list flex-grow-1 overflow-auto">
+      <div class="chat-list flex-grow-1 overflow-auto position-relative">
+        <div v-if="loadingSessions" class="position-absolute top-0 start-0 w-100 h-100 bg-white bg-opacity-75 d-flex justify-content-center pt-5 z-index-1" style="z-index: 10;">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+        </div>
         <div
           v-for="session in sessions"
           :key="session.id"
@@ -117,7 +127,7 @@
             </div>
           </div>
         </div>
-        <div v-if="sessions.length === 0" class="p-4 text-center text-muted small">
+        <div v-if="sessions.length === 0 && !loadingSessions" class="p-4 text-center text-muted small">
           No chat sessions found.
         </div>
       </div>
@@ -461,6 +471,7 @@ export default {
       showClientInfoModal: false,
       loadingSessionId: null,
       loadingMessages: false,
+      loadingSessions: false,
       filterDepartment: 'all',
       filterBank: 'all',
       filterWaba: 'all',
@@ -561,6 +572,7 @@ export default {
       return false;
     },
     fetchSessions() {
+      this.loadingSessions = true;
       return axios
         .get('/api/chat/sessions', {
           params: {
@@ -574,6 +586,9 @@ export default {
         })
         .then((res) => {
           this.sessions = res.data.data || res.data;
+        })
+        .finally(() => {
+          this.loadingSessions = false;
         });
     },
     onSidebarSearchInput() {
