@@ -29,9 +29,8 @@
             v-model="sidebarSearch"
             type="text"
             class="form-control border-start-0 shadow-none bg-white"
-            placeholder="Search..."
+            placeholder="Search name, phone, account..."
             @input="onSidebarSearchInput"
-            title="Search name, phone, account..."
           />
         </div>
         <select v-model="filterWaba" class="form-select form-select-sm shadow-none text-truncate" @change="fetchSessions" style="width: 40%; font-size: 0.825rem;" title="Filter by WhatsApp Number">
@@ -129,6 +128,12 @@
         </div>
         <div v-if="sessions.length === 0 && !loadingSessions" class="p-4 text-center text-muted small">
           No chat sessions found.
+        </div>
+        <div v-if="sessions.length > 0 && hasMoreSessions" class="p-3 text-center border-top">
+          <button class="btn btn-sm btn-outline-primary rounded-pill px-4" @click="fetchSessions(true)" :disabled="loadingSessions">
+            <span v-if="loadingSessions" class="spinner-border spinner-border-sm me-2" role="status"></span>
+            Load More Chats
+          </button>
         </div>
       </div>
     </div>
@@ -472,6 +477,8 @@ export default {
       loadingSessionId: null,
       loadingMessages: false,
       loadingSessions: false,
+      currentSessionPage: 1,
+      hasMoreSessions: false,
       filterDepartment: 'all',
       filterBank: 'all',
       filterWaba: 'all',
@@ -571,7 +578,12 @@ export default {
 
       return false;
     },
-    fetchSessions() {
+    fetchSessions(loadMore = false) {
+      if (loadMore === true) {
+        this.currentSessionPage++;
+      } else {
+        this.currentSessionPage = 1;
+      }
       this.loadingSessions = true;
       return axios
         .get('/api/chat/sessions', {
@@ -582,10 +594,24 @@ export default {
             bank_id: this.filterBank,
             waba_number: this.filterWaba,
             per_page: 100,
+            page: this.currentSessionPage,
           },
         })
         .then((res) => {
-          this.sessions = res.data.data || res.data;
+          const fetchedData = res.data.data || res.data;
+          if (loadMore === true) {
+            this.sessions = [...this.sessions, ...fetchedData];
+          } else {
+            this.sessions = fetchedData;
+          }
+
+          if (res.data.meta && res.data.meta.current_page < res.data.meta.last_page) {
+            this.hasMoreSessions = true;
+          } else if (res.data.last_page && res.data.current_page < res.data.last_page) {
+            this.hasMoreSessions = true;
+          } else {
+            this.hasMoreSessions = false;
+          }
         })
         .finally(() => {
           this.loadingSessions = false;
@@ -657,7 +683,8 @@ export default {
               department_id: this.filterDepartment,
               bank_id: this.filterBank,
               waba_number: this.filterWaba,
-              per_page: 100,
+              per_page: this.currentSessionPage * 100,
+              page: 1,
             },
           })
           .then((res) => {
