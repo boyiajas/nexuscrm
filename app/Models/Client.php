@@ -84,6 +84,20 @@ class Client extends Model
         return $this->belongsTo(User::class, 'assigned_to_id');
     }
 
+    public function chatSessions()
+    {
+        return $this->hasMany(ChatSession::class);
+    }
+
+    protected static function booted()
+    {
+        static::deleting(function ($client) {
+            $client->chatSessions()->each(function ($session) {
+                $session->delete();
+            });
+        });
+    }
+
     // Campaigns this client belongs to (EXISTING - matches your pivot table)
     public function campaigns()
     {

@@ -46,4 +46,11 @@ class ChatSession extends Model
     {
         return $this->hasOne(ChatMessage::class, 'chat_session_id')->latestOfMany();
     }
+
+    protected static function booted()
+    {
+        static::deleting(function ($session) {
+            $session->messages()->delete();
+        });
+    }
 }
