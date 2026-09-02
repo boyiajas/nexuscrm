@@ -164,6 +164,7 @@
             </div>
             <small class="text-muted">
               {{ activeSession.platform }}
+              <span v-if="activeWaba"> • WABA: <strong class="text-dark">{{ activeWaba.label }} ({{ activeWaba.number }})</strong></span>
               <span v-if="activeSession.client?.easy_pay_number"> • EasyPay: <strong class="text-dark">{{ activeSession.client.easy_pay_number }}</strong></span>
               <span v-if="activeSession.agent"> • Assigned to {{ activeSession.agent.name }}</span>
             </small>
@@ -522,6 +523,10 @@ export default {
     totalRemainingMessages() {
       if (this.messages.length <= this.visibleCount) return 0;
       return this.messages.length - this.visibleCount;
+    },
+    activeWaba() {
+      if (!this.activeSession || !this.activeSession.waba_phone_number_id) return null;
+      return this.availableWabas.find(w => String(w.phone_number_id) === String(this.activeSession.waba_phone_number_id)) || null;
     }
   },
   mounted() {
