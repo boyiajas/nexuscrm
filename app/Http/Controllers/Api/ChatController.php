@@ -248,25 +248,36 @@ class ChatController extends Controller
         $data = $request->validate([
             'client_id' => ['required', 'integer', 'exists:clients,id'],
             'platform'  => ['sometimes', 'string', 'max:50'],
+            'waba_number' => ['sometimes', 'string', 'max:255'],
         ]);
 
         $client = Client::findOrFail($data['client_id']);
         $this->authorizeClientScope($request->user(), $client);
         $platform = $data['platform'] ?? 'whatsapp';
 
+        $attributes = [
+            'client_name' => $client->name,
+            'bank_id' => $client->bank_id,
+            'status'      => 'active',
+            'agent_id'    => Auth::id(),
+            'unread_count'=> 0,
+        ];
+
+        if (!empty($data['waba_number'])) {
+            $attributes['waba_phone_number_id'] = $data['waba_number'];
+        }
+
         $session = ChatSession::firstOrCreate(
             [
                 'client_id' => $client->id,
                 'platform'  => $platform,
             ],
-            [
-                'client_name' => $client->name,
-                'bank_id' => $client->bank_id,
-                'status'      => 'active',
-                'agent_id'    => Auth::id(),
-                'unread_count'=> 0,
-            ]
+            $attributes
         );
+
+        if (!empty($data['waba_number']) && $session->waba_phone_number_id !== $data['waba_number']) {
+            $session->update(['waba_phone_number_id' => $data['waba_number']]);
+        }
 
         // Load messages ordered and reset unread count when fetched
         $session->load(['client', 'agent', 'messages' => function ($q) {

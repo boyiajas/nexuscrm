@@ -10,13 +10,18 @@
           </div>
           <span class="fw-semibold">Live Chats</span>
         </div>
-        <select v-model="filterStatus" class="form-select form-select-sm w-auto shadow-none border-0 bg-transparent fw-semibold text-muted" @change="fetchSessions">
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="closed">Closed</option>
-          <option value="unread">Unread</option>
-          <option value="read">Read</option>
-        </select>
+        <div class="d-flex align-items-center gap-2">
+          <button v-if="canManageChat" class="btn btn-sm btn-outline-primary shadow-none py-1 px-2 text-nowrap" @click="openAddClientModal" title="Add Client To Chat">
+            <i class="bi bi-plus-lg"></i> Add Client
+          </button>
+          <select v-model="filterStatus" class="form-select form-select-sm w-auto shadow-none border-0 bg-transparent fw-semibold text-muted" @change="fetchSessions">
+            <option value="all">All</option>
+            <option value="active">Active</option>
+            <option value="closed">Closed</option>
+            <option value="unread">Unread</option>
+            <option value="read">Read</option>
+          </select>
+        </div>
       </div>
 
       <!-- Search Bar & WABA Filter -->
@@ -445,6 +450,84 @@
         </div>
       </div>
     </div>
+
+    <!-- Add Client to Chat Modal -->
+    <div class="modal fade" id="addClientModal" tabindex="-1" ref="addClientModal">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-0">
+          <div class="modal-header border-bottom py-3">
+            <h5 class="modal-title h6 mb-0 text-dark fw-bold">
+              <i class="bi bi-person-plus text-primary me-2"></i>Add Client to Chat
+            </h5>
+            <button type="button" class="btn-close" @click="closeAddClientModal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4">
+            <form @submit.prevent="submitNewClient" id="addClientForm">
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold text-dark">First Name <span class="text-danger">*</span></label>
+                  <input v-model="newClientForm.first_name" type="text" class="form-control form-control-sm shadow-none" required placeholder="John">
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold text-dark">Surname <span class="text-danger">*</span></label>
+                  <input v-model="newClientForm.surname" type="text" class="form-control form-control-sm shadow-none" required placeholder="Doe">
+                </div>
+                <div class="col-12">
+                  <label class="form-label small fw-semibold text-dark">WhatsApp Number <span class="text-danger">*</span></label>
+                  <input v-model="newClientForm.phone" type="text" class="form-control form-control-sm shadow-none" required placeholder="e.g. +27821234567">
+                  <div class="form-text" style="font-size: 0.75rem;">Include country code (e.g., +27).</div>
+                </div>
+                <div class="col-12">
+                  <label class="form-label small fw-semibold text-dark">Department(s) <span class="text-danger">*</span></label>
+                  <VueMultiselect
+                    v-model="newClientForm.departments"
+                    :options="availableDepartments"
+                    :multiple="true"
+                    :close-on-select="false"
+                    :clear-on-select="false"
+                    :preserve-search="true"
+                    placeholder="Select Department(s)"
+                    label="name"
+                    track-by="id"
+                    :preselect-first="false"
+                  />
+                  <div class="form-text" style="font-size: 0.75rem;">Select one or more departments.</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold text-dark">Bank / Branch</label>
+                  <select v-model="newClientForm.bank_id" class="form-select form-select-sm shadow-none">
+                    <option value="">Default (Your Bank)</option>
+                    <option v-for="bank in availableBanks" :key="bank.id" :value="bank.id">{{ bank.name }}</option>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label small fw-semibold text-dark">Opt-In Status</label>
+                  <select v-model="newClientForm.opt_in" class="form-select form-select-sm shadow-none">
+                    <option value="yes">Opt-In: Yes</option>
+                    <option value="no">Opt-In: No</option>
+                    <option value="none">Opt-In: None</option>
+                  </select>
+                </div>
+                <div class="col-12 mt-4 pt-3 border-top">
+                  <label class="form-label small fw-semibold text-primary"><i class="bi bi-whatsapp me-1"></i> Chat From WABA Number <span class="text-danger">*</span></label>
+                  <select v-model="newClientForm.waba_number" class="form-select form-select-sm shadow-none border-primary" required>
+                    <option value="" disabled>Select WABA Number...</option>
+                    <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">{{ waba.number }} - {{ waba.label }}</option>
+                  </select>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer bg-light py-2">
+            <button type="button" class="btn btn-secondary btn-sm shadow-none" @click="closeAddClientModal" :disabled="isSubmittingClient">Cancel</button>
+            <button type="submit" form="addClientForm" class="btn btn-primary btn-sm shadow-none" :disabled="isSubmittingClient">
+              <span v-if="isSubmittingClient" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              Create & Chat
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
     
   </div>
 </template>
@@ -453,10 +536,15 @@
 import axios from '../axios';
 import { notify } from '../utils/notify';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
+import VueMultiselect from 'vue-multiselect';
+import 'vue-multiselect/dist/vue-multiselect.min.css';
 import './Chat.css';
 
 export default {
   name: 'ChatView',
+  components: {
+    VueMultiselect
+  },
   data() {
     return {
       sessions: [],
@@ -486,6 +574,17 @@ export default {
       availableDepartments: [],
       availableBanks: [],
       availableWabas: [],
+      addClientModalInstance: null,
+      isSubmittingClient: false,
+      newClientForm: {
+        first_name: '',
+        surname: '',
+        phone: '',
+        departments: [],
+        bank_id: '',
+        waba_number: '',
+        opt_in: 'yes',
+      },
     };
   },
   computed: {
@@ -908,6 +1007,83 @@ export default {
         this.availableWabas = res.data.wabas || [];
       }).catch((err) => {
         console.error('Failed to load chat filters', err);
+      });
+    },
+    openAddClientModal() {
+      let initialDepartments = [];
+      if (this.filterDepartment !== 'all') {
+        const found = this.availableDepartments.find(d => String(d.id) === String(this.filterDepartment));
+        if (found) {
+          initialDepartments.push(found);
+        }
+      }
+      this.newClientForm = {
+        first_name: '',
+        surname: '',
+        phone: '',
+        departments: initialDepartments,
+        bank_id: this.filterBank !== 'all' ? this.filterBank : (this.availableBanks[0]?.id || ''),
+        waba_number: this.filterWaba !== 'all' ? this.filterWaba : (this.availableWabas[0]?.phone_number_id || ''),
+        opt_in: 'yes',
+      };
+      
+      this.$nextTick(() => {
+        if (this.$refs.addClientModal) {
+          if (!this.addClientModalInstance) {
+            this.addClientModalInstance = createManagedModal(this.$refs.addClientModal);
+          }
+          this.addClientModalInstance.show();
+        }
+      });
+    },
+    closeAddClientModal() {
+      if (this.addClientModalInstance) {
+        this.addClientModalInstance.hide();
+      }
+    },
+    submitNewClient() {
+      if (!this.newClientForm.first_name || !this.newClientForm.surname || !this.newClientForm.phone || this.newClientForm.departments.length === 0 || !this.newClientForm.waba_number) {
+        notify.error('Please fill in all mandatory fields.');
+        return;
+      }
+      
+      this.isSubmittingClient = true;
+      
+      const payload = {
+        ...this.newClientForm,
+        department_ids: this.newClientForm.departments.map(d => d.id)
+      };
+      delete payload.departments;
+
+      axios.post('/api/clients', payload)
+      .then((res) => {
+        const newClient = res.data;
+        notify.success('Client added successfully.');
+        this.closeAddClientModal();
+        
+        // Open the chat session
+        axios.post('/api/chat/session-for-client', {
+          client_id: newClient.id,
+          platform: 'whatsapp',
+          waba_number: this.newClientForm.waba_number,
+        }).then((sessionRes) => {
+          this.activeSession = sessionRes.data;
+          this.messages = sessionRes.data.messages || [];
+          this.visibleCount = 20;
+          this.fetchSessions();
+          this.$nextTick(this.scrollToBottom);
+        }).catch((err) => {
+          console.error('Unable to open chat for new client', err);
+          notify.error('Client created, but failed to open chat session automatically.');
+          this.fetchSessions();
+        });
+      })
+      .catch((err) => {
+        console.error('Failed to create client', err);
+        notify.error(err.response?.data?.message || 'Failed to create client.');
+      })
+      .finally(() => {
+        this.isSubmittingClient = false;
       });
     },
     showContactInfo(session) {
