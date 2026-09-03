@@ -483,6 +483,20 @@ class CampaignController extends Controller
             $baseQuery->where('clients.type', $clientType);
         }
 
+        if ($optIn = trim((string) $request->get('opt_in'))) {
+            if ($optIn !== 'all') {
+                if ($optIn === 'none') {
+                    $baseQuery->where(function($q) {
+                        $q->whereNull('clients.opt_in')
+                          ->orWhere('clients.opt_in', '')
+                          ->orWhere('clients.opt_in', 'none');
+                    });
+                } else {
+                    $baseQuery->where('clients.opt_in', $optIn);
+                }
+            }
+        }
+
         $channel = $request->get('channel', 'whatsapp');
         $statusFilter = $request->get('status', 'all');
 

@@ -225,6 +225,14 @@
 
                 <!-- Type Filter -->
                 <input type="text" v-model="clientTypeFilter" class="form-control form-control-sm" style="width: 100px;" placeholder="Type..." />
+
+                <!-- Opt-In Filter -->
+                <select v-model="clientOptInFilter" class="form-select form-select-sm" style="width: 130px;">
+                  <option value="all">All Opt-In</option>
+                  <option value="yes">Opt-In: Yes</option>
+                  <option value="no">Opt-In: No</option>
+                  <option value="none">Opt-In: None</option>
+                </select>
               </div>
 
               <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -317,6 +325,7 @@
                   <th>Bank</th>
                   <th>Assigned Owner</th>
                   <th>Departments</th>
+                  <th>Opt-In</th>
                   <th>WhatsApp</th>
                   <th>Email</th>
                   <th>SMS</th>
@@ -346,6 +355,11 @@
                       </span>
                     </template>
                     <span v-else class="text-muted">-</span>
+                  </td>
+                  <td>
+                    <span class="badge" :class="cl.opt_in === 'yes' ? 'bg-success-subtle text-success border border-success-subtle' : (cl.opt_in === 'no' ? 'bg-danger-subtle text-danger border border-danger-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle')">
+                      {{ cl.opt_in ? cl.opt_in.charAt(0).toUpperCase() + cl.opt_in.slice(1) : 'Unknown' }}
+                    </span>
                   </td>
                   <td>
                     <span
@@ -2132,6 +2146,7 @@ export default {
       clientStatusFilter: 'all',
       clientAccountTypeFilter: '',
       clientTypeFilter: '',
+      clientOptInFilter: 'all',
       clientSearchQuery: '',
       activeChannelTab: 'whatsapp',
 
@@ -2516,6 +2531,10 @@ export default {
       this.clientTableCurrentPage = 1;
       this.fetchClients();
     },
+    clientOptInFilter() {
+      this.clientTableCurrentPage = 1;
+      this.fetchClients();
+    },
     clientSearchQuery() {
       this.clientTableCurrentPage = 1;
       if (this.clientSearchTimeout) clearTimeout(this.clientSearchTimeout);
@@ -2849,6 +2868,7 @@ export default {
       if (this.clientSearchQuery) params.append('search', this.clientSearchQuery);
       if (this.clientAccountTypeFilter) params.append('account_type', this.clientAccountTypeFilter);
       if (this.clientTypeFilter) params.append('type', this.clientTypeFilter);
+      if (this.clientOptInFilter && this.clientOptInFilter !== 'all') params.append('opt_in', this.clientOptInFilter);
 
       axios.get(`/api/campaigns/${id}/clients?${params.toString()}`).then((res) => {
         this.clients = Array.isArray(res.data.data) ? res.data.data : (Array.isArray(res.data) ? res.data : []);
