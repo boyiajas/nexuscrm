@@ -2187,6 +2187,8 @@ export default {
       payload.append('company_name', this.system.form.company_name || '');
       payload.append('support_email', this.system.form.support_email || '');
       payload.append('support_phone', this.system.form.support_phone || '');
+      payload.append('live_chat_locked', this.system.form.live_chat_locked ? '1' : '0');
+      payload.append('live_chat_locked_message', this.system.form.live_chat_locked_message || '');
       payload.append('admin_ip_allowlist', this.system.form.admin_ip_allowlist || '');
       payload.append('password_max_age_days', this.system.form.password_max_age_days ?? '');
       payload.append('enable_import_malware_scanning', this.system.form.enable_import_malware_scanning ? '1' : '0');
