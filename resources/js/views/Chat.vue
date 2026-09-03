@@ -305,7 +305,7 @@
         <div class="chat-composer p-3 border-top">
           <form @submit.prevent="sendMessage" class="d-flex align-items-center">
             <input type="file" ref="fileInput" class="d-none" @change="onFileSelected" />
-            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none" @click="triggerFileInput" title="Attach file" :disabled="!activeSession || loadingMessages || !canManageChat">
+            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none" @click="triggerFileInput" title="Attach file" :disabled="!activeSession || loadingMessages || !canManageChat || liveChatLocked">
               <i class="bi bi-paperclip" :class="{'text-primary': selectedFile}"></i>
             </button>
             <textarea
@@ -313,13 +313,13 @@
               class="form-control rounded-4 border-0 shadow-none py-2 px-3 flex-grow-1 me-3"
               style="background-color: #ffffff; resize: none; overflow-y: auto; line-height: 1.5;"
               rows="1"
-              placeholder="Type a message (Shift+Enter for new line)"
-              :disabled="!activeSession || loadingMessages || !canManageChat || uploadingFile"
+              :placeholder="liveChatLocked ? liveChatLockedMessage : 'Type a message (Shift+Enter for new line)'"
+              :disabled="!activeSession || loadingMessages || !canManageChat || uploadingFile || liveChatLocked"
               @keydown.enter.exact.prevent="sendMessage"
               @input="adjustTextareaHeight"
               ref="messageInput"
             ></textarea>
-            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || loadingMessages || (!newMessage.trim() && !selectedFile) || !canManageChat || uploadingFile">
+            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || loadingMessages || (!newMessage.trim() && !selectedFile) || !canManageChat || uploadingFile || liveChatLocked">
               <span v-if="uploadingFile" class="spinner-border spinner-border-sm text-primary" role="status"></span>
               <i v-else class="bi bi-send-fill" :class="{'text-primary': newMessage.trim() || selectedFile}"></i>
             </button>
@@ -574,6 +574,8 @@ export default {
       availableDepartments: [],
       availableBanks: [],
       availableWabas: [],
+      liveChatLocked: false,
+      liveChatLockedMessage: '',
       addClientModalInstance: null,
       isSubmittingClient: false,
       newClientForm: {
@@ -1005,6 +1007,8 @@ export default {
         this.availableBanks = res.data.banks || [];
         this.availableDepartments = res.data.departments || [];
         this.availableWabas = res.data.wabas || [];
+        this.liveChatLocked = res.data.liveChatLocked || false;
+        this.liveChatLockedMessage = res.data.liveChatLockedMessage || 'Live chat is temporarily disabled.';
       }).catch((err) => {
         console.error('Failed to load chat filters', err);
       });

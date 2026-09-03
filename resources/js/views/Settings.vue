@@ -492,6 +492,27 @@
             </div>
           </div>
         </div>
+        <div class="row g-3 mt-1">
+          <div class="col-12">
+            <div class="card shadow-sm border-danger">
+              <div class="card-header bg-danger text-white">
+                <h6 class="mb-0"><i class="bi bi-shield-lock-fill me-2"></i>Live Chat Emergency Lock</h6>
+              </div>
+              <div class="card-body">
+                <div class="form-check form-switch mb-3">
+                  <input class="form-check-input" type="checkbox" role="switch" id="globalChatLock" v-model="system.form.live_chat_locked" />
+                  <label class="form-check-label text-danger fw-bold" for="globalChatLock">Lock all Live Chat communication</label>
+                  <div class="form-text">When enabled, agents will not be able to send outbound messages. Inbound messages will still be received.</div>
+                </div>
+                <div>
+                  <label class="form-label" :class="{'text-danger': system.form.live_chat_locked}">Disabled Message</label>
+                  <input v-model="system.form.live_chat_locked_message" type="text" class="form-control" :class="{'border-danger': system.form.live_chat_locked}" placeholder="Live chat is temporarily disabled." :disabled="!system.form.live_chat_locked" />
+                  <small class="text-muted">This message will be displayed in the chat input area for all agents.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- META CONFIG TAB -->
@@ -1510,6 +1531,8 @@ export default {
           malware_scanner_timeout_seconds: 15,
           app_logo_path: '',
           app_logo_url: '',
+          live_chat_locked: false,
+          live_chat_locked_message: 'Live chat is temporarily disabled.',
         },
       },
       meta: {
@@ -2091,6 +2114,8 @@ export default {
         app_short_name: settings.app_short_name || 'NC',
         app_tagline: settings.app_tagline || 'Mini CRM Console',
         company_name: settings.company_name || '',
+        live_chat_locked: settings.live_chat_locked || false,
+        live_chat_locked_message: settings.live_chat_locked_message || 'Live chat is temporarily disabled.',
         support_email: settings.support_email || '',
         support_phone: settings.support_phone || '',
         admin_ip_allowlist: settings.admin_ip_allowlist || '',

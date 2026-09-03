@@ -123,7 +123,11 @@ class ChatController extends Controller
             Log::error('Failed to load WABAs for chat filters: ' . $e->getMessage());
         }
 
-        return response()->json(compact('banks', 'departments', 'wabas'));
+        $settings = \App\Models\SystemSetting::first();
+        $liveChatLocked = $settings ? (bool) $settings->live_chat_locked : false;
+        $liveChatLockedMessage = $settings ? $settings->live_chat_locked_message : 'Live chat is temporarily disabled.';
+
+        return response()->json(compact('banks', 'departments', 'wabas', 'liveChatLocked', 'liveChatLockedMessage'));
     }
 
     public function show(ChatSession $session)
@@ -156,6 +160,13 @@ class ChatController extends Controller
 
         if (!$request->filled('content') && !$request->hasFile('file')) {
             return response()->json(['message' => 'Either text content or a file attachment is required.'], 422);
+        }
+
+        $settings = \App\Models\SystemSetting::first();
+        if ($settings && $settings->live_chat_locked) {
+            return response()->json([
+                'message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.'
+            ], 403);
         }
 
         if ($session->platform === 'whatsapp') {
