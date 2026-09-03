@@ -311,6 +311,7 @@
             <textarea
               v-model="newMessage"
               class="form-control rounded-4 border-0 shadow-none py-2 px-3 flex-grow-1 me-3"
+              :class="{'locked-input': liveChatLocked}"
               style="background-color: #ffffff; resize: none; overflow-y: auto; line-height: 1.5;"
               rows="1"
               :placeholder="liveChatLocked ? liveChatLockedMessage : 'Type a message (Shift+Enter for new line)'"
@@ -1144,6 +1145,11 @@ export default {
 </script>
 
 <style scoped>
+.locked-input::placeholder {
+  color: #dc3545 !important;
+  opacity: 1 !important;
+}
+
 /* Preserve existing multiselect tag color if used elsewhere in the view */
 :deep(.multiselect__tag) {
   background: #0d6efd;
