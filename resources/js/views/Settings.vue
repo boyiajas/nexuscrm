@@ -1060,7 +1060,7 @@
 
     <!-- WhatsApp Template Modal -->
     <div class="modal fade" tabindex="-1" ref="templateModalRef">
-      <div class="modal-dialog modal-lg">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">
@@ -1069,92 +1069,168 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label">Friendly Name</label>
-                <input v-model="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" :readonly="wa.viewOnly" />
-                <small v-if="!wa.viewOnly" class="text-muted">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Language</label>
-                <input v-model="wa.form.language" type="text" class="form-control" placeholder="en_US" :readonly="wa.viewOnly" />
-              </div>
-              <div class="col-md-3">
-                <label class="form-label">Category</label>
-                <select v-model="wa.form.category" class="form-select" :disabled="wa.viewOnly">
-                  <option value="utility">Utility</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="authentication">Authentication</option>
-                </select>
-              </div>
-              <div class="col-12">
-                <label class="form-label">Body</label>
-                <textarea v-model="wa.form.body" class="form-control" rows="6" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
-              </div>
-              <div class="col-12">
-                <label class="form-label">Media URLs</label>
-                <input v-model="wa.form.media_urls" type="text" class="form-control" placeholder="https://example.com/image.jpg" :readonly="wa.viewOnly" />
-              </div>
-              <div class="col-md-4" v-if="wa.form.header_format">
-                <label class="form-label">Header Format</label>
-                <input :value="wa.form.header_format" type="text" class="form-control" readonly />
-              </div>
-              <div class="col-12" v-if="wa.form.header_text">
-                <label class="form-label">Header Text</label>
-                <input :value="wa.form.header_text" type="text" class="form-control" readonly />
-              </div>
-              <div class="col-12" v-if="wa.form.footer_text">
-                <label class="form-label">Footer Text</label>
-                <input :value="wa.form.footer_text" type="text" class="form-control" readonly />
-              </div>
-              <div class="col-12" v-if="firstMediaUrl">
-                <label class="form-label">Header Preview</label>
-                <div class="border rounded p-2 text-center bg-light">
-                  <img
-                    v-if="wa.form.header_format === 'IMAGE' || !wa.form.header_format"
-                    :src="firstMediaUrl"
-                    alt="WhatsApp media preview"
-                    class="img-fluid"
-                    style="max-height: 220px; object-fit: contain;"
-                  />
-                  <video
-                    v-else-if="wa.form.header_format === 'VIDEO'"
-                    :src="firstMediaUrl"
-                    class="img-fluid"
-                    style="max-height: 220px; object-fit: contain;"
-                    controls
-                    preload="metadata"
-                  ></video>
-                  <a
-                    v-else-if="wa.form.header_format === 'DOCUMENT'"
-                    :href="firstMediaUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="btn btn-outline-secondary"
-                  >
-                    Open document
-                  </a>
+            <div class="row">
+              <div class="col-lg-7 col-md-6 border-end pe-4">
+                <!-- FORM INPUTS -->
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label class="form-label">Friendly Name</label>
+                    <input v-model="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" :readonly="wa.viewOnly" />
+                    <small v-if="!wa.viewOnly" class="text-muted">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Language</label>
+                    <input v-model="wa.form.language" type="text" class="form-control" placeholder="en_US" :readonly="wa.viewOnly" />
+                  </div>
+                  <div class="col-md-3">
+                    <label class="form-label">Category</label>
+                    <select v-model="wa.form.category" class="form-select" :disabled="wa.viewOnly">
+                      <option value="utility">Utility</option>
+                      <option value="marketing">Marketing</option>
+                      <option value="authentication">Authentication</option>
+                    </select>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Body</label>
+                    <textarea v-model="wa.form.body" class="form-control" rows="6" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label">Media URLs</label>
+                    <input v-model="wa.form.media_urls" type="text" class="form-control" placeholder="https://example.com/image.jpg" :readonly="wa.viewOnly" />
+                  </div>
+                  <div class="col-md-4" v-if="wa.form.header_format">
+                    <label class="form-label">Header Format</label>
+                    <input :value="wa.form.header_format" type="text" class="form-control" readonly />
+                  </div>
+                  <div class="col-12" v-if="wa.form.header_text">
+                    <label class="form-label">Header Text</label>
+                    <input :value="wa.form.header_text" type="text" class="form-control" readonly />
+                  </div>
+                  <div class="col-12" v-if="wa.form.footer_text">
+                    <label class="form-label">Footer Text</label>
+                    <input :value="wa.form.footer_text" type="text" class="form-control" readonly />
+                  </div>
+                  <div class="col-12" v-if="wa.form.variables && Object.keys(wa.form.variables).length > 0">
+                    <label class="form-label d-flex align-items-center">
+                      Template Variables
+                      <span class="badge bg-secondary ms-2">{{ Object.keys(wa.form.variables).length }} Variable(s)</span>
+                    </label>
+                    <div class="d-flex flex-wrap gap-2">
+                      <span v-for="(val, key) in wa.form.variables" :key="key" class="badge bg-light text-dark border shadow-sm">
+                        {{ '{' + '{' + key + '}' + '}' }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="col-12" v-if="wa.form.buttons.length">
+                    <label class="form-label">Buttons</label>
+                    <div class="d-flex gap-2 flex-wrap">
+                      <span v-for="(button, idx) in wa.form.buttons" :key="idx" class="badge bg-light text-dark border">
+                        {{ button.text || button.type || 'Button' }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div class="col-12" v-if="wa.form.variables && Object.keys(wa.form.variables).length > 0">
-                <label class="form-label d-flex align-items-center">
-                  Template Variables
-                  <span class="badge bg-secondary ms-2">{{ Object.keys(wa.form.variables).length }} Variable(s)</span>
-                </label>
-                <div class="d-flex flex-wrap gap-2">
-                  <span v-for="(val, key) in wa.form.variables" :key="key" class="badge bg-light text-dark border shadow-sm">
-                    {{ '{' + '{' + key + '}' + '}' }}
-                  </span>
+              
+              <!-- PREVIEW PANE -->
+              <div class="col-lg-5 col-md-6 ps-4">
+                <div class="mb-3">
+                  <div class="card border-success shadow-sm">
+                    <div class="card-header py-2 d-flex justify-content-between align-items-center bg-white border-bottom-0">
+                      <strong>Template Preview</strong>
+                    </div>
+                    <div class="card-body p-0 d-flex flex-column" style="background-color: #e5ddd5; position: relative;">
+                      <!-- WhatsApp Header -->
+                      <div class="bg-white d-flex align-items-center px-3 py-2 shadow-sm position-relative" style="z-index: 2;">
+                        <i class="bi bi-arrow-left me-3 text-secondary"></i>
+                        <div class="bg-secondary bg-opacity-10 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                          <i class="bi bi-person-fill text-secondary fs-4"></i>
+                        </div>
+                        <div class="lh-1">
+                          <div class="fw-bold text-dark d-flex align-items-center gap-1 mb-1" style="font-size: 0.95rem;">
+                            {{ system.form.app_name || 'Strauss Recovery Solutions' }}
+                            <i class="bi bi-patch-check-fill text-success" style="font-size: 0.85rem;" title="Official business account"></i>
+                          </div>
+                          <div class="text-muted" style="font-size: 0.75rem;">{{ meta.form.meta_whatsapp_display_phone_number || '+27 82 123 4567' }}</div>
+                        </div>
+                      </div>
+
+                      <div class="p-4 flex-grow-1 position-relative">
+                        <div style="opacity: 0.05; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cGF0aCBkPSJNMCAwaDQwMHY0MDBIMHoiIGZpbGw9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjM1IiBmaWxsPSIjMDAwIi8+PC9zdmc+'); background-size: 200px; pointer-events: none;"></div>
+                        
+                        <div class="bg-white rounded position-relative shadow-sm" style="max-width: 85%; border-top-left-radius: 0 !important; padding: 0.5rem; margin-left: 10px; z-index: 1;">
+                          <svg viewBox="0 0 8 13" width="8" height="13" style="position: absolute; top: 0; left: -8px; color: white;">
+                            <path opacity="1" fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"></path>
+                          </svg>
+
+                          <!-- Media Preview -->
+                          <div
+                            v-if="firstMediaUrl"
+                            class="mb-2"
+                          >
+                            <img
+                              v-if="wa.form.header_format === 'IMAGE' || !wa.form.header_format"
+                              :src="firstMediaUrl"
+                              alt="WhatsApp media preview"
+                              class="img-fluid rounded"
+                              style="width: 100%; object-fit: cover;"
+                            />
+                            <video
+                              v-else-if="wa.form.header_format === 'VIDEO'"
+                              :src="firstMediaUrl"
+                              class="img-fluid rounded"
+                              style="width: 100%; object-fit: cover;"
+                              controls
+                              preload="metadata"
+                            ></video>
+                            <div
+                              v-else-if="wa.form.header_format === 'DOCUMENT'"
+                              class="border rounded p-3 bg-light text-center"
+                            >
+                              <i class="bi bi-file-earmark-arrow-down fs-3 d-block text-secondary"></i>
+                            </div>
+                          </div>
+
+                          <div v-if="wa.form.header_text" class="fw-bold text-dark mb-1" style="font-size: 0.95rem; line-height: 1.3;">
+                            {{ wa.form.header_text }}
+                          </div>
+
+                          <div class="text-dark" style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">{{ wa.form.body || 'Template message body will appear here.' }}<span class="d-inline-block" style="width: 40px;"></span></div>
+                          
+                          <div class="d-flex justify-content-between align-items-end mt-1">
+                              <div class="text-muted" style="font-size: 0.75rem;">
+                                  {{ wa.form.footer_text || '' }}
+                              </div>
+                              <div class="text-muted text-end" style="font-size: 0.65rem; margin-top: -15px; margin-right: 4px;">
+                                  09:31
+                              </div>
+                          </div>
+                        </div>
+                        
+                        <!-- Buttons Preview -->
+                        <div
+                          v-if="wa.form.buttons && wa.form.buttons.length"
+                          class="mt-1 d-flex flex-column gap-1"
+                          style="max-width: 85%; margin-left: 10px; z-index: 1; position: relative;"
+                        >
+                          <div
+                            v-for="(button, idx) in wa.form.buttons"
+                            :key="idx"
+                            class="bg-white rounded shadow-sm text-center py-2 fw-semibold cursor-pointer hover-shadow transition"
+                            style="color: #00a884; font-size: 0.9rem; border: 1px solid rgba(0,0,0,0.05);"
+                          >
+                            <i v-if="button.type === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
+                            <i v-if="button.type === 'URL'" class="bi bi-box-arrow-up-right me-1"></i>
+                            <i v-if="button.type === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
+                            {{ button.text || 'Button' }}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div class="col-12" v-if="wa.form.buttons.length">
-                <label class="form-label">Buttons</label>
-                <div class="d-flex gap-2 flex-wrap">
-                  <span v-for="(button, idx) in wa.form.buttons" :key="idx" class="badge bg-light text-dark border">
-                    {{ button.text || button.type || 'Button' }}
-                  </span>
-                </div>
-              </div>
+
             </div>
           </div>
           <div class="modal-footer">
