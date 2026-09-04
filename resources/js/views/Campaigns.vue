@@ -60,14 +60,14 @@
                     </span>
                   </td>
                   <td>
-                    <span v-if="c.bank?.primary_whatsapp_number" class="badge bg-light text-dark border" title="Bank Profile Sender">
-                      <i class="bi bi-whatsapp me-1"></i>{{ c.bank.primary_whatsapp_number }}
+                    <span v-if="c.whatsapp_from" class="badge bg-info-subtle text-info border" title="Campaign Specific Sender">
+                      <i class="bi bi-whatsapp me-1"></i>{{ c.whatsapp_from }}
                     </span>
                     <span v-else-if="c.departments && c.departments.length && c.departments[0].primary_whatsapp_number" class="badge bg-light text-dark border" title="Department Profile Sender">
                       <i class="bi bi-whatsapp me-1"></i>{{ c.departments[0].primary_whatsapp_number }}
                     </span>
-                    <span v-else-if="c.whatsapp_from" class="badge bg-info-subtle text-info border" title="Campaign Specific Sender">
-                      <i class="bi bi-whatsapp me-1"></i>{{ c.whatsapp_from }}
+                    <span v-else-if="c.bank?.primary_whatsapp_number" class="badge bg-light text-dark border" title="Bank Profile Sender">
+                      <i class="bi bi-whatsapp me-1"></i>{{ c.bank.primary_whatsapp_number }}
                     </span>
                     <span v-else class="text-muted small">Default</span>
                   </td>
