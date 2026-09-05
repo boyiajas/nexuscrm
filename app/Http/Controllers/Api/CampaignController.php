@@ -215,10 +215,11 @@ class CampaignController extends Controller
         }
 
         $batches = $query
-            ->whereNotNull('import_batch_number')
-            ->where('import_batch_number', '!=', '')
+            ->join('client_import_batches', 'clients.id', '=', 'client_import_batches.client_id')
+            ->whereNotNull('client_import_batches.import_batch_number')
+            ->where('client_import_batches.import_batch_number', '!=', '')
             ->distinct()
-            ->pluck('import_batch_number')
+            ->pluck('client_import_batches.import_batch_number')
             ->sort()
             ->reverse()
             ->values();
@@ -274,7 +275,9 @@ class CampaignController extends Controller
                     $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
                 });
             } else {
-                $allowedClientsQuery->where('import_batch_number', $importBatchNumber);
+                $allowedClientsQuery->whereHas('importBatches', function ($q) use ($importBatchNumber) {
+                    $q->where('import_batch_number', $importBatchNumber);
+                });
             }
         }
 
@@ -393,7 +396,9 @@ class CampaignController extends Controller
                 $query->whereIn('clients.id', $clientIds);
             }
             if ($importBatchNumber) {
-                $query->where('clients.import_batch_number', $importBatchNumber);
+                $query->whereHas('importBatches', function ($q) use ($importBatchNumber) {
+                    $q->where('import_batch_number', $importBatchNumber);
+                });
             }
         } elseif ($clientsMode === 'unsent') {
             $channel = $validated['channel'] ?? 'whatsapp';
@@ -453,10 +458,11 @@ class CampaignController extends Controller
         }
 
         $batchOptions = (clone $baseQuery)
-            ->whereNotNull('clients.import_batch_number')
+            ->join('client_import_batches', 'clients.id', '=', 'client_import_batches.client_id')
+            ->whereNotNull('client_import_batches.import_batch_number')
             ->distinct()
-            ->orderByDesc('clients.import_batch_number')
-            ->pluck('clients.import_batch_number')
+            ->orderByDesc('client_import_batches.import_batch_number')
+            ->pluck('client_import_batches.import_batch_number')
             ->values();
 
         if ($search = trim((string) $request->get('search', $request->get('q')))) {
@@ -472,7 +478,9 @@ class CampaignController extends Controller
         }
 
         if ($importBatchNumber = trim((string) $request->get('import_batch_number'))) {
-            $baseQuery->where('clients.import_batch_number', $importBatchNumber);
+            $baseQuery->whereHas('importBatches', function ($q) use ($importBatchNumber) {
+                $q->where('import_batch_number', $importBatchNumber);
+            });
         }
 
         if ($accountType = trim((string) $request->get('account_type'))) {

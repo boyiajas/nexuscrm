@@ -132,11 +132,12 @@ class ClientController extends Controller
         }
 
         $batchOptions = $batchOptionsQuery
-            ->whereNotNull('import_batch_number')
-            ->where('import_batch_number', '!=', '')
+            ->join('client_import_batches', 'clients.id', '=', 'client_import_batches.client_id')
+            ->whereNotNull('client_import_batches.import_batch_number')
+            ->where('client_import_batches.import_batch_number', '!=', '')
             ->distinct()
-            ->orderByDesc('import_batch_number')
-            ->pluck('import_batch_number')
+            ->orderByDesc('client_import_batches.import_batch_number')
+            ->pluck('client_import_batches.import_batch_number')
             ->values();
 
         if ($batch = trim((string) $request->get('import_batch_number'))) {
@@ -145,7 +146,9 @@ class ClientController extends Controller
                     $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
                 });
             } else {
-                $query->where('import_batch_number', $batch);
+                $query->whereHas('importBatches', function ($q) use ($batch) {
+                    $q->where('import_batch_number', $batch);
+                });
             }
         }
 
@@ -625,7 +628,9 @@ class ClientController extends Controller
                     $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
                 });
             } else {
-                $query->where('import_batch_number', $batch);
+                $query->whereHas('importBatches', function ($q) use ($batch) {
+                    $q->where('import_batch_number', $batch);
+                });
             }
         }
 

@@ -74,6 +74,11 @@ class Client extends Model
             ->withTimestamps();
     }
 
+    public function importBatches()
+    {
+        return $this->hasMany(ClientImportBatch::class);
+    }
+
     public function bank()
     {
         return $this->belongsTo(Bank::class);

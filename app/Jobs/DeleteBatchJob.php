@@ -29,7 +29,10 @@ class DeleteBatchJob implements ShouldQueue
     {
         $upload = ImportUpload::query()->where('import_batch_number', $this->batchNumber)->first();
         
-        $query = Client::query()->where('import_batch_number', $this->batchNumber);
+        $query = Client::query()->whereHas('importBatches', function ($q) {
+            $q->where('import_batch_number', $this->batchNumber);
+        });
+        
         $totalToDelete = $query->count();
 
         if ($totalToDelete === 0) {
@@ -53,19 +56,29 @@ class DeleteBatchJob implements ShouldQueue
 
         // Process in chunks to avoid database locks
         $query->chunkById(100, function ($clients) use (&$deletedCount, $upload, $totalToDelete) {
-            $clientIds = $clients->pluck('id');
-
-            $chatSessionIds = DB::table('chat_sessions')->whereIn('client_id', $clientIds)->pluck('id');
-            if ($chatSessionIds->isNotEmpty()) {
-                DB::table('chat_messages')->whereIn('chat_session_id', $chatSessionIds)->delete();
-                DB::table('chat_sessions')->whereIn('id', $chatSessionIds)->delete();
-            }
-
             foreach ($clients as $client) {
-                $client->departments()->detach();
-                $client->campaigns()->detach();
-                $client->delete();
-                $deletedCount++;
+                // Detach from this batch
+                $client->importBatches()->where('import_batch_number', $this->batchNumber)->delete();
+
+                if ($client->importBatches()->count() === 0) {
+                    $chatSessionIds = DB::table('chat_sessions')->where('client_id', $client->id)->pluck('id');
+                    if ($chatSessionIds->isNotEmpty()) {
+                        DB::table('chat_messages')->whereIn('chat_session_id', $chatSessionIds)->delete();
+                        DB::table('chat_sessions')->whereIn('id', $chatSessionIds)->delete();
+                    }
+
+                    $client->departments()->detach();
+                    $client->campaigns()->detach();
+                    $client->delete();
+                    $deletedCount++;
+                } else {
+                    // Update main import_batch_number to the next most recent one for backward compatibility
+                    $nextLatest = $client->importBatches()->orderByDesc('created_at')->first();
+                    $client->update(['import_batch_number' => $nextLatest ? $nextLatest->import_batch_number : null]);
+                    
+                    // We also count this as a "deleted" row from the context of the batch
+                    $deletedCount++;
+                }
             }
 
             if ($upload) {

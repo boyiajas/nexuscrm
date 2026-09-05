@@ -274,6 +274,10 @@ class ImportClientsJob implements ShouldQueue
                     $client->departments()->sync($departmentIds);
                 }
 
+                $client->importBatches()->firstOrCreate([
+                    'import_batch_number' => $this->importBatchNumber,
+                ]);
+
                 $importCount++;
             }
 
