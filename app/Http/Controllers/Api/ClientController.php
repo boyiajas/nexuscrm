@@ -146,8 +146,14 @@ class ClientController extends Controller
                     $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
                 });
             } else {
-                $query->whereHas('importBatches', function ($q) use ($batch) {
+                $clientType = trim((string) $request->get('client_type'));
+                $query->whereHas('importBatches', function ($q) use ($batch, $clientType) {
                     $q->where('import_batch_number', $batch);
+                    if ($clientType === 'new') {
+                        $q->where('is_new_client', true);
+                    } elseif ($clientType === 'existing') {
+                        $q->where('is_new_client', false);
+                    }
                 });
             }
         }
@@ -628,8 +634,14 @@ class ClientController extends Controller
                     $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
                 });
             } else {
-                $query->whereHas('importBatches', function ($q) use ($batch) {
+                $clientType = trim((string) $request->get('client_type'));
+                $query->whereHas('importBatches', function ($q) use ($batch, $clientType) {
                     $q->where('import_batch_number', $batch);
+                    if ($clientType === 'new') {
+                        $q->where('is_new_client', true);
+                    } elseif ($clientType === 'existing') {
+                        $q->where('is_new_client', false);
+                    }
                 });
             }
         }

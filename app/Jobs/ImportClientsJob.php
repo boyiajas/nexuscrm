@@ -252,6 +252,7 @@ class ImportClientsJob implements ShouldQueue
                     $matchAttributes = ['bank_id' => $bankId, 'email' => $emailValue];
                 }
 
+                $isNewClient = false;
                 if ($matchAttributes) {
                     $existing = Client::query()->where($matchAttributes)->first();
                     if ($existing) {
@@ -261,12 +262,14 @@ class ImportClientsJob implements ShouldQueue
                         $updatedCount++;
                     } else {
                         $client = Client::create($clientData);
+                        $isNewClient = true;
                         $createdCount++;
                     }
                 } else {
                     $client = Client::create(array_merge($clientData, [
                         'email' => 'import_' . time() . '_' . $importCount . '@example.com',
                     ]));
+                    $isNewClient = true;
                     $createdCount++;
                 }
 
@@ -274,9 +277,10 @@ class ImportClientsJob implements ShouldQueue
                     $client->departments()->sync($departmentIds);
                 }
 
-                $client->importBatches()->firstOrCreate([
-                    'import_batch_number' => $this->importBatchNumber,
-                ]);
+                $client->importBatches()->firstOrCreate(
+                    ['import_batch_number' => $this->importBatchNumber],
+                    ['is_new_client' => $isNewClient]
+                );
 
                 $importCount++;
             }

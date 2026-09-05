@@ -65,6 +65,13 @@
                 </optgroup>
               </select>
 
+              <!-- Client Type Filter (only shows when a batch is selected) -->
+              <select v-if="filters.import_batch_number && filters.import_batch_number !== 'manual'" v-model="filters.client_type" class="form-select form-select-sm rounded-pill border-info" style="width: 150px;" @change="applyFilters">
+                <option value="all">All in Batch</option>
+                <option value="new">New in Batch</option>
+                <option value="existing">Existing in Batch</option>
+              </select>
+
               <!-- Status Filter -->
               <select v-model="filters.status" class="form-select form-select-sm rounded-pill" style="width: 130px;" @change="applyFilters">
                 <option value="">All Statuses</option>
@@ -823,6 +830,7 @@ export default {
         q: '',
         department: '',
         import_batch_number: '',
+        client_type: 'all',
         bank_id: '',
         status: '',
         opt_in: '',
@@ -1118,6 +1126,7 @@ export default {
         search: this.filters.q || undefined,
         department: this.filters.department || undefined,
         import_batch_number: this.filters.import_batch_number || undefined,
+        client_type: this.filters.client_type || undefined,
         bank_id: this.filters.bank_id || undefined,
         status: this.filters.status || undefined,
         opt_in: this.filters.opt_in || undefined,
@@ -1157,7 +1166,7 @@ export default {
       this.fetchClients(1);
     },
     resetFilters() {
-      this.filters = { q: '', department: '', import_batch_number: '', bank_id: '', status: '', opt_in: '' };
+      this.filters = { q: '', department: '', import_batch_number: '', client_type: 'all', bank_id: '', status: '', opt_in: '' };
       this.fetchClients(1);
     },
     changePageSize() {

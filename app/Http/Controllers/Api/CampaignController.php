@@ -243,11 +243,13 @@ class CampaignController extends Controller
             'client_ids' => ['array'],
             'client_ids.*' => ['integer', 'exists:clients,id'],
             'import_batch_number' => ['nullable', 'string', 'max:255'],
+            'client_type' => ['nullable', 'string', 'in:all,new,existing'],
         ]);
 
         $addAll = (bool) $validated['add_all'];
         $clientIds = $validated['client_ids'] ?? [];
         $importBatchNumber = $validated['import_batch_number'] ?? null;
+        $clientType = $validated['client_type'] ?? null;
 
         // Ensure campaign departments are loaded
         $campaign->loadMissing('departments');
@@ -275,8 +277,13 @@ class CampaignController extends Controller
                     $q->whereNull('import_batch_number')->orWhere('import_batch_number', '');
                 });
             } else {
-                $allowedClientsQuery->whereHas('importBatches', function ($q) use ($importBatchNumber) {
+                $allowedClientsQuery->whereHas('importBatches', function ($q) use ($importBatchNumber, $clientType) {
                     $q->where('import_batch_number', $importBatchNumber);
+                    if ($clientType === 'new') {
+                        $q->where('is_new_client', true);
+                    } elseif ($clientType === 'existing') {
+                        $q->where('is_new_client', false);
+                    }
                 });
             }
         }

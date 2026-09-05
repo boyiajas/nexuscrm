@@ -1117,6 +1117,15 @@
                     </option>
                   </optgroup>
                 </select>
+
+                <div v-if="selectedBatchOption && selectedBatchOption !== 'all'" class="mb-3">
+                  <label class="form-label fw-bold text-start w-100">Client Type Filter</label>
+                  <select v-model="selectedBatchClientType" class="form-select border-info shadow-sm">
+                    <option value="all">Include ALL Clients in this Batch</option>
+                    <option value="new">Include ONLY NEW Clients created by this Batch</option>
+                    <option value="existing">Include ONLY PRE-EXISTING Clients updated by this Batch</option>
+                  </select>
+                </div>
                 <button 
                   type="button" 
                   class="btn btn-primary w-100 py-2 fw-bold" 
@@ -2189,6 +2198,7 @@ export default {
       addClientsModal: null,
       clientAssignmentMode: 'batch', // 'batch' or 'individual'
       selectedBatchOption: '',
+      selectedBatchClientType: 'all',
       availableClients: [],
       filteredAvailableClients: [],
       selectedClients: [],
@@ -3325,6 +3335,9 @@ export default {
       
       if (this.clientAssignmentMode === 'batch') {
         payload.import_batch_number = this.selectedBatchOption === 'all' ? null : this.selectedBatchOption;
+        if (payload.import_batch_number) {
+          payload.client_type = this.selectedBatchClientType;
+        }
       } else {
         payload.client_ids = this.selectedClients.map(c => c.id);
       }
