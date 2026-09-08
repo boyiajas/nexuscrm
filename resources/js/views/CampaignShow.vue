@@ -171,25 +171,25 @@
             <!-- Delivery Tracking Metric Strip -->
             <div class="row g-2 mb-3">
               <div class="col-6 col-md-3">
-                <div class="p-2 border rounded bg-light text-center shadow-xs">
+                <div class="p-2 border rounded bg-light text-center shadow-xs hover-card" @click="clientStatusFilter = 'all'" style="cursor: pointer; transition: all 0.2s;">
                   <div class="text-muted small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">TOTAL CLIENTS</div>
                   <div class="fs-5 fw-bold text-dark mb-0">{{ clientStats.total }}</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
-                <div class="p-2 border rounded bg-success bg-opacity-10 border-success border-opacity-25 text-center shadow-xs">
+                <div class="p-2 border rounded bg-success bg-opacity-10 border-success border-opacity-25 text-center shadow-xs hover-card" @click="clientStatusFilter = 'sent'" style="cursor: pointer; transition: all 0.2s;">
                   <div class="text-success small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">{{ activeChannelTab.toUpperCase() }} SENT</div>
                   <div class="fs-5 fw-bold text-success mb-0">{{ clientStats.sent }}</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
-                <div class="p-2 border rounded bg-warning bg-opacity-10 border-warning border-opacity-25 text-center shadow-xs">
+                <div class="p-2 border rounded bg-warning bg-opacity-10 border-warning border-opacity-25 text-center shadow-xs hover-card" @click="clientStatusFilter = 'unsent'" style="cursor: pointer; transition: all 0.2s;">
                   <div class="text-warning-emphasis small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">REMAINING (UNSENT)</div>
                   <div class="fs-5 fw-bold text-warning-emphasis mb-0">{{ clientStats.unsent }}</div>
                 </div>
               </div>
               <div class="col-6 col-md-3">
-                <div class="p-2 border rounded bg-danger bg-opacity-10 border-danger border-opacity-25 text-center shadow-xs">
+                <div class="p-2 border rounded bg-danger bg-opacity-10 border-danger border-opacity-25 text-center shadow-xs hover-card" @click="clientStatusFilter = 'failed'" style="cursor: pointer; transition: all 0.2s;">
                   <div class="text-danger small fw-bold text-uppercase" style="font-size: 0.68rem; letter-spacing: 0.05em;">{{ activeChannelTab.toUpperCase() }} FAILED</div>
                   <div class="fs-5 fw-bold text-danger mb-0">{{ clientStats.failed }}</div>
                 </div>
@@ -861,7 +861,7 @@
 
               <!-- Metrics Strip Cards (4 Cards, Col 2 each) -->
               <div class="col-lg-2 col-md-3">
-                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #64748b !important;">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden hover-card" style="border-left: 3px solid #64748b !important; cursor: pointer; transition: all 0.2s;" @click="recipientModal.statusFilter = 'all'">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-muted small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-list-task me-1"></i> TOTAL</div>
@@ -873,7 +873,7 @@
               </div>
 
               <div class="col-lg-2 col-md-3">
-                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #10b981 !important;">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden hover-card" style="border-left: 3px solid #10b981 !important; cursor: pointer; transition: all 0.2s;" @click="recipientModal.statusFilter = 'delivered'">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED</div>
@@ -888,7 +888,7 @@
               </div>
 
               <div class="col-lg-2 col-md-3">
-                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #3b82f6 !important;">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden hover-card" style="border-left: 3px solid #3b82f6 !important; cursor: pointer; transition: all 0.2s;" @click="recipientModal.statusFilter = 'pending'">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> PENDING</div>
@@ -903,7 +903,7 @@
               </div>
 
               <div class="col-lg-2 col-md-3">
-                <div class="card border shadow-sm h-100 position-relative overflow-hidden" style="border-left: 3px solid #ef4444 !important;">
+                <div class="card border shadow-sm h-100 position-relative overflow-hidden hover-card" style="border-left: 3px solid #ef4444 !important; cursor: pointer; transition: all 0.2s;" @click="recipientModal.statusFilter = 'failed'">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
                       <div class="text-danger small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-exclamation-circle me-1"></i> FAILED</div>
@@ -926,8 +926,16 @@
                 </h3>
 
                 <div class="d-flex align-items-center gap-2">
+                  <!-- Status Filter -->
+                  <select v-model="recipientModal.statusFilter" class="form-select form-select-sm" style="width: 140px;">
+                    <option value="all">All Statuses</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="pending">Pending</option>
+                    <option value="failed">Failed</option>
+                  </select>
+
                   <!-- Search input -->
-                  <div class="header-search-bar py-1 px-3" style="width: 240px;">
+                  <div class="header-search-bar py-1 px-3" style="width: 200px;">
                     <i class="bi bi-search text-muted"></i>
                     <input
                       v-model="recipientModal.filter"
@@ -2190,6 +2198,7 @@ export default {
           can_send: false,
         },
         filter: '',
+        statusFilter: 'all',
         currentPage: 1,
         perPage: 25,
       },
@@ -2413,9 +2422,22 @@ export default {
     },
     filteredRecipients() {
       const rows = this.recipientModal.rows || [];
+      const statusFilter = this.recipientModal.statusFilter || 'all';
+      
+      let filtered = rows;
+      if (statusFilter !== 'all') {
+        filtered = rows.filter(r => {
+          const s = String(r.status || '').toLowerCase();
+          if (statusFilter === 'delivered') return s.includes('delivered') || s === 'read';
+          if (statusFilter === 'pending') return s.includes('pending') || s === 'queued' || s === 'processing' || s === 'sent';
+          if (statusFilter === 'failed') return s.includes('failed') || s === 'error';
+          return true;
+        });
+      }
+
       const q = (this.recipientModal.filter || '').trim().toLowerCase();
-      if (!q) return rows;
-      return rows.filter((r) => {
+      if (!q) return filtered;
+      return filtered.filter((r) => {
         return [
           r.client_name,
           r.email,
