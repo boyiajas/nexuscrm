@@ -165,6 +165,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/settings/whatsapp-accounts/{id}/activate', [App\Http\Controllers\Api\WhatsappAccountController::class, 'activate']);
 
     Route::get('dashboard', [DashboardController::class, 'index']);
+    Route::get('analytics', [\App\Http\Controllers\Api\AnalyticsController::class, 'index']);
 
     Route::apiResource('departments', DepartmentController::class);
     Route::get('departments/{department}/whatsapp-stats', [DepartmentStatsController::class, 'whatsappStats']);

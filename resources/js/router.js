@@ -22,6 +22,7 @@ const Roles = () => import('./views/Roles.vue');
 const WhatsAppFlows = () => import('./views/WhatsAppFlows.vue');
 const WhatsappReplies = () => import('./views/WhatsappReplies.vue');
 const QueueMonitor = () => import('./views/QueueMonitor.vue');
+const Analytics = () => import('./views/Analytics.vue');
 const MainLayout = () => import('./components/layout/MainLayout.vue');
 
 const routes = [
@@ -61,6 +62,12 @@ const routes = [
         name: 'export-requests',
         component: ExportRequests,
         meta: { requiredAnyPermission: ['request_exports', 'approve_exports', 'bypass_export_approval'], sensitiveView: true, pageIcon: 'bi-shield-lock' },
+      },
+      {
+        path: 'analytics',
+        name: 'analytics',
+        component: Analytics,
+        meta: { sensitiveView: true, pageIcon: 'bi-bar-chart-line-fill' },
       },
       {
         path: 'settings',
