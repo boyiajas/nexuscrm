@@ -369,6 +369,7 @@
                       :style="(cl.whatsapp_status && cl.whatsapp_status.toLowerCase() === 'failed' || cl.whatsapp_error_message || cl.whatsapp_error_code) ? 'cursor: help;' : ''"
                     >
                       {{ cl.whatsapp_status || '-' }}
+                      <i v-if="(cl.whatsapp_status && cl.whatsapp_status.toLowerCase() === 'failed') || cl.whatsapp_error_message || cl.whatsapp_error_code" class="bi bi-info-circle-fill ms-1 opacity-75"></i>
                     </span>
                   </td>
                   <td>
@@ -3133,14 +3134,16 @@ export default {
     },
     getRecipientErrorMessage(r) {
       if (!r) return 'Delivery failed';
-      if (r.error_message && r.error_code) {
-        return `${r.error_message} (Error Code: ${r.error_code})`;
+      const errMsg = r.error_message || r.whatsapp_error_message;
+      const errCode = r.error_code || r.whatsapp_error_code;
+      if (errMsg && errCode) {
+        return `${errMsg} (Error Code: ${errCode})`;
       }
-      if (r.error_message) {
-        return r.error_message;
+      if (errMsg) {
+        return errMsg;
       }
-      if (r.error_code) {
-        return `Error Code: ${r.error_code}`;
+      if (errCode) {
+        return `Error Code: ${errCode}`;
       }
       return 'Message delivery failed';
     },
