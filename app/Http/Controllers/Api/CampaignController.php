@@ -565,8 +565,22 @@ class CampaignController extends Controller
             ->orderBy('clients.name')
             ->paginate($perPage);
 
-        $paginator->getCollection()->transform(function ($client) {
+        $clientIds = $paginator->getCollection()->pluck('id')->toArray();
+        $whatsappErrors = [];
+        if (!empty($clientIds)) {
+            $whatsappErrors = \Illuminate\Support\Facades\DB::table('campaign_whatsapp_recipients')
+                ->join('campaign_whatsapp_messages', 'campaign_whatsapp_recipients.whatsapp_message_id', '=', 'campaign_whatsapp_messages.id')
+                ->where('campaign_whatsapp_messages.campaign_id', $campaign->id)
+                ->whereIn('campaign_whatsapp_recipients.client_id', $clientIds)
+                ->whereNotNull('campaign_whatsapp_recipients.error_message')
+                ->select('campaign_whatsapp_recipients.client_id', 'campaign_whatsapp_recipients.error_message', 'campaign_whatsapp_recipients.error_code')
+                ->get()
+                ->keyBy('client_id');
+        }
+
+        $paginator->getCollection()->transform(function ($client) use ($whatsappErrors) {
             $pivot = $client->pivot;
+            $errorInfo = $whatsappErrors->get($client->id);
 
             return array_merge($client->toArray(), [
                 'phone' => $this->resolveClientPhone($client),
@@ -575,6 +589,8 @@ class CampaignController extends Controller
                     return ['id' => $dept->id, 'name' => $dept->name];
                 }),
                 'whatsapp_status' => $pivot?->whatsapp_status ?? 'Pending',
+                'whatsapp_error_message' => $errorInfo?->error_message,
+                'whatsapp_error_code' => $errorInfo?->error_code,
                 'whatsapp_sent_at' => $pivot?->whatsapp_sent_at,
                 'email_status' => $pivot?->email_status ?? 'Pending',
                 'email_sent_at' => $pivot?->email_sent_at,
