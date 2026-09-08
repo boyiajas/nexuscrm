@@ -152,8 +152,8 @@
                       <p class="text-muted small mb-0">Daily transmission attrition & inbound consumer interaction trajectory</p>
                     </div>
                     <div class="btn-group btn-group-sm border rounded">
-                      <button class="btn btn-light bg-white border-0 fw-semibold text-dark active">Daily</button>
-                      <button class="btn btn-light bg-white border-0 text-muted">Weekly</button>
+                      <button class="btn btn-light bg-white border-0 fw-semibold" :class="{'text-dark active': timeframe === 'daily', 'text-muted': timeframe !== 'daily'}" @click="setTimeframe('daily')">Daily</button>
+                      <button class="btn btn-light bg-white border-0" :class="{'text-dark active': timeframe === 'weekly', 'text-muted': timeframe !== 'weekly'}" @click="setTimeframe('weekly')">Weekly</button>
                     </div>
                   </div>
 
@@ -186,7 +186,7 @@
 
                   <!-- Chart Canvas -->
                   <div style="height: 300px; position: relative;">
-                    <canvas id="funnelChart"></canvas>
+                    <canvas ref="funnelChart"></canvas>
                   </div>
                 </div>
               </div>
@@ -454,6 +454,7 @@ export default {
   data() {
     return {
       loading: true,
+      timeframe: 'daily',
       summary: {
         dispatched: '0',
         delivered: '0',
@@ -494,6 +495,12 @@ export default {
     this.fetchData();
   },
   methods: {
+    setTimeframe(tf) {
+      if (this.timeframe === tf) return;
+      this.timeframe = tf;
+      // In a real app we'd fetch different data based on tf, but for now we just toggle UI state
+      // We can also re-init chart if we had weekly data
+    },
     async fetchData() {
       this.loading = true;
       try {
@@ -516,7 +523,7 @@ export default {
       }
     },
     initChart() {
-      const canvas = document.getElementById('funnelChart');
+      const canvas = this.$refs.funnelChart;
       if (!canvas) return;
 
       const ctx = canvas.getContext('2d');
