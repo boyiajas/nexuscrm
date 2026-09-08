@@ -173,7 +173,7 @@ class AnalyticsController extends Controller
                 'sent' => number_format($sent),
                 'delivery' => rand(90, 99) . '.' . rand(0, 9) . '%',
                 'reply' => rand(15, 45) . '.' . rand(0, 9) . '%',
-                'rate' => '$' . number_format($rate, 3),
+                'rate' => '$' . number_format($rate, 4),
                 'cost' => '$' . number_format($cost, 2),
                 'status' => $tpl->status,
             ];
@@ -183,6 +183,8 @@ class AnalyticsController extends Controller
         $campaignsData = Campaign::with(['bank', 'clients'])->orderBy('created_at', 'desc')->limit(15)->get()->map(function ($cmp) {
             // Very simplified mock calculation for table display based on campaign
             $sent = $cmp->clients->count();
+            // Blended cost estimate based on utility rates
+            $cost = $sent * 0.0076;
             return [
                 'name' => $cmp->name,
                 'batch' => 'ID-' . $cmp->id,
@@ -191,7 +193,7 @@ class AnalyticsController extends Controller
                 'sent' => number_format($sent),
                 'delivery' => $sent > 0 ? '98.5%' : '0%',
                 'replies' => number_format(round($sent * 0.3)),
-                'cost' => '$' . number_format($sent * 0.025, 2),
+                'cost' => '$' . number_format($cost, 2),
                 'recoveryPct' => rand(15, 55) . '.' . rand(0, 9) . '%',
                 'recoveryAmt' => '$' . number_format(rand(5000, 80000) / 1000, 1) . 'k',
             ];
