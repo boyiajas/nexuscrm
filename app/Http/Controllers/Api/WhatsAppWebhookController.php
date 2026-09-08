@@ -386,7 +386,7 @@ class WhatsAppWebhookController extends Controller
             return;
         }
 
-        app(WhatsAppBatchService::class)->syncMessageProgress($message);
+        \App\Jobs\SyncCampaignWhatsappMessageProgressJob::dispatch($message->id);
     }
 
     protected function findClientByPhone(string $phone, ?string $phoneNumberId = null): ?Client
