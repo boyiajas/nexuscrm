@@ -41,10 +41,10 @@ class AnalyticsController extends Controller
         $engagementRate = $dispatched > 0 ? round(($inbound / $dispatched) * 100, 1) : 0;
 
         // SPEND & COST
-        // Hardcoded Meta pricing per category (approximate for demo/MVP)
-        $marketingCost = 0.035;
-        $utilityCost = 0.025;
-        $authCost = 0.015;
+        // Meta pricing based on South Africa rates (USD)
+        $marketingCost = 0.0175; // Estimated SA rate for Marketing since it wasn't in the screenshot
+        $utilityCost = 0.0076;   // From screenshot (South Africa, List rate)
+        $authCost = 0.0076;      // From screenshot (South Africa, List rate)
 
         // Estimate based on templates (if actual billing isn't stored)
         $totalMarketingMsgs = round($dispatched * 0.58);
@@ -56,7 +56,7 @@ class AnalyticsController extends Controller
         $spendAuth = $totalAuthMsgs * $authCost;
         $totalSpend = $spendMarketing + $spendUtility + $spendAuth;
         
-        $avgSpend = $delivered > 0 ? round($totalSpend / $delivered, 3) : 0;
+        $avgSpend = $delivered > 0 ? round($totalSpend / $delivered, 4) : 0;
 
         // ASSETS
         $activeCampaigns = Campaign::where('status', 'Active')->count();
@@ -161,7 +161,7 @@ class AnalyticsController extends Controller
         $templatesData = WhatsappTemplateCache::limit(10)->get()->map(function ($tpl) {
             $sent = rand(1000, 20000); // Mock data for now since we don't track by template_id easily without joining message table
             $cat = $tpl->category;
-            $rate = $cat === 'MARKETING' ? 0.035 : ($cat === 'AUTHENTICATION' ? 0.015 : 0.025);
+            $rate = $cat === 'MARKETING' ? 0.0175 : 0.0076;
             $cost = $sent * $rate;
             
             return [
@@ -231,19 +231,19 @@ class AnalyticsController extends Controller
                 'marketing' => [
                     'cost' => '$' . number_format($spendMarketing, 2),
                     'msgs' => number_format($totalMarketingMsgs),
-                    'rate' => '$0.035',
+                    'rate' => '$0.0175',
                     'pct' => $dispatched > 0 ? round(($totalMarketingMsgs / $dispatched) * 100) : 0
                 ],
                 'utility' => [
                     'cost' => '$' . number_format($spendUtility, 2),
                     'msgs' => number_format($totalUtilityMsgs),
-                    'rate' => '$0.025',
+                    'rate' => '$0.0076',
                     'pct' => $dispatched > 0 ? round(($totalUtilityMsgs / $dispatched) * 100) : 0
                 ],
                 'auth' => [
                     'cost' => '$' . number_format($spendAuth, 2),
                     'msgs' => number_format($totalAuthMsgs),
-                    'rate' => '$0.015',
+                    'rate' => '$0.0076',
                     'pct' => $dispatched > 0 ? round(($totalAuthMsgs / $dispatched) * 100) : 0
                 ],
                 'recovery_multiplier' => '$' . number_format(rand(120, 160) + (rand(0, 99) / 100), 2),
