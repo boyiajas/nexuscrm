@@ -487,11 +487,11 @@ export default {
         templates: [],
         campaigns: [],
         agents: [],
-      },
-      chartInstance: null
+      }
     };
   },
   mounted() {
+    this.chartInstance = null; // Store non-reactively
     this.fetchData();
   },
   methods: {
@@ -512,14 +512,13 @@ export default {
         this.assets = data.assets;
         this.funnelData = data.funnel;
         this.tables = data.tables;
-
-        this.$nextTick(() => {
-          this.initChart();
-        });
       } catch (error) {
         console.error('Failed to load analytics', error);
       } finally {
         this.loading = false;
+        this.$nextTick(() => {
+          this.initChart();
+        });
       }
     },
     initChart() {
