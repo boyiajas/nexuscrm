@@ -62,19 +62,7 @@ class AnalyticsController extends Controller
         $activeCampaigns = Campaign::where('status', 'Active')->count();
         $approvedTemplates = WhatsappTemplateCache::where('status', 'APPROVED')->count();
 
-        // FUNNEL CHART (Last 30 Days)
-        $dailyStats = DB::table('campaign_whatsapp_recipients')
-            ->selectRaw('
-                DATE(created_at) as date,
-                COUNT(*) as dispatched,
-                SUM(CASE WHEN LOWER(status) IN ("delivered", "read") THEN 1 ELSE 0 END) as delivered,
-                SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
-                SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
-            ')
-            ->where('created_at', '>=', Carbon::now()->subDays(30))
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
+        $timeframe = $request->query('timeframe', 'daily');
 
         $chartLabels = [];
         $chartDispatched = [];
@@ -82,15 +70,91 @@ class AnalyticsController extends Controller
         $chartRead = [];
         $chartReplied = [];
 
-        for ($i = 29; $i >= 0; $i--) {
-            $dateStr = Carbon::now()->subDays($i)->format('Y-m-d');
-            $chartLabels[] = Carbon::now()->subDays($i)->format('M d');
+        if ($timeframe === 'monthly') {
+            $monthsBack = 12;
+            $startDate = Carbon::now()->subMonths($monthsBack - 1)->startOfMonth();
             
-            $dayData = $dailyStats->firstWhere('date', $dateStr);
-            $chartDispatched[] = $dayData ? (int) $dayData->dispatched : 0;
-            $chartDelivered[] = $dayData ? (int) $dayData->delivered : 0;
-            $chartRead[] = $dayData ? (int) $dayData->read_count : 0;
-            $chartReplied[] = $dayData ? (int) $dayData->replied : 0;
+            $stats = DB::table('campaign_whatsapp_recipients')
+                ->selectRaw('
+                    DATE_FORMAT(created_at, "%Y-%m") as period,
+                    COUNT(*) as dispatched,
+                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
+                    SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                ')
+                ->where('created_at', '>=', $startDate)
+                ->groupBy('period')
+                ->orderBy('period')
+                ->get();
+
+            for ($i = $monthsBack - 1; $i >= 0; $i--) {
+                $date = Carbon::now()->subMonths($i);
+                $periodStr = $date->format('Y-m');
+                $chartLabels[] = $date->format('M Y');
+                
+                $data = $stats->firstWhere('period', $periodStr);
+                $chartDispatched[] = $data ? (int) $data->dispatched : 0;
+                $chartDelivered[] = $data ? (int) $data->delivered : 0;
+                $chartRead[] = $data ? (int) $data->read_count : 0;
+                $chartReplied[] = $data ? (int) $data->replied : 0;
+            }
+        } elseif ($timeframe === 'weekly' || $timeframe === '3month') {
+            $weeksBack = $timeframe === '3month' ? 12 : 8;
+            $startDate = Carbon::now()->subWeeks($weeksBack - 1)->startOfWeek();
+
+            $stats = DB::table('campaign_whatsapp_recipients')
+                ->selectRaw('
+                    YEARWEEK(created_at, 1) as period,
+                    COUNT(*) as dispatched,
+                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
+                    SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                ')
+                ->where('created_at', '>=', $startDate)
+                ->groupBy('period')
+                ->orderBy('period')
+                ->get();
+
+            for ($i = $weeksBack - 1; $i >= 0; $i--) {
+                $date = Carbon::now()->subWeeks($i);
+                $periodStr = $date->format('oW'); // ISO year and week number
+                $chartLabels[] = 'Week of ' . $date->startOfWeek()->format('M d');
+                
+                $data = $stats->firstWhere('period', $periodStr);
+                $chartDispatched[] = $data ? (int) $data->dispatched : 0;
+                $chartDelivered[] = $data ? (int) $data->delivered : 0;
+                $chartRead[] = $data ? (int) $data->read_count : 0;
+                $chartReplied[] = $data ? (int) $data->replied : 0;
+            }
+        } else {
+            // Daily (default, 30 days)
+            $daysBack = 30;
+            $startDate = Carbon::now()->subDays($daysBack - 1)->startOfDay();
+
+            $stats = DB::table('campaign_whatsapp_recipients')
+                ->selectRaw('
+                    DATE(created_at) as period,
+                    COUNT(*) as dispatched,
+                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
+                    SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                ')
+                ->where('created_at', '>=', $startDate)
+                ->groupBy('period')
+                ->orderBy('period')
+                ->get();
+
+            for ($i = $daysBack - 1; $i >= 0; $i--) {
+                $date = Carbon::now()->subDays($i);
+                $periodStr = $date->format('Y-m-d');
+                $chartLabels[] = $date->format('M d');
+                
+                $data = $stats->firstWhere('period', $periodStr);
+                $chartDispatched[] = $data ? (int) $data->dispatched : 0;
+                $chartDelivered[] = $data ? (int) $data->delivered : 0;
+                $chartRead[] = $data ? (int) $data->read_count : 0;
+                $chartReplied[] = $data ? (int) $data->replied : 0;
+            }
         }
 
         // TEMPLATES DATA

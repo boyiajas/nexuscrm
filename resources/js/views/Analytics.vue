@@ -154,6 +154,8 @@
                     <div class="btn-group btn-group-sm border rounded">
                       <button class="btn btn-light bg-white border-0 fw-semibold" :class="{'text-dark active': timeframe === 'daily', 'text-muted': timeframe !== 'daily'}" @click="setTimeframe('daily')">Daily</button>
                       <button class="btn btn-light bg-white border-0" :class="{'text-dark active': timeframe === 'weekly', 'text-muted': timeframe !== 'weekly'}" @click="setTimeframe('weekly')">Weekly</button>
+                      <button class="btn btn-light bg-white border-0" :class="{'text-dark active': timeframe === 'monthly', 'text-muted': timeframe !== 'monthly'}" @click="setTimeframe('monthly')">Monthly</button>
+                      <button class="btn btn-light bg-white border-0" :class="{'text-dark active': timeframe === '3month', 'text-muted': timeframe !== '3month'}" @click="setTimeframe('3month')">3 Months</button>
                     </div>
                   </div>
 
@@ -498,13 +500,12 @@ export default {
     setTimeframe(tf) {
       if (this.timeframe === tf) return;
       this.timeframe = tf;
-      // In a real app we'd fetch different data based on tf, but for now we just toggle UI state
-      // We can also re-init chart if we had weekly data
+      this.fetchData();
     },
     async fetchData() {
       this.loading = true;
       try {
-        const response = await axios.get('/api/analytics');
+        const response = await axios.get('/api/analytics', { params: { timeframe: this.timeframe } });
         const data = response.data;
         
         this.summary = data.summary;
