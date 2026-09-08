@@ -998,6 +998,13 @@
                         </td>
                         <td class="text-end pe-4">
                           <button
+                            class="btn btn-light text-primary border-0 p-1 px-2 me-1"
+                            @click="viewClient({id: r.client_id, name: r.client_name, email: r.email, phone: r.phone, bank_name: r.bank_name})"
+                            title="View Client"
+                          >
+                            <i class="bi bi-person-lines-fill"></i>
+                          </button>
+                          <button
                             class="btn btn-light text-secondary border-0 p-1 px-2 me-1"
                             @click="previewClientMessage(r)"
                             title="Preview Message"
@@ -2114,6 +2121,8 @@
         </div>
       </div>
     </div>
+    
+    <ClientDetailsModal ref="clientDetailsModal" />
   </div>
 </template>
 
@@ -2122,6 +2131,7 @@ import axios from '../axios';
 import VueMultiselect from 'vue-multiselect';
 import ExportRequestModal from '../components/ExportRequestModal.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
+import ClientDetailsModal from '../components/ClientDetailsModal.vue';
 import { cleanupModalArtifacts as cleanupManagedModalArtifacts, createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
@@ -2132,6 +2142,7 @@ export default {
     VueMultiselect,
     ExportRequestModal,
     ConfirmationModal,
+    ClientDetailsModal,
   },
   data() {
     return {
@@ -2766,7 +2777,9 @@ export default {
       }
     },
     viewClient(client) {
-      this.$router.push({ name: 'clients', query: { id: client.id } });
+      if (this.$refs.clientDetailsModal) {
+        this.$refs.clientDetailsModal.open(client);
+      }
     },
     handleWhatsappTemplateChange() {
       // Avoid overwriting if we are editing and haven't actually changed the template
