@@ -572,8 +572,8 @@ class CampaignController extends Controller
                 ->join('campaign_whatsapp_messages', 'campaign_whatsapp_recipients.whatsapp_message_id', '=', 'campaign_whatsapp_messages.id')
                 ->where('campaign_whatsapp_messages.campaign_id', $campaign->id)
                 ->whereIn('campaign_whatsapp_recipients.client_id', $clientIds)
-                ->whereNotNull('campaign_whatsapp_recipients.error_message')
-                ->select('campaign_whatsapp_recipients.client_id', 'campaign_whatsapp_recipients.error_message', 'campaign_whatsapp_recipients.error_code')
+                ->select('campaign_whatsapp_recipients.client_id', 'campaign_whatsapp_recipients.error_message', 'campaign_whatsapp_recipients.error_code', 'campaign_whatsapp_recipients.status')
+                ->orderBy('campaign_whatsapp_recipients.id', 'asc')
                 ->get()
                 ->keyBy('client_id');
         }
