@@ -75,6 +75,27 @@ class QueueMonitorController extends Controller
             ];
         });
 
+        $dispatchingCampaigns = DB::table('campaign_whatsapp_messages')
+            ->join('campaigns', 'campaigns.id', '=', 'campaign_whatsapp_messages.campaign_id')
+            ->select('campaign_whatsapp_messages.*', 'campaigns.name as campaign_name')
+            ->whereIn('campaign_whatsapp_messages.status', ['Queued', 'Processing'])
+            ->get()
+            ->map(function ($msg) {
+                $pendingDispatch = DB::table('campaign_whatsapp_recipients')
+                    ->where('whatsapp_message_id', $msg->id)
+                    ->whereRaw('LOWER(status) = ?', ['pending dispatch'])
+                    ->count();
+                    
+                return [
+                    'id' => $msg->id,
+                    'campaign_name' => $msg->campaign_name,
+                    'status' => $msg->status,
+                    'total_recipients' => $msg->total,
+                    'pending_dispatch' => $pendingDispatch,
+                    'queued_in_laravel' => $msg->pending - $pendingDispatch,
+                ];
+            });
+
         return response()->json([
             'stats' => [
                 'pending' => $pendingJobsCount,
@@ -87,6 +108,7 @@ class QueueMonitorController extends Controller
             ],
             'recent_pending' => $recentPending,
             'recent_failed' => $recentFailed,
+            'dispatching_campaigns' => $dispatchingCampaigns,
         ]);
     }
 
@@ -97,9 +119,9 @@ class QueueMonitorController extends Controller
         }
 
         if ($id === 'all') {
-            Artisan::call('queue:retry', ['id' => 'all']);
+            Artisan::call('queue:retry', ['id' => ['all']]);
         } else {
-            Artisan::call('queue:retry', ['id' => $id]);
+            Artisan::call('queue:retry', ['id' => [$id]]);
         }
 
         return response()->json(['message' => 'Job(s) queued for retry.']);
@@ -112,7 +134,7 @@ class QueueMonitorController extends Controller
         }
 
         if ($id === 'all') {
-            Artisan::call('queue:forget', ['id' => 'all']);
+            Artisan::call('queue:flush');
         } else {
             Artisan::call('queue:forget', ['id' => $id]);
         }

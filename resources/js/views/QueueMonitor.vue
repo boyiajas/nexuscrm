@@ -44,6 +44,11 @@
     <!-- Tabs -->
     <ul class="nav nav-tabs mb-4">
       <li class="nav-item">
+        <a class="nav-link" :class="{ active: activeTab === 'dispatchers' }" href="#" @click.prevent="activeTab = 'dispatchers'">
+          <i class="bi bi-broadcast-pin me-1"></i> Active Dispatchers
+        </a>
+      </li>
+      <li class="nav-item">
         <a class="nav-link" :class="{ active: activeTab === 'pending' }" href="#" @click.prevent="activeTab = 'pending'">
           <i class="bi bi-hourglass-split me-1"></i> Recent Pending Jobs
         </a>
@@ -56,6 +61,53 @@
     </ul>
 
     <!-- Tab Content -->
+    <div v-if="activeTab === 'dispatchers'">
+      <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white border-bottom-0 pt-3 pb-2">
+          <h6 class="mb-0 fw-bold">Active Campaign Dispatchers</h6>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light text-muted" style="font-size: 0.75rem; letter-spacing: 0.05em;">
+              <tr>
+                <th class="ps-4">Campaign Name</th>
+                <th>Status</th>
+                <th>Total Recipients</th>
+                <th>Pending Dispatch</th>
+                <th>Queued (Laravel)</th>
+                <th>Progress</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in dispatchingCampaigns" :key="c.id">
+                <td class="ps-4 fw-medium text-dark">{{ c.campaign_name }}</td>
+                <td>
+                  <span class="badge bg-primary-subtle text-primary">{{ c.status }}</span>
+                </td>
+                <td>{{ c.total_recipients }}</td>
+                <td>
+                  <span class="text-warning fw-bold"><i class="bi bi-pause-fill"></i> {{ c.pending_dispatch }}</span>
+                </td>
+                <td>
+                  <span class="text-info fw-bold"><i class="bi bi-play-fill"></i> {{ c.queued_in_laravel }}</span>
+                </td>
+                <td style="width: 200px;">
+                  <div class="progress" style="height: 6px;">
+                    <div class="progress-bar bg-success" role="progressbar" :style="{ width: ((c.total_recipients - c.pending_dispatch - c.queued_in_laravel) / c.total_recipients * 100) + '%' }" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+                  <div class="small text-muted mt-1" style="font-size: 0.65rem;">
+                    {{ (((c.total_recipients - c.pending_dispatch - c.queued_in_laravel) / c.total_recipients) * 100).toFixed(1) }}% Done
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="dispatchingCampaigns.length === 0">
+                <td colspan="6" class="text-center py-4 text-muted">No campaigns currently dispatching.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     <div v-if="activeTab === 'pending'">
       <div class="card border-0 shadow-sm">
         <div class="card-header bg-white border-bottom-0 pt-3 pb-2">
@@ -158,11 +210,12 @@ export default {
     return {
       loading: true,
       processing: false,
-      activeTab: 'pending',
+      activeTab: 'dispatchers',
       stats: { pending: 0, failed: 0 },
       status: { color: 'secondary', message: 'Loading...', worker_active: false },
       recentPending: [],
       recentFailed: [],
+      dispatchingCampaigns: [],
     };
   },
   mounted() {
@@ -182,6 +235,7 @@ export default {
         this.status = res.data.status;
         this.recentPending = res.data.recent_pending;
         this.recentFailed = res.data.recent_failed;
+        this.dispatchingCampaigns = res.data.dispatching_campaigns || [];
       } catch (err) {
         this.notify(err.response?.data?.message || 'Failed to fetch queue data.', 'danger');
       } finally {
