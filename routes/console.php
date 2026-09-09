@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('campaigns:process-scheduled')->everyMinute();
+Schedule::command('nexuscrm:dispatch-whatsapp')->everyMinute()->withoutOverlapping();

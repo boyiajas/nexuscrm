@@ -46,18 +46,18 @@ class WhatsAppBatchService
             'messages_per_second' => $message->messages_per_second ?: $this->enforcedMessagesPerSecond(),
         ]);
 
-        $message->recipients()
+        $affected = $message->recipients()
             ->whereNotIn('status', ['Delivered', 'Delivered (Ecosystem Warning)', 'Suppressed', 'No Lawful Basis', 'No Phone'])
             ->update([
-                'status' => 'Queued',
-                'queued_at' => $now,
+                'status' => 'Pending Dispatch',
+                'queued_at' => null,
                 'processing_started_at' => null,
                 'updated_at' => $now,
             ]);
 
         $this->syncMessageProgress($message);
 
-        return $this->dispatchQueuedRecipients($message->fresh());
+        return $affected;
     }
 
     public function pauseMessage(CampaignWhatsappMessage $message, string $reason, bool $markQueuedRecipients = true): CampaignWhatsappMessage
@@ -194,6 +194,7 @@ class WhatsAppBatchService
         $paused          = (clone $query)->whereRaw('LOWER(status) = ?', ['paused'])->count();
         $providerPending = (clone $query)->whereRaw('LOWER(status) = ?', ['pending'])->count();
         $suppressed      = (clone $query)->whereIn('status', ['Suppressed', 'No Lawful Basis', 'No Phone'])->count();
+        $pendingDispatch = (clone $query)->whereRaw('LOWER(status) = ?', ['pending dispatch'])->count();
 
         return [
             'total'            => $total,
@@ -205,8 +206,9 @@ class WhatsAppBatchService
             'paused'           => $paused,
             'provider_pending' => $providerPending,
             'suppressed'       => $suppressed,
+            'pending_dispatch' => $pendingDispatch,
             // Sent is included in pending so batch stays active until webhooks arrive
-            'pending'          => $queued + $processing + $providerPending + $paused + $sent,
+            'pending'          => $queued + $processing + $providerPending + $paused + $sent + $pendingDispatch,
         ];
     }
 
@@ -225,7 +227,7 @@ class WhatsAppBatchService
         }
 
         // Recipients accepted by Meta but awaiting delivery webhooks — keep batch active
-        if ($counts['queued'] > 0 || $counts['provider_pending'] > 0 || $counts['sent'] > 0) {
+        if ($counts['queued'] > 0 || $counts['provider_pending'] > 0 || $counts['sent'] > 0 || $counts['pending_dispatch'] > 0) {
             return 'Queued';
         }
 
