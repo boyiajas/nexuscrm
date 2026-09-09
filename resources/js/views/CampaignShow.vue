@@ -506,9 +506,9 @@
                   <th>Status</th>
                   <th>Sent At</th>
                   <th>Total</th>
-                  <th>Delivered</th>
+                  <th>Delivered(Read)</th>
                   <th>Failed</th>
-                  <th>Pending</th>
+                  <th>Delivered(UnRead)</th>
                   <th>Chat Request</th>
                   <th>Email Notif</th>
                   <th>Responses</th>
