@@ -877,7 +877,7 @@
                 <div class="card border shadow-sm h-100 position-relative overflow-hidden hover-card" style="border-left: 3px solid #10b981 !important; cursor: pointer; transition: all 0.2s;" @click="recipientModal.statusFilter = 'delivered'">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
-                      <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED</div>
+                      <div class="text-success small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-check2-all me-1"></i> DELIVERED(READ)</div>
                     </div>
                     <div>
                       <div class="stat-card-number mt-3">{{ recipientModal.summary.delivered || 0 }}</div>
@@ -892,7 +892,7 @@
                 <div class="card border shadow-sm h-100 position-relative overflow-hidden hover-card" style="border-left: 3px solid #3b82f6 !important; cursor: pointer; transition: all 0.2s;" @click="recipientModal.statusFilter = 'pending'">
                   <div class="card-body p-3 d-flex flex-column justify-content-between position-relative z-1">
                     <div class="d-flex justify-content-between align-items-start">
-                      <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> PENDING</div>
+                      <div class="text-primary small text-uppercase fw-bold" style="font-size: 0.7rem; letter-spacing: 0.05em;"><i class="bi bi-three-dots me-1"></i> DELIVERED(UNREAD)</div>
                     </div>
                     <div>
                       <div class="stat-card-number mt-3">{{ recipientModal.summary.pending || 0 }}</div>
