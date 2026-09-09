@@ -136,7 +136,7 @@
             </div>
             <div>
               <div class="stat-card-number mt-3">{{ summary.total_pending || 0 }}</div>
-              <small class="text-muted" style="font-size: 0.72rem;">In processing queues</small>
+              <small class="text-muted" style="font-size: 0.72rem;">Unread messages</small>
             </div>
           </div>
           <i class="bi bi-three-dots position-absolute text-primary" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
