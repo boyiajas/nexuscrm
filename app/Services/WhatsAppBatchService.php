@@ -218,7 +218,7 @@ class WhatsAppBatchService
             return 'Draft';
         }
 
-        if (($message->status === 'Paused' || $message->paused_at) && $counts['pending'] > 0) {
+        if (($message->status === 'Paused' || $message->paused_at) && ($counts['queued'] > 0 || $counts['pending_dispatch'] > 0 || $counts['processing'] > 0)) {
             return 'Paused';
         }
 
@@ -226,20 +226,21 @@ class WhatsAppBatchService
             return 'Processing';
         }
 
-        // Recipients accepted by Meta but awaiting delivery webhooks — keep batch active
-        if ($counts['queued'] > 0 || $counts['provider_pending'] > 0 || $counts['sent'] > 0 || $counts['pending_dispatch'] > 0) {
+        // Only keep batch active if our internal system is still processing it
+        if ($counts['queued'] > 0 || $counts['pending_dispatch'] > 0) {
             return 'Queued';
         }
 
-        if ($counts['delivered'] === 0 && $counts['failed'] > 0) {
+        // At this point, everything has left our system.
+        if ($counts['delivered'] === 0 && $counts['sent'] === 0 && $counts['provider_pending'] === 0 && $counts['failed'] > 0) {
             return 'Failed';
         }
 
-        if ($counts['delivered'] > 0 && $counts['failed'] > 0) {
+        if (($counts['delivered'] > 0 || $counts['sent'] > 0 || $counts['provider_pending'] > 0) && $counts['failed'] > 0) {
             return 'Completed With Failures';
         }
 
-        if ($counts['delivered'] > 0) {
+        if ($counts['delivered'] > 0 || $counts['sent'] > 0 || $counts['provider_pending'] > 0) {
             return 'Completed';
         }
 
