@@ -80,38 +80,25 @@ class DashboardController extends Controller
         }
         $openChats = $openChatsQuery->count();
 
-        // Delivery statistics from WhatsApp Recipients & Campaign Clients
+        // Delivery statistics strictly from the webhook-driven WhatsApp Recipients table
         $recipientStats = DB::table('campaign_whatsapp_recipients')
             ->join('campaign_whatsapp_messages', 'campaign_whatsapp_recipients.whatsapp_message_id', '=', 'campaign_whatsapp_messages.id')
             ->join('campaigns', 'campaign_whatsapp_messages.campaign_id', '=', 'campaigns.id')
             ->selectRaw('
                 COUNT(*) as total_sends,
-                SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read") THEN 1 ELSE 0 END) as delivered,
+                SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
                 SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "failed" THEN 1 ELSE 0 END) as failed,
-                SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("pending", "queued", "sent") THEN 1 ELSE 0 END) as pending
+                SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("pending", "queued", "sent", "pending dispatch", "processing") THEN 1 ELSE 0 END) as pending
             ')
             ->when(!$user->canAccessAllBanks() && !empty($userBankIds), function ($q) use ($userBankIds) {
                 $q->whereIn('campaigns.bank_id', $userBankIds);
             })
             ->first();
 
-        $clientPivotStats = DB::table('campaign_clients')
-            ->join('campaigns', 'campaigns.id', '=', 'campaign_clients.campaign_id')
-            ->selectRaw('
-                COUNT(*) as total_sends,
-                SUM(CASE WHEN LOWER(whatsapp_status) = "delivered" OR LOWER(email_status) = "delivered" OR LOWER(sms_status) = "delivered" THEN 1 ELSE 0 END) as delivered,
-                SUM(CASE WHEN LOWER(whatsapp_status) = "failed" OR LOWER(email_status) = "failed" OR LOWER(sms_status) = "failed" THEN 1 ELSE 0 END) as failed,
-                SUM(CASE WHEN LOWER(whatsapp_status) IN ("pending", "queued", "sent") OR LOWER(email_status) IN ("pending", "queued", "sent") OR LOWER(sms_status) IN ("pending", "queued", "sent") THEN 1 ELSE 0 END) as pending
-            ')
-            ->when(!$user->canAccessAllBanks() && !empty($userBankIds), function ($q) use ($userBankIds) {
-                $q->whereIn('campaigns.bank_id', $userBankIds);
-            })
-            ->first();
-
-        $totalSends = max((int) ($recipientStats->total_sends ?? 0), (int) ($clientPivotStats->total_sends ?? 0));
-        $delivered = max((int) ($recipientStats->delivered ?? 0), (int) ($clientPivotStats->delivered ?? 0));
-        $failed = max((int) ($recipientStats->failed ?? 0), (int) ($clientPivotStats->failed ?? 0));
-        $pending = max((int) ($recipientStats->pending ?? 0), (int) ($clientPivotStats->pending ?? 0));
+        $totalSends = (int) ($recipientStats->total_sends ?? 0);
+        $delivered = (int) ($recipientStats->delivered ?? 0);
+        $failed = (int) ($recipientStats->failed ?? 0);
+        $pending = (int) ($recipientStats->pending ?? 0);
 
         // Calculate delivery rate (avoid division by zero)
         $deliveryRate = $totalSends > 0 ? round(($delivered / $totalSends) * 100, 1) : 0;
