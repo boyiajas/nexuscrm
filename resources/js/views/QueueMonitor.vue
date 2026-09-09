@@ -180,10 +180,10 @@
                 <td class="text-muted small">{{ job.failed_at }}</td>
                 <td class="text-end pe-4">
                   <div class="btn-group">
-                    <button class="btn btn-sm btn-light text-primary" @click="retryJob(job.id)" title="Retry Job" :disabled="processing">
+                    <button class="btn btn-sm btn-light text-primary" @click="retryJob(job.uuid)" title="Retry Job" :disabled="processing">
                       <i class="bi bi-arrow-repeat"></i>
                     </button>
-                    <button class="btn btn-sm btn-light text-danger" @click="deleteFailedJob(job.id)" title="Delete Failed Job" :disabled="processing">
+                    <button class="btn btn-sm btn-light text-danger" @click="deleteFailedJob(job.uuid)" title="Delete Failed Job" :disabled="processing">
                       <i class="bi bi-trash"></i>
                     </button>
                   </div>
