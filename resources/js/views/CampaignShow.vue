@@ -3136,16 +3136,25 @@ export default {
       if (!r) return 'Delivery failed';
       const errMsg = r.error_message || r.whatsapp_error_message;
       const errCode = r.error_code || r.whatsapp_error_code;
+      
+      let finalMsg = '';
       if (errMsg && errCode) {
-        return `${errMsg} (Error Code: ${errCode})`;
+        finalMsg = `${errMsg} (Error Code: ${errCode})`;
+      } else if (errMsg) {
+        finalMsg = errMsg;
+      } else if (errCode) {
+        finalMsg = `Error Code: ${errCode}`;
+      } else {
+        return 'Message delivery failed';
       }
-      if (errMsg) {
-        return errMsg;
+
+      if (String(errCode) === '131026') {
+        finalMsg += '. This usually means the phone number is not registered on WhatsApp.';
+      } else if (String(errCode) === '131049') {
+        finalMsg += '. This is an Ecosystem Warning indicating the number is temporarily restricted due to user blocks or spam reports.';
       }
-      if (errCode) {
-        return `Error Code: ${errCode}`;
-      }
-      return 'Message delivery failed';
+
+      return finalMsg;
     },
 
     // Export helpers

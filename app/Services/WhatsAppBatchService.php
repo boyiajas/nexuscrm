@@ -176,13 +176,13 @@ class WhatsAppBatchService
         $delivered       = (clone $query)->where(function($q) {
             $q->whereIn('status', ['Delivered', 'Delivered (Ecosystem Warning)'])
               ->orWhereRaw('LOWER(status) = ?', ['delivered'])
-              ->orWhereIn('error_code', ['131049', '131026'])
+              ->orWhere('error_code', '131049')
               ->orWhere('error_message', 'like', '%maintain healthy ecosystem engagement%');
         })->count();
         $sent            = (clone $query)->whereRaw('LOWER(status) = ?', ['sent'])->count();
         $failed          = (clone $query)->whereRaw('LOWER(status) = ?', ['failed'])
             ->where(function($q) {
-                $q->whereNotIn('error_code', ['131049', '131026'])
+                $q->where('error_code', '!=', '131049')
                   ->orWhereNull('error_code');
             })
             ->where(function($q) {
