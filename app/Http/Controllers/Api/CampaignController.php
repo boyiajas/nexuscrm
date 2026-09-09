@@ -1035,12 +1035,12 @@ class CampaignController extends Controller
                 $delivered = (clone $recipientQuery)->where(function($q) {
                     $q->whereIn('status', ['Delivered', 'Delivered (Ecosystem Warning)'])
                       ->orWhereRaw('LOWER(status) = ?', ['delivered'])
-                      ->orWhereIn('error_code', ['131049', '131026'])
+                      ->orWhere('error_code', '131049')
                       ->orWhere('error_message', 'like', '%maintain healthy ecosystem engagement%');
                 })->count();
                 $failed = (clone $recipientQuery)->whereRaw('LOWER(status) = ?', ['failed'])
                     ->where(function($q) {
-                        $q->whereNotIn('error_code', ['131049', '131026'])
+                        $q->where('error_code', '!=', '131049')
                           ->orWhereNull('error_code');
                     })
                     ->where(function($q) {
@@ -1974,7 +1974,7 @@ class CampaignController extends Controller
                 }
             }
 
-            $isEcosystemWarning = in_array((string)$r->error_code, ['131049', '131026'], true)
+            $isEcosystemWarning = (string)$r->error_code === '131049'
                 || str_contains(strtolower((string)$r->error_message), 'maintain healthy ecosystem engagement');
 
             $status = ($isEcosystemWarning || strcasecmp($r->status, 'Delivered (Ecosystem Warning)') === 0) ? 'Delivered' : $r->status;

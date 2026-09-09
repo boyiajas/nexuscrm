@@ -113,7 +113,7 @@ class WhatsAppWebhookController extends Controller
         $errorCode = $status['errors'][0]['code'] ?? null;
         $errorTitle = $status['errors'][0]['title'] ?? $status['errors'][0]['message'] ?? '';
 
-        $isEcosystemWarning = in_array((string)$errorCode, ['131049', '131026'], true)
+        $isEcosystemWarning = (string)$errorCode === '131049'
             || str_contains(strtolower((string)$errorTitle), 'maintain healthy ecosystem engagement');
 
         if ($isEcosystemWarning) {

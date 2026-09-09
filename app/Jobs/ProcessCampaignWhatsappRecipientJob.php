@@ -186,8 +186,7 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
         } catch (\Throwable $e) {
             $errorMsg = $e->getMessage();
             $isEcosystemWarning = str_contains(strtolower($errorMsg), 'maintain healthy ecosystem engagement')
-                || str_contains($errorMsg, '131049')
-                || str_contains($errorMsg, '131026');
+                || str_contains($errorMsg, '131049');
 
             if ($isEcosystemWarning) {
                 Log::info('WhatsApp send generated ecosystem engagement advisory (message delivered)', [
