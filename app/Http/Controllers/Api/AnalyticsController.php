@@ -18,14 +18,28 @@ class AnalyticsController extends Controller
     {
         $user = auth()->user();
         
+        $timeframe = $request->query('timeframe', 'daily');
+        
+        if ($timeframe === 'monthly') {
+            $monthsBack = 12;
+            $startDate = Carbon::now()->subMonths($monthsBack - 1)->startOfMonth();
+        } elseif ($timeframe === 'weekly' || $timeframe === '3month') {
+            $weeksBack = $timeframe === '3month' ? 12 : 8;
+            $startDate = Carbon::now()->subWeeks($weeksBack - 1)->startOfWeek();
+        } else {
+            $daysBack = 30;
+            $startDate = Carbon::now()->subDays($daysBack - 1)->startOfDay();
+        }
+
         // OVERALL STATISTICS
         $stats = DB::table('campaign_whatsapp_recipients')
             ->selectRaw('
                 COUNT(*) as total_dispatched,
-                SUM(CASE WHEN LOWER(status) IN ("delivered", "read") THEN 1 ELSE 0 END) as total_delivered,
+                SUM(CASE WHEN LOWER(status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as total_delivered,
                 SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as total_read,
                 SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as total_replied
             ')
+            ->where('created_at', '>=', $startDate)
             ->first();
 
         $dispatched = (int) ($stats->total_dispatched ?? 0);
@@ -33,7 +47,10 @@ class AnalyticsController extends Controller
         $read = (int) ($stats->total_read ?? 0);
         
         // Combine with ChatSessions for inbound engaged
-        $chatInbound = ChatSession::where('platform', 'whatsapp')->where('unread_count', '>', 0)->count();
+        $chatInbound = ChatSession::where('platform', 'whatsapp')
+            ->where('unread_count', '>', 0)
+            ->where('created_at', '>=', $startDate)
+            ->count();
         $inbound = max((int) ($stats->total_replied ?? 0), $chatInbound);
 
         $deliveryRate = $dispatched > 0 ? round(($delivered / $dispatched) * 100, 1) : 0;
@@ -59,10 +76,8 @@ class AnalyticsController extends Controller
         $avgSpend = $delivered > 0 ? round($totalSpend / $delivered, 4) : 0;
 
         // ASSETS
-        $activeCampaigns = Campaign::where('status', 'Active')->count();
+        $activeCampaigns = Campaign::where('status', 'Active')->count(); // Leave campaigns global or filter by created_at? Leave global for now.
         $approvedTemplates = WhatsappTemplateCache::where('status', 'APPROVED')->count();
-
-        $timeframe = $request->query('timeframe', 'daily');
 
         $chartLabels = [];
         $chartDispatched = [];
@@ -72,13 +87,11 @@ class AnalyticsController extends Controller
 
         if ($timeframe === 'monthly') {
             $monthsBack = 12;
-            $startDate = Carbon::now()->subMonths($monthsBack - 1)->startOfMonth();
-            
             $stats = DB::table('campaign_whatsapp_recipients')
                 ->selectRaw('
                     DATE_FORMAT(created_at, "%Y-%m") as period,
                     COUNT(*) as dispatched,
-                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
                     SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
                     SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
@@ -100,13 +113,12 @@ class AnalyticsController extends Controller
             }
         } elseif ($timeframe === 'weekly' || $timeframe === '3month') {
             $weeksBack = $timeframe === '3month' ? 12 : 8;
-            $startDate = Carbon::now()->subWeeks($weeksBack - 1)->startOfWeek();
-
+            
             $stats = DB::table('campaign_whatsapp_recipients')
                 ->selectRaw('
                     YEARWEEK(created_at, 1) as period,
                     COUNT(*) as dispatched,
-                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
                     SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
                     SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
@@ -129,13 +141,12 @@ class AnalyticsController extends Controller
         } else {
             // Daily (default, 30 days)
             $daysBack = 30;
-            $startDate = Carbon::now()->subDays($daysBack - 1)->startOfDay();
-
+            
             $stats = DB::table('campaign_whatsapp_recipients')
                 ->selectRaw('
                     DATE(created_at) as period,
                     COUNT(*) as dispatched,
-                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
                     SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
                     SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
