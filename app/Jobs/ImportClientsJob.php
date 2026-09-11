@@ -86,6 +86,9 @@ class ImportClientsJob implements ShouldQueue
             $errors = [];
             $seenEmails = [];
             $seenPhones = [];
+            $seenAccountNumbers = [];
+            $seenEasyPayNumbers = [];
+            $seenIdNumbers = [];
             
             $bankId = $this->bankId;
             $bankName = $this->resolveBankName($bankId, null);
@@ -162,6 +165,27 @@ class ImportClientsJob implements ShouldQueue
 
                 $normalizedEmail = $emailValue ? mb_strtolower($emailValue) : null;
                 $normalizedPhone = $primaryPhone ? preg_replace('/\D+/', '', (string) $primaryPhone) : null;
+                $accountNumber = $this->cleanImportString($data['account_number'] ?? null);
+                $easyPayNumber = $this->cleanImportString($data['easy_pay_number'] ?? null);
+                $idNumber = $this->cleanImportString($data['id_number'] ?? null);
+
+                if ($accountNumber && isset($seenAccountNumbers[$accountNumber])) {
+                    $errors[] = "Row {$rowNumber} skipped: duplicate account number found in import file ({$accountNumber}).";
+                    $duplicateCount++;
+                    continue;
+                }
+
+                if ($easyPayNumber && isset($seenEasyPayNumbers[$easyPayNumber])) {
+                    $errors[] = "Row {$rowNumber} skipped: duplicate EasyPay number found in import file ({$easyPayNumber}).";
+                    $duplicateCount++;
+                    continue;
+                }
+
+                if ($idNumber && isset($seenIdNumbers[$idNumber])) {
+                    $errors[] = "Row {$rowNumber} skipped: duplicate ID number found in import file ({$idNumber}).";
+                    $duplicateCount++;
+                    continue;
+                }
 
                 if ($normalizedEmail && isset($seenEmails[$normalizedEmail])) {
                     $errors[] = "Row {$rowNumber} skipped: duplicate email found in import file ({$emailValue}).";
@@ -181,6 +205,18 @@ class ImportClientsJob implements ShouldQueue
 
                 if ($normalizedPhone) {
                     $seenPhones[$normalizedPhone] = true;
+                }
+                
+                if ($accountNumber) {
+                    $seenAccountNumbers[$accountNumber] = true;
+                }
+                
+                if ($easyPayNumber) {
+                    $seenEasyPayNumbers[$easyPayNumber] = true;
+                }
+                
+                if ($idNumber) {
+                    $seenIdNumbers[$idNumber] = true;
                 }
 
                 $departmentIds = [];
