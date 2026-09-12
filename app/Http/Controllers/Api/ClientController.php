@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Concerns\GuardsSensitiveExports;
 use App\Concerns\HasAuditLogging;
+use App\Concerns\AppliesAccessScopes;
 use App\Http\Controllers\Controller;
 use App\Models\Bank;
 use App\Models\Client;
@@ -25,7 +26,7 @@ class ClientController extends Controller
 {
     use \App\Traits\HasImportHelpers;
 
-    use HasAuditLogging, GuardsSensitiveExports;
+    use HasAuditLogging, GuardsSensitiveExports, AppliesAccessScopes;
 
     public function __construct(private MalwareScanService $malwareScan)
     {
@@ -42,16 +43,7 @@ class ClientController extends Controller
             $perPage = 25;
         }
 
-        $this->applyBankScope($query, $user);
-        $this->applyPortfolioScope($query, $user);
-
-        // Department scoping for non-system-admin users
-        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
-        }
+        $this->scopeClientQueryToUser($query, $user);
 
         if ($search = trim((string) $request->get('search', $request->get('q')))) {
             $query->where(function ($q) use ($search) {
@@ -85,9 +77,10 @@ class ClientController extends Controller
 
         if ($request->filled('bank_id')) {
             $requestedBankId = (int) $request->get('bank_id');
-            if ($user->canAccessAllBanks() || in_array($requestedBankId, $user->resolvedBankIds(), true)) {
-                $query->where('bank_id', $requestedBankId);
+            if (!$user->canAccessBankId($requestedBankId)) {
+                abort(403, 'You are not allowed to access records for this bank.');
             }
+            $query->where('clients.bank_id', $requestedBankId);
         }
 
         if ($status = $request->get('status')) {
@@ -124,12 +117,7 @@ class ClientController extends Controller
         }
 
         $batchOptionsQuery = Client::query();
-        $this->applyBankScope($batchOptionsQuery, $user);
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $batchOptionsQuery->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
-        }
+        $this->scopeClientQueryToUser($batchOptionsQuery, $user);
 
         $batchOptions = $batchOptionsQuery
             ->join('client_import_batches', 'clients.id', '=', 'client_import_batches.client_id')
@@ -211,9 +199,7 @@ class ClientController extends Controller
     {
         $user = Auth::user();
         $this->authorizeView($user);
-        $this->authorizeClientBank($user, $client);
-        $this->authorizeClientDepartment($user, $client);
-        $this->authorizeClientPortfolio($user, $client);
+        $this->authorizeClientScopeForUser($user, $client, 'view');
 
         $client->load(['departments', 'assignedTo:id,name,bank_id']);
         $this->audit(
@@ -293,6 +279,7 @@ class ClientController extends Controller
         ]);
 
         $bankId = $this->resolveRequestedBankId($user, $data['bank_id'] ?? null);
+        $data['department_ids'] = $this->resolveAllowedDepartmentIds($user, $data['department_ids'] ?? []);
         $request->validate([
             'email' => [
                 'nullable',
@@ -372,14 +359,7 @@ class ClientController extends Controller
         }
 
         // Department-based access control for non-super admins
-        $this->authorizeClientBank($user, $client, 'update');
-        if (!$user->canViewAllImportedClients()) {
-            $clientDepartments = $client->departments->pluck('id')->all();
-            if (empty(array_intersect($user->resolvedDepartmentIds(), $clientDepartments))) {
-                abort(403, 'You are not allowed to update this client.');
-            }
-        }
-        $this->authorizeClientPortfolio($user, $client, 'update');
+        $this->authorizeClientScopeForUser($user, $client, 'update');
 
         $data = $request->validate([
             'name' => ['nullable', 'string', 'max:255'],
@@ -416,6 +396,9 @@ class ClientController extends Controller
         ]);
 
         $bankId = $this->resolveRequestedBankId($user, $data['bank_id'] ?? $client->bank_id);
+        if (isset($data['department_ids'])) {
+            $data['department_ids'] = $this->resolveAllowedDepartmentIds($user, $data['department_ids']);
+        }
         $request->validate([
             'email' => [
                 'nullable',
@@ -581,22 +564,14 @@ class ClientController extends Controller
         $exportRequest = $this->authorizeSensitiveExport($request, ExportRequest::DATASET_CLIENTS);
         $query = Client::query()->with('departments');
 
-        $this->applyBankScope($query, $user);
-        $this->applyPortfolioScope($query, $user);
+        $this->scopeClientQueryToUser($query, $user);
 
         if ($request->filled('bank_id')) {
             $requestedBankId = (int) $request->get('bank_id');
-            if ($user->canAccessAllBanks() || in_array($requestedBankId, $user->resolvedBankIds(), true)) {
-                $query->where('bank_id', $requestedBankId);
+            if (!$user->canAccessBankId($requestedBankId)) {
+                abort(403, 'You are not allowed to access records for this bank.');
             }
-        }
-
-        // Department scoping for non-system-admin users
-        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
+            $query->where('clients.bank_id', $requestedBankId);
         }
 
         if ($search = trim((string) $request->get('search', $request->get('q')))) {
@@ -721,9 +696,7 @@ class ClientController extends Controller
         }
 
         // Department-based access control for non-super admins
-        $this->authorizeClientBank($user, $client, 'delete');
-        $this->authorizeClientDepartment($user, $client, 'delete');
-        $this->authorizeClientPortfolio($user, $client, 'delete');
+        $this->authorizeClientScopeForUser($user, $client, 'delete');
 
         $clientId = $client->id;
         $clientName = $client->name;
@@ -772,15 +745,7 @@ class ClientController extends Controller
         ]);
 
         $query = Client::query()->whereIn('id', $validated['client_ids']);
-        $this->applyBankScope($query, $user);
-        $this->applyPortfolioScope($query, $user);
-
-        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
-        }
+        $this->scopeClientQueryToUser($query, $user);
 
         $clients = $query->get();
 
@@ -840,15 +805,7 @@ class ClientController extends Controller
         }
 
         $query = Client::query()->with('departments');
-        $this->applyBankScope($query, $user);
-        $this->applyPortfolioScope($query, $user);
-
-        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
-        }
+        $this->scopeClientQueryToUser($query, $user);
 
         $exists = $query->where('import_batch_number', $batchNumber)->exists();
 
@@ -887,15 +844,7 @@ class ClientController extends Controller
         $assignedToId = $this->resolveAssignedUserId($user, null, $validated['assigned_to_id'] ?? null);
 
         $query = Client::query()->whereIn('id', $validated['client_ids']);
-        $this->applyBankScope($query, $user);
-        $this->applyPortfolioScope($query, $user);
-
-        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
-        }
+        $this->scopeClientQueryToUser($query, $user);
 
         $clients = $query->get();
 
@@ -949,15 +898,7 @@ class ClientController extends Controller
         ]);
 
         $query = Client::query()->with('departments')->whereIn('id', $validated['client_ids']);
-        $this->applyBankScope($query, $user);
-        $this->applyPortfolioScope($query, $user);
-
-        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
-        }
+        $this->scopeClientQueryToUser($query, $user);
 
         $clients = $query->get();
 
@@ -1018,15 +959,7 @@ class ClientController extends Controller
         $assignedToId = $this->resolveAssignedUserId($user, null, $validated['assigned_to_id'] ?? null);
 
         $query = Client::query()->with('departments');
-        $this->applyBankScope($query, $user);
-        $this->applyPortfolioScope($query, $user);
-
-        $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
-            $query->whereHas('departments', function ($q) use ($userDepartmentIds) {
-                $q->whereIn('departments.id', $userDepartmentIds);
-            });
-        }
+        $this->scopeClientQueryToUser($query, $user);
 
         $clients = $query
             ->where('import_batch_number', $batchNumber)
@@ -1081,9 +1014,11 @@ class ClientController extends Controller
         $user = Auth::user();
         $query = \App\Models\Department::query();
 
-        // Department scoping for non-system-admin users
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($userDepartmentIds)) {
+        if ($user && !$user->isSuperAdmin()) {
+            if (empty($userDepartmentIds)) {
+                $query->whereRaw('1 = 0');
+            }
             $query->whereIn('id', $userDepartmentIds);
         }
 
@@ -1106,7 +1041,7 @@ class ClientController extends Controller
 
     protected function authorizeClientDepartment($user, Client $client, string $action = 'view'): void
     {
-        if ($user->canViewAllImportedClients()) {
+        if ($user->isSuperAdmin()) {
             return;
         }
 
@@ -1212,32 +1147,30 @@ class ClientController extends Controller
 
     protected function applyBankScope($query, $user): void
     {
-        if ($user && !$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $query->whereIn('bank_id', $user->resolvedBankIds());
-        }
+        $this->scopeQueryToUserBanks($query, $user);
     }
 
     protected function applyPortfolioScope($query, $user): void
     {
-        if ($user && $user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
+        if ($user && !$user->isSuperAdmin() && $user->isPortfolioScoped()) {
             $query->where('assigned_to_id', $user->id);
         }
     }
 
     protected function authorizeClientBank($user, Client $client, string $action = 'view'): void
     {
-        if ($user->canAccessAllBanks()) {
+        if ($user->isSuperAdmin()) {
             return;
         }
 
-        if (!empty($user->resolvedBankIds()) && !in_array((int) $client->bank_id, $user->resolvedBankIds(), true)) {
+        if (!$user->canAccessBankId($client->bank_id)) {
             abort(403, 'You do not have permission to act on this client.');
         }
     }
 
     protected function authorizeClientPortfolio($user, Client $client, string $action = 'view'): void
     {
-        if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients() && (int) $client->assigned_to_id !== (int) $user->id) {
+        if (!$user->isSuperAdmin() && $user->isPortfolioScoped() && (int) $client->assigned_to_id !== (int) $user->id) {
             abort(403, "You are not allowed to {$action} this client.");
         }
     }
@@ -1248,14 +1181,14 @@ class ClientController extends Controller
             return null;
         }
 
-        if ($user->canAccessAllBanks()) {
+        if ($user->isSuperAdmin()) {
             if (!$requestedBankId) {
                 abort(422, 'A bank is required for this action.');
             }
             return (int) $requestedBankId;
         }
 
-        $ids = $user->resolvedBankIds();
+        $ids = $user->accessibleBankIds();
         if (empty($ids)) {
             abort(422, 'Your user account is not assigned to a bank.');
         }

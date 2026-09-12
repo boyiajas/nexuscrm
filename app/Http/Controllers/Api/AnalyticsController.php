@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\AppliesAccessScopes;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Campaign;
@@ -14,6 +15,8 @@ use Carbon\Carbon;
 
 class AnalyticsController extends Controller
 {
+    use AppliesAccessScopes;
+
     public function index(Request $request)
     {
         $user = auth()->user();
@@ -33,13 +36,15 @@ class AnalyticsController extends Controller
 
         // OVERALL STATISTICS
         $stats = DB::table('campaign_whatsapp_recipients')
+            ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
             ->selectRaw('
                 COUNT(*) as total_dispatched,
-                SUM(CASE WHEN LOWER(status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as total_delivered,
-                SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as total_read,
-                SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as total_replied
+                SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as total_delivered,
+                SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as total_read,
+                SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL THEN 1 ELSE 0 END) as total_replied
             ')
-            ->where('created_at', '>=', $startDate)
+            ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+            ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
             ->first();
 
         $dispatched = (int) ($stats->total_dispatched ?? 0);
@@ -50,6 +55,9 @@ class AnalyticsController extends Controller
         $chatInbound = ChatSession::where('platform', 'whatsapp')
             ->where('unread_count', '>', 0)
             ->where('created_at', '>=', $startDate)
+            ->tap(fn ($query) => $this->scopeQueryToUserBanks($query, $user, 'bank_id'))
+            ->tap(fn ($query) => $this->scopeQueryToUserDepartments($query, $user, 'client.departments'))
+            ->when(!$user?->isSuperAdmin() && $user?->isPortfolioScoped(), fn ($query) => $query->whereHas('client', fn ($clientQuery) => $clientQuery->where('assigned_to_id', $user->id)))
             ->count();
         $inbound = max((int) ($stats->total_replied ?? 0), $chatInbound);
 
@@ -76,7 +84,9 @@ class AnalyticsController extends Controller
         $avgSpend = $delivered > 0 ? round($totalSpend / $delivered, 4) : 0;
 
         // ASSETS
-        $activeCampaigns = Campaign::where('status', 'Active')->count(); // Leave campaigns global or filter by created_at? Leave global for now.
+        $activeCampaignsQuery = Campaign::where('status', 'Active');
+        $this->scopeCampaignQueryToUser($activeCampaignsQuery, $user);
+        $activeCampaigns = $activeCampaignsQuery->count();
         $approvedTemplates = WhatsappTemplateCache::where('status', 'APPROVED')->count();
 
         $chartLabels = [];
@@ -88,14 +98,16 @@ class AnalyticsController extends Controller
         if ($timeframe === 'monthly') {
             $monthsBack = 12;
             $stats = DB::table('campaign_whatsapp_recipients')
+                ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
                 ->selectRaw('
-                    DATE_FORMAT(created_at, "%Y-%m") as period,
+                    DATE_FORMAT(campaign_whatsapp_recipients.created_at, "%Y-%m") as period,
                     COUNT(*) as dispatched,
-                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
-                    SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
-                    SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                    SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
+                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
-                ->where('created_at', '>=', $startDate)
+                ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
                 ->get();
@@ -115,14 +127,16 @@ class AnalyticsController extends Controller
             $weeksBack = $timeframe === '3month' ? 12 : 8;
             
             $stats = DB::table('campaign_whatsapp_recipients')
+                ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
                 ->selectRaw('
-                    YEARWEEK(created_at, 1) as period,
+                    YEARWEEK(campaign_whatsapp_recipients.created_at, 1) as period,
                     COUNT(*) as dispatched,
-                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
-                    SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
-                    SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                    SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
+                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
-                ->where('created_at', '>=', $startDate)
+                ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
                 ->get();
@@ -143,14 +157,16 @@ class AnalyticsController extends Controller
             $daysBack = 30;
             
             $stats = DB::table('campaign_whatsapp_recipients')
+                ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
                 ->selectRaw('
-                    DATE(created_at) as period,
+                    DATE(campaign_whatsapp_recipients.created_at) as period,
                     COUNT(*) as dispatched,
-                    SUM(CASE WHEN LOWER(status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
-                    SUM(CASE WHEN LOWER(status) = "read" THEN 1 ELSE 0 END) as read_count,
-                    SUM(CASE WHEN last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                    SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
+                    SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
+                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
-                ->where('created_at', '>=', $startDate)
+                ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
                 ->get();
@@ -191,7 +207,9 @@ class AnalyticsController extends Controller
         });
 
         // CAMPAIGNS DATA
-        $campaignsData = Campaign::with(['bank', 'clients'])->orderBy('created_at', 'desc')->limit(15)->get()->map(function ($cmp) {
+        $campaignsQuery = Campaign::with(['bank', 'clients'])->orderBy('created_at', 'desc')->limit(15);
+        $this->scopeCampaignQueryToUser($campaignsQuery, $user);
+        $campaignsData = $campaignsQuery->get()->map(function ($cmp) {
             // Very simplified mock calculation for table display based on campaign
             $sent = $cmp->clients->count();
             // Blended cost estimate based on utility rates
@@ -211,7 +229,25 @@ class AnalyticsController extends Controller
         });
 
         // AGENTS DATA
-        $agentsData = User::where('role', 'AGENT')->orWhere('role', 'MANAGER')->limit(10)->get()->map(function ($ag) {
+        $agentsQuery = User::query()
+            ->where(function ($query) {
+                $query->where('role', 'AGENT')->orWhere('role', 'MANAGER');
+            })
+            ->limit(10);
+
+        if (!$user?->isSuperAdmin()) {
+            $bankIds = $user?->accessibleBankIds() ?? [];
+            $departmentIds = $user?->resolvedDepartmentIds() ?? [];
+
+            if (empty($bankIds) || empty($departmentIds)) {
+                $agentsQuery->whereRaw('1 = 0');
+            } else {
+                $agentsQuery->whereHas('banks', fn ($query) => $query->whereIn('banks.id', $bankIds))
+                    ->whereHas('departments', fn ($query) => $query->whereIn('departments.id', $departmentIds));
+            }
+        }
+
+        $agentsData = $agentsQuery->get()->map(function ($ag) {
             $names = explode(' ', $ag->name);
             $initials = strtoupper(substr($names[0] ?? 'A', 0, 1) . substr($names[1] ?? '', 0, 1));
             
@@ -278,5 +314,32 @@ class AnalyticsController extends Controller
                 'agents' => $agentsData,
             ]
         ]);
+    }
+
+    protected function scopeWhatsappRecipientStatsQuery($query, ?User $user): void
+    {
+        if (!$user || $user->isSuperAdmin()) {
+            return;
+        }
+
+        $bankIds = $user->accessibleBankIds();
+        $departmentIds = $user->resolvedDepartmentIds();
+
+        if (empty($bankIds) || empty($departmentIds)) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        $query->whereIn('clients.bank_id', $bankIds)
+            ->whereExists(function ($subQuery) use ($departmentIds) {
+                $subQuery->select(DB::raw(1))
+                    ->from('client_department')
+                    ->whereColumn('client_department.client_id', 'clients.id')
+                    ->whereIn('client_department.department_id', $departmentIds);
+            });
+
+        if ($user->isPortfolioScoped()) {
+            $query->where('clients.assigned_to_id', $user->id);
+        }
     }
 }

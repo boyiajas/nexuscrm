@@ -60,6 +60,40 @@ class WhatsAppBatchService
         return $affected;
     }
 
+    public function queueRecipients(CampaignWhatsappMessage $message, array $recipientIds): int
+    {
+        $recipientIds = array_values(array_unique(array_filter(array_map('intval', $recipientIds))));
+        if (empty($recipientIds)) {
+            return 0;
+        }
+
+        $now = now();
+
+        $message->update([
+            'status' => 'Queued',
+            'queued_at' => $message->queued_at ?: $now,
+            'processing_started_at' => null,
+            'completed_at' => null,
+            'paused_at' => null,
+            'pause_reason' => null,
+            'messages_per_second' => $message->messages_per_second ?: $this->enforcedMessagesPerSecond(),
+        ]);
+
+        $affected = $message->recipients()
+            ->whereIn('id', $recipientIds)
+            ->whereNotIn('status', ['Delivered', 'Delivered (Ecosystem Warning)', 'Suppressed', 'No Lawful Basis', 'No Phone'])
+            ->update([
+                'status' => 'Pending Dispatch',
+                'queued_at' => null,
+                'processing_started_at' => null,
+                'updated_at' => $now,
+            ]);
+
+        $this->syncMessageProgress($message);
+
+        return $affected;
+    }
+
     public function pauseMessage(CampaignWhatsappMessage $message, string $reason, bool $markQueuedRecipients = true): CampaignWhatsappMessage
     {
         $now = now();

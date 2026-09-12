@@ -69,7 +69,11 @@ trait HasImportHelpers
         }
 
         $allowedDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canViewAllImportedClients() && !empty($allowedDepartmentIds)) {
+        if ($user && !$user->isSuperAdmin()) {
+            if (empty($allowedDepartmentIds)) {
+                abort(403, 'Your user account is not assigned to a department.');
+            }
+
             $invalid = array_diff($resolved, $allowedDepartmentIds);
             if (!empty($invalid)) {
                 abort(403, 'You are not allowed to import clients into one or more selected departments.');
@@ -391,6 +395,10 @@ trait HasImportHelpers
             abort(403, 'You do not have permission to update client opt-in status.');
         }
 
+        if (method_exists($this, 'authorizeClientScopeForUser')) {
+            $this->authorizeClientScopeForUser($user, $client, 'update');
+        }
+
         $data = $request->validate([
             'opt_in' => ['required', 'string', Rule::in(['yes', 'no', 'none'])],
             'reason' => ['nullable', 'string', 'max:255'],
@@ -443,8 +451,12 @@ trait HasImportHelpers
             abort(422, 'The selected assignee is invalid.');
         }
 
-        if ($bankId && (int) $assignee->bank_id !== (int) $bankId) {
+        if ($bankId && !$assignee->canAccessBankId($bankId)) {
             abort(422, 'The selected assignee must belong to the same bank as the client.');
+        }
+
+        if (!$user?->isSuperAdmin() && empty(array_intersect($user?->accessibleBankIds() ?? [], $assignee->accessibleBankIds()))) {
+            abort(422, 'The selected assignee must belong to your assigned bank scope.');
         }
 
         return (int) $requestedAssignedUserId;

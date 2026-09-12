@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Concerns\EnforcesMetaPermissionHealth;
 use App\Concerns\GuardsSensitiveExports;
 use App\Concerns\HasAuditLogging;
+use App\Concerns\AppliesAccessScopes;
 use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
 use App\Models\Campaign;
@@ -28,7 +29,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CampaignController extends Controller
 {
-    use HasAuditLogging, GuardsSensitiveExports, EnforcesMetaPermissionHealth;
+    use HasAuditLogging, GuardsSensitiveExports, EnforcesMetaPermissionHealth, AppliesAccessScopes;
 
     protected WhatsAppServiceInterface $whatsApp;
     protected WhatsAppDailyLimitService $dailyLimitService;
@@ -53,29 +54,12 @@ class CampaignController extends Controller
         if (!$user || !$user->canViewCampaigns()) {
             abort(403, 'You are not allowed to access campaigns.');
         }
-        $userDeptIds = $user?->resolvedDepartmentIds() ?? [];
-
         $query = Campaign::query()
             ->with(['departments', 'bank'])
             ->withCount('clients as total_recipients')
             ->orderByDesc('created_at');
 
-        if ($user && !$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $query->whereIn('bank_id', $user->resolvedBankIds());
-        }
-
-        // Department scoping (same logic as before)
-        if ($user && !$user->canViewAllImportedClients()) {
-            $query->where(function ($q) use ($userDeptIds) {
-                $q->whereDoesntHave('departments');
-
-                if (!empty($userDeptIds)) {
-                    $q->orWhereHas('departments', function ($qq) use ($userDeptIds) {
-                        $qq->whereIn('departments.id', $userDeptIds);
-                    });
-                }
-            });
-        }
+        $this->scopeCampaignQueryToUser($query, $user);
 
         if ($status = $request->get('status')) {
             if ($status !== 'All') {
@@ -125,13 +109,14 @@ class CampaignController extends Controller
                 'clients.import_batch_number'
             );
 
-        if ($user = Auth::user()) {
-            if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
-                $query->where('clients.assigned_to_id', $user->id);
-            }
+        $user = Auth::user();
+        $this->scopeClientQueryToUser($query, $user);
+
+        if ($campaign->bank_id) {
+            $query->where('clients.bank_id', $campaign->bank_id);
         }
 
-        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients())) {
+        if (!empty($deptIds)) {
             $query->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -194,13 +179,14 @@ class CampaignController extends Controller
 
         $query = Client::query();
 
-        if ($user = Auth::user()) {
-            if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
-                $query->where('clients.assigned_to_id', $user->id);
-            }
+        $user = Auth::user();
+        $this->scopeClientQueryToUser($query, $user);
+
+        if ($campaign->bank_id) {
+            $query->where('clients.bank_id', $campaign->bank_id);
         }
 
-        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients())) {
+        if (!empty($deptIds)) {
             $query->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -258,14 +244,14 @@ class CampaignController extends Controller
 
         // Build base allowed clients query (department-scoped)
         $allowedClientsQuery = Client::query();
+        $user = Auth::user();
+        $this->scopeClientQueryToUser($allowedClientsQuery, $user);
 
-        if ($user = Auth::user()) {
-            if ($user->isPortfolioScoped() && !$user->canViewAllImportedClients()) {
-                $allowedClientsQuery->where('assigned_to_id', $user->id);
-            }
+        if ($campaign->bank_id) {
+            $allowedClientsQuery->where('clients.bank_id', $campaign->bank_id);
         }
 
-        if (!empty($deptIds) && ($user && !$user->canViewAllImportedClients())) {
+        if (!empty($deptIds)) {
             $allowedClientsQuery->whereHas('departments', function ($q) use ($deptIds) {
                 $q->whereIn('departments.id', $deptIds);
             });
@@ -305,17 +291,10 @@ class CampaignController extends Controller
                 ], 422);
             }
 
-            if ($user && ($user->canViewAllImportedClients() || $user->canViewAllImportedClients())) {
-                $clientIdsToAttach = Client::whereIn('id', $clientIds)
-                    ->whereNotIn('id', $alreadyAttachedIds)
-                    ->pluck('id')
-                    ->all();
-            } else {
-                $clientIdsToAttach = $allowedClientsQuery
-                    ->whereIn('id', $clientIds)
-                    ->pluck('id')
-                    ->all();
-            }
+            $clientIdsToAttach = $allowedClientsQuery
+                ->whereIn('id', $clientIds)
+                ->pluck('id')
+                ->all();
         }
 
         if (empty($clientIdsToAttach)) {
@@ -352,10 +331,7 @@ class CampaignController extends Controller
         $this->authorizeManageCampaign($campaign);
 
         $attachedQuery = $campaign->clients()->where('clients.id', $client->id);
-
-        if (Auth::user()?->isPortfolioScoped()) {
-            $attachedQuery->where('clients.assigned_to_id', Auth::id());
-        }
+        $this->scopeClientQueryToUser($attachedQuery, Auth::user());
 
         if (!$attachedQuery->exists()) {
             return response()->json([
@@ -393,10 +369,7 @@ class CampaignController extends Controller
         }
 
         $query = $campaign->clients()->select('clients.id');
-
-        if (Auth::user()?->isPortfolioScoped()) {
-            $query->where('clients.assigned_to_id', Auth::id());
-        }
+        $this->scopeClientQueryToUser($query, Auth::user());
 
         if ($clientsMode === 'selected') {
             if (!empty($clientIds)) {
@@ -460,9 +433,7 @@ class CampaignController extends Controller
         $baseQuery = $campaign->clients()
             ->with(['departments', 'assignedTo:id,name']);
 
-        if (Auth::user()?->isPortfolioScoped() && !Auth::user()?->canViewAllImportedClients()) {
-            $baseQuery->where('clients.assigned_to_id', Auth::id());
-        }
+        $this->scopeClientQueryToUser($baseQuery, Auth::user());
 
         $batchOptions = (clone $baseQuery)
             ->join('client_import_batches', 'clients.id', '=', 'client_import_batches.client_id')
@@ -613,9 +584,7 @@ class CampaignController extends Controller
         $exportRequest = $this->authorizeSensitiveExport($request, ExportRequest::DATASET_CAMPAIGN_CLIENTS, 'campaign', $campaign->id);
 
         $query = $campaign->clients()->with(['departments', 'assignedTo:id,name']);
-        if ($user?->isPortfolioScoped()) {
-            $query->where('clients.assigned_to_id', $user->id);
-        }
+        $this->scopeClientQueryToUser($query, $user);
 
         $fileName = 'campaign_clients_' . $campaign->id . '_' . now()->format('Ymd_His') . '.csv';
         $bankScope = $campaign->bank?->name ?? optional($user->bank)->name ?? 'Campaign Bank';
@@ -690,7 +659,7 @@ class CampaignController extends Controller
             'whatsapp_from'     => ['nullable', 'string', 'max:255'],
         ]);
 
-        $deptIds = $data['department_ids'] ?? [];
+        $deptIds = $this->resolveAllowedDepartmentIds($user, $data['department_ids'] ?? []);
         unset($data['department_ids']);
 
         $data['bank_id'] = $this->resolveCampaignBankId(Auth::user(), $data['bank_id'] ?? null);
@@ -738,7 +707,7 @@ class CampaignController extends Controller
 
         $deptIds = null;
         if (array_key_exists('department_ids', $data)) {
-            $deptIds = $data['department_ids'] ?? [];
+            $deptIds = $this->resolveAllowedDepartmentIds(Auth::user(), $data['department_ids'] ?? []);
             unset($data['department_ids']);
         }
 
@@ -825,10 +794,18 @@ class CampaignController extends Controller
                 'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
             ]);
 
-            $recipientIds = $message->recipients()->pluck('client_id');
-            if ($recipientIds->isNotEmpty()) {
+            $recipientQuery = $message->recipients();
+            if (!$user?->isSuperAdmin()) {
+                $recipientQuery->whereHas('client', function ($clientQuery) use ($user) {
+                    $this->scopeClientQueryToUser($clientQuery, $user);
+                });
+            }
+
+            $recipientRows = $recipientQuery->get(['id', 'client_id']);
+            $clientIds = $recipientRows->pluck('client_id');
+            if ($clientIds->isNotEmpty()) {
                 CampaignClient::where('campaign_id', $campaign->id)
-                    ->whereIn('client_id', $recipientIds)
+                    ->whereIn('client_id', $clientIds)
                     ->update([
                         'whatsapp_status' => 'Pending',
                         'whatsapp_sent_at' => $now,
@@ -836,7 +813,9 @@ class CampaignController extends Controller
                     ]);
             }
 
-            $queuedRecipientCount += $this->batchService->queueAllRecipients($message->fresh());
+            $queuedRecipientCount += $user?->isSuperAdmin()
+                ? $this->batchService->queueAllRecipients($message->fresh())
+                : $this->batchService->queueRecipients($message->fresh(), $recipientRows->pluck('id')->all());
             $queuedBatchCount++;
         }
 
@@ -860,12 +839,10 @@ class CampaignController extends Controller
         $this->authorizeView($campaign);
 
         $user = Auth::user();
-        $portfolioScoped = $user?->isPortfolioScoped();
-
-        if ($portfolioScoped) {
-            $assignedClientIds = $campaign->clients()
-                ->where('clients.assigned_to_id', $user->id)
-                ->pluck('clients.id');
+        if (!$user?->isSuperAdmin()) {
+            $scopedClientQuery = $campaign->clients();
+            $this->scopeClientQueryToUser($scopedClientQuery, $user);
+            $assignedClientIds = $scopedClientQuery->pluck('clients.id');
 
             $totalClients = $assignedClientIds->count();
 
@@ -1008,10 +985,10 @@ class CampaignController extends Controller
             ]);
 
         $assignedClientIds = null;
-        if ($user?->isPortfolioScoped() && !$user?->canViewAllImportedClients()) {
-            $assignedClientIds = $campaign->clients()
-                ->where('clients.assigned_to_id', $user->id)
-                ->pluck('clients.id');
+        if (!$user?->isSuperAdmin()) {
+            $assignedClientQuery = $campaign->clients();
+            $this->scopeClientQueryToUser($assignedClientQuery, $user);
+            $assignedClientIds = $assignedClientQuery->pluck('clients.id');
         }
 
         $mapped = $messages->map(function ($m) use ($assignedClientIds) {
@@ -1150,8 +1127,10 @@ class CampaignController extends Controller
             $query = CampaignWhatsappRecipient::with(['client.assignedTo:id,name', 'message'])
                 ->whereIn('whatsapp_message_id', $campaign->whatsappMessages()->select('id'));
 
-            if ($user?->isPortfolioScoped()) {
-                $query->whereHas('client', fn ($q) => $q->where('assigned_to_id', $user->id));
+            if (!$user?->isSuperAdmin()) {
+                $query->whereHas('client', function ($clientQuery) use ($user) {
+                    $this->scopeClientQueryToUser($clientQuery, $user);
+                });
             }
 
             $query->orderByDesc('id')->chunk(200, function ($rows) use ($handle) {
@@ -1225,6 +1204,7 @@ class CampaignController extends Controller
 
         // Build clients list based on selection
         $clientsQuery = $campaign->clients();
+        $this->scopeClientQueryToUser($clientsQuery, Auth::user());
         if ($data['clients_mode'] === 'selected') {
             $clientsQuery->whereIn('clients.id', $data['client_ids']);
         } elseif ($data['clients_mode'] === 'unsent') {
@@ -1446,9 +1426,13 @@ class CampaignController extends Controller
             return response()->json(['message' => 'Template ID missing for this batch.'], 422);
         }
 
-        $recipients = CampaignWhatsappRecipient::with('client')
+        $recipientsQuery = CampaignWhatsappRecipient::with('client')
             ->where('whatsapp_message_id', $message->id)
-            ->get();
+            ->whereHas('client', function ($clientQuery) {
+                $this->scopeClientQueryToUser($clientQuery, Auth::user());
+            });
+
+        $recipients = $recipientsQuery->get();
 
         $senderContext = $this->resolveWhatsappSenderContext(
             $message->provider_display_phone_number ?: $campaign->whatsapp_from
@@ -1476,6 +1460,7 @@ class CampaignController extends Controller
 
         // Update recipient statuses to queued
         CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)
+            ->whereIn('id', $sendableRecipients->pluck('id'))
             ->update([
                 'status' => 'Queued',
                 'queued_at' => $now,
@@ -1488,7 +1473,7 @@ class CampaignController extends Controller
         // Update message meta
         $message->update([
             'sent_at'   => $now,
-            'pending'   => $recipients->count(),
+            'pending'   => $sendableRecipients->count(),
             'delivered' => 0,
             'failed'    => 0,
             'status'    => 'Queued',
@@ -1506,14 +1491,16 @@ class CampaignController extends Controller
 
         // Update campaign client pivots
         CampaignClient::where('campaign_id', $campaign->id)
-            ->whereIn('client_id', $recipients->pluck('client_id'))
+            ->whereIn('client_id', $sendableRecipients->pluck('client_id'))
             ->update([
                 'whatsapp_status'  => 'Pending',
                 'whatsapp_sent_at' => $now,
                 'updated_at'       => $now,
             ]);
 
-        $queuedCount = $this->batchService->queueAllRecipients($message->fresh());
+        $queuedCount = Auth::user()?->isSuperAdmin()
+            ? $this->batchService->queueAllRecipients($message->fresh())
+            : $this->batchService->queueRecipients($message->fresh(), $sendableRecipients->pluck('id')->all());
 
         return response()->json([
             'message' => 'Batch queued successfully.',
@@ -1625,10 +1612,10 @@ class CampaignController extends Controller
                 'clicked',
             ]);
 
-        if ($user?->isPortfolioScoped()) {
-            $assignedClientIds = $campaign->clients()
-                ->where('clients.assigned_to_id', $user->id)
-                ->pluck('clients.id');
+        if (!$user?->isSuperAdmin()) {
+            $assignedClientQuery = $campaign->clients();
+            $this->scopeClientQueryToUser($assignedClientQuery, $user);
+            $assignedClientIds = $assignedClientQuery->pluck('clients.id');
 
             $messages = $messages->map(function ($message) use ($assignedClientIds) {
                 $recipientQuery = CampaignEmailRecipient::query()
@@ -1680,8 +1667,10 @@ class CampaignController extends Controller
             $query = CampaignEmailRecipient::with(['client.assignedTo:id,name', 'message'])
                 ->whereIn('campaign_email_message_id', $campaign->emailMessages()->select('id'));
 
-            if ($user?->isPortfolioScoped()) {
-                $query->whereHas('client', fn ($q) => $q->where('assigned_to_id', $user->id));
+            if (!$user?->isSuperAdmin()) {
+                $query->whereHas('client', function ($clientQuery) use ($user) {
+                    $this->scopeClientQueryToUser($clientQuery, $user);
+                });
             }
 
             $query->orderByDesc('id')->chunk(200, function ($rows) use ($handle) {
@@ -1722,9 +1711,9 @@ class CampaignController extends Controller
         $recipientsQuery = CampaignEmailRecipient::with('client.assignedTo:id,name')
             ->where('campaign_email_message_id', $message->id);
 
-        if ($user?->isPortfolioScoped()) {
+        if (!$user?->isSuperAdmin()) {
             $recipientsQuery->whereHas('client', function ($q) use ($user) {
-                $q->where('assigned_to_id', $user->id);
+                $this->scopeClientQueryToUser($q, $user);
             });
         }
 
@@ -1784,10 +1773,10 @@ class CampaignController extends Controller
                 'pending',
             ]);
 
-        if ($user?->isPortfolioScoped()) {
-            $assignedClientIds = $campaign->clients()
-                ->where('clients.assigned_to_id', $user->id)
-                ->pluck('clients.id');
+        if (!$user?->isSuperAdmin()) {
+            $assignedClientQuery = $campaign->clients();
+            $this->scopeClientQueryToUser($assignedClientQuery, $user);
+            $assignedClientIds = $assignedClientQuery->pluck('clients.id');
 
             $messages = $messages->map(function ($message) use ($assignedClientIds) {
                 $recipientQuery = CampaignSmsRecipient::query()
@@ -1838,8 +1827,10 @@ class CampaignController extends Controller
             $query = CampaignSmsRecipient::with(['client.assignedTo:id,name', 'message'])
                 ->whereIn('campaign_sms_message_id', $campaign->smsMessages()->select('id'));
 
-            if ($user?->isPortfolioScoped()) {
-                $query->whereHas('client', fn ($q) => $q->where('assigned_to_id', $user->id));
+            if (!$user?->isSuperAdmin()) {
+                $query->whereHas('client', function ($clientQuery) use ($user) {
+                    $this->scopeClientQueryToUser($clientQuery, $user);
+                });
             }
 
             $query->orderByDesc('id')->chunk(200, function ($rows) use ($handle) {
@@ -1889,9 +1880,9 @@ class CampaignController extends Controller
         $recipientsQuery = CampaignSmsRecipient::with('client.assignedTo:id,name')
             ->where('campaign_sms_message_id', $message->id);
 
-        if ($user?->isPortfolioScoped()) {
+        if (!$user?->isSuperAdmin()) {
             $recipientsQuery->whereHas('client', function ($q) use ($user) {
-                $q->where('assigned_to_id', $user->id);
+                $this->scopeClientQueryToUser($q, $user);
             });
         }
 
@@ -1945,9 +1936,9 @@ class CampaignController extends Controller
         $recipientModelsQuery = CampaignWhatsappRecipient::with(['client.departments', 'client.assignedTo:id,name'])
             ->where('whatsapp_message_id', $message->id);
 
-        if ($user?->isPortfolioScoped()) {
+        if (!$user?->isSuperAdmin()) {
             $recipientModelsQuery->whereHas('client', function ($q) use ($user) {
-                $q->where('assigned_to_id', $user->id);
+                $this->scopeClientQueryToUser($q, $user);
             });
         }
 
@@ -2144,6 +2135,7 @@ class CampaignController extends Controller
 
         // Determine which clients this batch is for
         $clientsQuery = $campaign->clients(); // many-to-many relation
+        $this->scopeClientQueryToUser($clientsQuery, Auth::user());
 
         if ($data['clients_mode'] === 'selected') {
             $ids = $data['client_ids'] ?? [];
@@ -2350,7 +2342,6 @@ class CampaignController extends Controller
     protected function authorizeView(Campaign $campaign): void
     {
         $user = Auth::user();
-        $userDeptIds = $user?->resolvedDepartmentIds() ?? [];
 
         if (!$user) {
             abort(401);
@@ -2360,27 +2351,7 @@ class CampaignController extends Controller
             abort(403, 'You are not allowed to access campaigns.');
         }
 
-        // System admins can view all
-        if ($user->canAccessAllBanks()) {
-            return;
-        }
-
-        if (!empty($user->resolvedBankIds()) && !in_array((int) $campaign->bank_id, $user->resolvedBankIds(), true)) {
-            abort(403, 'You do not have permission to act on this campaign.');
-        }
-
-        $campaign->loadMissing('departments');
-        $campaignDeptIds = $campaign->departments->pluck('id')->all();
-
-        // Global campaigns (no linked departments) remain visible to non-super-admin users.
-        if (empty($campaignDeptIds)) {
-            return;
-        }
-
-        if (empty(array_intersect($userDeptIds, $campaignDeptIds))) {
-            abort(403, 'You are not allowed to view this campaign.');
-        }
-
+        $this->authorizeCampaignScopeForUser($user, $campaign, 'view');
     }
 
     protected function authorizeManageCampaign(Campaign $campaign): void
@@ -2398,7 +2369,7 @@ class CampaignController extends Controller
             abort(401);
         }
 
-        if ($user->canAccessAllBanks()) {
+        if ($user->isSuperAdmin()) {
             if (!$requestedBankId) {
                 abort(422, 'A bank is required for this campaign.');
             }
@@ -2406,7 +2377,7 @@ class CampaignController extends Controller
             return (int) $requestedBankId;
         }
 
-        $ids = $user->resolvedBankIds();
+        $ids = $user->accessibleBankIds();
         if (empty($ids)) {
             abort(422, 'Your user account is not assigned to a bank.');
         }

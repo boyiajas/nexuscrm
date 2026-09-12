@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -358,7 +359,7 @@ class User extends Authenticatable
 
     public function canViewAllImportedClients(): bool
     {
-        return $this->isSuperAdmin() || $this->hasPermission('view_all_imported_clients');
+        return $this->isSuperAdmin();
     }
 
     public function canViewOperationalData(): bool
@@ -536,7 +537,70 @@ class User extends Authenticatable
 
     public function canAccessAllBanks(): bool
     {
-        return $this->isSuperAdmin() || $this->hasPermission('bypass_bank_scoping');
+        return $this->isSuperAdmin();
+    }
+
+    public function accessibleBankIds(): array
+    {
+        if ($this->isSuperAdmin()) {
+            return [];
+        }
+
+        $directBankIds = $this->resolvedBankIds();
+        $departmentBankIds = $this->departmentBankIds();
+
+        if (!empty($directBankIds) && !empty($departmentBankIds)) {
+            return array_values(array_intersect($directBankIds, $departmentBankIds));
+        }
+
+        if (!empty($directBankIds)) {
+            return $directBankIds;
+        }
+
+        return $departmentBankIds;
+    }
+
+    public function departmentBankIds(): array
+    {
+        $departmentIds = $this->resolvedDepartmentIds();
+        if (empty($departmentIds)) {
+            return [];
+        }
+
+        return DB::table('bank_department')
+            ->whereIn('department_id', $departmentIds)
+            ->pluck('bank_id')
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function canAccessBankId(?int $bankId): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if (!$bankId) {
+            return false;
+        }
+
+        return in_array((int) $bankId, $this->accessibleBankIds(), true);
+    }
+
+    public function canAccessAnyDepartment(array $departmentIds): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        $departmentIds = array_values(array_unique(array_map('intval', $departmentIds)));
+        if (empty($departmentIds)) {
+            return false;
+        }
+
+        return !empty(array_intersect($this->resolvedDepartmentIds(), $departmentIds));
     }
 
     public function isPortfolioScoped(): bool
