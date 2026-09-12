@@ -24,10 +24,13 @@ class WhatsappAccountController extends Controller
     public function index()
     {
         $this->authorizeAdmin();
-        $accounts = WhatsappAccount::all()->map(function ($account) {
+        $accounts = WhatsappAccount::with('bank:id,name')->get()->map(function ($account) {
             return [
                 'id' => $account->id,
                 'name' => $account->name,
+                'bank_id' => $account->bank_id,
+                'bank_name' => $account->bank?->name,
+                'bank' => $account->bank ? ['id' => $account->bank->id, 'name' => $account->bank->name] : null,
                 'app_id' => $account->app_id,
                 'app_secret' => $account->app_secret ? '********' : null,
                 'access_token' => $account->access_token ? '********' : null,
@@ -47,6 +50,7 @@ class WhatsappAccountController extends Controller
 
         $data = $request->validate([
             'name' => 'required|string|max:255',
+            'bank_id' => 'nullable|integer|exists:banks,id',
             'app_id' => 'required|string|max:255',
             'app_secret' => 'required|string',
             'access_token' => 'required|string',
@@ -61,10 +65,13 @@ class WhatsappAccountController extends Controller
         $this->audit(
             action: 'Created WhatsApp profile',
             module: 'Settings',
-            meta: ['profile_name' => $account->name]
+            meta: [
+                'profile_name' => $account->name,
+                'bank_id' => $account->bank_id,
+            ]
         );
 
-        return response()->json(['message' => 'WhatsApp profile saved successfully.', 'account' => $account]);
+        return response()->json(['message' => 'WhatsApp profile saved successfully.', 'account' => $account->load('bank:id,name')]);
     }
 
     public function update(Request $request, $id)
@@ -75,6 +82,7 @@ class WhatsappAccountController extends Controller
 
         $data = $request->validate([
             'name' => 'required|string|max:255',
+            'bank_id' => 'nullable|integer|exists:banks,id',
             'app_id' => 'required|string|max:255',
             'app_secret' => 'nullable|string',
             'access_token' => 'nullable|string',
@@ -98,10 +106,13 @@ class WhatsappAccountController extends Controller
         $this->audit(
             action: 'Updated WhatsApp profile',
             module: 'Settings',
-            meta: ['profile_name' => $account->name]
+            meta: [
+                'profile_name' => $account->name,
+                'bank_id' => $account->bank_id,
+            ]
         );
 
-        return response()->json(['message' => 'WhatsApp profile updated successfully.']);
+        return response()->json(['message' => 'WhatsApp profile updated successfully.', 'account' => $account->fresh('bank:id,name')]);
     }
 
     public function destroy($id)

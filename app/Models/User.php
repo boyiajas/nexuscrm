@@ -359,7 +359,7 @@ class User extends Authenticatable
 
     public function canViewAllImportedClients(): bool
     {
-        return $this->isSuperAdmin();
+        return $this->isSuperAdmin() || $this->hasPermission('view_all_imported_clients');
     }
 
     public function canViewOperationalData(): bool
@@ -537,12 +537,12 @@ class User extends Authenticatable
 
     public function canAccessAllBanks(): bool
     {
-        return $this->isSuperAdmin();
+        return $this->isSuperAdmin() || $this->hasPermission('bypass_bank_scoping');
     }
 
     public function accessibleBankIds(): array
     {
-        if ($this->isSuperAdmin()) {
+        if ($this->canAccessAllBanks()) {
             return [];
         }
 
@@ -578,7 +578,7 @@ class User extends Authenticatable
 
     public function canAccessBankId(?int $bankId): bool
     {
-        if ($this->isSuperAdmin()) {
+        if ($this->canAccessAllBanks()) {
             return true;
         }
 

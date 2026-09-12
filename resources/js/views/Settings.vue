@@ -814,6 +814,7 @@
               <thead>
                 <tr>
                   <th class="ps-4">Profile Name</th>
+                  <th>Bank</th>
                   <th>App ID</th>
                   <th>WABA ID</th>
                   <th>Display Number</th>
@@ -825,6 +826,12 @@
                   <td class="ps-4 py-3 fw-semibold">
                     {{ profile.name }}
                     <span v-if="profile.waba_id === meta.form.meta_whatsapp_business_account_id" class="badge bg-success ms-2">Active</span>
+                  </td>
+                  <td>
+                    <span v-if="profile.bank_name || profile.bank?.name" class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                      <i class="bi bi-bank me-1"></i>{{ profile.bank_name || profile.bank?.name }}
+                    </span>
+                    <span v-else class="text-muted small">—</span>
                   </td>
                   <td class="text-muted small">{{ profile.app_id }}</td>
                   <td class="text-muted small">{{ profile.waba_id }}</td>
@@ -1405,9 +1412,16 @@
             </div>
             <div class="modal-body">
               <div class="row g-3">
-                <div class="col-12">
+                <div class="col-md-6">
                   <label class="form-label">Profile Name *</label>
                   <input v-model="wp.form.name" type="text" class="form-control" placeholder="e.g. Iconis CRM" required />
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Linked Bank / Institution</label>
+                  <select v-model="wp.form.bank_id" class="form-select">
+                    <option :value="null">-- None (Global / Shared) --</option>
+                    <option v-for="bank in banks" :key="bank.id" :value="bank.id">{{ bank.name }}</option>
+                  </select>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">App ID *</label>
@@ -1510,6 +1524,7 @@ export default {
       sessionsLoading: false,
       departmentOptions: [],
       selectedDepartments: [],
+      banks: [],
       system: {
         saving: false,
         logoFile: null,
@@ -1569,6 +1584,7 @@ export default {
         form: {
           id: null,
           name: '',
+          bank_id: null,
           app_id: '',
           app_secret: '',
           access_token: '',
@@ -1680,6 +1696,7 @@ export default {
         this.fetchWhatsappNumbers();
       }
       this.loadDepartmentOptions();
+      this.fetchBanks();
     },
   beforeUnmount() {
     window.removeEventListener('auth-user-updated', this.handleAuthUserUpdated);
@@ -2363,6 +2380,7 @@ export default {
       this.wp.form = {
         id: null,
         name: '',
+        bank_id: null,
         app_id: '',
         app_secret: '',
         access_token: '',
@@ -2377,6 +2395,7 @@ export default {
       this.wp.form = {
         id: profile.id,
         name: profile.name,
+        bank_id: profile.bank_id || (profile.bank ? profile.bank.id : null),
         app_id: profile.app_id,
         app_secret: '',
         access_token: '',
@@ -2386,6 +2405,15 @@ export default {
         webhook_verify_token: '',
       };
       this.wp.modal?.show();
+    },
+    fetchBanks() {
+      axios.get('/api/banks', { params: { per_page: 200 } })
+        .then(res => {
+          this.banks = res.data.data || res.data || [];
+        })
+        .catch(err => {
+          console.error('Failed to load banks for settings:', err);
+        });
     },
     submitProfile() {
       this.wp.saving = true;

@@ -29,15 +29,34 @@ class ChatController extends Controller
         $query = ChatSession::with(['client', 'agent', 'latestMessage'])
             ->orderByDesc('updated_at');
 
-        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $bankIds = $user->resolvedBankIds();
-            $query->where(function ($q) use ($bankIds) {
-                $q->whereIn('bank_id', $bankIds)
-                  ->orWhereHas('client', function ($cq) use ($bankIds) {
-                      $cq->whereIn('bank_id', $bankIds);
-                  })
-                  ->orWhereNull('bank_id');
-            });
+        $bankIds = [];
+        $allowedWabaPhoneIds = [];
+        if (!$user->canAccessAllBanks()) {
+            $bankIds = $user->accessibleBankIds();
+            if (empty($bankIds)) {
+                $bankIds = $user->resolvedBankIds();
+            }
+
+            if (empty($bankIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $allowedWabaPhoneIds = \App\Models\WhatsappAccount::whereIn('bank_id', $bankIds)
+                    ->pluck('phone_number_id')
+                    ->filter()
+                    ->map(fn($id) => (string) $id)
+                    ->all();
+
+                $query->where(function ($q) use ($bankIds, $allowedWabaPhoneIds) {
+                    $q->whereIn('bank_id', $bankIds)
+                      ->orWhereHas('client', function ($cq) use ($bankIds) {
+                          $cq->whereIn('bank_id', $bankIds);
+                      });
+
+                    if (!empty($allowedWabaPhoneIds)) {
+                        $q->orWhereIn('waba_phone_number_id', $allowedWabaPhoneIds);
+                    }
+                });
+            }
         }
 
         if ($user->isPortfolioScoped()) {
@@ -68,13 +87,26 @@ class ChatController extends Controller
 
         if ($bankId = $request->get('bank_id')) {
             if ($bankId !== 'all') {
+                if (!$user->canAccessAllBanks()) {
+                    if (!in_array((int) $bankId, $bankIds, true)) {
+                        abort(403, 'You do not have access to this bank.');
+                    }
+                }
                 $query->where('bank_id', $bankId);
             }
         }
 
         if ($wabaNumber = $request->get('waba_number')) {
             if ($wabaNumber !== 'all') {
-                $query->where('waba_phone_number_id', $wabaNumber);
+                if (!$user->canAccessAllBanks()) {
+                    if (!in_array((string) $wabaNumber, $allowedWabaPhoneIds, true)) {
+                        $query->whereRaw('1 = 0');
+                    } else {
+                        $query->where('waba_phone_number_id', $wabaNumber);
+                    }
+                } else {
+                    $query->where('waba_phone_number_id', $wabaNumber);
+                }
             }
         }
 
@@ -100,7 +132,7 @@ class ChatController extends Controller
 
     public function filters()
     {
-        $user = Auth::user();
+        $user = $this->authorizeView();
 
         $banksQuery = \App\Models\Bank::select('id', 'name');
         if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
@@ -109,18 +141,76 @@ class ChatController extends Controller
         $banks = $banksQuery->get();
 
         $departmentsQuery = \App\Models\Department::select('id', 'name');
-        // Currently users might not be strictly scoped to departments for viewing chats,
-        // but if they are, we can use resolvedDepartmentIds. For now, returning all they can access.
         if (!$user->canAccessAllBanks() && !empty($user->resolvedDepartmentIds())) {
              $departmentsQuery->whereIn('id', $user->resolvedDepartmentIds());
         }
         $departments = $departmentsQuery->get();
 
-        $wabas = [];
+        // 1. Fetch configured accounts from database
+        $accounts = \App\Models\WhatsappAccount::with('bank:id,name')->get();
+
+        // 2. Fetch live senders from WhatsApp service
+        $liveSenders = [];
         try {
-            $wabas = $this->whatsApp->listWhatsappSenders();
+            $liveSenders = $this->whatsApp->listWhatsappSenders();
         } catch (\Throwable $e) {
             Log::error('Failed to load WABAs for chat filters: ' . $e->getMessage());
+        }
+
+        // 3. Build unified WABA senders list with bank metadata
+        $wabas = [];
+        $seenPhoneIds = [];
+
+        foreach ($liveSenders as $s) {
+            $pId = (string) ($s['phone_number_id'] ?? '');
+            $num = $s['number'] ?? '';
+
+            // Match against database WhatsappAccount
+            $acc = $accounts->first(function ($a) use ($pId, $num) {
+                if ($pId && (string) $a->phone_number_id === $pId) return true;
+                if ($num && \App\Services\MetaWhatsAppService::normalizePhoneNumber($a->display_phone_number) === \App\Services\MetaWhatsAppService::normalizePhoneNumber($num)) return true;
+                return false;
+            });
+
+            $bankId = $acc?->bank_id;
+            $bankName = $acc?->bank?->name;
+
+            $wabas[] = [
+                'number' => $num,
+                'label' => $acc?->name ?: $s['label'],
+                'default' => $s['default'] ?? false,
+                'phone_number_id' => $pId,
+                'bank_id' => $bankId,
+                'bank_name' => $bankName,
+            ];
+
+            if ($pId) {
+                $seenPhoneIds[] = $pId;
+            }
+        }
+
+        // Include any database accounts not returned by live Meta service call
+        foreach ($accounts as $acc) {
+            $pId = (string) $acc->phone_number_id;
+            if ($pId && !in_array($pId, $seenPhoneIds, true)) {
+                $wabas[] = [
+                    'number' => $acc->display_phone_number ?: $acc->phone_number_id,
+                    'label' => $acc->name,
+                    'default' => false,
+                    'phone_number_id' => $acc->phone_number_id,
+                    'bank_id' => $acc->bank_id,
+                    'bank_name' => $acc->bank?->name,
+                ];
+                $seenPhoneIds[] = $pId;
+            }
+        }
+
+        // 4. If user is bank-restricted, strictly filter WABA numbers to their assigned banks
+        if (!$user->canAccessAllBanks()) {
+            $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            $wabas = array_values(array_filter($wabas, function ($w) use ($userBankIds) {
+                return !empty($w['bank_id']) && in_array((int) $w['bank_id'], $userBankIds, true);
+            }));
         }
 
         $settings = \App\Models\SystemSetting::first();
@@ -406,8 +496,25 @@ class ChatController extends Controller
 
     protected function authorizeSessionScope($user, ChatSession $session): void
     {
-        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds()) && !in_array((int) $session->bank_id, $user->resolvedBankIds(), true)) {
-            abort(403, 'You do not have permission to act on this chat session.');
+        if (!$user->canAccessAllBanks()) {
+            $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($bankIds)) {
+                abort(403, 'You do not have permission to act on this chat session.');
+            }
+
+            $sessionBankId = $session->bank_id ?: $session->client?->bank_id;
+            $hasBankMatch = $sessionBankId && in_array((int) $sessionBankId, $bankIds, true);
+
+            $hasWabaMatch = false;
+            if ($session->waba_phone_number_id) {
+                $hasWabaMatch = \App\Models\WhatsappAccount::whereIn('bank_id', $bankIds)
+                    ->where('phone_number_id', $session->waba_phone_number_id)
+                    ->exists();
+            }
+
+            if (!$hasBankMatch && !$hasWabaMatch) {
+                abort(403, 'You do not have permission to act on this chat session.');
+            }
         }
 
         if ($user->isPortfolioScoped() && $session->client && (int) $session->client->assigned_to_id !== (int) $user->id) {

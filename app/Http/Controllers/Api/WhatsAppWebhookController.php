@@ -314,13 +314,19 @@ class WhatsAppWebhookController extends Controller
             return;
         }
 
+        $wabaBankId = null;
+        if ($phoneNumberId) {
+            $wabaBankId = \App\Models\WhatsappAccount::where('phone_number_id', $phoneNumberId)->value('bank_id');
+        }
+        $resolvedSessionBankId = $client?->bank_id ?: $wabaBankId;
+
         if ($client) {
             $session = ChatSession::firstOrCreate(
                 ['client_id' => $client->id, 'platform' => 'whatsapp'],
                 [
                     'client_name' => $client->name,
                     'phone' => $client->phone ?? $from,
-                    'bank_id' => $client->bank_id,
+                    'bank_id' => $resolvedSessionBankId,
                     'status' => 'active',
                     'unread_count' => 0,
                     'waba_phone_number_id' => $phoneNumberId,
@@ -331,6 +337,7 @@ class WhatsAppWebhookController extends Controller
                 ['client_name' => $from, 'platform' => 'whatsapp'],
                 [
                     'phone' => $from,
+                    'bank_id' => $resolvedSessionBankId,
                     'status' => 'active',
                     'unread_count' => 0,
                     'waba_phone_number_id' => $phoneNumberId,
@@ -353,7 +360,7 @@ class WhatsAppWebhookController extends Controller
             'client_id' => $client?->id ?: $session->client_id,
             'client_name' => $client?->name ?? $session->client_name ?? $from,
             'phone' => $session->phone ?: ($client?->phone ?? $from),
-            'bank_id' => $client?->bank_id ?: $session->bank_id,
+            'bank_id' => $resolvedSessionBankId ?: $session->bank_id,
             'status' => 'active',
             'waba_phone_number_id' => $phoneNumberId ?: $session->waba_phone_number_id,
         ]);

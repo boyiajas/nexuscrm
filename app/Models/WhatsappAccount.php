@@ -11,6 +11,7 @@ class WhatsappAccount extends Model
 
     protected $fillable = [
         'name',
+        'bank_id',
         'app_id',
         'app_secret',
         'access_token',
@@ -25,4 +26,9 @@ class WhatsappAccount extends Model
         'access_token' => 'encrypted',
         'webhook_verify_token' => 'encrypted',
     ];
+
+    public function bank()
+    {
+        return $this->belongsTo(Bank::class);
+    }
 }

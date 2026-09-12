@@ -40,7 +40,9 @@
         </div>
         <select v-model="filterWaba" class="form-select form-select-sm shadow-none text-truncate" @change="fetchSessions" style="width: 40%; font-size: 0.825rem;" title="Filter by WhatsApp Number">
           <option value="all">All Numbers</option>
-          <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">{{ waba.number }}</option>
+          <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">
+            {{ waba.number }}{{ waba.bank_name ? ` (${waba.bank_name})` : (waba.label ? ` (${waba.label})` : '') }}
+          </option>
         </select>
       </div>
 
@@ -169,7 +171,7 @@
             </div>
             <small class="text-muted">
               {{ activeSession.platform }}
-              <span v-if="activeWaba"> • WABA: <strong class="text-dark">{{ activeWaba.label }} ({{ activeWaba.number }})</strong></span>
+              <span v-if="activeWaba"> • WABA: <strong class="text-dark">{{ activeWaba.bank_name ? `${activeWaba.bank_name} • ` : '' }}{{ activeWaba.label }} ({{ activeWaba.number }})</strong></span>
               <span v-if="activeSession.client?.easy_pay_number"> • EasyPay: <strong class="text-dark">{{ activeSession.client.easy_pay_number }}</strong></span>
               <span v-if="activeSession.agent"> • Assigned to {{ activeSession.agent.name }}</span>
             </small>
@@ -513,7 +515,7 @@
                   <label class="form-label small fw-semibold text-primary"><i class="bi bi-whatsapp me-1"></i> Chat From WABA Number <span class="text-danger">*</span></label>
                   <select v-model="newClientForm.waba_number" class="form-select form-select-sm shadow-none border-primary" required>
                     <option value="" disabled>Select WABA Number...</option>
-                    <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">{{ waba.number }} - {{ waba.label }}</option>
+                    <option v-for="waba in availableWabas" :key="waba.phone_number_id" :value="waba.phone_number_id">{{ waba.number }} - {{ waba.bank_name || waba.label }}</option>
                   </select>
                 </div>
               </div>

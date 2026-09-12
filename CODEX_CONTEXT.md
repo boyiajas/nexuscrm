@@ -532,6 +532,7 @@ These are still not fully implemented and should not be restated as complete unt
 
 ### Completed recently
 
+- **WABA Profile Bank Link & Live Chat Tenant Scoping**: Added `bank_id` to `whatsapp_accounts` and linked WABA Profiles to Bank institutions in Settings. In Live Chat, `ChatController::filters` now filters available WABA phone numbers by the user's assigned bank(s), and `ChatController::index` strictly scopes chat sessions and prevents unassigned (`null`) bank session leaks. Dynamic permissions `bypass_bank_scoping` and `view_all_imported_clients` in `User.php` now correctly evaluate database permission grants.
 - **Access & Permissions**: Decoupled bank scoping bypass from system settings and removed the hardcoded `ADMIN` role permission bypass. The `ADMIN` role is now strictly scoped to their assigned bank(s) unless explicitly granted `bypass_bank_scoping`.
 - **User Management**: Resolved data persistence bugs for multi-bank and multi-department assignments, added UI badges to the user list, and implemented a secure admin password reset tool that revokes sessions and enforces a password change on next login.
 - **WhatsApp Communications**: Fixed media attachment sending errors, restored immediate SMTP dispatch for inbound WhatsApp notifications (with user fallbacks), and added message history pagination to the Chat UI.
