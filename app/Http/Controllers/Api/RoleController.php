@@ -69,7 +69,13 @@ class RoleController extends Controller
         $role = Role::create($data);
 
         if (!empty($permissions)) {
-            $permissionIds = Permission::whereIn('code', $permissions)->orWhereIn('id', $permissions)->pluck('id')->all();
+            $permissionIds = Permission::where(function ($q) use ($permissions) {
+                $q->whereIn('code', $permissions)->orWhereIn('id', $permissions);
+            })
+            ->when($role->code !== 'SUPER_ADMIN', fn ($q) => $q->where('code', '!=', 'bypass_bank_scoping'))
+            ->pluck('id')
+            ->all();
+
             $role->permissions()->sync($permissionIds);
         }
 
@@ -105,7 +111,13 @@ class RoleController extends Controller
         $role->update($data);
 
         if (is_array($permissions)) {
-            $permissionIds = Permission::whereIn('code', $permissions)->orWhereIn('id', $permissions)->pluck('id')->all();
+            $permissionIds = Permission::where(function ($q) use ($permissions) {
+                $q->whereIn('code', $permissions)->orWhereIn('id', $permissions);
+            })
+            ->when($role->code !== 'SUPER_ADMIN', fn ($q) => $q->where('code', '!=', 'bypass_bank_scoping'))
+            ->pluck('id')
+            ->all();
+
             $role->permissions()->sync($permissionIds);
         }
 
@@ -143,6 +155,12 @@ class RoleController extends Controller
     public function destroy(Request $request, Role $role): JsonResponse
     {
         $this->authorizeManageRoles($request);
+
+        if ($role->is_system || $role->code === 'SUPER_ADMIN') {
+            return response()->json([
+                'message' => 'System roles cannot be deleted.',
+            ], 422);
+        }
 
         if ($role->users()->exists()) {
             return response()->json([
