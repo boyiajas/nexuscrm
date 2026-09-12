@@ -52,13 +52,11 @@ class AnalyticsController extends Controller
         $read = (int) ($stats->total_read ?? 0);
         
         // Combine with ChatSessions for inbound engaged
-        $chatInbound = ChatSession::where('platform', 'whatsapp')
+        $chatInboundQuery = ChatSession::where('platform', 'whatsapp')
             ->where('unread_count', '>', 0)
-            ->where('created_at', '>=', $startDate)
-            ->tap(fn ($query) => $this->scopeQueryToUserBanks($query, $user, 'bank_id'))
-            ->tap(fn ($query) => $this->scopeQueryToUserDepartments($query, $user, 'client.departments'))
-            ->when(!$user?->isSuperAdmin() && $user?->isPortfolioScoped(), fn ($query) => $query->whereHas('client', fn ($clientQuery) => $clientQuery->where('assigned_to_id', $user->id)))
-            ->count();
+            ->where('created_at', '>=', $startDate);
+        $this->scopeChatSessionQueryToUser($chatInboundQuery, $user);
+        $chatInbound = $chatInboundQuery->count();
         $inbound = max((int) ($stats->total_replied ?? 0), $chatInbound);
 
         $deliveryRate = $dispatched > 0 ? round(($delivered / $dispatched) * 100, 1) : 0;

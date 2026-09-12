@@ -76,6 +76,19 @@ class BankController extends Controller
             $bank->departments()->sync($request->input('department_ids', []));
         }
 
+        if ($bank->whatsapp_account_id) {
+            \App\Models\WhatsappAccount::where('id', $bank->whatsapp_account_id)->update(['bank_id' => $bank->id]);
+        }
+        if (!empty($bank->primary_whatsapp_number)) {
+            $accounts = \App\Models\WhatsappAccount::all();
+            $resolver = app(\App\Services\BankWabaResolver::class);
+            foreach ($accounts as $acc) {
+                if ($resolver->phonesMatch($acc->display_phone_number, $bank->primary_whatsapp_number)) {
+                    $acc->update(['bank_id' => $bank->id]);
+                }
+            }
+        }
+
         $bank->load('departments');
 
         $this->audit(
@@ -111,6 +124,19 @@ class BankController extends Controller
 
         if ($request->has('department_ids')) {
             $bank->departments()->sync($request->input('department_ids', []));
+        }
+
+        if ($bank->whatsapp_account_id) {
+            \App\Models\WhatsappAccount::where('id', $bank->whatsapp_account_id)->update(['bank_id' => $bank->id]);
+        }
+        if (!empty($bank->primary_whatsapp_number)) {
+            $accounts = \App\Models\WhatsappAccount::all();
+            $resolver = app(\App\Services\BankWabaResolver::class);
+            foreach ($accounts as $acc) {
+                if ($resolver->phonesMatch($acc->display_phone_number, $bank->primary_whatsapp_number)) {
+                    $acc->update(['bank_id' => $bank->id]);
+                }
+            }
         }
 
         $this->audit(

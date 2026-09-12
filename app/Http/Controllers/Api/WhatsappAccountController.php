@@ -62,6 +62,23 @@ class WhatsappAccountController extends Controller
 
         $account = WhatsappAccount::create($data);
 
+        // Auto-link with Bank if applicable
+        if ($account->bank_id) {
+            $bank = \App\Models\Bank::find($account->bank_id);
+            if ($bank && empty($bank->whatsapp_account_id)) {
+                $bank->update(['whatsapp_account_id' => $account->id]);
+            }
+            if ($bank && empty($bank->primary_whatsapp_number) && $account->display_phone_number) {
+                $bank->update(['primary_whatsapp_number' => $account->display_phone_number]);
+            }
+        } elseif ($account->display_phone_number || $account->name) {
+            $resolver = app(\App\Services\BankWabaResolver::class);
+            $matchedBank = $resolver->resolveBankForSender($account->phone_number_id, $account->display_phone_number, $account->name);
+            if ($matchedBank) {
+                $account->update(['bank_id' => $matchedBank->id]);
+            }
+        }
+
         $this->audit(
             action: 'Created WhatsApp profile',
             module: 'Settings',
@@ -102,6 +119,23 @@ class WhatsappAccountController extends Controller
 
         $account->fill($data);
         $account->save();
+
+        // Auto-link with Bank if applicable
+        if ($account->bank_id) {
+            $bank = \App\Models\Bank::find($account->bank_id);
+            if ($bank && empty($bank->whatsapp_account_id)) {
+                $bank->update(['whatsapp_account_id' => $account->id]);
+            }
+            if ($bank && empty($bank->primary_whatsapp_number) && $account->display_phone_number) {
+                $bank->update(['primary_whatsapp_number' => $account->display_phone_number]);
+            }
+        } elseif ($account->display_phone_number || $account->name) {
+            $resolver = app(\App\Services\BankWabaResolver::class);
+            $matchedBank = $resolver->resolveBankForSender($account->phone_number_id, $account->display_phone_number, $account->name);
+            if ($matchedBank) {
+                $account->update(['bank_id' => $matchedBank->id]);
+            }
+        }
 
         $this->audit(
             action: 'Updated WhatsApp profile',

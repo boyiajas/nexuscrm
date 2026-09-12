@@ -38,11 +38,7 @@ class DashboardController extends Controller
 
         // Open chats: count chat sessions that have unread messages
         $openChatsQuery = ChatSession::where('unread_count', '>', 0);
-        $this->scopeQueryToUserBanks($openChatsQuery, $user, 'bank_id');
-        $this->scopeQueryToUserDepartments($openChatsQuery, $user, 'client.departments');
-        if (!$user->isSuperAdmin() && $user->isPortfolioScoped()) {
-            $openChatsQuery->whereHas('client', fn ($q) => $q->where('assigned_to_id', $user->id));
-        }
+        $this->scopeChatSessionQueryToUser($openChatsQuery, $user);
         $openChats = $openChatsQuery->count();
 
         // Delivery statistics strictly from the webhook-driven WhatsApp Recipients table
@@ -251,14 +247,14 @@ class DashboardController extends Controller
      */
     public function whatsappReplies()
     {
-        $replies = ChatSession::with(['client.departments'])
+        $user = auth()->user();
+        $query = ChatSession::with(['client.departments', 'client.bank', 'bank'])
             ->where('unread_count', '>', 0)
-            ->where('platform', 'whatsapp')
-            ->tap(fn ($q) => $this->scopeQueryToUserBanks($q, auth()->user(), 'bank_id'))
-            ->tap(fn ($q) => $this->scopeQueryToUserDepartments($q, auth()->user(), 'client.departments'))
-            ->when(auth()->user()?->isPortfolioScoped() && !auth()->user()?->isSuperAdmin(), function ($q) {
-                $q->whereHas('client', fn ($qq) => $qq->where('assigned_to_id', auth()->id()));
-            })
+            ->where('platform', 'whatsapp');
+
+        $this->scopeChatSessionQueryToUser($query, $user);
+
+        $replies = $query
             ->orderByDesc('updated_at')
             ->take(2000)
             ->get()

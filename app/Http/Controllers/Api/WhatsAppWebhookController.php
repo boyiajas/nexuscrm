@@ -314,8 +314,9 @@ class WhatsAppWebhookController extends Controller
             return;
         }
 
-        $wabaBankId = null;
-        if ($phoneNumberId) {
+        $matchedBank = app(\App\Services\BankWabaResolver::class)->resolveBankForSender($phoneNumberId, $from);
+        $wabaBankId = $matchedBank?->id;
+        if (!$wabaBankId && $phoneNumberId) {
             $wabaBankId = \App\Models\WhatsappAccount::where('phone_number_id', $phoneNumberId)->value('bank_id');
         }
         $resolvedSessionBankId = $client?->bank_id ?: $wabaBankId;

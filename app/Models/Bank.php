@@ -56,4 +56,14 @@ class Bank extends Model
     {
         return $this->hasMany(ImportUpload::class);
     }
+
+    public function whatsappAccount()
+    {
+        return $this->belongsTo(WhatsappAccount::class, 'whatsapp_account_id');
+    }
+
+    public function whatsappAccounts()
+    {
+        return $this->hasMany(WhatsappAccount::class, 'bank_id');
+    }
 }

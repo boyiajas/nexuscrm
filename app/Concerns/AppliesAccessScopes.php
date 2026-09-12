@@ -72,6 +72,63 @@ trait AppliesAccessScopes
         }
     }
 
+    protected function scopeChatSessionQueryToUser($query, ?User $user): void
+    {
+        if (!$user) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin()) {
+            return;
+        }
+
+        $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+        if (empty($bankIds)) {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        /** @var \App\Services\BankWabaResolver $resolver */
+        $resolver = app(\App\Services\BankWabaResolver::class);
+        $allowedWabaPhoneIds = $resolver->getAllowedWabaPhoneIdsForBanks($bankIds);
+        $bankNumbers = $resolver->getPhoneNumbersForBanks($bankIds);
+
+        $query->where(function ($q) use ($bankIds, $allowedWabaPhoneIds, $bankNumbers) {
+            $q->whereIn('chat_sessions.bank_id', $bankIds)
+              ->orWhereHas('client', function ($cq) use ($bankIds) {
+                  $cq->whereIn('clients.bank_id', $bankIds);
+              });
+
+            if (!empty($allowedWabaPhoneIds)) {
+                $q->orWhereIn('chat_sessions.waba_phone_number_id', $allowedWabaPhoneIds);
+            }
+
+            if (!empty($bankNumbers)) {
+                $q->orWhereIn('chat_sessions.waba_phone_number_id', $bankNumbers);
+            }
+        });
+
+        // Department scoping (for non-admin users)
+        if (!$user->isAdmin()) {
+            $deptIds = $user->resolvedDepartmentIds();
+            if (!empty($deptIds)) {
+                $query->where(function ($q) use ($deptIds) {
+                    $q->whereHas('client.departments', function ($dq) use ($deptIds) {
+                        $dq->whereIn('departments.id', $deptIds);
+                    })->orWhereNull('chat_sessions.client_id');
+                });
+            }
+        }
+
+        // Portfolio scoping
+        if ($user->isPortfolioScoped()) {
+            $query->whereHas('client', function ($cq) use ($user) {
+                $cq->where('assigned_to_id', $user->id);
+            });
+        }
+    }
+
     protected function authorizeClientScopeForUser(?User $user, Client $client, string $action = 'access'): void
     {
         if (!$user) {

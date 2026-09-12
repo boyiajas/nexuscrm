@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Concerns\AppliesAccessScopes;
 use App\Concerns\EnforcesMetaPermissionHealth;
 use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
@@ -9,6 +10,7 @@ use App\Models\ChatSession;
 use App\Models\ChatMessage;
 use App\Models\Client;
 use App\Models\CampaignWhatsappRecipient;
+use App\Services\BankWabaResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\Storage;
 
 class ChatController extends Controller
 {
+    use AppliesAccessScopes;
     use EnforcesMetaPermissionHealth;
 
     public function __construct(private WhatsAppServiceInterface $whatsApp)
@@ -29,41 +32,7 @@ class ChatController extends Controller
         $query = ChatSession::with(['client', 'agent', 'latestMessage'])
             ->orderByDesc('updated_at');
 
-        $bankIds = [];
-        $allowedWabaPhoneIds = [];
-        if (!$user->canAccessAllBanks()) {
-            $bankIds = $user->accessibleBankIds();
-            if (empty($bankIds)) {
-                $bankIds = $user->resolvedBankIds();
-            }
-
-            if (empty($bankIds)) {
-                $query->whereRaw('1 = 0');
-            } else {
-                $allowedWabaPhoneIds = \App\Models\WhatsappAccount::whereIn('bank_id', $bankIds)
-                    ->pluck('phone_number_id')
-                    ->filter()
-                    ->map(fn($id) => (string) $id)
-                    ->all();
-
-                $query->where(function ($q) use ($bankIds, $allowedWabaPhoneIds) {
-                    $q->whereIn('bank_id', $bankIds)
-                      ->orWhereHas('client', function ($cq) use ($bankIds) {
-                          $cq->whereIn('bank_id', $bankIds);
-                      });
-
-                    if (!empty($allowedWabaPhoneIds)) {
-                        $q->orWhereIn('waba_phone_number_id', $allowedWabaPhoneIds);
-                    }
-                });
-            }
-        }
-
-        if ($user->isPortfolioScoped()) {
-            $query->whereHas('client', function ($q) use ($user) {
-                $q->where('assigned_to_id', $user->id);
-            });
-        }
+        $this->scopeChatSessionQueryToUser($query, $user);
 
         if ($status = $request->get('status')) {
             if ($status === 'unread') {
@@ -88,7 +57,8 @@ class ChatController extends Controller
         if ($bankId = $request->get('bank_id')) {
             if ($bankId !== 'all') {
                 if (!$user->canAccessAllBanks()) {
-                    if (!in_array((int) $bankId, $bankIds, true)) {
+                    $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                    if (!in_array((int) $bankId, $userBankIds, true)) {
                         abort(403, 'You do not have access to this bank.');
                     }
                 }
@@ -99,7 +69,12 @@ class ChatController extends Controller
         if ($wabaNumber = $request->get('waba_number')) {
             if ($wabaNumber !== 'all') {
                 if (!$user->canAccessAllBanks()) {
-                    if (!in_array((string) $wabaNumber, $allowedWabaPhoneIds, true)) {
+                    $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                    $resolver = app(BankWabaResolver::class);
+                    $allowedWabaPhoneIds = $resolver->getAllowedWabaPhoneIdsForBanks($userBankIds);
+                    $bankNumbers = $resolver->getPhoneNumbersForBanks($userBankIds);
+
+                    if (!in_array((string) $wabaNumber, $allowedWabaPhoneIds, true) && !in_array((string) $wabaNumber, $bankNumbers, true)) {
                         $query->whereRaw('1 = 0');
                     } else {
                         $query->where('waba_phone_number_id', $wabaNumber);
@@ -133,6 +108,8 @@ class ChatController extends Controller
     public function filters()
     {
         $user = $this->authorizeView();
+        /** @var BankWabaResolver $resolver */
+        $resolver = app(BankWabaResolver::class);
 
         $banksQuery = \App\Models\Bank::select('id', 'name');
         if (!$user->canAccessAllBanks()) {
@@ -165,24 +142,27 @@ class ChatController extends Controller
         // 3. Build unified WABA senders list with bank metadata
         $wabas = [];
         $seenPhoneIds = [];
+        $seenNumbers = [];
 
         foreach ($liveSenders as $s) {
             $pId = (string) ($s['phone_number_id'] ?? '');
             $num = $s['number'] ?? '';
+            $lbl = $s['label'] ?? '';
 
             // Match against database WhatsappAccount
-            $acc = $accounts->first(function ($a) use ($pId, $num) {
+            $acc = $accounts->first(function ($a) use ($pId, $num, $resolver) {
                 if ($pId && (string) $a->phone_number_id === $pId) return true;
-                if ($num && \App\Services\MetaWhatsAppService::normalizePhoneNumber($a->display_phone_number) === \App\Services\MetaWhatsAppService::normalizePhoneNumber($num)) return true;
+                if ($num && $resolver->phonesMatch($a->display_phone_number, $num)) return true;
                 return false;
             });
 
-            $bankId = $acc?->bank_id;
-            $bankName = $acc?->bank?->name;
+            $matchedBank = $resolver->resolveBankForSender($pId, $num, $acc?->name ?: $lbl);
+            $bankId = $matchedBank?->id ?: $acc?->bank_id;
+            $bankName = $matchedBank?->name ?: $acc?->bank?->name;
 
             $wabas[] = [
                 'number' => $num,
-                'label' => $acc?->name ?: $s['label'],
+                'label' => $acc?->name ?: $lbl,
                 'default' => $s['default'] ?? false,
                 'phone_number_id' => $pId,
                 'bank_id' => $bankId,
@@ -192,21 +172,58 @@ class ChatController extends Controller
             if ($pId) {
                 $seenPhoneIds[] = $pId;
             }
+            if ($num) {
+                $seenNumbers[] = $num;
+            }
         }
 
         // Include any database accounts not returned by live Meta service call
         foreach ($accounts as $acc) {
             $pId = (string) $acc->phone_number_id;
             if ($pId && !in_array($pId, $seenPhoneIds, true)) {
+                $matchedBank = $resolver->resolveBankForSender($pId, $acc->display_phone_number, $acc->name);
+                $bankId = $matchedBank?->id ?: $acc->bank_id;
+                $bankName = $matchedBank?->name ?: $acc->bank?->name;
+
                 $wabas[] = [
                     'number' => $acc->display_phone_number ?: $acc->phone_number_id,
                     'label' => $acc->name,
                     'default' => false,
                     'phone_number_id' => $acc->phone_number_id,
-                    'bank_id' => $acc->bank_id,
-                    'bank_name' => $acc->bank?->name,
+                    'bank_id' => $bankId,
+                    'bank_name' => $bankName,
                 ];
                 $seenPhoneIds[] = $pId;
+                if ($acc->display_phone_number) {
+                    $seenNumbers[] = $acc->display_phone_number;
+                }
+            }
+        }
+
+        // Include any Bank primary WhatsApp number not yet present in $wabas
+        $allBanks = \App\Models\Bank::with('whatsappAccount')->get();
+        foreach ($allBanks as $b) {
+            if (!empty($b->primary_whatsapp_number)) {
+                $alreadySeen = false;
+                foreach ($seenNumbers as $sn) {
+                    if ($resolver->phonesMatch($sn, $b->primary_whatsapp_number)) {
+                        $alreadySeen = true;
+                        break;
+                    }
+                }
+
+                if (!$alreadySeen) {
+                    $phoneId = $b->whatsappAccount?->phone_number_id ?: $b->primary_whatsapp_number;
+                    $wabas[] = [
+                        'number' => $b->primary_whatsapp_number,
+                        'label' => $b->name,
+                        'default' => false,
+                        'phone_number_id' => (string) $phoneId,
+                        'bank_id' => $b->id,
+                        'bank_name' => $b->name,
+                    ];
+                    $seenNumbers[] = $b->primary_whatsapp_number;
+                }
             }
         }
 
@@ -511,14 +528,28 @@ class ChatController extends Controller
             $hasBankMatch = $sessionBankId && in_array((int) $sessionBankId, $bankIds, true);
 
             $hasWabaMatch = false;
+            $resolver = app(BankWabaResolver::class);
             if ($session->waba_phone_number_id) {
-                $hasWabaMatch = \App\Models\WhatsappAccount::whereIn('bank_id', $bankIds)
-                    ->where('phone_number_id', $session->waba_phone_number_id)
-                    ->exists();
+                $allowedWabaPhoneIds = $resolver->getAllowedWabaPhoneIdsForBanks($bankIds);
+                $bankNumbers = $resolver->getPhoneNumbersForBanks($bankIds);
+                $hasWabaMatch = in_array((string) $session->waba_phone_number_id, $allowedWabaPhoneIds, true)
+                    || in_array((string) $session->waba_phone_number_id, $bankNumbers, true);
             }
 
             if (!$hasBankMatch && !$hasWabaMatch) {
                 abort(403, 'You do not have permission to act on this chat session.');
+            }
+
+            // Auto-repair missing session bank_id
+            if (empty($session->bank_id)) {
+                $resolvedId = $sessionBankId;
+                if (!$resolvedId && $session->waba_phone_number_id) {
+                    $matchedBank = $resolver->resolveBankForSender($session->waba_phone_number_id);
+                    $resolvedId = $matchedBank?->id;
+                }
+                if ($resolvedId) {
+                    $session->update(['bank_id' => $resolvedId]);
+                }
             }
         }
 
