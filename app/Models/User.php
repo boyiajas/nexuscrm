@@ -605,6 +605,10 @@ class User extends Authenticatable
 
     public function isPortfolioScoped(): bool
     {
+        if ($this->isAdmin()) {
+            return false;
+        }
+
         if ($this->canViewAllImportedClients()) {
             return false;
         }
