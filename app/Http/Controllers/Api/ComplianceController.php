@@ -490,8 +490,13 @@ class ComplianceController extends Controller
 
     protected function scopedQuery(Builder $query, User $user): Builder
     {
-        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $query->whereIn('bank_id', $user->resolvedBankIds());
+        if (!$user->canAccessAllBanks()) {
+            $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($bankIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('bank_id', $bankIds);
+            }
         }
 
         return $query;
@@ -503,7 +508,8 @@ class ComplianceController extends Controller
             return;
         }
 
-        abort_if($bankId && !empty($user->resolvedBankIds()) && !in_array((int) $bankId, $user->resolvedBankIds(), true), 403, 'You are not allowed to access records for this bank.');
+        $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+        abort_if($bankId && !in_array((int) $bankId, $bankIds, true), 403, 'You are not allowed to access records for this bank.');
     }
 
     protected function resolveBankId(User $user, ?int $requestedBankId): ?int
@@ -512,7 +518,7 @@ class ComplianceController extends Controller
             return $requestedBankId;
         }
 
-        $ids = $user->resolvedBankIds();
+        $ids = $user->accessibleBankIds() ?: $user->resolvedBankIds();
         return !empty($ids) ? $ids[0] : null;
     }
 
@@ -524,12 +530,19 @@ class ComplianceController extends Controller
 
         $assignee = User::query()->findOrFail($assignedToUserId);
 
-        if (!$user->canAccessAllBanks() && empty(array_intersect($assignee->resolvedBankIds(), $user->resolvedBankIds()))) {
-            abort(422, 'Assignee must belong to the same bank scope.');
+        if (!$user->canAccessAllBanks()) {
+            $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            $assigneeBankIds = $assignee->accessibleBankIds() ?: $assignee->resolvedBankIds();
+            if (empty(array_intersect($assigneeBankIds, $userBankIds))) {
+                abort(422, 'Assignee must belong to the same bank scope.');
+            }
         }
 
-        if ($bankId && !empty($assignee->resolvedBankIds()) && !in_array((int) $bankId, $assignee->resolvedBankIds(), true)) {
-            abort(422, 'Assignee must belong to the same bank.');
+        if ($bankId && !$user->canAccessAllBanks()) {
+            $assigneeBankIds = $assignee->accessibleBankIds() ?: $assignee->resolvedBankIds();
+            if (!in_array((int) $bankId, $assigneeBankIds, true)) {
+                abort(422, 'Assignee must belong to the same bank.');
+            }
         }
 
         return $assignee->id;

@@ -19,9 +19,23 @@ class DepartmentController extends Controller
         }
 
         $query = Department::query()->orderBy('name');
-        $userDepartmentIds = $user->resolvedDepartmentIds();
-        if (!$user->canManageSystemSettings() && !empty($userDepartmentIds)) {
-            $query->whereIn('id', $userDepartmentIds);
+
+        if (!$user->canAccessAllBanks()) {
+            $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if ($user->isAdmin()) {
+                if (empty($bankIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereHas('banks', fn ($bq) => $bq->whereIn('banks.id', $bankIds));
+                }
+            } else {
+                $userDepartmentIds = $user->resolvedDepartmentIds();
+                if (empty($userDepartmentIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('id', $userDepartmentIds);
+                }
+            }
         }
 
         $perPage = (int) request()->get('per_page', 20);

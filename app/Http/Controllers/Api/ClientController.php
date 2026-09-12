@@ -1015,11 +1015,22 @@ class ClientController extends Controller
         $query = \App\Models\Department::query();
 
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->canAccessAllBanks() && !$user->isSuperAdmin() && !$user->isAdmin()) {
-            if (empty($userDepartmentIds)) {
-                $query->whereRaw('1 = 0');
+        if ($user && !$user->canAccessAllBanks()) {
+            if ($user->isAdmin()) {
+                $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                if (empty($bankIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereHas('banks', fn ($bq) => $bq->whereIn('banks.id', $bankIds));
+                }
+            } else {
+                $userDepartmentIds = $user->resolvedDepartmentIds();
+                if (empty($userDepartmentIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('id', $userDepartmentIds);
+                }
             }
-            $query->whereIn('id', $userDepartmentIds);
         }
 
         return $query->orderBy('name')->get(['id', 'name']);
