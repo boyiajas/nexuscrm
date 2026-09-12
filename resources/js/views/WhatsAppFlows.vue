@@ -658,7 +658,7 @@ export default {
   methods: {
     hasPermission(permCode) {
       if (!this.currentUser) return false;
-      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+      if (this.currentRoleCodes.includes('SUPER_ADMIN')) {
         return true;
       }
 

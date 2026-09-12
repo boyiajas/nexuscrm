@@ -532,7 +532,7 @@ class User extends Authenticatable
 
     public function canAccessAllBanks(): bool
     {
-        return $this->isSuperAdmin() || $this->hasPermission('bypass_bank_scoping');
+        return $this->isSuperAdmin();
     }
 
     public function accessibleBankIds(): array

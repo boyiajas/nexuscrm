@@ -543,7 +543,7 @@ export default {
   methods: {
     hasPermission(permCode) {
       if (!this.user) return false;
-      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+      if (this.currentRoleCodes.includes('SUPER_ADMIN')) {
         return true;
       }
       if (Array.isArray(this.user.permission_codes)) {

@@ -940,7 +940,10 @@ export default {
       return this.canCreate || this.canEdit || this.canDelete || this.canImport;
     },
     canChooseBank() {
-      return this.hasPermission('bypass_bank_scoping') || ['SUPER_ADMIN', 'ADMIN'].includes(this.currentUser?.role);
+      const roles = Array.isArray(this.currentUser?.role_codes) && this.currentUser.role_codes.length
+        ? this.currentUser.role_codes
+        : [this.currentUser?.role].filter(Boolean);
+      return roles.includes('SUPER_ADMIN');
     },
     canChooseAssignee() {
       return this.hasPermission('edit_clients');
@@ -976,7 +979,7 @@ export default {
         ? this.currentUser.role_codes
         : [this.currentUser?.role].filter(Boolean);
 
-      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+      if (roles.includes('SUPER_ADMIN')) {
         return true;
       }
       if (Array.isArray(this.currentUser.permission_codes)) {

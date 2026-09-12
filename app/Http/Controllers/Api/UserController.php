@@ -22,10 +22,24 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $this->authorizeManageUsers();
+        $user = $request->user();
         $perPage = max(1, min((int) $request->get('per_page', 20), 1000));
-        return User::with(['bank', 'banks', 'departments', 'roles:id,code,name,whatsapp_daily_limit'])
-            ->orderBy('name')
-            ->paginate($perPage);
+        $query = User::with(['bank', 'banks', 'departments', 'roles:id,code,name,whatsapp_daily_limit'])
+            ->orderBy('name');
+
+        if ($user && !$user->canAccessAllBanks()) {
+            $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($userBankIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($userBankIds) {
+                    $q->whereIn('bank_id', $userBankIds)
+                      ->orWhereHas('banks', fn ($bq) => $bq->whereIn('banks.id', $userBankIds));
+                });
+            }
+        }
+
+        return $query->paginate($perPage);
     }
 
     public function assignees()
@@ -54,8 +68,16 @@ class UserController extends Controller
             ])
             ->orderBy('name');
 
-        if (!$user->canAccessAllBanks() && $user->resolvedBankId()) {
-            $query->where('bank_id', $user->resolvedBankId());
+        if (!$user->canAccessAllBanks()) {
+            $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($userBankIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($userBankIds) {
+                    $q->whereIn('bank_id', $userBankIds)
+                      ->orWhereHas('banks', fn ($bq) => $bq->whereIn('banks.id', $userBankIds));
+                });
+            }
         }
 
         return response()->json($query->get());

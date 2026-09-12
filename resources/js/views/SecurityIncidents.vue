@@ -487,7 +487,7 @@ export default {
       return this.hasAnyPermission(['view_security_incidents', 'manage_security_incidents']);
     },
     canAccessAllBanks() {
-      return this.hasAnyPermission(['bypass_bank_scoping', 'manage_system_settings']);
+      return this.currentRoleCodes.includes('SUPER_ADMIN');
     },
   },
   mounted() {
@@ -504,7 +504,7 @@ export default {
   methods: {
     hasPermission(permCode) {
       if (!this.currentUser) return false;
-      if (this.currentRoleCodes.includes('SUPER_ADMIN') || this.currentRoleCodes.includes('ADMIN')) {
+      if (this.currentRoleCodes.includes('SUPER_ADMIN')) {
         return true;
       }
 

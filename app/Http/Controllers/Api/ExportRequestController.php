@@ -31,8 +31,13 @@ class ExportRequestController extends Controller
             ->latest();
 
         if ($user->canApproveExportRequests()) {
-            if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-                $query->whereIn('bank_id', $user->resolvedBankIds());
+            if (!$user->canAccessAllBanks()) {
+                $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                if (empty($bankIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('bank_id', $bankIds);
+                }
             }
         } else {
             $query->where('requested_by_user_id', $user->id);
@@ -331,7 +336,8 @@ class ExportRequestController extends Controller
         }
 
         if (!$user->canAccessAllBanks()) {
-            return $user->resolvedBankId();
+            $ids = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            return !empty($ids) ? $ids[0] : null;
         }
 
         return isset($data['filters']['bank_id']) && $data['filters']['bank_id'] !== ''
@@ -345,7 +351,8 @@ class ExportRequestController extends Controller
             return;
         }
 
-        if (!empty($user->resolvedBankIds()) && !in_array((int) $exportRequest->bank_id, $user->resolvedBankIds(), true)) {
+        $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+        if ($exportRequest->bank_id && !in_array((int) $exportRequest->bank_id, $bankIds, true)) {
             abort(403, 'You are not allowed to act on this export request.');
         }
     }

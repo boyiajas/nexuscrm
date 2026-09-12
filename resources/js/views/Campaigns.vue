@@ -424,7 +424,10 @@ export default {
       return this.hasPermission('delete_campaigns');
     },
     canChooseBank() {
-      return this.hasAnyPermission(['bypass_bank_scoping', 'manage_system_settings']);
+      const roles = Array.isArray(this.currentUser?.role_codes) && this.currentUser.role_codes.length
+        ? this.currentUser.role_codes
+        : [this.currentUser?.role].filter(Boolean);
+      return roles.includes('SUPER_ADMIN');
     },
 
     selectedDepartments: {
@@ -457,7 +460,7 @@ export default {
         ? this.currentUser.role_codes
         : [this.currentUser?.role].filter(Boolean);
 
-      if (roles.includes('SUPER_ADMIN') || roles.includes('ADMIN')) {
+      if (roles.includes('SUPER_ADMIN')) {
         return true;
       }
       if (Array.isArray(this.currentUser.permission_codes)) {
@@ -483,14 +486,10 @@ export default {
         storedUser = null;
       }
 
-      const userPerms = Array.isArray(storedUser?.permission_codes) ? storedUser.permission_codes : [];
       const roleCodes = Array.isArray(storedUser?.role_codes) && storedUser.role_codes.length
         ? storedUser.role_codes
         : [storedUser?.role].filter(Boolean);
-      const canChooseBank = roleCodes.includes('SUPER_ADMIN')
-        || roleCodes.includes('ADMIN')
-        || userPerms.includes('bypass_bank_scoping')
-        || userPerms.includes('manage_system_settings');
+      const canChooseBank = roleCodes.includes('SUPER_ADMIN');
 
       return {
         id: null,

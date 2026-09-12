@@ -18,8 +18,13 @@ class ImportUploadController extends Controller
         $query = ImportUpload::with(['bank:id,name', 'user:id,name,role'])
             ->latest();
 
-        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $query->whereIn('bank_id', $user->resolvedBankIds());
+        if (!$user->canAccessAllBanks()) {
+            $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($bankIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('bank_id', $bankIds);
+            }
         }
 
         if (!$user->canViewAllImportedClients()) {

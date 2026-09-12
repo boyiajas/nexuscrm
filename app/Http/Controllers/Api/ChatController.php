@@ -135,8 +135,13 @@ class ChatController extends Controller
         $user = $this->authorizeView();
 
         $banksQuery = \App\Models\Bank::select('id', 'name');
-        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $banksQuery->whereIn('id', $user->resolvedBankIds());
+        if (!$user->canAccessAllBanks()) {
+            $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($userBankIds)) {
+                $banksQuery->whereRaw('1 = 0');
+            } else {
+                $banksQuery->whereIn('id', $userBankIds);
+            }
         }
         $banks = $banksQuery->get();
 

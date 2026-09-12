@@ -718,7 +718,7 @@ export default {
       return perms.includes('manage_users');
     },
     canChooseBankForForm() {
-      return this.currentUserRoleCodes.some((role) => ['SUPER_ADMIN', 'ADMIN'].includes(role));
+      return this.currentUserRoleCodes.includes('SUPER_ADMIN');
     },
     filteredBanksForForm() {
       if (!this.selectedDepartments || this.selectedDepartments.length === 0) {

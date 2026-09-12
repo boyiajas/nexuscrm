@@ -189,12 +189,16 @@ class AuditLogController extends Controller
     protected function applyAuditUserScope($query, \App\Models\User $user): void
     {
         // 1. Bank scoping
-        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $bankIds = $user->resolvedBankIds();
-            $query->where(function ($q) use ($bankIds) {
-                $q->whereIn('bank_id', $bankIds)
-                  ->orWhereNull('bank_id');
-            });
+        if (!$user->canAccessAllBanks()) {
+            $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($bankIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function ($q) use ($bankIds) {
+                    $q->whereIn('bank_id', $bankIds)
+                      ->orWhereNull('bank_id');
+                });
+            }
         }
 
         // 2. User scoping
@@ -220,8 +224,9 @@ class AuditLogController extends Controller
             abort(403);
         }
 
-        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            if ($auditLog->bank_id !== null && !in_array((int) $auditLog->bank_id, $user->resolvedBankIds(), true)) {
+        if (!$user->canAccessAllBanks()) {
+            $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if ($auditLog->bank_id !== null && !in_array((int) $auditLog->bank_id, $bankIds, true)) {
                 abort(403, 'You do not have permission to access this log.');
             }
         }

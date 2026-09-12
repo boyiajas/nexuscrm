@@ -20,8 +20,13 @@ class BankController extends Controller
         }
         $query = Bank::with('departments')->orderBy('name');
 
-        if ($user && !$user->canAccessAllBanks() && !empty($user->resolvedBankIds())) {
-            $query->whereIn('id', $user->resolvedBankIds());
+        if ($user && !$user->canAccessAllBanks()) {
+            $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($accessibleBankIds)) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('id', $accessibleBankIds);
+            }
         }
 
         if ($search = trim((string) $request->get('search', ''))) {
@@ -48,6 +53,11 @@ class BankController extends Controller
     public function store(Request $request): JsonResponse
     {
         $this->authorizeManageBanks($request);
+
+        $user = $request->user();
+        if ($user && !$user->canAccessAllBanks()) {
+            abort(403, 'Only Super Administrators can create new bank institutions.');
+        }
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:banks,name'],
@@ -81,6 +91,11 @@ class BankController extends Controller
     {
         $this->authorizeManageBanks($request);
 
+        $user = $request->user();
+        if ($user && !$user->canAccessAllBanks() && !$user->canAccessBankId($bank->id)) {
+            abort(403, 'You are not allowed to update this bank.');
+        }
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:banks,name,' . $bank->id],
             'code' => ['required', 'string', 'max:255', 'unique:banks,code,' . $bank->id],
@@ -110,6 +125,11 @@ class BankController extends Controller
     public function destroy(Request $request, Bank $bank): JsonResponse
     {
         $this->authorizeManageBanks($request);
+
+        $user = $request->user();
+        if ($user && !$user->canAccessAllBanks() && !$user->canAccessBankId($bank->id)) {
+            abort(403, 'You are not allowed to delete this bank.');
+        }
 
         $usage = $this->usageSummary($bank->id);
         if (!empty($usage)) {
