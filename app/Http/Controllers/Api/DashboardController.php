@@ -56,7 +56,7 @@ class DashboardController extends Controller
                 SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("pending", "queued", "sent", "pending dispatch", "processing") THEN 1 ELSE 0 END) as pending
             ')
             ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
-            ->when(!$user->isSuperAdmin(), function ($q) use ($userBankIds) {
+            ->when(!$user->canAccessAllBanks(), function ($q) use ($userBankIds) {
                 if (empty($userBankIds)) {
                     $q->whereRaw('1 = 0');
                     return;
@@ -64,7 +64,7 @@ class DashboardController extends Controller
 
                 $q->whereIn('clients.bank_id', $userBankIds);
             })
-            ->when(!$user->isSuperAdmin(), function ($q) use ($userDeptIds) {
+            ->when(!$user->canAccessAllBanks() && !$user->isAdmin(), function ($q) use ($userDeptIds) {
                 if (empty($userDeptIds)) {
                     $q->whereRaw('1 = 0');
                     return;
@@ -77,7 +77,7 @@ class DashboardController extends Controller
                         ->whereIn('client_department.department_id', $userDeptIds);
                 });
             })
-            ->when(!$user->isSuperAdmin() && $user->isPortfolioScoped(), function ($q) use ($user) {
+            ->when(!$user->canAccessAllBanks() && !$user->isAdmin() && $user->isPortfolioScoped(), function ($q) use ($user) {
                 $q->where('clients.assigned_to_id', $user->id);
             })
             ->first();

@@ -516,23 +516,18 @@ class User extends Authenticatable
 
     public function resolvedBankIds(): array
     {
+        $ids = [];
         if ($this->relationLoaded('banks')) {
             $ids = $this->banks->pluck('id')->map(fn ($id) => (int) $id)->all();
-            if (!empty($ids)) {
-                return array_values(array_unique($ids));
-            }
-        }
-
-        $pivotIds = $this->banks()->pluck('banks.id')->map(fn ($id) => (int) $id)->all();
-        if (!empty($pivotIds)) {
-            return array_values(array_unique($pivotIds));
+        } else {
+            $ids = $this->banks()->pluck('banks.id')->map(fn ($id) => (int) $id)->all();
         }
 
         if ($this->bank_id) {
-            return [(int) $this->bank_id];
+            $ids[] = (int) $this->bank_id;
         }
 
-        return [];
+        return array_values(array_unique(array_filter($ids)));
     }
 
     public function canAccessAllBanks(): bool
@@ -547,17 +542,11 @@ class User extends Authenticatable
         }
 
         $directBankIds = $this->resolvedBankIds();
-        $departmentBankIds = $this->departmentBankIds();
-
-        if (!empty($directBankIds) && !empty($departmentBankIds)) {
-            return array_values(array_intersect($directBankIds, $departmentBankIds));
-        }
-
         if (!empty($directBankIds)) {
             return $directBankIds;
         }
 
-        return $departmentBankIds;
+        return $this->departmentBankIds();
     }
 
     public function departmentBankIds(): array
@@ -591,7 +580,7 @@ class User extends Authenticatable
 
     public function canAccessAnyDepartment(array $departmentIds): bool
     {
-        if ($this->isSuperAdmin()) {
+        if ($this->isSuperAdmin() || $this->isAdmin()) {
             return true;
         }
 

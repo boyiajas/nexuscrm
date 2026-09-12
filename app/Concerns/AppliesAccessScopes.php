@@ -15,7 +15,7 @@ trait AppliesAccessScopes
             return;
         }
 
-        if ($user->isSuperAdmin()) {
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin()) {
             return;
         }
 
@@ -35,7 +35,7 @@ trait AppliesAccessScopes
             return;
         }
 
-        if ($user->isSuperAdmin()) {
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin() || $user->isAdmin()) {
             return;
         }
 
@@ -55,7 +55,7 @@ trait AppliesAccessScopes
         $this->scopeQueryToUserBanks($query, $user, $bankColumn);
         $this->scopeQueryToUserDepartments($query, $user, $departmentRelation);
 
-        if ($user && !$user->isSuperAdmin() && $user->isPortfolioScoped()) {
+        if ($user && !$user->canAccessAllBanks() && !$user->isSuperAdmin() && !$user->isAdmin() && $user->isPortfolioScoped()) {
             $query->where('clients.assigned_to_id', $user->id);
         }
     }
@@ -65,7 +65,7 @@ trait AppliesAccessScopes
         $this->scopeQueryToUserBanks($query, $user, $bankColumn);
         $this->scopeQueryToUserDepartments($query, $user);
 
-        if ($user && !$user->isSuperAdmin() && $user->isPortfolioScoped()) {
+        if ($user && !$user->canAccessAllBanks() && !$user->isSuperAdmin() && !$user->isAdmin() && $user->isPortfolioScoped()) {
             $query->whereHas('clients', function ($clientQuery) use ($user) {
                 $clientQuery->where('clients.assigned_to_id', $user->id);
             });
@@ -78,12 +78,16 @@ trait AppliesAccessScopes
             abort(401);
         }
 
-        if ($user->isSuperAdmin()) {
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin()) {
             return;
         }
 
         if (!$user->canAccessBankId($client->bank_id)) {
             abort(403, "You are not allowed to {$action} this client.");
+        }
+
+        if ($user->isAdmin()) {
+            return;
         }
 
         $client->loadMissing('departments:id');
@@ -102,12 +106,16 @@ trait AppliesAccessScopes
             abort(401);
         }
 
-        if ($user->isSuperAdmin()) {
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin()) {
             return;
         }
 
         if (!$user->canAccessBankId($campaign->bank_id)) {
             abort(403, "You are not allowed to {$action} this campaign.");
+        }
+
+        if ($user->isAdmin()) {
+            return;
         }
 
         $campaign->loadMissing('departments:id');
@@ -139,7 +147,7 @@ trait AppliesAccessScopes
             return [];
         }
 
-        if ($user?->isSuperAdmin()) {
+        if ($user?->canAccessAllBanks() || $user?->isSuperAdmin() || $user?->isAdmin()) {
             return $departmentIds;
         }
 

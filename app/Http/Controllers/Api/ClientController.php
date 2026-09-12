@@ -1015,7 +1015,7 @@ class ClientController extends Controller
         $query = \App\Models\Department::query();
 
         $userDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->isSuperAdmin()) {
+        if ($user && !$user->canAccessAllBanks() && !$user->isSuperAdmin() && !$user->isAdmin()) {
             if (empty($userDepartmentIds)) {
                 $query->whereRaw('1 = 0');
             }
@@ -1041,7 +1041,7 @@ class ClientController extends Controller
 
     protected function authorizeClientDepartment($user, Client $client, string $action = 'view'): void
     {
-        if ($user->isSuperAdmin()) {
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin() || $user->isAdmin()) {
             return;
         }
 
@@ -1181,7 +1181,7 @@ class ClientController extends Controller
             return null;
         }
 
-        if ($user->isSuperAdmin()) {
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin()) {
             if (!$requestedBankId) {
                 abort(422, 'A bank is required for this action.');
             }

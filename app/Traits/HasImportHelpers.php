@@ -69,7 +69,7 @@ trait HasImportHelpers
         }
 
         $allowedDepartmentIds = $user?->resolvedDepartmentIds() ?? [];
-        if ($user && !$user->isSuperAdmin()) {
+        if ($user && !$user->canAccessAllBanks() && !$user->isSuperAdmin() && !$user->isAdmin()) {
             if (empty($allowedDepartmentIds)) {
                 abort(403, 'Your user account is not assigned to a department.');
             }
@@ -455,7 +455,7 @@ trait HasImportHelpers
             abort(422, 'The selected assignee must belong to the same bank as the client.');
         }
 
-        if (!$user?->isSuperAdmin() && empty(array_intersect($user?->accessibleBankIds() ?? [], $assignee->accessibleBankIds()))) {
+        if (!$user?->canAccessAllBanks() && !$user?->isSuperAdmin() && empty(array_intersect($user?->accessibleBankIds() ?? [], $assignee->accessibleBankIds()))) {
             abort(422, 'The selected assignee must belong to your assigned bank scope.');
         }
 

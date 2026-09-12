@@ -2369,7 +2369,7 @@ class CampaignController extends Controller
             abort(401);
         }
 
-        if ($user->isSuperAdmin()) {
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin()) {
             if (!$requestedBankId) {
                 abort(422, 'A bank is required for this campaign.');
             }

@@ -235,15 +235,28 @@ class AnalyticsController extends Controller
             })
             ->limit(10);
 
-        if (!$user?->isSuperAdmin()) {
+        if (!$user?->canAccessAllBanks() && !$user?->isSuperAdmin()) {
             $bankIds = $user?->accessibleBankIds() ?? [];
-            $departmentIds = $user?->resolvedDepartmentIds() ?? [];
 
-            if (empty($bankIds) || empty($departmentIds)) {
+            if (empty($bankIds)) {
                 $agentsQuery->whereRaw('1 = 0');
             } else {
-                $agentsQuery->whereHas('banks', fn ($query) => $query->whereIn('banks.id', $bankIds))
-                    ->whereHas('departments', fn ($query) => $query->whereIn('departments.id', $departmentIds));
+                $agentsQuery->where(function ($query) use ($bankIds) {
+                    $query->whereIn('users.bank_id', $bankIds)
+                        ->orWhereHas('banks', fn ($bQuery) => $bQuery->whereIn('banks.id', $bankIds));
+                });
+
+                if (!$user->isAdmin()) {
+                    $departmentIds = $user?->resolvedDepartmentIds() ?? [];
+                    if (empty($departmentIds)) {
+                        $agentsQuery->whereRaw('1 = 0');
+                    } else {
+                        $agentsQuery->where(function ($query) use ($departmentIds) {
+                            $query->whereIn('users.department_id', $departmentIds)
+                                ->orWhereHas('departments', fn ($dQuery) => $dQuery->whereIn('departments.id', $departmentIds));
+                        });
+                    }
+                }
             }
         }
 
@@ -318,25 +331,32 @@ class AnalyticsController extends Controller
 
     protected function scopeWhatsappRecipientStatsQuery($query, ?User $user): void
     {
-        if (!$user || $user->isSuperAdmin()) {
+        if (!$user || $user->canAccessAllBanks() || $user->isSuperAdmin()) {
             return;
         }
 
         $bankIds = $user->accessibleBankIds();
-        $departmentIds = $user->resolvedDepartmentIds();
-
-        if (empty($bankIds) || empty($departmentIds)) {
+        if (empty($bankIds)) {
             $query->whereRaw('1 = 0');
             return;
         }
 
-        $query->whereIn('clients.bank_id', $bankIds)
-            ->whereExists(function ($subQuery) use ($departmentIds) {
+        $query->whereIn('clients.bank_id', $bankIds);
+
+        if (!$user->isAdmin()) {
+            $departmentIds = $user->resolvedDepartmentIds();
+            if (empty($departmentIds)) {
+                $query->whereRaw('1 = 0');
+                return;
+            }
+
+            $query->whereExists(function ($subQuery) use ($departmentIds) {
                 $subQuery->select(DB::raw(1))
                     ->from('client_department')
                     ->whereColumn('client_department.client_id', 'clients.id')
                     ->whereIn('client_department.department_id', $departmentIds);
             });
+        }
 
         if ($user->isPortfolioScoped()) {
             $query->where('clients.assigned_to_id', $user->id);
