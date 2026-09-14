@@ -369,6 +369,16 @@ import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 import 'vue-multiselect/dist/vue-multiselect.min.css'; // Import styles
 
+function readStoredUser() {
+  const stored = localStorage.getItem('nexus_user');
+  if (!stored) return null;
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return null;
+  }
+}
+
 export default {
   name: 'CampaignsView',
   components: {
@@ -379,6 +389,7 @@ export default {
   data() {
     return {
       department_ids: [], 
+      authUser: readStoredUser(),
       campaigns: [],
       loading: false,
       banks: [],
@@ -403,13 +414,7 @@ export default {
   },
   computed: {
     currentUser() {
-      const stored = localStorage.getItem('nexus_user');
-      if (!stored) return null;
-      try {
-        return JSON.parse(stored);
-      } catch {
-        return null;
-      }
+      return this.authUser;
     },
     canManage() {
       return this.canEdit || this.canCreate || this.canDelete;
@@ -427,7 +432,7 @@ export default {
       const roles = Array.isArray(this.currentUser?.role_codes) && this.currentUser.role_codes.length
         ? this.currentUser.role_codes
         : [this.currentUser?.role].filter(Boolean);
-      return roles.includes('SUPER_ADMIN');
+      return roles.includes('SUPER_ADMIN') || (Array.isArray(this.banks) && this.banks.length > 1);
     },
 
     selectedDepartments: {
@@ -473,28 +478,28 @@ export default {
     },
     async syncCurrentUser() {
       try {
-        await syncAuthenticatedUser();
+        const user = await syncAuthenticatedUser();
+        if (user) {
+          this.authUser = user;
+          this.ensureFormBankSelection();
+        }
       } catch (error) {
         console.error('Failed to sync current user before loading campaigns:', error);
       }
     },
     emptyForm() {
-      let storedUser = null;
-      try {
-        storedUser = JSON.parse(localStorage.getItem('nexus_user') || 'null');
-      } catch {
-        storedUser = null;
-      }
+      const storedUser = this.authUser || readStoredUser();
 
       const roleCodes = Array.isArray(storedUser?.role_codes) && storedUser.role_codes.length
         ? storedUser.role_codes
         : [storedUser?.role].filter(Boolean);
-      const canChooseBank = roleCodes.includes('SUPER_ADMIN');
+      const availableBankIds = this.availableBankIds(storedUser);
+      const canChooseBank = roleCodes.includes('SUPER_ADMIN') || availableBankIds.length > 1;
 
       return {
         id: null,
         name: '',
-        bank_id: canChooseBank ? '' : (storedUser?.bank_id || ''),
+        bank_id: canChooseBank ? '' : (availableBankIds[0] || storedUser?.bank_id || ''),
         department_ids: [], 
         status: 'Draft',
         scheduled_at: '',
@@ -574,7 +579,31 @@ export default {
     fetchBanks() {
       axios.get('/api/banks', { params: { per_page: 200 } }).then((res) => {
         this.banks = res.data.data || res.data;
+        this.ensureFormBankSelection();
       });
+    },
+    availableBankIds(user = this.currentUser) {
+      const ids = [];
+
+      if (Array.isArray(this.banks) && this.banks.length) {
+        ids.push(...this.banks.map((bank) => bank.id));
+      } else if (Array.isArray(user?.banks) && user.banks.length) {
+        ids.push(...user.banks.map((bank) => bank.id));
+      }
+
+      if (user?.bank_id) {
+        ids.push(user.bank_id);
+      }
+
+      return [...new Set(ids.map((id) => Number(id)).filter(Boolean))];
+    },
+    ensureFormBankSelection() {
+      if (!this.form || this.isEdit || this.canChooseBank) return;
+
+      const [bankId] = this.availableBankIds();
+      if (bankId && !this.form.bank_id) {
+        this.form.bank_id = bankId;
+      }
     },
     fetchDepartments() {
       axios.get('/api/departments', { params: { per_page: 200 } }).then((res) => {

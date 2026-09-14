@@ -379,7 +379,7 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
-        $user = $request->user()->load(['department', 'departments:id,name', 'roles:id,code,name,whatsapp_daily_limit,watermark_enabled']);
+        $user = $request->user()->load(['bank:id,name', 'banks:id,name', 'department', 'departments:id,name', 'roles:id,code,name,whatsapp_daily_limit,watermark_enabled']);
         return response()->json($user);
     }
 
@@ -510,7 +510,7 @@ class AuthController extends Controller
         );
 
         return response()->json([
-            'user' => $user->fresh()->load(['bank:id,name', 'departments:id,name', 'roles:id,code,name,whatsapp_daily_limit,watermark_enabled']),
+            'user' => $user->fresh()->load(['bank:id,name', 'banks:id,name', 'departments:id,name', 'roles:id,code,name,whatsapp_daily_limit,watermark_enabled']),
             'token' => $newToken->plainTextToken,
         ]);
     }

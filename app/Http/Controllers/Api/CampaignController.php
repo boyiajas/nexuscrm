@@ -662,7 +662,7 @@ class CampaignController extends Controller
         $deptIds = $this->resolveAllowedDepartmentIds($user, $data['department_ids'] ?? []);
         unset($data['department_ids']);
 
-        $data['bank_id'] = $this->resolveCampaignBankId(Auth::user(), $data['bank_id'] ?? null);
+        $data['bank_id'] = $this->resolveCampaignBankId($user, $data['bank_id'] ?? null);
 
         // Default WhatsApp from based on department or system
         if (empty($data['whatsapp_from'])) {
@@ -2377,16 +2377,26 @@ class CampaignController extends Controller
             return (int) $requestedBankId;
         }
 
-        $ids = $user->accessibleBankIds();
+        $ids = array_values(array_unique(array_map('intval', $user->accessibleBankIds() ?: $user->resolvedBankIds())));
         if (empty($ids)) {
             abort(422, 'Your user account is not assigned to a bank.');
         }
 
-        if ($requestedBankId && in_array((int) $requestedBankId, $ids, true)) {
-            return (int) $requestedBankId;
+        if ($requestedBankId) {
+            $requestedBankId = (int) $requestedBankId;
+
+            if (in_array($requestedBankId, $ids, true)) {
+                return $requestedBankId;
+            }
+
+            abort(403, 'You are not allowed to select this bank for a campaign.');
         }
 
-        return $ids[0];
+        if (count($ids) === 1) {
+            return $ids[0];
+        }
+
+        abort(422, 'Please select a bank for this campaign.');
     }
 
     protected function resolveWhatsappSenderContext(?string $overrideFrom = null): array
