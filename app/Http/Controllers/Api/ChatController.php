@@ -372,6 +372,7 @@ class ChatController extends Controller
             'client_id' => ['required', 'integer', 'exists:clients,id'],
             'platform'  => ['sometimes', 'string', 'max:50'],
             'waba_number' => ['sometimes', 'string', 'max:255'],
+            'source_chat_session_id' => ['sometimes', 'nullable', 'integer', 'exists:chat_sessions,id'],
         ]);
 
         $client = Client::findOrFail($data['client_id']);
@@ -390,13 +391,31 @@ class ChatController extends Controller
             $attributes['waba_phone_number_id'] = $data['waba_number'];
         }
 
-        $session = ChatSession::firstOrCreate(
-            [
+        $session = null;
+        if (!empty($data['source_chat_session_id'])) {
+            $session = ChatSession::findOrFail($data['source_chat_session_id']);
+            $this->authorizeSessionScope($request->user(), $session);
+
+            if ($session->client_id && (int) $session->client_id !== (int) $client->id) {
+                abort(422, 'This chat session is already linked to another client.');
+            }
+
+            $session->update($attributes + [
                 'client_id' => $client->id,
-                'platform'  => $platform,
-            ],
-            $attributes
-        );
+                'platform' => $platform,
+                'phone' => $session->phone ?: $client->phone,
+            ]);
+        }
+
+        if (!$session) {
+            $session = ChatSession::firstOrCreate(
+                [
+                    'client_id' => $client->id,
+                    'platform'  => $platform,
+                ],
+                $attributes
+            );
+        }
 
         if (!empty($data['waba_number']) && $session->waba_phone_number_id !== $data['waba_number']) {
             $session->update(['waba_phone_number_id' => $data['waba_number']]);
@@ -560,8 +579,11 @@ class ChatController extends Controller
 
     protected function authorizeClientScope($user, Client $client): void
     {
-        if (!$user->canAccessAllBanks() && !empty($user->resolvedBankIds()) && !in_array((int) $client->bank_id, $user->resolvedBankIds(), true)) {
-            abort(403, 'You do not have permission to start a chat with this client.');
+        if (!$user->canAccessAllBanks()) {
+            $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (!empty($bankIds) && !in_array((int) $client->bank_id, $bankIds, true)) {
+                abort(403, 'You do not have permission to start a chat with this client.');
+            }
         }
 
         if ($user->isPortfolioScoped() && (int) $client->assigned_to_id !== (int) $user->id) {

@@ -11,7 +11,7 @@
           <span class="fw-semibold">Live Chats</span>
         </div>
         <div class="d-flex align-items-center gap-2">
-          <button v-if="canManageChat" class="btn btn-sm btn-outline-primary shadow-none py-1 px-2 text-nowrap" @click="openAddClientModal" title="Add Client To Chat">
+          <button v-if="canManageChat" class="btn btn-sm btn-outline-primary shadow-none py-1 px-2 text-nowrap" @click="openAddClientModal()" title="Add Client To Chat">
             <i class="bi bi-plus-lg"></i> Add Client
           </button>
           <select v-model="filterStatus" class="form-select form-select-sm w-auto shadow-none border-0 bg-transparent fw-semibold text-muted" @change="fetchSessions">
@@ -101,6 +101,11 @@
                   <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
                   <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
                     <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-vcard text-primary me-3"></i>Client Info</a></li>
+                    <li v-if="canManageChat && !sessionHasClient(session)">
+                      <a class="dropdown-item py-2" href="#" @click.prevent="openAddClientModal(session)">
+                        <i class="bi bi-person-plus text-success me-3"></i>Add Client
+                      </a>
+                    </li>
                     <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search text-muted me-3"></i>Search</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li class="dropdown-header text-uppercase small fw-bold text-muted">Opt-In Status</li>
@@ -182,6 +187,11 @@
               <i class="bi bi-three-dots-vertical" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" title="Menu"></i>
               <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 220px;">
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(activeSession)"><i class="bi bi-person-vcard me-2 text-primary"></i>Client Info</a></li>
+                <li v-if="canManageChat && !sessionHasClient(activeSession)">
+                  <a class="dropdown-item py-2" href="#" @click.prevent="openAddClientModal(activeSession)">
+                    <i class="bi bi-person-plus text-success me-2"></i>Add Client
+                  </a>
+                </li>
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search me-2 text-muted"></i>Search</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li class="dropdown-header text-uppercase small fw-bold text-muted">Set Opt-In Status</li>
@@ -478,7 +488,10 @@
                 <div class="col-12">
                   <label class="form-label small fw-semibold text-dark">WhatsApp Number <span class="text-danger">*</span></label>
                   <input v-model="newClientForm.phone" type="text" class="form-control form-control-sm shadow-none" required placeholder="e.g. +27821234567">
-                  <div class="form-text" style="font-size: 0.75rem;">Include country code (e.g., +27).</div>
+                  <div class="form-text" style="font-size: 0.75rem;">
+                    <span v-if="sourceChatSessionId">Prefilled from the selected inbound chat.</span>
+                    <span v-else>Include country code (e.g., +27).</span>
+                  </div>
                 </div>
                 <div class="col-12">
                   <label class="form-label small fw-semibold text-dark">Department(s) <span class="text-danger">*</span></label>
@@ -581,6 +594,7 @@ export default {
       liveChatLockedMessage: '',
       addClientModalInstance: null,
       isSubmittingClient: false,
+      sourceChatSessionId: null,
       newClientForm: {
         first_name: '',
         surname: '',
@@ -686,6 +700,9 @@ export default {
       }
 
       return false;
+    },
+    sessionHasClient(session) {
+      return !!(session?.client_id || session?.client?.id);
     },
     fetchSessions(loadMore = false) {
       if (loadMore === true) {
@@ -1016,7 +1033,11 @@ export default {
         console.error('Failed to load chat filters', err);
       });
     },
-    openAddClientModal() {
+    openAddClientModal(session = null) {
+      const sourceSession = session && session.id && !this.sessionHasClient(session) ? session : null;
+      const sourceWaba = sourceSession?.waba_phone_number_id
+        ? this.availableWabas.find(w => String(w.phone_number_id) === String(sourceSession.waba_phone_number_id))
+        : null;
       let initialDepartments = [];
       if (this.filterDepartment !== 'all') {
         const found = this.availableDepartments.find(d => String(d.id) === String(this.filterDepartment));
@@ -1024,13 +1045,15 @@ export default {
           initialDepartments.push(found);
         }
       }
+
+      this.sourceChatSessionId = sourceSession?.id || null;
       this.newClientForm = {
         first_name: '',
         surname: '',
-        phone: '',
+        phone: sourceSession?.phone || '',
         departments: initialDepartments,
-        bank_id: this.filterBank !== 'all' ? this.filterBank : (this.availableBanks[0]?.id || ''),
-        waba_number: this.filterWaba !== 'all' ? this.filterWaba : (this.availableWabas[0]?.phone_number_id || ''),
+        bank_id: sourceSession?.bank_id || sourceWaba?.bank_id || (this.filterBank !== 'all' ? this.filterBank : (this.availableBanks[0]?.id || '')),
+        waba_number: sourceSession?.waba_phone_number_id || (this.filterWaba !== 'all' ? this.filterWaba : (this.availableWabas[0]?.phone_number_id || '')),
         opt_in: 'yes',
       };
       
@@ -1073,6 +1096,7 @@ export default {
           client_id: newClient.id,
           platform: 'whatsapp',
           waba_number: this.newClientForm.waba_number,
+          source_chat_session_id: this.sourceChatSessionId,
         }).then((sessionRes) => {
           this.activeSession = sessionRes.data;
           this.messages = sessionRes.data.messages || [];
