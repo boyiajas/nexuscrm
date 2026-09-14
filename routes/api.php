@@ -62,6 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('banks/{bank}', [BankController::class, 'destroy']);
 
     Route::get('/whatsapp-templates', [WhatsAppTemplateController::class, 'index']);
+    Route::get('/whatsapp-templates/export', [WhatsAppTemplateController::class, 'export']);
     Route::post('/whatsapp-templates', [WhatsAppTemplateController::class, 'store']);
     Route::post('/whatsapp-templates/sync', [WhatsAppTemplateController::class, 'sync']);
     Route::post('/whatsapp-templates/migrate', [WhatsAppTemplateController::class, 'migrate']);

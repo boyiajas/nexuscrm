@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WhatsAppTemplateController extends Controller
 {
@@ -42,6 +43,73 @@ class WhatsAppTemplateController extends Controller
         }
 
         return response()->json($data);
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $this->authorizeAdmin();
+
+        $fileName = 'waba_templates_' . now()->format('Ymd_His') . '.xls';
+
+        return response()->streamDownload(function () {
+            $templates = WhatsappTemplateCache::query()
+                ->orderBy('friendly_name')
+                ->get();
+
+            echo "\xEF\xBB\xBF";
+            echo '<html><head><meta charset="UTF-8"></head><body>';
+            echo '<table border="1">';
+            echo '<thead><tr>';
+
+            foreach ([
+                'Template Name',
+                'SID',
+                'Meta ID',
+                'Language',
+                'Category',
+                'Status',
+                'Header Format',
+                'Header Text',
+                'Body Preview',
+                'Footer Text',
+                'Variables',
+                'Buttons',
+                'Media URLs',
+                'Synced At',
+            ] as $heading) {
+                echo '<th>' . $this->excelCell($heading) . '</th>';
+            }
+
+            echo '</tr></thead><tbody>';
+
+            foreach ($templates as $template) {
+                echo '<tr>';
+                foreach ([
+                    $template->friendly_name,
+                    $template->sid,
+                    $template->meta_id,
+                    $template->language,
+                    $template->category,
+                    $template->status,
+                    $template->header_format,
+                    $template->header_text,
+                    $template->body_preview,
+                    $template->footer_text,
+                    $this->exportJsonValue($template->variables),
+                    $this->exportJsonValue($template->buttons),
+                    $this->exportJsonValue($template->media_urls),
+                    optional($template->synced_at)->toDateTimeString(),
+                ] as $value) {
+                    echo '<td>' . $this->excelCell($value) . '</td>';
+                }
+                echo '</tr>';
+            }
+
+            echo '</tbody></table></body></html>';
+        }, $fileName, [
+            'Content-Type' => 'application/vnd.ms-excel; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+        ]);
     }
 
     /**
@@ -259,5 +327,24 @@ class WhatsAppTemplateController extends Controller
         if (!$user || (!$user->canManageSystemSettings() && !$user->canAccessWabaTemplatesSettings())) {
             abort(403, 'Unauthorized access to WhatsApp templates.');
         }
+    }
+
+    private function exportJsonValue(mixed $value): string
+    {
+        if (empty($value)) {
+            return '';
+        }
+
+        return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
+    }
+
+    private function excelCell(mixed $value): string
+    {
+        $text = (string) ($value ?? '');
+        if (preg_match('/^[=+\-@]/', ltrim($text)) === 1) {
+            $text = "'" . $text;
+        }
+
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }

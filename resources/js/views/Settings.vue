@@ -940,6 +940,11 @@
             <small class="text-muted">View, search, and create WhatsApp templates synced with Meta.</small>
           </div>
           <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-success btn-sm" @click="exportWhatsappTemplates" :disabled="wa.exporting || wa.loading || wa.templates.length === 0">
+              <span v-if="wa.exporting" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-file-earmark-excel me-1"></i>
+              Export Excel
+            </button>
             <button type="button" class="btn btn-outline-primary btn-sm" @click="syncWhatsappTemplates" :disabled="wa.loading">
               <span v-if="wa.loading" class="spinner-border spinner-border-sm me-1"></span>
               Refresh
@@ -1617,6 +1622,7 @@ export default {
         templates: [],
         selected: [],
         loading: false,
+        exporting: false,
         saving: false,
         bulkActionLoading: false,
         migrating: false,
@@ -2265,6 +2271,36 @@ export default {
         .catch((err) => {
           notify.error(err.response?.data?.message || 'Failed to sync templates from Meta.', 'WhatsApp Templates');
           this.wa.loading = false;
+        });
+    },
+    exportWhatsappTemplates() {
+      this.wa.exporting = true;
+      axios
+        .get('/api/whatsapp-templates/export', { responseType: 'blob' })
+        .then((res) => {
+          const blob = new Blob([res.data], {
+            type: res.headers['content-type'] || 'application/vnd.ms-excel',
+          });
+          const disposition = res.headers['content-disposition'] || '';
+          const fileNameMatch = disposition.match(/filename="?([^"]+)"?/i);
+          const fileName = fileNameMatch?.[1] || `waba_templates_${new Date().toISOString().slice(0, 10)}.xls`;
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+
+          link.href = url;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(url);
+
+          notify.success('WABA templates export downloaded.', 'WhatsApp Templates');
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || 'Failed to export WABA templates.', 'WhatsApp Templates');
+        })
+        .finally(() => {
+          this.wa.exporting = false;
         });
     },
     bulkDeleteTemplates() {
