@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SecurityIncidentController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\WhatsAppTemplateController;
 use App\Http\Controllers\Api\WhatsAppWebhookController;
 use App\Http\Controllers\Api\WhatsAppFlowController;
@@ -195,4 +196,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/queue-monitor', [\App\Http\Controllers\Api\QueueMonitorController::class, 'index']);
     Route::post('/queue-monitor/retry/{id}', [\App\Http\Controllers\Api\QueueMonitorController::class, 'retry']);
     Route::delete('/queue-monitor/failed/{id}', [\App\Http\Controllers\Api\QueueMonitorController::class, 'deleteFailed']);
+
+    // Support & Tickets
+    Route::get('/support/tickets', [SupportTicketController::class, 'index']);
+    Route::post('/support/tickets', [SupportTicketController::class, 'store']);
+    Route::get('/support/tickets/{ticket}', [SupportTicketController::class, 'show']);
+    Route::post('/support/tickets/{ticket}/reply', [SupportTicketController::class, 'reply']);
+    Route::patch('/support/tickets/{ticket}/status', [SupportTicketController::class, 'updateStatus']);
 });

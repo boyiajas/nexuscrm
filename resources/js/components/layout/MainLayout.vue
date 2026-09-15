@@ -127,6 +127,16 @@
             </router-link>
           </li>
         </ul>
+
+        <!-- SUPPORT & UPDATES -->
+        <div class="px-3 pt-1 pb-1 small sidebar-section-title fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Support & Releases</div>
+        <ul class="nav nav-pills flex-column px-2 gap-1 mb-2">
+          <li class="nav-item">
+            <router-link :to="{ name: 'support' }" class="nav-link" :class="{ active: isActive('support') }">
+              <i class="bi bi-headset me-2"></i><span class="nav-label">Support & Updates</span>
+            </router-link>
+          </li>
+        </ul>
       </div>
 
       <!-- SIDEBAR FOOTER & CTA BUTTON -->
@@ -136,9 +146,9 @@
         </button>
 
         <div class="d-flex flex-column gap-1">
-          <a href="#" class="nav-link py-1 px-2 text-muted small d-flex align-items-center gap-2 text-decoration-none" style="color: #94a3b8 !important;" @click.prevent>
-            <i class="bi bi-question-circle"></i> Help Center
-          </a>
+          <router-link :to="{ name: 'support' }" class="nav-link py-1 px-2 text-muted small d-flex align-items-center gap-2 text-decoration-none" :class="{ active: isActive('support') }" style="color: #94a3b8 !important;">
+            <i class="bi bi-question-circle"></i> Help & Updates
+          </router-link>
           <button class="btn btn-link p-0 text-start nav-link py-1 px-2 text-muted small d-flex align-items-center gap-2 text-decoration-none border-0 bg-transparent" style="color: #94a3b8 !important;" @click="logout">
             <i class="bi bi-box-arrow-right"></i> Logout
           </button>
