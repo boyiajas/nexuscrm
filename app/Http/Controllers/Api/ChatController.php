@@ -48,6 +48,12 @@ class ChatController extends Controller
 
         if ($departmentId = $request->get('department_id')) {
             if ($departmentId !== 'all') {
+                if (!$user->canAccessAllBanks()) {
+                    $userDeptIds = $user->resolvedDepartmentIds();
+                    if (!in_array((int) $departmentId, $userDeptIds, true)) {
+                        abort(403, 'You do not have access to this department.');
+                    }
+                }
                 $query->whereHas('client.departments', function ($q) use ($departmentId) {
                     $q->where('departments.id', $departmentId);
                 });
@@ -85,19 +91,122 @@ class ChatController extends Controller
             }
         }
 
-        if ($search = $request->get('search')) {
-            $search = trim($search);
+        if ($search = trim((string) $request->get('search'))) {
             $query->where(function ($q) use ($search) {
                 $q->where('client_name', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%")
                   ->orWhere('last_message', 'like', "%{$search}%")
                   ->orWhereHas('client', function ($cq) use ($search) {
                       $cq->where('name', 'like', "%{$search}%")
+                        ->orWhere('first_name', 'like', "%{$search}%")
+                        ->orWhere('surname', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
                         ->orWhere('phone', 'like', "%{$search}%")
+                        ->orWhere('cell_phone', 'like', "%{$search}%")
                         ->orWhere('account_number', 'like', "%{$search}%")
+                        ->orWhere('easy_pay_number', 'like', "%{$search}%")
+                        ->orWhere('store_number', 'like', "%{$search}%")
                         ->orWhere('id_number', 'like', "%{$search}%");
                   });
             });
+
+            $perPage = min((int) $request->get('per_page', 100), 500);
+            $sessions = $query->take($perPage)->get();
+            $existingClientIds = $sessions->pluck('client_id')->filter()->unique()->values()->all();
+
+            $statusFilter = $request->get('status');
+            $includeSystemClients = empty($statusFilter) || in_array($statusFilter, ['all', 'active'], true);
+
+            $clientItems = collect();
+
+            if ($includeSystemClients) {
+                $clientQuery = Client::query()->with(['departments', 'bank', 'assignedTo:id,name,bank_id']);
+                $this->scopeClientQueryToUser($clientQuery, $user);
+
+                if ($departmentId = $request->get('department_id')) {
+                    if ($departmentId !== 'all') {
+                        if (!$user->canAccessAllBanks()) {
+                            $userDeptIds = $user->resolvedDepartmentIds();
+                            if (!in_array((int) $departmentId, $userDeptIds, true)) {
+                                abort(403, 'You do not have access to this department.');
+                            }
+                        }
+                        $clientQuery->whereHas('departments', function ($q) use ($departmentId) {
+                            $q->where('departments.id', $departmentId);
+                        });
+                    }
+                }
+
+                if ($bankId = $request->get('bank_id')) {
+                    if ($bankId !== 'all') {
+                        if (!$user->canAccessAllBanks()) {
+                            $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                            if (!in_array((int) $bankId, $userBankIds, true)) {
+                                abort(403, 'You do not have access to this bank.');
+                            }
+                        }
+                        $clientQuery->where('clients.bank_id', $bankId);
+                    }
+                }
+
+                $clientQuery->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('first_name', 'like', "%{$search}%")
+                      ->orWhere('surname', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%")
+                      ->orWhere('phone', 'like', "%{$search}%")
+                      ->orWhere('cell_phone', 'like', "%{$search}%")
+                      ->orWhere('id_number', 'like', "%{$search}%")
+                      ->orWhere('account_number', 'like', "%{$search}%")
+                      ->orWhere('easy_pay_number', 'like', "%{$search}%")
+                      ->orWhere('store_number', 'like', "%{$search}%");
+                });
+
+                if (!empty($existingClientIds)) {
+                    $clientQuery->whereNotIn('clients.id', $existingClientIds);
+                }
+
+                $matchingClients = $clientQuery->take(50)->get();
+                $matchingClients->load(['chatSessions' => function ($q) {
+                    $q->with(['agent', 'latestMessage'])->latest('updated_at');
+                }]);
+
+                foreach ($matchingClients as $client) {
+                    $existingSession = $client->chatSessions->first();
+                    if ($existingSession && !$sessions->contains('id', $existingSession->id)) {
+                        $existingSession->setRelation('client', $client);
+                        $clientItems->push($existingSession);
+                    } elseif (!$existingSession) {
+                        $clientItems->push([
+                            'id' => 'client_' . $client->id,
+                            'is_client_only' => true,
+                            'client_id' => $client->id,
+                            'client_name' => $client->name,
+                            'phone' => $client->phone ?: $client->cell_phone,
+                            'status' => 'client',
+                            'platform' => 'whatsapp',
+                            'waba_phone_number_id' => null,
+                            'last_message' => 'Client record • Start chat',
+                            'unread_count' => 0,
+                            'bank_id' => $client->bank_id,
+                            'updated_at' => optional($client->updated_at)->toIso8601String(),
+                            'created_at' => optional($client->created_at)->toIso8601String(),
+                            'client' => $client,
+                            'agent' => $client->assignedTo,
+                            'latest_message' => null,
+                        ]);
+                    }
+                }
+            }
+
+            $merged = $sessions->concat($clientItems);
+
+            return response()->json([
+                'data' => $merged->values(),
+                'current_page' => 1,
+                'last_page' => 1,
+                'total' => $merged->count(),
+            ]);
         }
 
         $perPage = min((int) $request->get('per_page', 100), 500);
@@ -366,7 +475,7 @@ class ChatController extends Controller
      */
     public function sessionForClient(Request $request)
     {
-        $this->authorizeManage();
+        $user = $this->authorizeView();
 
         $data = $request->validate([
             'client_id' => ['required', 'integer', 'exists:clients,id'],
@@ -376,12 +485,13 @@ class ChatController extends Controller
         ]);
 
         $client = Client::findOrFail($data['client_id']);
-        $this->authorizeClientScope($request->user(), $client);
+        $this->authorizeClientScopeForUser($request->user(), $client, 'chat with');
         $platform = $data['platform'] ?? 'whatsapp';
 
         $attributes = [
             'client_name' => $client->name,
-            'bank_id' => $client->bank_id,
+            'bank_id'     => $client->bank_id,
+            'phone'       => $client->phone ?: $client->cell_phone,
             'status'      => 'active',
             'agent_id'    => Auth::id(),
             'unread_count'=> 0,
@@ -403,7 +513,7 @@ class ChatController extends Controller
             $session->update($attributes + [
                 'client_id' => $client->id,
                 'platform' => $platform,
-                'phone' => $session->phone ?: $client->phone,
+                'phone' => $session->phone ?: ($client->phone ?: $client->cell_phone),
             ]);
         }
 
@@ -417,12 +527,16 @@ class ChatController extends Controller
             );
         }
 
+        if (empty($session->phone) && ($client->phone || $client->cell_phone)) {
+            $session->update(['phone' => $client->phone ?: $client->cell_phone]);
+        }
+
         if (!empty($data['waba_number']) && $session->waba_phone_number_id !== $data['waba_number']) {
             $session->update(['waba_phone_number_id' => $data['waba_number']]);
         }
 
         // Load messages ordered and reset unread count when fetched
-        $session->load(['client', 'agent', 'messages' => function ($q) {
+        $session->load(['client.departments', 'client.bank', 'agent', 'messages' => function ($q) {
             $q->orderBy('created_at');
         }]);
 
@@ -572,6 +686,14 @@ class ChatController extends Controller
             }
         }
 
+        if (!$user->canAccessAllBanks() && $session->client) {
+            $session->client->loadMissing('departments:id');
+            $deptIds = $session->client->departments->pluck('id')->all();
+            if (!empty($deptIds) && !$user->canAccessAnyDepartment($deptIds)) {
+                abort(403, 'You do not have permission to act on this chat session.');
+            }
+        }
+
         if ($user->isPortfolioScoped() && $session->client && (int) $session->client->assigned_to_id !== (int) $user->id) {
             abort(403, 'You are not allowed to access this chat session.');
         }
@@ -579,16 +701,7 @@ class ChatController extends Controller
 
     protected function authorizeClientScope($user, Client $client): void
     {
-        if (!$user->canAccessAllBanks()) {
-            $bankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
-            if (!empty($bankIds) && !in_array((int) $client->bank_id, $bankIds, true)) {
-                abort(403, 'You do not have permission to start a chat with this client.');
-            }
-        }
-
-        if ($user->isPortfolioScoped() && (int) $client->assigned_to_id !== (int) $user->id) {
-            abort(403, 'You are not allowed to access this client chat.');
-        }
+        $this->authorizeClientScopeForUser($user, $client, 'access');
     }
 
     protected function sendWhatsappReply(ChatSession $session, string $body): void

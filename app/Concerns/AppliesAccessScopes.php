@@ -35,7 +35,7 @@ trait AppliesAccessScopes
             return;
         }
 
-        if ($user->canAccessAllBanks() || $user->isSuperAdmin() || $user->isAdmin()) {
+        if ($user->canAccessAllBanks() || $user->isSuperAdmin()) {
             return;
         }
 
@@ -109,16 +109,16 @@ trait AppliesAccessScopes
             }
         });
 
-        // Department scoping (for non-admin users)
-        if (!$user->isAdmin()) {
-            $deptIds = $user->resolvedDepartmentIds();
-            if (!empty($deptIds)) {
-                $query->where(function ($q) use ($deptIds) {
-                    $q->whereHas('client.departments', function ($dq) use ($deptIds) {
-                        $dq->whereIn('departments.id', $deptIds);
-                    })->orWhereNull('chat_sessions.client_id');
-                });
-            }
+        // Department scoping (for all roles except superadmin)
+        $deptIds = $user->resolvedDepartmentIds();
+        if (empty($deptIds)) {
+            $query->whereRaw('1 = 0');
+        } else {
+            $query->where(function ($q) use ($deptIds) {
+                $q->whereHas('client.departments', function ($dq) use ($deptIds) {
+                    $dq->whereIn('departments.id', $deptIds);
+                })->orWhereNull('chat_sessions.client_id');
+            });
         }
 
         // Portfolio scoping
@@ -143,10 +143,6 @@ trait AppliesAccessScopes
             abort(403, "You are not allowed to {$action} this client.");
         }
 
-        if ($user->isAdmin()) {
-            return;
-        }
-
         $client->loadMissing('departments:id');
         if (!$user->canAccessAnyDepartment($client->departments->pluck('id')->all())) {
             abort(403, "You are not allowed to {$action} this client.");
@@ -169,10 +165,6 @@ trait AppliesAccessScopes
 
         if (!$user->canAccessBankId($campaign->bank_id)) {
             abort(403, "You are not allowed to {$action} this campaign.");
-        }
-
-        if ($user->isAdmin()) {
-            return;
         }
 
         $campaign->loadMissing('departments:id');
@@ -204,7 +196,7 @@ trait AppliesAccessScopes
             return [];
         }
 
-        if ($user?->canAccessAllBanks() || $user?->isSuperAdmin() || $user?->isAdmin()) {
+        if ($user?->canAccessAllBanks() || $user?->isSuperAdmin()) {
             return $departmentIds;
         }
 

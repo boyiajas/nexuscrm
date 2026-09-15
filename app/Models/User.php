@@ -580,7 +580,7 @@ class User extends Authenticatable
 
     public function canAccessAnyDepartment(array $departmentIds): bool
     {
-        if ($this->isSuperAdmin() || $this->isAdmin()) {
+        if ($this->isSuperAdmin()) {
             return true;
         }
 

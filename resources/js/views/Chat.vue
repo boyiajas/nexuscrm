@@ -69,75 +69,103 @@
             <span class="visually-hidden">Loading...</span>
           </div>
         </div>
-        <div
-          v-for="session in sessions"
-          :key="session.id"
-          class="chat-list-item d-flex p-2 border-bottom position-relative"
-          :class="{ 'active-chat': activeSession && activeSession.id === session.id }"
-          @click="openSession(session, $event)"
-        >
-          <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0">
-            <i class="bi bi-person-fill"></i>
+        <template v-for="(session, index) in sessions" :key="session.id">
+          <!-- Section divider when searching -->
+          <div
+            v-if="sidebarSearch && showSectionHeader(session, index)"
+            class="px-3 py-1 bg-light text-muted small fw-bold text-uppercase border-bottom"
+            :class="{ 'border-top': index > 0 }"
+            style="font-size: 0.72rem; letter-spacing: 0.5px;"
+          >
+            <i :class="session.is_client_only ? 'bi bi-people-fill me-1 text-primary' : 'bi bi-chat-dots-fill me-1 text-secondary'"></i>
+            {{ session.is_client_only ? 'Clients Directory' : 'Conversations' }}
           </div>
-          <div class="flex-grow-1 overflow-hidden">
-            <div class="d-flex justify-content-between align-items-baseline mb-1">
-              <div class="d-flex align-items-center gap-1 overflow-hidden me-1">
-                <span class="fw-semibold text-truncate">{{ session.client_name }}</span>
-                <div v-if="loadingSessionId === session.id" class="spinner-border spinner-border-sm text-primary flex-shrink-0 ms-1" style="width: 0.85rem; height: 0.85rem; border-width: 0.15em;" role="status">
-                  <span class="visually-hidden">Loading...</span>
+
+          <div
+            class="chat-list-item d-flex p-2 border-bottom position-relative"
+            :class="{ 'active-chat': activeSession && activeSession.id === session.id }"
+            @click="openSession(session, $event)"
+          >
+            <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3 flex-shrink-0">
+              <i :class="session.is_client_only ? 'bi bi-person' : 'bi bi-person-fill'"></i>
+            </div>
+            <div class="flex-grow-1 overflow-hidden">
+              <div class="d-flex justify-content-between align-items-baseline mb-1">
+                <div class="d-flex align-items-center gap-1 overflow-hidden me-1">
+                  <span class="fw-semibold text-truncate">{{ session.client_name }}</span>
+                  <span v-if="session.is_client_only" class="badge bg-light text-primary border flex-shrink-0" style="font-size: 0.65rem;">Client</span>
+                  <div v-if="loadingSessionId === session.id" class="spinner-border spinner-border-sm text-primary flex-shrink-0 ms-1" style="width: 0.85rem; height: 0.85rem; border-width: 0.15em;" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                </div>
+                <small v-if="session.updated_at && !session.is_client_only" class="text-muted timestamp flex-shrink-0">{{ session.updated_at ? session.updated_at.split('T')[0] : '' }}</small>
+                <small v-else-if="session.is_client_only" class="badge bg-light text-muted border flex-shrink-0" style="font-size: 0.65rem;">Start chat</small>
+              </div>
+              <div class="d-flex justify-content-between align-items-center">
+                <small class="text-muted text-truncate w-100 pe-2 d-flex align-items-center">
+                  <i v-if="isLastMessageFromUser(session)" class="bi bi-check2-all text-primary me-1 flex-shrink-0" style="font-size: 1.05rem;" title="Replied"></i>
+                  <i v-else-if="session.last_message === 'quick reply'" class="bi bi-reply-fill text-muted me-1 flex-shrink-0"></i>
+                  <i v-else-if="session.is_client_only" class="bi bi-chat-plus text-primary me-1 flex-shrink-0"></i>
+                  <span class="text-truncate">
+                    <template v-if="session.is_client_only">
+                      {{ session.phone ? `${session.phone} • Click to start chat` : 'Click to start chat' }}
+                    </template>
+                    <template v-else>
+                      {{ session.last_message || 'No messages yet' }}
+                    </template>
+                  </span>
+                </small>
+                <div class="d-flex align-items-center gap-2">
+                  <span v-if="session.unread_count > 0" class="badge rounded-pill bg-success unread-badge">{{ session.unread_count }}</span>
+                  <div class="dropdown chat-list-dropdown">
+                    <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
+                    <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
+                      <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-vcard text-primary me-3"></i>Client Info</a></li>
+                      <li v-if="canManageChat && !sessionHasClient(session)">
+                        <a class="dropdown-item py-2" href="#" @click.prevent="openAddClientModal(session)">
+                          <i class="bi bi-person-plus text-success me-3"></i>Add Client
+                        </a>
+                      </li>
+                      <li v-if="session.is_client_only && canManageChat">
+                        <a class="dropdown-item py-2 text-primary" href="#" @click.prevent="openSession(session)">
+                          <i class="bi bi-chat-dots me-3"></i>Start Chat
+                        </a>
+                      </li>
+                      <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search text-muted me-3"></i>Search</a></li>
+                      <template v-if="!session.is_client_only">
+                        <li><hr class="dropdown-divider"></li>
+                        <li class="dropdown-header text-uppercase small fw-bold text-muted">Opt-In Status</li>
+                        <li>
+                          <a class="dropdown-item py-1 text-success d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'yes')">
+                            <span><i class="bi bi-check-circle-fill me-2"></i>Opt-In: Yes</span>
+                            <i v-if="(session.client?.opt_in || session.opt_in) === 'yes'" class="bi bi-check2"></i>
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item py-1 text-danger d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'no')">
+                            <span><i class="bi bi-x-circle-fill me-2"></i>Opt-In: No</span>
+                            <i v-if="(session.client?.opt_in || session.opt_in) === 'no'" class="bi bi-check2"></i>
+                          </a>
+                        </li>
+                        <li>
+                          <a class="dropdown-item py-1 text-secondary d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'none')">
+                            <span><i class="bi bi-dash-circle me-2"></i>Opt-In: None</span>
+                            <i v-if="!session.client?.opt_in || session.client?.opt_in === 'none' || session.opt_in === 'none'" class="bi bi-check2"></i>
+                          </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item py-2" href="#" @click.prevent="clearChat(session)"><i class="bi bi-eraser text-muted me-3"></i>Clear chat</a></li>
+                        <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(session)"><i class="bi bi-trash text-danger me-3"></i>Delete chat</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="blockClient(session)"><i class="bi bi-slash-circle text-danger me-3"></i>Block</a></li>
+                      </template>
+                    </ul>
+                  </div>
                 </div>
               </div>
-              <small class="text-muted timestamp flex-shrink-0">{{ session.updated_at ? session.updated_at.split('T')[0] : '' }}</small>
-            </div>
-            <div class="d-flex justify-content-between align-items-center">
-              <small class="text-muted text-truncate w-100 pe-2 d-flex align-items-center">
-                <i v-if="isLastMessageFromUser(session)" class="bi bi-check2-all text-primary me-1 flex-shrink-0" style="font-size: 1.05rem;" title="Replied"></i>
-                <i v-else-if="session.last_message === 'quick reply'" class="bi bi-reply-fill text-muted me-1 flex-shrink-0"></i>
-                <span class="text-truncate">{{ session.last_message || 'No messages yet' }}</span>
-              </small>
-              <div class="d-flex align-items-center gap-2">
-                <span v-if="session.unread_count > 0" class="badge rounded-pill bg-success unread-badge">{{ session.unread_count }}</span>
-                <div class="dropdown chat-list-dropdown">
-                  <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
-                  <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-vcard text-primary me-3"></i>Client Info</a></li>
-                    <li v-if="canManageChat && !sessionHasClient(session)">
-                      <a class="dropdown-item py-2" href="#" @click.prevent="openAddClientModal(session)">
-                        <i class="bi bi-person-plus text-success me-3"></i>Add Client
-                      </a>
-                    </li>
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent="toggleSearch()"><i class="bi bi-search text-muted me-3"></i>Search</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li class="dropdown-header text-uppercase small fw-bold text-muted">Opt-In Status</li>
-                    <li>
-                      <a class="dropdown-item py-1 text-success d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'yes')">
-                        <span><i class="bi bi-check-circle-fill me-2"></i>Opt-In: Yes</span>
-                        <i v-if="(session.client?.opt_in || session.opt_in) === 'yes'" class="bi bi-check2"></i>
-                      </a>
-                    </li>
-                    <li>
-                      <a class="dropdown-item py-1 text-danger d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'no')">
-                        <span><i class="bi bi-x-circle-fill me-2"></i>Opt-In: No</span>
-                        <i v-if="(session.client?.opt_in || session.opt_in) === 'no'" class="bi bi-check2"></i>
-                      </a>
-                    </li>
-                    <li>
-                      <a class="dropdown-item py-1 text-secondary d-flex align-items-center justify-content-between" href="#" @click.prevent="setOptIn(session, 'none')">
-                        <span><i class="bi bi-dash-circle me-2"></i>Opt-In: None</span>
-                        <i v-if="!session.client?.opt_in || session.client?.opt_in === 'none' || session.opt_in === 'none'" class="bi bi-check2"></i>
-                      </a>
-                    </li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item py-2" href="#" @click.prevent="clearChat(session)"><i class="bi bi-eraser text-muted me-3"></i>Clear chat</a></li>
-                    <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(session)"><i class="bi bi-trash text-danger me-3"></i>Delete chat</a></li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="blockClient(session)"><i class="bi bi-slash-circle text-danger me-3"></i>Block</a></li>
-                  </ul>
-                </div>
-              </div>
             </div>
           </div>
-        </div>
+        </template>
         <div v-if="sessions.length === 0 && !loadingSessions" class="p-4 text-center text-muted small">
           No chat sessions found.
         </div>
@@ -751,6 +779,13 @@ export default {
         this.fetchSessions();
       }, 300);
     },
+    showSectionHeader(session, index) {
+      if (!this.sidebarSearch) return false;
+      if (index === 0) return true;
+      const prevSession = this.sessions[index - 1];
+      if (!prevSession) return true;
+      return !!session.is_client_only !== !!prevSession.is_client_only;
+    },
     openSession(session, event = null) {
       if (event && event.target.closest('.chat-list-dropdown')) {
         return;
@@ -760,6 +795,33 @@ export default {
       this.loadingMessages = true;
       this.messages = [];
       this.visibleCount = 20;
+
+      if (session.is_client_only || String(session.id).startsWith('client_')) {
+        axios
+          .post('/api/chat/session-for-client', {
+            client_id: session.client_id,
+            platform: 'whatsapp',
+            waba_number: this.filterWaba !== 'all' ? this.filterWaba : undefined,
+          })
+          .then((res) => {
+            this.activeSession = res.data;
+            this.messages = res.data.messages || [];
+            const idx = this.sessions.findIndex((s) => s.id === session.id);
+            if (idx !== -1) {
+              this.sessions.splice(idx, 1, res.data);
+            }
+            this.$nextTick(this.scrollToBottom);
+          })
+          .catch((err) => {
+            console.error('Failed to start chat for client', err);
+            notify.error('Failed to start chat for client.', 'Chat');
+          })
+          .finally(() => {
+            this.loadingSessionId = null;
+            this.loadingMessages = false;
+          });
+        return;
+      }
 
       axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
         this.activeSession = res.data;
@@ -818,8 +880,8 @@ export default {
           });
       }
 
-      // Soft refresh active session messages (only when not loading a new session)
-      if (this.activeSession && !this.loadingMessages) {
+      // Soft refresh active session messages (only when not loading a new session and real session exists)
+      if (this.activeSession && !this.loadingMessages && !this.activeSession.is_client_only && !String(this.activeSession.id).startsWith('client_')) {
         axios.get(`/api/chat/sessions/${this.activeSession.id}`).then((res) => {
           const fetchedMessages = res.data.messages || [];
           if (fetchedMessages.length > this.messages.length) {
@@ -1133,7 +1195,7 @@ export default {
         });
       };
 
-      if (session.id) {
+      if (session.id && !session.is_client_only && !String(session.id).startsWith('client_')) {
         axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
           openModal(res.data);
         }).catch(() => {

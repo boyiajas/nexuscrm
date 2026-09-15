@@ -27,13 +27,21 @@ class ChatClientLinkTest extends TestCase
             'status' => 'Active',
         ]);
 
-        $user = $this->createChatManager($bank);
+        $department = \App\Models\Department::query()->create([
+            'name' => 'Support',
+            'code' => 'support',
+            'status' => 'Active',
+            'bank_id' => $bank->id,
+        ]);
+
+        $user = $this->createChatManager($bank, $department);
         $client = Client::query()->create([
             'bank_id' => $bank->id,
             'name' => 'Inbound Client',
             'phone' => '+27763399083',
             'bank_name' => $bank->name,
         ]);
+        $client->departments()->sync([$department->id]);
 
         $session = ChatSession::query()->create([
             'bank_id' => $bank->id,
@@ -78,7 +86,7 @@ class ChatClientLinkTest extends TestCase
         ]);
     }
 
-    private function createChatManager(Bank $bank): User
+    private function createChatManager(Bank $bank, ?\App\Models\Department $department = null): User
     {
         $role = Role::query()->where('code', User::ROLE_ADMIN)->firstOrFail();
         $role->permissions()->sync($this->permissionIds(['send_whatsapp']));
@@ -96,8 +104,11 @@ class ChatClientLinkTest extends TestCase
 
         $user->roles()->sync([$role->id]);
         $user->banks()->sync([$bank->id]);
+        if ($department) {
+            $user->departments()->sync([$department->id]);
+        }
 
-        return $user->fresh(['bank', 'banks', 'roles']);
+        return $user->fresh(['bank', 'banks', 'roles', 'departments']);
     }
 
     private function permissionIds(array $permissionCodes): array
