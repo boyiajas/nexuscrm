@@ -206,15 +206,11 @@ class WhatsAppWebhookController extends Controller
 
             $sentFlowMessage = null;
 
-            if ($recipient && !$isOptOut && $recipient->last_response) {
-                $flowDef = [];
-
-                // 1. Strictly trigger automated flow messages only if the message was sent from the Flow tab (mode === 'flow')
-                if ($messageBatch && $messageBatch->mode === 'flow') {
-                    $flowDef = $messageBatch->flow_definition ?? [];
-                    if (empty($flowDef) && $messageBatch->whatsapp_flow_id) {
-                        $flowDef = \App\Models\WhatsAppFlow::find($messageBatch->whatsapp_flow_id)?->flow_definition ?? [];
-                    }
+            // Strictly only send automated messages if the message was sent from the Flow tab (mode === 'flow')
+            if ($recipient && !$isOptOut && $recipient->last_response && $messageBatch?->mode === 'flow') {
+                $flowDef = $messageBatch->flow_definition ?? [];
+                if (empty($flowDef) && $messageBatch->whatsapp_flow_id) {
+                    $flowDef = \App\Models\WhatsAppFlow::find($messageBatch->whatsapp_flow_id)?->flow_definition ?? [];
                 }
 
                 if (!empty($flowDef)) {
@@ -276,37 +272,6 @@ class WhatsAppWebhookController extends Controller
                                 'error' => $e->getMessage(),
                                 'phone' => $from,
                                 'step_id' => $nextStepId,
-                            ]);
-                        }
-                    }
-                } elseif ($messageBatch && $recipient->last_response) {
-                    $autoReply = $messageBatch->autoReplies()
-                        ->where('trigger_keyword', strtolower($recipient->last_response))
-                        ->first();
-
-                    if ($autoReply) {
-                        try {
-                            app(MetaWhatsAppService::class)->sendTemplateFromSubjectMessage(
-                                $from,
-                                $autoReply->template_sid,
-                                '',
-                                '',
-                                $autoReply->template_variables ?? [],
-                                $messageBatch->provider_display_phone_number
-                            );
-
-                            Log::info('Meta WhatsApp auto-reply template sent.', [
-                                'from' => $from,
-                                'client_id' => $client?->id,
-                                'recipient_id' => $recipient->id,
-                                'template_sid' => $autoReply->template_sid,
-                            ]);
-                        } catch (\Throwable $e) {
-                            Log::error('Failed to send auto-reply template.', [
-                                'error' => $e->getMessage(),
-                                'client_id' => $client?->id,
-                                'phone' => $from,
-                                'template_sid' => $autoReply->template_sid,
                             ]);
                         }
                     }
