@@ -250,11 +250,26 @@ class WhatsAppWebhookController extends Controller
 
                     if ($stepToSend && !empty($stepToSend['message'])) {
                         try {
-                            app(MetaWhatsAppService::class)->sendTextMessage(
-                                $from,
-                                $stepToSend['message'],
-                                $messageBatch?->provider_display_phone_number
-                            );
+                            $senderNumber = $messageBatch?->provider_display_phone_number
+                                ?: ($messageBatch?->provider_phone_number_id
+                                ?: ($payload['metadata']['display_phone_number'] ?? null
+                                ?: ($payload['metadata']['phone_number_id'] ?? null
+                                ?: ($messageBatch?->campaign?->whatsapp_from ?? null))));
+
+                            $whatsAppService = app(WhatsAppServiceInterface::class);
+                            if (method_exists($whatsAppService, 'sendTextMessage')) {
+                                $whatsAppService->sendTextMessage(
+                                    $from,
+                                    $stepToSend['message'],
+                                    $senderNumber
+                                );
+                            } else {
+                                $whatsAppService->sendPlainWhatsapp(
+                                    $from,
+                                    $stepToSend['message'],
+                                    $senderNumber
+                                );
+                            }
 
                             $recipient->current_flow_step_id = $nextStepId;
                             $recipient->save();
@@ -265,6 +280,7 @@ class WhatsAppWebhookController extends Controller
                                 'from' => $from,
                                 'recipient_id' => $recipient->id,
                                 'step_id' => $nextStepId,
+                                'sender' => $senderNumber,
                                 'is_greeting' => empty($currentStepId),
                             ]);
                         } catch (\Throwable $e) {

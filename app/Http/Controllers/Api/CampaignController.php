@@ -1290,6 +1290,8 @@ class CampaignController extends Controller
             if ($templateSid) {
                 try {
                     $flowTemplate = $this->whatsApp->getTemplateDetails($templateSid);
+                    $previewBody = collect($flowTemplate['components'] ?? [])
+                        ->firstWhere('type', 'BODY')['text'] ?? ($flowTemplate['preview'] ?? $previewBody);
                     $templateVariables = $this->normalizeTemplateVariables(
                         $data['template_variables'] ?? [],
                         $flowTemplate['variables'] ?? []
@@ -2231,6 +2233,8 @@ class CampaignController extends Controller
             if ($flowTemplateSid) {
                 try {
                     $flowTemplate = $this->whatsApp->getTemplateDetails($flowTemplateSid);
+                    $previewBody = collect($flowTemplate['components'] ?? [])
+                        ->firstWhere('type', 'BODY')['text'] ?? ($flowTemplate['preview'] ?? $previewBody);
                     $templateVariables = $this->normalizeTemplateVariables(
                         $data['template_variables'] ?? [],
                         $flowTemplate['variables'] ?? []

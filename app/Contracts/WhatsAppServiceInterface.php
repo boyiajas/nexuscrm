@@ -17,6 +17,7 @@ interface WhatsAppServiceInterface
     ): array;
 
     public function sendPlainWhatsapp(string $toE164, string $body, ?string $overrideFrom = null, ?string $overrideMsid = null): array;
+    public function sendTextMessage(string $to, string $message, ?string $overrideFrom = null): array;
 
     public function getWhatsAppTemplates(bool $onlyApproved = true, int $pageSize = 50): array;
 

@@ -233,7 +233,9 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             $normalizedOverride = self::normalizePhoneNumber($overrideFrom);
             
             $sender = collect($senders)->first(function ($s) use ($normalizedOverride, $overrideFrom) {
-                return self::normalizePhoneNumber($s['number']) === $normalizedOverride || $s['number'] === $overrideFrom;
+                return self::normalizePhoneNumber($s['number']) === $normalizedOverride 
+                    || $s['number'] === $overrideFrom
+                    || (string) ($s['phone_number_id'] ?? '') === (string) $overrideFrom;
             });
             
             if ($sender) {
@@ -241,6 +243,21 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                     'phone_number_id' => $sender['phone_number_id'],
                     'display_phone_number' => $sender['number'],
                 ];
+            }
+
+            try {
+                $waAccount = \App\Models\WhatsappAccount::where('phone_number_id', $overrideFrom)
+                    ->orWhere('phone_number', $overrideFrom)
+                    ->orWhere('phone_number', $normalizedOverride)
+                    ->first();
+                if ($waAccount && $waAccount->phone_number_id) {
+                    return [
+                        'phone_number_id' => $waAccount->phone_number_id,
+                        'display_phone_number' => $waAccount->phone_number ?: $overrideFrom,
+                    ];
+                }
+            } catch (\Throwable $e) {
+                // Ignore DB lookup issues if model or table is missing
             }
         }
 
@@ -503,6 +520,11 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'display_phone_number' => $senderContext['display_phone_number'],
             'raw' => $response,
         ];
+    }
+
+    public function sendTextMessage(string $to, string $message, ?string $overrideFrom = null): array
+    {
+        return $this->sendPlainWhatsapp($to, $message, $overrideFrom);
     }
 
     public function sendMediaWhatsapp(
