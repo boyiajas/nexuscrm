@@ -86,6 +86,63 @@ class ChatClientLinkTest extends TestCase
         ]);
     }
 
+    public function test_sending_message_longer_than_255_characters_updates_last_message_without_truncation_error(): void
+    {
+        $bank = Bank::query()->create([
+            'name' => 'Finchoice',
+            'code' => 'finchoice',
+            'status' => 'Active',
+        ]);
+
+        $department = \App\Models\Department::query()->create([
+            'name' => 'Support',
+            'code' => 'support',
+            'status' => 'Active',
+            'bank_id' => $bank->id,
+        ]);
+
+        $user = $this->createChatManager($bank, $department);
+
+        $client = Client::query()->create([
+            'bank_id' => $bank->id,
+            'name' => 'Miss Mthonti',
+            'phone' => '+27763399083',
+            'bank_name' => $bank->name,
+        ]);
+        $client->departments()->sync([$department->id]);
+
+        $session = ChatSession::query()->create([
+            'bank_id' => $bank->id,
+            'client_id' => $client->id,
+            'client_name' => 'Miss Mthonti',
+            'phone' => '+27763399083',
+            'status' => 'active',
+            'platform' => 'whatsapp',
+            'waba_phone_number_id' => 'waba-123',
+            'last_message' => 'Initial',
+            'unread_count' => 0,
+        ]);
+
+        \App\Models\SystemSetting::query()->create([
+            'meta_environment' => 'sandbox',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $longMessage = 'Good morning Miss Mthonti. Please note that your Finchoice account was closed with our office on the 27 July 2026. Kindly check the date on which you received that email as the 50% discount was only available in June 2026. Kindly contact Finchoice directly on 0861346246 for further assistance.';
+
+        $this->assertGreaterThan(255, strlen($longMessage));
+
+        $this->postJson("/api/chat/sessions/{$session->id}/messages", [
+            'content' => $longMessage,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('chat_sessions', [
+            'id' => $session->id,
+            'last_message' => $longMessage,
+        ]);
+    }
+
     private function createChatManager(Bank $bank, ?\App\Models\Department $department = null): User
     {
         $role = Role::query()->where('code', User::ROLE_ADMIN)->firstOrFail();
