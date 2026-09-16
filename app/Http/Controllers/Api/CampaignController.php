@@ -1354,6 +1354,7 @@ class CampaignController extends Controller
             'pause_reason'     => null,
             'last_processed_at'=> null,
             'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
+            'track_responses'  => ($mode === 'flow' || !empty($flowId)) ? true : ($data['track_responses'] ?? $message->track_responses),
             'enable_live_chat' => $data['enable_live_chat'] ?? $message->enable_live_chat,
             'enable_email_notification' => $data['enable_email_notification'] ?? $message->enable_email_notification,
             'created_by_user_id' => $message->created_by_user_id ?: Auth::id(),
@@ -2281,7 +2282,7 @@ class CampaignController extends Controller
             'pause_reason'      => null,
             'last_processed_at' => null,
             'messages_per_second' => $this->batchService->enforcedMessagesPerSecond(),
-            'track_responses'   => $data['track_responses']  ?? false,
+            'track_responses'   => ($mode === 'flow' || !empty($flowId)) ? true : ($data['track_responses'] ?? true),
             'enable_live_chat'  => $data['enable_live_chat'] ?? false,
             'enable_email_notification' => $data['enable_email_notification'] ?? true,
         ]);

@@ -3521,6 +3521,7 @@ export default {
         flow_id: isFlow ? this.whatsappForm.flowId : null,
         template_variables: this.whatsappForm.templateVariables || {},
         send_now: sendNow,
+        track_responses: isFlow ? true : (this.whatsappForm.trackResponses ?? true),
         enable_live_chat: this.whatsappForm.enableLiveChat,
         enable_email_notification: this.whatsappForm.enableEmailNotification,
       };

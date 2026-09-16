@@ -247,17 +247,35 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
             try {
                 $waAccount = \App\Models\WhatsappAccount::where('phone_number_id', $overrideFrom)
-                    ->orWhere('phone_number', $overrideFrom)
-                    ->orWhere('phone_number', $normalizedOverride)
+                    ->orWhere('display_phone_number', $overrideFrom)
+                    ->orWhere('display_phone_number', $normalizedOverride)
                     ->first();
+
+                if (!$waAccount) {
+                    $digits = preg_replace('/\D+/', '', $overrideFrom);
+                    if ($digits) {
+                        $waAccount = \App\Models\WhatsappAccount::all()->first(function ($a) use ($digits) {
+                            $aDigits = preg_replace('/\D+/', '', (string) $a->display_phone_number);
+                            return $aDigits === $digits || ($digits && substr($aDigits, -9) === substr($digits, -9));
+                        });
+                    }
+                }
+
                 if ($waAccount && $waAccount->phone_number_id) {
                     return [
                         'phone_number_id' => $waAccount->phone_number_id,
-                        'display_phone_number' => $waAccount->phone_number ?: $overrideFrom,
+                        'display_phone_number' => $waAccount->display_phone_number ?: $overrideFrom,
                     ];
                 }
             } catch (\Throwable $e) {
                 // Ignore DB lookup issues if model or table is missing
+            }
+
+            if (preg_match('/^\d{14,20}$/', (string) $overrideFrom)) {
+                return [
+                    'phone_number_id' => (string) $overrideFrom,
+                    'display_phone_number' => (string) $overrideFrom,
+                ];
             }
         }
 

@@ -653,4 +653,144 @@ class WhatsAppFlowGreetingTest extends TestCase
         $this->assertEquals('client.first_name', $batch->template_variables['body_1']['source']);
         $this->assertEquals('client.outstanding_balance', $batch->template_variables['body_2']['source']);
     }
+
+    public function test_quick_reply_button_with_context_id_triggers_greeting_when_track_responses_is_false(): void
+    {
+        $mockMeta = Mockery::mock(MetaWhatsAppService::class);
+        $mockMeta->shouldReceive('appSecret')->andReturn(null);
+        $mockMeta->shouldReceive('sendTextMessage')
+            ->once()
+            ->with(
+                '27842575612',
+                'Thank you for contacting Strauss Daly Attorneys. Please provide me with your ID number to assist you further.',
+                Mockery::any()
+            )
+            ->andReturn(['messages' => [['id' => 'wamid.auto.greeting.1']]]);
+
+        $this->app->instance(MetaWhatsAppService::class, $mockMeta);
+        $this->app->instance(WhatsAppServiceInterface::class, $mockMeta);
+
+        $client = Client::query()->create([
+            'name' => 'Taiwo Peter Ajakaiye',
+            'phone' => '+27842575612',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+        ]);
+
+        $campaign = Campaign::query()->create([
+            'name' => 'Flow Campaign Quick Reply',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+            'created_by' => $this->user->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+            'whatsapp_from' => '+27614776401',
+        ]);
+
+        $flow = WhatsAppFlow::query()->create([
+            'name' => '55 Settlement Flow',
+            'template_name' => '55_settlement_offer',
+            'template_sid' => '55_settlement_offer',
+            'flow_definition' => [
+                [
+                    'id' => 'greeting',
+                    'label' => 'Greeting',
+                    'message' => 'Thank you for contacting Strauss Daly Attorneys. Please provide me with your ID number to assist you further.',
+                    'decision' => false,
+                ],
+                [
+                    'id' => 'id_request',
+                    'label' => 'ID Request',
+                    'message' => 'Please enter your ID number.',
+                    'decision' => false,
+                ],
+            ],
+            'status' => 'active',
+            'created_by' => $this->user->id,
+        ]);
+
+        // Simulating batch where track_responses is false and flow_definition is null on batch (only on WhatsAppFlow model)
+        $batch = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'created_by_user_id' => $this->user->id,
+            'mode' => 'flow',
+            'whatsapp_flow_id' => $flow->id,
+            'flow_name' => $flow->name,
+            'template_sid' => '55_settlement_offer',
+            'flow_definition' => null,
+            'track_responses' => false,
+            'enable_live_chat' => true,
+        ]);
+
+        $sentTemplateWamid = 'wamid.HBgLMjc4NDI1NzU2MTIVAgARGBJCOEI2MUJCNkY1QTA0MUVENDkA';
+
+        $recipient = CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $batch->id,
+            'client_id' => $client->id,
+            'phone' => '+27842575612',
+            'provider_message_id' => $sentTemplateWamid,
+            'status' => 'Delivered',
+            'current_flow_step_id' => null,
+            'last_response' => null,
+        ]);
+
+        $payload = [
+            'entry' => [
+                [
+                    'id' => '1455412218881488',
+                    'changes' => [
+                        [
+                            'field' => 'messages',
+                            'value' => [
+                                'messaging_product' => 'whatsapp',
+                                'metadata' => [
+                                    'display_phone_number' => '27614776401',
+                                    'phone_number_id' => '1247262038476724',
+                                ],
+                                'contacts' => [
+                                    [
+                                        'profile' => ['name' => 'Taiwo Peter Ajakaiye'],
+                                        'wa_id' => '27842575612',
+                                    ],
+                                ],
+                                'messages' => [
+                                    [
+                                        'context' => [
+                                            'from' => '27614776401',
+                                            'id' => $sentTemplateWamid,
+                                        ],
+                                        'from' => '27842575612',
+                                        'id' => 'wamid.HBgLMjc4NDI1NzU2MTIVAgASGCBBQzIyQzVBNEFERkIxMUNDNERDOTlERDZGRjdBQ0I5QwA=',
+                                        'timestamp' => (string) time(),
+                                        'type' => 'button',
+                                        'button' => [
+                                            'payload' => 'quick reply',
+                                            'text' => 'Quick Reply',
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $response = $this->postJson('/api/whatsapp/webhook', $payload);
+        $response->assertOk();
+
+        $recipient->refresh();
+        $this->assertEquals('greeting', $recipient->current_flow_step_id);
+        $this->assertEquals('quick reply', strtolower($recipient->last_response));
+
+        $session = ChatSession::where('client_id', $client->id)->first();
+        $this->assertNotNull($session);
+
+        $messages = $session->messages()->orderBy('id')->get();
+        $this->assertCount(2, $messages);
+        $this->assertEquals('client', $messages[0]->sender);
+        $this->assertEquals('Quick Reply', $messages[0]->content);
+        $this->assertEquals('agent', $messages[1]->sender);
+        $this->assertEquals('Thank you for contacting Strauss Daly Attorneys. Please provide me with your ID number to assist you further.', $messages[1]->content);
+    }
 }

@@ -171,7 +171,17 @@ class WhatsAppWebhookController extends Controller
                 break;
             }
         }
-        $recipient = $this->findRecipientByPhone($from, $phoneNumberId);
+        $contextId = $message['context']['id'] ?? null;
+        $recipient = null;
+        if (!empty($contextId)) {
+            $recipient = CampaignWhatsappRecipient::where('provider_message_id', $contextId)
+                ->orWhere('message_sid', $contextId)
+                ->first();
+        }
+
+        if (!$recipient) {
+            $recipient = $this->findRecipientByPhone($from, $phoneNumberId);
+        }
         $client = $this->findClientByPhone($from, $phoneNumberId);
 
         if (!$recipient && $client) {
@@ -183,7 +193,8 @@ class WhatsAppWebhookController extends Controller
         }
 
         $messageBatch = $recipient?->message;
-        $shouldTrackResponse = (bool) ($messageBatch?->track_responses ?? false);
+        $isFlow = ($messageBatch?->mode === 'flow' || !empty($messageBatch?->whatsapp_flow_id));
+        $shouldTrackResponse = (bool) ($messageBatch?->track_responses ?? false) || $isFlow;
         $shouldOpenLiveChat = !$messageBatch || (bool) ($messageBatch->enable_live_chat ?? false);
         $isOptOut = $this->isOptOutMessage($body, $reply['keywords']);
 
@@ -206,90 +217,108 @@ class WhatsAppWebhookController extends Controller
 
             $sentFlowMessage = null;
 
-            // Strictly only send automated messages if the message was sent from the Flow tab (mode === 'flow')
-            if ($recipient && !$isOptOut && $recipient->last_response && $messageBatch?->mode === 'flow') {
-                $flowDef = $messageBatch->flow_definition ?? [];
-                if (empty($flowDef) && $messageBatch->whatsapp_flow_id) {
-                    $flowDef = \App\Models\WhatsAppFlow::find($messageBatch->whatsapp_flow_id)?->flow_definition ?? [];
+            // Strictly only send automated messages if the message was sent from the Flow tab or has a flow attached
+            if ($recipient && !$isOptOut && $isFlow) {
+                $flowDef = $messageBatch?->flow_definition ?? [];
+                if (is_string($flowDef)) {
+                    $flowDef = json_decode($flowDef, true) ?? [];
+                }
+                if (empty($flowDef) && $messageBatch?->whatsapp_flow_id) {
+                    $flow = \App\Models\WhatsAppFlow::find($messageBatch->whatsapp_flow_id);
+                    $flowDef = $flow?->flow_definition ?? [];
+                    if (is_string($flowDef)) {
+                        $flowDef = json_decode($flowDef, true) ?? [];
+                    }
                 }
 
-                if (!empty($flowDef)) {
-                    $currentStepId = $recipient->current_flow_step_id;
-                    $stepToSend = null;
-                    $nextStepId = null;
+                $currentStepId = $recipient->current_flow_step_id;
+                $stepToSend = null;
+                $nextStepId = null;
 
-                    if (empty($currentStepId)) {
-                        // First inbound response from client: Deliver Step 0 (Greeting!)
-                        $stepToSend = $flowDef[0] ?? null;
-                        if ($stepToSend) {
-                            $nextStepId = $stepToSend['id'] ?? 'greeting';
+                if (empty($currentStepId)) {
+                    // First inbound response from client: Deliver Step 0 (Greeting!)
+                    $stepToSend = $flowDef[0] ?? null;
+                    if ($stepToSend) {
+                        $nextStepId = $stepToSend['id'] ?? 'greeting';
+                    }
+                } else {
+                    // Subsequent reply: Advance according to decision or linear sequence
+                    $currentStep = collect($flowDef)->firstWhere('id', $currentStepId);
+                    if ($currentStep) {
+                        if (!empty($currentStep['decision'])) {
+                            if ($normalizedReply === 'yes') {
+                                $nextStepId = $currentStep['yesNextId'] ?? null;
+                            } elseif ($normalizedReply === 'no') {
+                                $nextStepId = $currentStep['noNextId'] ?? null;
+                            }
+                        } else {
+                            // Linear progression
+                            $currentIndex = collect($flowDef)->search(fn($s) => $s['id'] === $currentStep['id']);
+                            if ($currentIndex !== false && isset($flowDef[$currentIndex + 1])) {
+                                $nextStepId = $flowDef[$currentIndex + 1]['id'];
+                            }
                         }
-                    } else {
-                        // Subsequent reply: Advance according to decision or linear sequence
-                        $currentStep = collect($flowDef)->firstWhere('id', $currentStepId);
-                        if ($currentStep) {
-                            if (!empty($currentStep['decision'])) {
-                                if ($normalizedReply === 'yes') {
-                                    $nextStepId = $currentStep['yesNextId'] ?? null;
-                                } elseif ($normalizedReply === 'no') {
-                                    $nextStepId = $currentStep['noNextId'] ?? null;
-                                }
-                            } else {
-                                // Linear progression
-                                $currentIndex = collect($flowDef)->search(fn($s) => $s['id'] === $currentStep['id']);
-                                if ($currentIndex !== false && isset($flowDef[$currentIndex + 1])) {
-                                    $nextStepId = $flowDef[$currentIndex + 1]['id'];
-                                }
-                            }
 
-                            if ($nextStepId) {
-                                $stepToSend = collect($flowDef)->firstWhere('id', $nextStepId);
-                            }
+                        if ($nextStepId) {
+                            $stepToSend = collect($flowDef)->firstWhere('id', $nextStepId);
                         }
                     }
+                }
 
-                    if ($stepToSend && !empty($stepToSend['message'])) {
-                        try {
-                            $senderNumber = $messageBatch?->provider_display_phone_number
-                                ?: ($messageBatch?->provider_phone_number_id
-                                ?: ($payload['metadata']['display_phone_number'] ?? null
-                                ?: ($payload['metadata']['phone_number_id'] ?? null
-                                ?: ($messageBatch?->campaign?->whatsapp_from ?? null))));
+                Log::info('Evaluating WhatsApp flow auto-responder', [
+                    'from' => $from,
+                    'recipient_id' => $recipient->id,
+                    'batch_id' => $messageBatch?->id,
+                    'mode' => $messageBatch?->mode,
+                    'whatsapp_flow_id' => $messageBatch?->whatsapp_flow_id,
+                    'is_flow' => $isFlow,
+                    'flow_def_count' => is_countable($flowDef) ? count($flowDef) : 0,
+                    'current_step_id' => $currentStepId,
+                    'next_step_id' => $nextStepId,
+                    'step_message' => $stepToSend['message'] ?? null,
+                ]);
 
-                            $whatsAppService = app(WhatsAppServiceInterface::class);
-                            if (method_exists($whatsAppService, 'sendTextMessage')) {
-                                $whatsAppService->sendTextMessage(
-                                    $from,
-                                    $stepToSend['message'],
-                                    $senderNumber
-                                );
-                            } else {
-                                $whatsAppService->sendPlainWhatsapp(
-                                    $from,
-                                    $stepToSend['message'],
-                                    $senderNumber
-                                );
-                            }
+                if ($stepToSend && !empty($stepToSend['message'])) {
+                    try {
+                        $senderNumber = $messageBatch?->provider_display_phone_number
+                            ?: ($messageBatch?->provider_phone_number_id
+                            ?: ($payload['metadata']['display_phone_number'] ?? null
+                            ?: ($payload['metadata']['phone_number_id'] ?? null
+                            ?: ($messageBatch?->campaign?->whatsapp_from ?? null))));
 
-                            $recipient->current_flow_step_id = $nextStepId;
-                            $recipient->save();
-
-                            $sentFlowMessage = $stepToSend['message'];
-
-                            Log::info('Meta WhatsApp flow step sent.', [
-                                'from' => $from,
-                                'recipient_id' => $recipient->id,
-                                'step_id' => $nextStepId,
-                                'sender' => $senderNumber,
-                                'is_greeting' => empty($currentStepId),
-                            ]);
-                        } catch (\Throwable $e) {
-                            Log::error('Failed to send flow message.', [
-                                'error' => $e->getMessage(),
-                                'phone' => $from,
-                                'step_id' => $nextStepId,
-                            ]);
+                        $whatsAppService = app(WhatsAppServiceInterface::class);
+                        if (method_exists($whatsAppService, 'sendTextMessage')) {
+                            $whatsAppService->sendTextMessage(
+                                $from,
+                                $stepToSend['message'],
+                                $senderNumber
+                            );
+                        } else {
+                            $whatsAppService->sendPlainWhatsapp(
+                                $from,
+                                $stepToSend['message'],
+                                $senderNumber
+                            );
                         }
+
+                        $recipient->current_flow_step_id = $nextStepId;
+                        $recipient->save();
+
+                        $sentFlowMessage = $stepToSend['message'];
+
+                        Log::info('Meta WhatsApp flow step sent.', [
+                            'from' => $from,
+                            'recipient_id' => $recipient->id,
+                            'step_id' => $nextStepId,
+                            'sender' => $senderNumber,
+                            'is_greeting' => empty($currentStepId),
+                        ]);
+                    } catch (\Throwable $e) {
+                        Log::error('Failed to send flow message.', [
+                            'error' => $e->getMessage(),
+                            'phone' => $from,
+                            'step_id' => $nextStepId,
+                        ]);
                     }
                 }
             }
