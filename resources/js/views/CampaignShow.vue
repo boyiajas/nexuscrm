@@ -1387,6 +1387,7 @@
                   <label class="form-label">WhatsApp Flow</label>
                   <select
                     v-model="whatsappForm.flowId"
+                    @change="handleWhatsappTemplateChange"
                     class="form-select"
                   >
                     <option value="">-- Select a flow --</option>
@@ -1684,7 +1685,7 @@
                 </div>
                 
 <!-- Template variables mapping -->
-                <div v-if="whatsappForm.mode === 'template' && currentWhatsappTemplate && Object.keys(currentWhatsappTemplate.variables || {}).length > 0" class="mb-3">
+                <div v-if="currentWhatsappTemplate && Object.keys(currentWhatsappTemplate.variables || {}).length > 0" class="mb-3">
                   <label class="form-label d-flex align-items-center">
                     Template Variables
                     <span class="badge bg-secondary ms-2" title="Map these template variables to client data">
@@ -2580,6 +2581,14 @@ export default {
     cleanupManagedModalArtifacts(true);
   },
   watch: {
+    currentWhatsappTemplate: {
+      immediate: true,
+      handler(tpl) {
+        if (tpl && tpl.variables) {
+          this.handleWhatsappTemplateChange();
+        }
+      },
+    },
     clientTableCurrentPage() {
       this.fetchClients();
     },
@@ -2831,7 +2840,13 @@ export default {
       return this.whatsappForm.templateVariables[key];
     },
     resolveSampleVariable(key) {
-      const mapping = this.whatsappForm.templateVariables[key];
+      let mapping = this.whatsappForm.templateVariables[key];
+      if (!mapping && key && !key.startsWith('body_') && !key.startsWith('header_')) {
+        mapping = this.whatsappForm.templateVariables[`body_${key}`] || this.whatsappForm.templateVariables[`header_${key}`];
+      }
+      if (!mapping && key && key.startsWith('body_')) {
+        mapping = this.whatsappForm.templateVariables[key.replace('body_', '')];
+      }
       if (!mapping || !mapping.source) return `{{${key}}}`;
       
       const source = mapping.source;
@@ -3504,7 +3519,7 @@ export default {
         client_ids: finalClientIds,
         template_id: isTemplate ? this.whatsappForm.templateId : null,
         flow_id: isFlow ? this.whatsappForm.flowId : null,
-        template_variables: isTemplate ? this.whatsappForm.templateVariables : {},
+        template_variables: this.whatsappForm.templateVariables || {},
         send_now: sendNow,
         enable_live_chat: this.whatsappForm.enableLiveChat,
         enable_email_notification: this.whatsappForm.enableEmailNotification,
@@ -3576,7 +3591,7 @@ export default {
       }
 
       // Auto-migrate old numeric keys to the new format
-      const template = this.whatsappTemplates.find((t) => t.id === templateId);
+      const template = this.whatsappTemplates.find((t) => t.id === templateId || t.sid === templateId);
       if (template && template.variables) {
         const expectedKeys = Object.keys(template.variables);
         if (expectedKeys.length > 0 && parsedVariables['1'] && !parsedVariables[expectedKeys[0]]) {

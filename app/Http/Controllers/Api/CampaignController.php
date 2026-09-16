@@ -1287,6 +1287,17 @@ class CampaignController extends Controller
             $templateSid = $flow->template_sid;
             $friendlyName = $flowName;
             $previewBody = $flowDef && isset($flowDef[0]['message']) ? $flowDef[0]['message'] : 'Flow start';
+            if ($templateSid) {
+                try {
+                    $flowTemplate = $this->whatsApp->getTemplateDetails($templateSid);
+                    $templateVariables = $this->normalizeTemplateVariables(
+                        $data['template_variables'] ?? [],
+                        $flowTemplate['variables'] ?? []
+                    );
+                } catch (\Throwable $e) {
+                    $templateVariables = $data['template_variables'] ?? null;
+                }
+            }
         }
 
         $senderContext = $this->resolveWhatsappSenderContext($campaign->whatsapp_from);
@@ -2217,6 +2228,17 @@ class CampaignController extends Controller
             $friendlyName = $flowName;
             $templateSid  = $flowTemplateSid;
             $previewBody  = $flowDef && isset($flowDef[0]['message']) ? $flowDef[0]['message'] : 'Flow start';
+            if ($flowTemplateSid) {
+                try {
+                    $flowTemplate = $this->whatsApp->getTemplateDetails($flowTemplateSid);
+                    $templateVariables = $this->normalizeTemplateVariables(
+                        $data['template_variables'] ?? [],
+                        $flowTemplate['variables'] ?? []
+                    );
+                } catch (\Throwable $e) {
+                    $templateVariables = $data['template_variables'] ?? null;
+                }
+            }
         }
 
         $senderContext = $this->resolveWhatsappSenderContext($campaign->whatsapp_from);
@@ -2473,10 +2495,17 @@ class CampaignController extends Controller
         }
 
         $normalized = [];
-        $missing = []; \Log::info("DEBUG TEMPLATE VARIABLES", ["input" => $input, "expected" => $expectedVariables]);
+        $missing = [];
 
         foreach ($this->sortedTemplateVariableKeys($expectedVariables) as $key) {
             $entry = $input[$key] ?? null;
+            if (!$entry && str_starts_with((string) $key, 'body_')) {
+                $entry = $input[str_replace('body_', '', (string) $key)] ?? null;
+            }
+            if (!$entry && !str_starts_with((string) $key, 'body_') && !str_starts_with((string) $key, 'header_')) {
+                $entry = $input['body_' . $key] ?? $input['header_' . $key] ?? null;
+            }
+
             $source = is_array($entry) ? trim((string) ($entry['source'] ?? '')) : trim((string) $entry);
             $customValue = is_array($entry) ? trim((string) ($entry['custom_value'] ?? '')) : '';
 

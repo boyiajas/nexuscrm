@@ -466,4 +466,191 @@ class WhatsAppFlowGreetingTest extends TestCase
         $recipient->refresh();
         $this->assertNull($recipient->current_flow_step_id);
     }
+
+    public function test_flow_batch_saves_template_variables(): void
+    {
+        $superAdminRole = \App\Models\Role::query()->where('code', User::ROLE_SUPER_ADMIN)->firstOrFail();
+        $this->user->roles()->sync([$superAdminRole->id]);
+        $this->user->update([
+            'role' => User::ROLE_SUPER_ADMIN,
+            'status' => 'Active',
+            'password_reset_required' => false,
+            'password_changed_at' => now(),
+        ]);
+        $this->user->refresh();
+
+        $mockMeta = Mockery::mock(MetaWhatsAppService::class);
+        $mockMeta->shouldReceive('appSecret')->andReturn(null);
+        $mockMeta->shouldReceive('resolveSenderContext')->andReturn([
+            'phone_number_id' => '10987654321',
+            'display_phone_number' => '+27821112233',
+        ]);
+        $mockMeta->shouldReceive('getTemplateDetails')
+            ->with('55_settlement_offer')
+            ->andReturn([
+                'name' => '55_settlement_offer',
+                'variables' => [
+                    'body_1' => 'Body Variable 1',
+                    'body_2' => 'Body Variable 2',
+                ],
+                'components' => [
+                    ['type' => 'BODY', 'text' => 'Hello {{1}}, balance {{2}}'],
+                ],
+            ]);
+
+        $this->app->instance(MetaWhatsAppService::class, $mockMeta);
+        $this->app->instance(WhatsAppServiceInterface::class, $mockMeta);
+
+        $client = Client::query()->create([
+            'name' => 'John Doe',
+            'phone' => '+27821112233',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+            'whatsapp_contact_basis' => 'consent',
+        ]);
+
+        $campaign = Campaign::query()->create([
+            'name' => 'Flow Campaign',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+            'created_by' => $this->user->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+            'whatsapp_from' => '+27821112233',
+        ]);
+        $campaign->clients()->attach($client->id);
+
+        $flow = WhatsAppFlow::query()->create([
+            'name' => 'Test Flow',
+            'template_name' => '55_settlement_offer',
+            'template_sid' => '55_settlement_offer',
+            'flow_definition' => [
+                ['id' => 'greeting', 'message' => 'Greeting text'],
+            ],
+            'status' => 'active',
+            'created_by' => $this->user->id,
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->user);
+
+        $response = $this->postJson("/api/campaigns/{$campaign->id}/whatsapp-messages", [
+            'mode' => 'flow',
+            'flow_id' => $flow->id,
+            'clients_mode' => 'all',
+            'template_variables' => [
+                '1' => ['source' => 'client.first_name', 'custom_value' => ''],
+                'body_2' => ['source' => 'custom', 'custom_value' => '1000'],
+            ],
+            'send_now' => false,
+        ]);
+
+        $response->assertCreated();
+
+        $message = CampaignWhatsappMessage::where('campaign_id', $campaign->id)->first();
+        $this->assertNotNull($message);
+        $this->assertEquals('flow', $message->mode);
+        $this->assertEquals('55_settlement_offer', $message->template_sid);
+        $this->assertNotNull($message->template_variables);
+        $this->assertEquals('client.first_name', $message->template_variables['body_1']['source']);
+        $this->assertEquals('custom', $message->template_variables['body_2']['source']);
+        $this->assertEquals('1000', $message->template_variables['body_2']['custom_value']);
+    }
+
+    public function test_flow_batch_updates_template_variables(): void
+    {
+        $superAdminRole = \App\Models\Role::query()->where('code', User::ROLE_SUPER_ADMIN)->firstOrFail();
+        $this->user->roles()->sync([$superAdminRole->id]);
+        $this->user->update([
+            'role' => User::ROLE_SUPER_ADMIN,
+            'status' => 'Active',
+            'password_reset_required' => false,
+            'password_changed_at' => now(),
+        ]);
+        $this->user->refresh();
+
+        $mockMeta = Mockery::mock(MetaWhatsAppService::class);
+        $mockMeta->shouldReceive('appSecret')->andReturn(null);
+        $mockMeta->shouldReceive('resolveSenderContext')->andReturn([
+            'phone_number_id' => '10987654321',
+            'display_phone_number' => '+27821112233',
+        ]);
+        $mockMeta->shouldReceive('getTemplateDetails')
+            ->with('55_settlement_offer')
+            ->andReturn([
+                'name' => '55_settlement_offer',
+                'variables' => [
+                    'body_1' => 'Body Variable 1',
+                    'body_2' => 'Body Variable 2',
+                ],
+                'components' => [
+                    ['type' => 'BODY', 'text' => 'Hello {{1}}, balance {{2}}'],
+                ],
+            ]);
+
+        $this->app->instance(MetaWhatsAppService::class, $mockMeta);
+        $this->app->instance(WhatsAppServiceInterface::class, $mockMeta);
+
+        $client = Client::query()->create([
+            'name' => 'John Doe',
+            'phone' => '+27821112233',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+            'whatsapp_contact_basis' => 'consent',
+        ]);
+
+        $campaign = Campaign::query()->create([
+            'name' => 'Flow Campaign',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+            'created_by' => $this->user->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+            'whatsapp_from' => '+27821112233',
+        ]);
+        $campaign->clients()->attach($client->id);
+
+        $flow = WhatsAppFlow::query()->create([
+            'name' => 'Test Flow',
+            'template_name' => '55_settlement_offer',
+            'template_sid' => '55_settlement_offer',
+            'flow_definition' => [
+                ['id' => 'greeting', 'message' => 'Greeting text'],
+            ],
+            'status' => 'active',
+            'created_by' => $this->user->id,
+        ]);
+
+        $batch = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'mode' => 'flow',
+            'template_sid' => $flow->template_sid,
+            'whatsapp_flow_id' => $flow->id,
+            'flow_name' => $flow->name,
+            'template_name' => $flow->name,
+            'name' => $flow->name,
+            'preview_body' => 'Greeting text',
+            'total_recipients' => 1,
+            'pending' => 1,
+            'created_by' => $this->user->id,
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->user);
+
+        $response = $this->putJson("/api/campaigns/{$campaign->id}/whatsapp-messages/{$batch->id}", [
+            'mode' => 'flow',
+            'flow_id' => $flow->id,
+            'clients_mode' => 'all',
+            'template_variables' => [
+                'body_1' => ['source' => 'client.first_name', 'custom_value' => ''],
+                'body_2' => ['source' => 'client.outstanding_balance', 'custom_value' => ''],
+            ],
+            'send_now' => false,
+        ]);
+
+        $response->assertOk();
+
+        $batch->refresh();
+        $this->assertEquals('client.first_name', $batch->template_variables['body_1']['source']);
+        $this->assertEquals('client.outstanding_balance', $batch->template_variables['body_2']['source']);
+    }
 }
