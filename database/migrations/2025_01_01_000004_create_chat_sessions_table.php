@@ -23,7 +23,7 @@ return new class extends Migration {
         Schema::create('chat_messages', function (Blueprint $table) {
             $table->id();
             $table->foreignId('chat_session_id')->constrained();
-            $table->enum('sender', ['user','agent','system']);
+            $table->enum('sender', ['user','agent','system','client']);
             $table->text('content');
             $table->boolean('is_template')->default(false);
             $table->timestamp('sent_at')->nullable();

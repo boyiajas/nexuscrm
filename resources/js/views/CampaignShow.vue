@@ -1559,10 +1559,15 @@
                 </div>
                 <div class="col-lg-4 col-md-5 ps-4">
 <!-- Template preview -->
-                <div v-if="whatsappForm.mode === 'template' && currentWhatsappTemplate" class="mb-3">
+                <div v-if="currentWhatsappTemplate" class="mb-3">
                   <div class="card border-success shadow-sm">
                     <div class="card-header py-2 d-flex justify-content-between align-items-center bg-white border-bottom-0">
-                      <strong>Template Preview</strong>
+                      <div class="d-flex align-items-center gap-2">
+                        <strong>Template Preview</strong>
+                        <span v-if="whatsappForm.mode === 'flow'" class="badge bg-primary bg-opacity-10 text-primary border small" style="font-size: 0.72rem;">
+                          <i class="bi bi-diagram-3 me-1"></i> Flow Template
+                        </span>
+                      </div>
                       <div>
                         <div class="form-check form-switch d-inline-block mb-0">
                           <input class="form-check-input" type="checkbox" id="sampleDataToggle" v-model="whatsappForm.showSamplePreview">
@@ -1660,6 +1665,21 @@
                       </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                <!-- Empty preview state placeholder -->
+                <div v-else class="card border border-dashed text-center p-4 bg-light rounded-3 mb-3">
+                  <div class="py-4">
+                    <div class="bg-white rounded-circle d-inline-flex align-items-center justify-content-center shadow-sm mb-3" style="width: 52px; height: 52px;">
+                      <i class="bi bi-phone text-muted fs-4"></i>
+                    </div>
+                    <h6 class="fw-bold text-secondary mb-1">
+                      {{ whatsappForm.mode === 'flow' ? 'No Flow Selected' : 'No Template Selected' }}
+                    </h6>
+                    <p class="text-muted small mb-0" style="max-width: 250px; margin: 0 auto; font-size: 0.8rem;">
+                      {{ whatsappForm.mode === 'flow' ? 'Select a WhatsApp flow on the left to preview its approved template here.' : 'Select an approved template on the left to preview it here.' }}
+                    </p>
                   </div>
                 </div>
                 
@@ -2484,9 +2504,17 @@ export default {
       return `Showing ${start} to ${end} of ${total} records`;
     },
     currentWhatsappTemplate() {
+        if (this.whatsappForm.mode === 'flow') {
+            if (!this.currentWhatsappFlow) return null;
+            const flow = this.currentWhatsappFlow;
+            return this.whatsappTemplates.find(
+                (t) => (flow.template_sid && (t.sid === flow.template_sid || t.id === flow.template_sid)) ||
+                       (flow.template_name && t.name === flow.template_name)
+            ) || null;
+        }
         if (!this.whatsappForm.templateId) return null;
         return this.whatsappTemplates.find(
-            (t) => t.id === this.whatsappForm.templateId
+            (t) => t.id === this.whatsappForm.templateId || t.sid === this.whatsappForm.templateId
         ) || null;
     },
     currentWhatsappFlow() {

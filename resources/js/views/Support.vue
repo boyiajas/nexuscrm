@@ -659,6 +659,34 @@ export default {
       ],
       features: [
         {
+          title: 'Automated Flow Greeting & Template Reply Auto-Responder',
+          category: 'WhatsApp & Meta',
+          badgeClass: 'bg-success text-white',
+          icon: 'bi-robot',
+          releaseDate: 'September 2026',
+          highlight: true,
+          description:
+            'When a customer replies to any dispatched WhatsApp template or flow, the system automatically auto-responds with the initial flow greeting (e.g. requesting debtor ID or verification). Subsequent replies advance through decision branches or linear steps. Opt-out responses (such as STOP) are strictly excluded from automated greetings to maintain compliance, and all bot greetings are synced into Live Chat in real time.',
+          howToUse:
+            'Navigate to WhatsApp Flows to create or edit an active flow linking an approved template with your Greeting message. Dispatched campaign replies automatically receive the greeting, advancing flow steps and logging all messages for agents in Live Chat.',
+          actionText: 'Manage WhatsApp Flows',
+          route: 'whatsapp-flows',
+        },
+        {
+          title: 'Interactive WhatsApp Template Previews in Flow & Campaign Modals',
+          category: 'Campaigns',
+          badgeClass: 'bg-info text-white',
+          icon: 'bi-phone-flip',
+          releaseDate: 'September 2026',
+          highlight: true,
+          description:
+            'Both the "Create WhatsApp Flow" modal and the Campaign "Add WhatsApp Template" modal (on both Template and Flow tabs) now feature side-by-side smartphone previews. Preview header media (images, videos, documents), bold headers, variable substitution with sample data toggle, and quick-reply action buttons in real time before sending.',
+          howToUse:
+            'Open WhatsApp Flows and click "New Flow" to see the live right-hand preview update as you pick approved templates. In Campaign Details, the Add WhatsApp Template modal now provides full smartphone previews for both individual templates and flows.',
+          actionText: 'View WhatsApp Flows',
+          route: 'whatsapp-flows',
+        },
+        {
           title: 'Live Chat CRM Directory Search & Client Discovery',
           category: 'Live Chat',
           badgeClass: 'bg-primary text-white',

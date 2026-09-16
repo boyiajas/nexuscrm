@@ -26,6 +26,7 @@ class CampaignWhatsappRecipient extends Model
         'delivered_at',
         'last_response',
         'last_response_at',
+        'current_flow_step_id',
     ];
 
     protected $casts = [

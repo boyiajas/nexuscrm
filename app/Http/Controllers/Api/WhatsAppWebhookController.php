@@ -204,87 +204,129 @@ class WhatsAppWebhookController extends Controller
             $recipient->save();
             $this->refreshWhatsappMessageCounts($recipient->message);
 
-            if ($messageBatch && $messageBatch->mode === 'flow' && $recipient->last_response) {
-                $flowDef = $messageBatch->flow_definition ?? [];
-                $currentStepId = $recipient->current_flow_step_id;
-                
-                $currentStep = collect($flowDef)->firstWhere('id', $currentStepId);
-                if (!$currentStep && !empty($flowDef)) {
-                    $currentStep = $flowDef[0];
+            $sentFlowMessage = null;
+
+            if ($recipient && !$isOptOut && $recipient->last_response) {
+                $flowDef = [];
+
+                // 1. Check if campaign message was dispatched as flow mode
+                if ($messageBatch && $messageBatch->mode === 'flow') {
+                    $flowDef = $messageBatch->flow_definition ?? [];
+                    if (empty($flowDef) && $messageBatch->whatsapp_flow_id) {
+                        $flowDef = \App\Models\WhatsAppFlow::find($messageBatch->whatsapp_flow_id)?->flow_definition ?? [];
+                    }
                 }
-                
-                if ($currentStep) {
+
+                // 2. If not flow mode or flow definition was empty, check if an active WhatsAppFlow exists for this template
+                if (empty($flowDef) && $messageBatch) {
+                    $activeFlow = \App\Models\WhatsAppFlow::where('status', 'active')
+                        ->where(function ($query) use ($messageBatch) {
+                            if ($messageBatch->template_sid) {
+                                $query->where('template_sid', $messageBatch->template_sid);
+                            }
+                            if ($messageBatch->template_name) {
+                                $query->orWhere('template_name', $messageBatch->template_name);
+                            }
+                        })
+                        ->first();
+
+                    if ($activeFlow && !empty($activeFlow->flow_definition)) {
+                        $flowDef = $activeFlow->flow_definition;
+                    }
+                }
+
+                if (!empty($flowDef)) {
+                    $currentStepId = $recipient->current_flow_step_id;
+                    $stepToSend = null;
                     $nextStepId = null;
-                    if (!empty($currentStep['decision'])) {
-                        if ($normalizedReply === 'yes') {
-                            $nextStepId = $currentStep['yesNextId'] ?? null;
-                        } elseif ($normalizedReply === 'no') {
-                            $nextStepId = $currentStep['noNextId'] ?? null;
+
+                    if (empty($currentStepId)) {
+                        // First inbound response from client: Deliver Step 0 (Greeting!)
+                        $stepToSend = $flowDef[0] ?? null;
+                        if ($stepToSend) {
+                            $nextStepId = $stepToSend['id'] ?? 'greeting';
                         }
                     } else {
-                        // Linear progression
-                        $currentIndex = collect($flowDef)->search(fn($s) => $s['id'] === $currentStep['id']);
-                        if ($currentIndex !== false && isset($flowDef[$currentIndex + 1])) {
-                            $nextStepId = $flowDef[$currentIndex + 1]['id'];
-                        }
-                    }
-                    
-                    if ($nextStepId) {
-                        $nextStep = collect($flowDef)->firstWhere('id', $nextStepId);
-                        if ($nextStep && !empty($nextStep['message'])) {
-                            try {
-                                app(MetaWhatsAppService::class)->sendTextMessage(
-                                    $from,
-                                    $nextStep['message'],
-                                    $messageBatch->provider_display_phone_number
-                                );
-                                
-                                $recipient->current_flow_step_id = $nextStepId;
-                                $recipient->save();
-                                
-                                Log::info('Meta WhatsApp flow step advanced.', [
-                                    'from' => $from,
-                                    'recipient_id' => $recipient->id,
-                                    'next_step_id' => $nextStepId,
-                                ]);
-                            } catch (\Throwable $e) {
-                                Log::error('Failed to send flow next step message.', [
-                                    'error' => $e->getMessage(),
-                                    'phone' => $from,
-                                ]);
+                        // Subsequent reply: Advance according to decision or linear sequence
+                        $currentStep = collect($flowDef)->firstWhere('id', $currentStepId);
+                        if ($currentStep) {
+                            if (!empty($currentStep['decision'])) {
+                                if ($normalizedReply === 'yes') {
+                                    $nextStepId = $currentStep['yesNextId'] ?? null;
+                                } elseif ($normalizedReply === 'no') {
+                                    $nextStepId = $currentStep['noNextId'] ?? null;
+                                }
+                            } else {
+                                // Linear progression
+                                $currentIndex = collect($flowDef)->search(fn($s) => $s['id'] === $currentStep['id']);
+                                if ($currentIndex !== false && isset($flowDef[$currentIndex + 1])) {
+                                    $nextStepId = $flowDef[$currentIndex + 1]['id'];
+                                }
+                            }
+
+                            if ($nextStepId) {
+                                $stepToSend = collect($flowDef)->firstWhere('id', $nextStepId);
                             }
                         }
                     }
-                }
-            } elseif ($messageBatch && $recipient->last_response) {
-                $autoReply = $messageBatch->autoReplies()
-                    ->where('trigger_keyword', strtolower($recipient->last_response))
-                    ->first();
 
-                if ($autoReply) {
-                    try {
-                        app(MetaWhatsAppService::class)->sendTemplateFromSubjectMessage(
-                            $from,
-                            $autoReply->template_sid,
-                            '',
-                            '',
-                            $autoReply->template_variables ?? [],
-                            $messageBatch->provider_display_phone_number
-                        );
-                        
-                        Log::info('Meta WhatsApp auto-reply template sent.', [
-                            'from' => $from,
-                            'client_id' => $client?->id,
-                            'recipient_id' => $recipient->id,
-                            'template_sid' => $autoReply->template_sid,
-                        ]);
-                    } catch (\Throwable $e) {
-                        Log::error('Failed to send auto-reply template.', [
-                            'error' => $e->getMessage(),
-                            'client_id' => $client?->id,
-                            'phone' => $from,
-                            'template_sid' => $autoReply->template_sid,
-                        ]);
+                    if ($stepToSend && !empty($stepToSend['message'])) {
+                        try {
+                            app(MetaWhatsAppService::class)->sendTextMessage(
+                                $from,
+                                $stepToSend['message'],
+                                $messageBatch?->provider_display_phone_number
+                            );
+
+                            $recipient->current_flow_step_id = $nextStepId;
+                            $recipient->save();
+
+                            $sentFlowMessage = $stepToSend['message'];
+
+                            Log::info('Meta WhatsApp flow step sent.', [
+                                'from' => $from,
+                                'recipient_id' => $recipient->id,
+                                'step_id' => $nextStepId,
+                                'is_greeting' => empty($currentStepId),
+                            ]);
+                        } catch (\Throwable $e) {
+                            Log::error('Failed to send flow message.', [
+                                'error' => $e->getMessage(),
+                                'phone' => $from,
+                                'step_id' => $nextStepId,
+                            ]);
+                        }
+                    }
+                } elseif ($messageBatch && $recipient->last_response) {
+                    $autoReply = $messageBatch->autoReplies()
+                        ->where('trigger_keyword', strtolower($recipient->last_response))
+                        ->first();
+
+                    if ($autoReply) {
+                        try {
+                            app(MetaWhatsAppService::class)->sendTemplateFromSubjectMessage(
+                                $from,
+                                $autoReply->template_sid,
+                                '',
+                                '',
+                                $autoReply->template_variables ?? [],
+                                $messageBatch->provider_display_phone_number
+                            );
+
+                            Log::info('Meta WhatsApp auto-reply template sent.', [
+                                'from' => $from,
+                                'client_id' => $client?->id,
+                                'recipient_id' => $recipient->id,
+                                'template_sid' => $autoReply->template_sid,
+                            ]);
+                        } catch (\Throwable $e) {
+                            Log::error('Failed to send auto-reply template.', [
+                                'error' => $e->getMessage(),
+                                'client_id' => $client?->id,
+                                'phone' => $from,
+                                'template_sid' => $autoReply->template_sid,
+                            ]);
+                        }
                     }
                 }
             }
@@ -365,6 +407,18 @@ class WhatsAppWebhookController extends Controller
             'status' => 'active',
             'waba_phone_number_id' => $phoneNumberId ?: $session->waba_phone_number_id,
         ]);
+
+        if (!empty($sentFlowMessage)) {
+            $session->messages()->create([
+                'sender' => 'agent',
+                'content' => $sentFlowMessage,
+                'sent_at' => Carbon::now(),
+            ]);
+            $session->update([
+                'last_message' => $sentFlowMessage,
+                'updated_at' => now(),
+            ]);
+        }
 
         Log::info('Meta WhatsApp inbound reply routed to live chat.', [
             'from' => $from,
@@ -454,8 +508,8 @@ class WhatsAppWebhookController extends Controller
         return Client::query()
             ->where(function ($query) use ($phone, $digits) {
                 $query->where('phone', $phone)
-                    ->orWhereRaw("REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?", [$digits])
-                    ->orWhereRaw("RIGHT(REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', ''), 9) = ?", [substr($digits, -9)]);
+                    ->orWhereRaw("REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', '') = ?", [$digits])
+                    ->orWhereRaw("SUBSTR(REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', ''), -9) = ?", [substr($digits, -9)]);
             })
             ->orderByDesc('id')
             ->get();
@@ -472,8 +526,8 @@ class WhatsAppWebhookController extends Controller
             ->with('client')
             ->where(function ($query) use ($phone, $digits) {
                 $query->where('phone', $phone)
-                    ->orWhereRaw("REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', '') = ?", [$digits])
-                    ->orWhereRaw("RIGHT(REPLACE(REPLACE(REPLACE(`phone`, '+', ''), ' ', ''), '-', ''), 9) = ?", [substr($digits, -9)]);
+                    ->orWhereRaw("REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', '') = ?", [$digits])
+                    ->orWhereRaw("SUBSTR(REPLACE(REPLACE(REPLACE(phone, '+', ''), ' ', ''), '-', ''), -9) = ?", [substr($digits, -9)]);
             })
             ->orderByDesc('id')
             ->get();

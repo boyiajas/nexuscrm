@@ -136,192 +136,290 @@
 
     <!-- Create flow modal -->
     <div class="modal fade" tabindex="-1" :class="{ show: showModal }" style="display: block;" v-if="showModal">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Create WhatsApp Flow</h5>
+            <h5 class="modal-title">{{ editingFlowId ? 'Edit WhatsApp Flow' : 'Create WhatsApp Flow' }}</h5>
             <button type="button" class="btn-close" @click="closeModal"></button>
           </div>
           <form @submit.prevent="saveFlow">
             <div class="modal-body">
-              <div class="row g-3">
-                <div class="col-md-8">
-                  <label class="form-label">Flow name</label>
-                  <input
-                    type="text"
-                    class="form-control"
-                    v-model="flowForm.name"
-                    placeholder="e.g. Standard Bank – Call / WhatsApp follow-up"
-                    required
-                  />
-                </div>
-                <div class="col-md-4">
-                  <label class="form-label">Status</label>
-                  <select class="form-select" v-model="flowForm.status">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-                <div class="col-12">
-                  <label class="form-label">Description</label>
-                  <textarea
-                    class="form-control"
-                    rows="2"
-                    v-model="flowForm.description"
-                    placeholder="Short summary for the team"
-                  ></textarea>
-                </div>
-                <div class="col-12">
-                  <label class="form-label">Approved WhatsApp template</label>
-                  <select class="form-select" v-model="flowForm.template_sid" @change="syncTemplateMeta" required>
-                    <option value="" disabled>Select an approved template</option>
-                    <option v-for="tpl in templates" :key="tpl.sid" :value="tpl.sid">
-                      {{ tpl.name }} — {{ tpl.language }} ({{ tpl.status }})
-                    </option>
-                  </select>
-                  <div v-if="flowForm.template_name" class="form-text">
-                    Using {{ flowForm.template_name }} · Lang: {{ flowForm.template_language || 'n/a' }}
-                  </div>
-                </div>
-                <div class="col-12" v-if="imageMedia.length">
-                  <label class="form-label d-flex align-items-center gap-2">
-                    <i class="bi bi-image"></i> Template media preview
-                  </label>
-                  <div class="d-flex gap-2 flex-wrap">
-                    <div v-for="(url, idx) in imageMedia" :key="idx" class="border rounded p-2 bg-light" style="max-width: 240px;">
-                      <div class="small text-muted text-truncate" :title="url">Asset {{ idx + 1 }}</div>
-                      <div class="template-media">
-                        <img v-if="templatePreview.header_format === 'IMAGE'" :src="url" class="img-fluid rounded" />
-                        <video
-                          v-else-if="templatePreview.header_format === 'VIDEO'"
-                          :src="url"
-                          class="img-fluid rounded"
-                          controls
-                          preload="metadata"
-                        ></video>
-                        <a
-                          v-else-if="templatePreview.header_format === 'DOCUMENT'"
-                          :href="url"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          class="btn btn-outline-secondary btn-sm mt-2"
-                        >
-                          Open document
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div class="col-12" v-if="templatePreview.header_text">
-                  <div class="small fw-semibold">{{ templatePreview.header_text }}</div>
-                </div>
-                <div class="col-12" v-if="templatePreview.footer_text">
-                  <div class="small text-muted">{{ templatePreview.footer_text }}</div>
-                </div>
-              </div>
-
-              <div class="mt-4">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                  <label class="form-label mb-0">Flow steps</label>
-                  <button type="button" class="btn btn-outline-primary btn-sm" @click="addStep">
-                    <i class="bi bi-plus-lg me-1"></i>Add Step
-                  </button>
-                </div>
-                <div class="border rounded p-2 flow-steps">
-                  <div
-                    v-for="(step, idx) in flowForm.steps"
-                    :key="step.id"
-                    class="mb-2 p-2 rounded bg-light"
-                  >
-                    <div class="d-flex justify-content-between align-items-center">
-                      <div>
-                        <span class="fw-semibold">{{ idx + 1 }}.</span>
-                        <input
-                          class="form-control form-control-sm d-inline-block w-auto ms-2"
-                          v-model="step.label"
-                          placeholder="Step title"
-                        />
-                      </div>
-                      <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-secondary text-uppercase">{{ step.id }}</span>
-                        <button
-                          type="button"
-                          class="btn btn-sm btn-outline-danger"
-                          @click="removeStep(idx)"
-                          :disabled="flowForm.steps.length === 1"
-                        >
-                          <i class="bi bi-trash"></i>
-                        </button>
-                      </div>
-                    </div>
-                    <textarea
-                      class="form-control form-control-sm mt-2"
-                      rows="2"
-                      v-model="step.message"
-                      placeholder="Message or prompt for this step"
-                    ></textarea>
-                    <div class="form-check mt-2">
+              <div class="row g-4">
+                <!-- Left Column: Flow Details & Steps -->
+                <div class="col-lg-7">
+                  <div class="row g-3">
+                    <div class="col-md-8">
+                      <label class="form-label fw-semibold">Flow name</label>
                       <input
-                        class="form-check-input"
-                        type="checkbox"
-                        v-model="step.decision"
-                        :id="`decision-${step.id}`"
+                        type="text"
+                        class="form-control"
+                        v-model="flowForm.name"
+                        placeholder="e.g. Standard Bank – Call / WhatsApp follow-up"
+                        required
                       />
-                      <label class="form-check-label" :for="`decision-${step.id}`">
-                        This step branches on Yes / No
-                      </label>
                     </div>
-                    <div v-if="step.decision" class="mt-2">
-                      <div class="row g-2">
-                        <div class="col-md-6">
-                          <label class="form-label small text-success mb-1">If YES</label>
-                          <textarea
-                            class="form-control form-control-sm"
-                            rows="2"
-                            v-model="step.yesLabel"
-                            placeholder="e.g. Call immediately"
-                          ></textarea>
-                          <label class="form-label small text-muted mt-1 mb-1">Next step on YES</label>
-                          <select class="form-select form-select-sm" v-model="step.yesNextId">
-                            <option :value="null">Continue to next listed</option>
-                            <option
-                              v-for="opt in stepOptions(step.id)"
-                              :key="opt.id"
-                              :value="opt.id"
+                    <div class="col-md-4">
+                      <label class="form-label fw-semibold">Status</label>
+                      <select class="form-select" v-model="flowForm.status">
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                      </select>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label fw-semibold">Description</label>
+                      <textarea
+                        class="form-control"
+                        rows="2"
+                        v-model="flowForm.description"
+                        placeholder="Short summary for the team"
+                      ></textarea>
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label fw-semibold">Approved WhatsApp template</label>
+                      <select class="form-select" v-model="flowForm.template_sid" @change="syncTemplateMeta" required>
+                        <option value="" disabled>Select an approved template</option>
+                        <option v-for="tpl in templates" :key="tpl.sid" :value="tpl.sid">
+                          {{ tpl.name }} — {{ tpl.language }} ({{ tpl.status }})
+                        </option>
+                      </select>
+                      <div v-if="flowForm.template_name" class="form-text">
+                        Using {{ flowForm.template_name }} · Lang: {{ flowForm.template_language || 'n/a' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Flow steps builder -->
+                  <div class="mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                      <label class="form-label mb-0 fw-semibold">Flow steps</label>
+                      <button type="button" class="btn btn-outline-primary btn-sm" @click="addStep">
+                        <i class="bi bi-plus-lg me-1"></i>Add Step
+                      </button>
+                    </div>
+                    <div class="border rounded p-2 flow-steps">
+                      <div
+                        v-for="(step, idx) in flowForm.steps"
+                        :key="step.id"
+                        class="mb-2 p-2 rounded bg-light"
+                      >
+                        <div class="d-flex justify-content-between align-items-center">
+                          <div>
+                            <span class="fw-semibold">{{ idx + 1 }}.</span>
+                            <input
+                              class="form-control form-control-sm d-inline-block w-auto ms-2"
+                              v-model="step.label"
+                              placeholder="Step title"
+                            />
+                          </div>
+                          <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-secondary text-uppercase">{{ step.id }}</span>
+                            <button
+                              type="button"
+                              class="btn btn-sm btn-outline-danger"
+                              @click="removeStep(idx)"
+                              :disabled="flowForm.steps.length === 1"
                             >
-                              {{ opt.label }} ({{ opt.id }})
-                            </option>
-                          </select>
+                              <i class="bi bi-trash"></i>
+                            </button>
+                          </div>
                         </div>
-                        <div class="col-md-6">
-                          <label class="form-label small text-danger mb-1">If NO</label>
-                          <textarea
-                            class="form-control form-control-sm"
-                            rows="2"
-                            v-model="step.noLabel"
-                            placeholder="e.g. Ask for best time or continue on WhatsApp"
-                          ></textarea>
-                          <label class="form-label small text-muted mt-1 mb-1">Next step on NO</label>
-                          <select class="form-select form-select-sm" v-model="step.noNextId">
-                            <option :value="null">Continue to next listed</option>
-                            <option
-                              v-for="opt in stepOptions(step.id)"
-                              :key="opt.id"
-                              :value="opt.id"
-                            >
-                              {{ opt.label }} ({{ opt.id }})
-                            </option>
-                          </select>
+                        <textarea
+                          class="form-control form-control-sm mt-2"
+                          rows="2"
+                          v-model="step.message"
+                          placeholder="Message or prompt for this step"
+                        ></textarea>
+                        <div class="form-check mt-2">
+                          <input
+                            class="form-check-input"
+                            type="checkbox"
+                            v-model="step.decision"
+                            :id="`decision-${step.id}`"
+                          />
+                          <label class="form-check-label" :for="`decision-${step.id}`">
+                            This step branches on Yes / No
+                          </label>
+                        </div>
+                        <div v-if="step.decision" class="mt-2">
+                          <div class="row g-2">
+                            <div class="col-md-6">
+                              <label class="form-label small text-success mb-1">If YES</label>
+                              <textarea
+                                class="form-control form-control-sm"
+                                rows="2"
+                                v-model="step.yesLabel"
+                                placeholder="e.g. Call immediately"
+                              ></textarea>
+                              <label class="form-label small text-muted mt-1 mb-1">Next step on YES</label>
+                              <select class="form-select form-select-sm" v-model="step.yesNextId">
+                                <option :value="null">Continue to next listed</option>
+                                <option
+                                  v-for="opt in stepOptions(step.id)"
+                                  :key="opt.id"
+                                  :value="opt.id"
+                                >
+                                  {{ opt.label }} ({{ opt.id }})
+                                </option>
+                              </select>
+                            </div>
+                            <div class="col-md-6">
+                              <label class="form-label small text-danger mb-1">If NO</label>
+                              <textarea
+                                class="form-control form-control-sm"
+                                rows="2"
+                                v-model="step.noLabel"
+                                placeholder="e.g. Ask for best time or continue on WhatsApp"
+                              ></textarea>
+                              <label class="form-label small text-muted mt-1 mb-1">Next step on NO</label>
+                              <select class="form-select form-select-sm" v-model="step.noNextId">
+                                <option :value="null">Continue to next listed</option>
+                                <option
+                                  v-for="opt in stepOptions(step.id)"
+                                  :key="opt.id"
+                                  :value="opt.id"
+                                >
+                                  {{ opt.label }} ({{ opt.id }})
+                                </option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                        <div v-if="step.hint" class="small text-muted mt-1">
+                          {{ step.hint }}
                         </div>
                       </div>
                     </div>
-                    <div v-if="step.hint" class="small text-muted mt-1">
-                      {{ step.hint }}
+                    <div class="form-text">
+                      Based on the flow outline with greeting and follow-ups. Add or remove steps to match your process.
                     </div>
                   </div>
                 </div>
-                <div class="form-text">
-                  Based on the uploaded flow outline (Standard Bank tab) with call / WhatsApp follow-ups. Add or remove steps to match your process.
+
+                <!-- Right Column: WhatsApp Template Preview -->
+                <div class="col-lg-5 ps-lg-3 border-start">
+                  <div v-if="flowForm.template_sid" class="mb-3">
+                    <div class="card border-success shadow-sm">
+                      <div class="card-header py-2 d-flex justify-content-between align-items-center bg-white border-bottom-0">
+                        <div class="d-flex align-items-center gap-2">
+                          <strong style="font-size: 0.9rem;">Template Preview</strong>
+                          <span class="badge bg-success bg-opacity-10 text-success border small" style="font-size: 0.72rem;">
+                            Approved
+                          </span>
+                        </div>
+                        <div>
+                          <div class="form-check form-switch d-inline-block mb-0">
+                            <input class="form-check-input" type="checkbox" id="flowSampleDataToggle" v-model="showSamplePreview">
+                            <label class="form-check-label small text-muted ms-1" for="flowSampleDataToggle" style="font-size: 0.75rem;">Sample data</label>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="card-body p-0 d-flex flex-column" style="background-color: #e5ddd5; position: relative; min-height: 380px;">
+                        <!-- WhatsApp Phone Header -->
+                        <div class="bg-white d-flex align-items-center px-3 py-2 shadow-sm position-relative" style="z-index: 2;">
+                          <i class="bi bi-arrow-left me-3 text-secondary"></i>
+                          <div class="bg-secondary bg-opacity-10 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
+                            <i class="bi bi-person-fill text-secondary fs-4"></i>
+                          </div>
+                          <div class="lh-1">
+                            <div class="fw-bold text-dark d-flex align-items-center gap-1 mb-1" style="font-size: 0.9rem;">
+                              {{ businessName }}
+                              <i class="bi bi-patch-check-fill text-success" style="font-size: 0.82rem;" title="Official business account"></i>
+                            </div>
+                            <div class="text-muted" style="font-size: 0.72rem;">+27 61 477 4098</div>
+                          </div>
+                        </div>
+
+                        <!-- WhatsApp Chat Area -->
+                        <div class="p-3 flex-grow-1 position-relative">
+                          <div style="opacity: 0.05; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cGF0aCBkPSJNMCAwaDQwMHY0MDBIMHoiIGZpbGw9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjM1IiBmaWxsPSIjMDAwIi8+PC9zdmc+'); background-size: 200px; pointer-events: none;"></div>
+
+                          <div class="bg-white rounded position-relative shadow-sm" style="max-width: 90%; border-top-left-radius: 0 !important; padding: 0.6rem; margin-left: 8px; z-index: 1;">
+                            <svg viewBox="0 0 8 13" width="8" height="13" style="position: absolute; top: 0; left: -8px; color: white;">
+                              <path opacity="1" fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"></path>
+                            </svg>
+
+                            <!-- Media Header -->
+                            <div v-if="previewMedia.length" class="mb-2">
+                              <img
+                                v-if="previewHeaderFormat === 'IMAGE'"
+                                :src="previewMedia[0]"
+                                alt="Template media"
+                                class="img-fluid rounded"
+                                style="width: 100%; max-height: 180px; object-fit: cover;"
+                              />
+                              <video
+                                v-else-if="previewHeaderFormat === 'VIDEO'"
+                                :src="previewMedia[0]"
+                                class="img-fluid rounded"
+                                style="width: 100%; max-height: 180px; object-fit: cover;"
+                                controls
+                                preload="metadata"
+                              ></video>
+                              <div
+                                v-else-if="previewHeaderFormat === 'DOCUMENT'"
+                                class="border rounded p-3 bg-light text-center"
+                              >
+                                <i class="bi bi-file-earmark-arrow-down fs-3 d-block text-secondary"></i>
+                              </div>
+                            </div>
+
+                            <!-- Header text -->
+                            <div v-if="previewHeaderText" class="fw-bold text-dark mb-1" style="font-size: 0.92rem; line-height: 1.3;">
+                              {{ previewHeaderText }}
+                            </div>
+
+                            <!-- Body text -->
+                            <div class="text-dark" style="font-size: 0.88rem; line-height: 1.4; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                              {{ previewBodyText || 'Select a template to view text content.' }}<span class="d-inline-block" style="width: 35px;"></span>
+                            </div>
+
+                            <!-- Footer and Timestamp -->
+                            <div class="d-flex justify-content-between align-items-end mt-2">
+                              <div class="text-muted" style="font-size: 0.72rem;">
+                                {{ previewFooterText || '' }}
+                              </div>
+                              <div class="text-muted text-end" style="font-size: 0.65rem; margin-top: -15px; margin-right: 4px;">
+                                09:31
+                              </div>
+                            </div>
+                          </div>
+
+                          <!-- Action / Quick Reply Buttons -->
+                          <div
+                            v-if="previewButtons.length"
+                            class="mt-2 d-flex flex-column gap-1"
+                            style="max-width: 90%; margin-left: 8px; z-index: 1; position: relative;"
+                          >
+                            <div
+                              v-for="(button, idx) in previewButtons"
+                              :key="idx"
+                              class="bg-white rounded shadow-sm text-center py-2 fw-semibold"
+                              style="color: #00a884; font-size: 0.85rem; border: 1px solid rgba(0,0,0,0.05);"
+                            >
+                              <i v-if="button.type === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
+                              <i v-if="button.type === 'URL'" class="bi bi-box-arrow-up-right me-1"></i>
+                              <i v-if="button.type === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
+                              {{ button.text || 'Button' }}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Empty State -->
+                  <div v-else class="card border border-dashed text-center p-4 bg-light rounded-3">
+                    <div class="py-5">
+                      <div class="bg-white rounded-circle d-inline-flex align-items-center justify-content-center shadow-sm mb-3" style="width: 56px; height: 56px;">
+                        <i class="bi bi-phone text-muted fs-3"></i>
+                      </div>
+                      <h6 class="fw-bold text-secondary mb-1">No Template Selected</h6>
+                      <p class="text-muted small mb-0" style="max-width: 240px; margin: 0 auto; font-size: 0.82rem;">
+                        Select an approved WhatsApp template on the left to preview the customer smartphone experience.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -545,10 +643,59 @@ export default {
         header_format: null,
         header_text: null,
         footer_text: null,
+        body_preview: '',
+        buttons: [],
+        variables: [],
       },
+      showSamplePreview: false,
     };
   },
   computed: {
+    businessName() {
+      try {
+        const raw = localStorage.getItem('nexus_system_settings');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed.system_name) return parsed.system_name;
+        }
+      } catch (e) {}
+      return 'Strauss Recovery Solutions';
+    },
+    selectedTemplate() {
+      if (!this.flowForm.template_sid) return null;
+      return this.templates.find((t) => t.sid === this.flowForm.template_sid || t.id === this.flowForm.template_sid) || null;
+    },
+    previewHeaderText() {
+      const tpl = this.selectedTemplate || this.templatePreview;
+      let text = this.templatePreview.header_text || tpl.header_text || '';
+      if (!this.showSamplePreview || !text) return text;
+      return text.replace(/{{(\d+)}}/g, (match, p1) => `Sample ${p1}`);
+    },
+    previewBodyText() {
+      const tpl = this.selectedTemplate || {};
+      let text = this.templatePreview.body_preview || tpl.body_preview || tpl.preview || '';
+      if (!this.showSamplePreview || !text) return text;
+      return text.replace(/{{(\d+)}}/g, (match, p1) => {
+        const samples = { '1': 'John Doe', '2': 'R1,250.00', '3': 'R450.00' };
+        return samples[p1] || `[Variable ${p1}]`;
+      });
+    },
+    previewButtons() {
+      return this.templatePreview.buttons?.length
+        ? this.templatePreview.buttons
+        : (this.selectedTemplate?.buttons || []);
+    },
+    previewMedia() {
+      return this.templatePreview.media?.length
+        ? this.templatePreview.media
+        : (this.selectedTemplate?.media_urls || this.selectedTemplate?.media || []);
+    },
+    previewHeaderFormat() {
+      return this.templatePreview.header_format || this.selectedTemplate?.header_format || null;
+    },
+    previewFooterText() {
+      return this.templatePreview.footer_text || this.selectedTemplate?.footer_text || null;
+    },
     filteredFlows() {
       if (!this.search.trim()) {
         return this.flows;
@@ -696,21 +843,31 @@ export default {
       }
     },
     syncTemplateMeta() {
-      const tpl = this.templates.find((t) => t.sid === this.flowForm.template_sid);
+      const tpl = this.templates.find((t) => t.sid === this.flowForm.template_sid || t.id === this.flowForm.template_sid);
       if (tpl) {
         this.flowForm.template_name = tpl.name;
         this.flowForm.template_language = tpl.language;
-        // Try to use lightweight media from the list response, then fetch full template for richer preview
         const listMedia = tpl.media_urls || tpl.media || [];
         this.templatePreview = {
-          media: listMedia,
+          media: Array.isArray(listMedia) ? listMedia : [],
           header_format: tpl.header_format || null,
           header_text: tpl.header_text || null,
           footer_text: tpl.footer_text || null,
+          body_preview: tpl.body_preview || tpl.preview || '',
+          buttons: tpl.buttons || [],
+          variables: tpl.variables || [],
         };
-        this.fetchTemplatePreview(tpl.sid);
+        this.fetchTemplatePreview(tpl.sid || tpl.id);
       } else {
-        this.templatePreview = { media: [], header_format: null, header_text: null, footer_text: null };
+        this.templatePreview = {
+          media: [],
+          header_format: null,
+          header_text: null,
+          footer_text: null,
+          body_preview: '',
+          buttons: [],
+          variables: [],
+        };
       }
     },
     async fetchTemplatePreview(templateSid) {
@@ -719,10 +876,13 @@ export default {
         const res = await axios.get(`/api/whatsapp-templates/${templateSid}`);
         const template = res.data?.template || {};
         this.templatePreview = {
-          media: template.media_urls || [],
-          header_format: template.header_format || null,
-          header_text: template.header_text || null,
-          footer_text: template.footer_text || null,
+          media: template.media_urls || template.media || this.templatePreview.media || [],
+          header_format: template.header_format || this.templatePreview.header_format,
+          header_text: template.header_text || this.templatePreview.header_text,
+          footer_text: template.footer_text || this.templatePreview.footer_text,
+          body_preview: template.preview || template.body_preview || this.templatePreview.body_preview || '',
+          buttons: template.buttons || this.templatePreview.buttons || [],
+          variables: template.variables || this.templatePreview.variables || [],
         };
       } catch (e) {
         console.error('Failed to load template preview', e);
@@ -749,7 +909,16 @@ export default {
         status: 'active',
         steps: defaultSteps(),
       };
-      this.templatePreview = { media: [], header_format: null, header_text: null, footer_text: null };
+      this.templatePreview = {
+        media: [],
+        header_format: null,
+        header_text: null,
+        footer_text: null,
+        body_preview: '',
+        buttons: [],
+        variables: [],
+      };
+      this.showSamplePreview = false;
       this.editingFlowId = null;
     },
     addStep() {
