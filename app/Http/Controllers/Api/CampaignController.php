@@ -664,9 +664,15 @@ class CampaignController extends Controller
 
         $data['bank_id'] = $this->resolveCampaignBankId($user, $data['bank_id'] ?? null);
 
-        // Default WhatsApp from based on department or system
+        // Default WhatsApp from based on bank, department or system
         if (empty($data['whatsapp_from'])) {
-            if (!empty($deptIds)) {
+            if (!empty($data['bank_id'])) {
+                $bank = \App\Models\Bank::find($data['bank_id']);
+                if ($bank?->primary_whatsapp_number) {
+                    $data['whatsapp_from'] = $bank->primary_whatsapp_number;
+                }
+            }
+            if (empty($data['whatsapp_from']) && !empty($deptIds)) {
                 $firstDept = \App\Models\Department::find($deptIds[0]);
                 $firstNumber = $firstDept?->primary_whatsapp_number ?? null;
                 if ($firstNumber) {
@@ -711,8 +717,19 @@ class CampaignController extends Controller
             unset($data['department_ids']);
         }
 
+        if (array_key_exists('bank_id', $data) || !$campaign->bank_id) {
+            $data['bank_id'] = $this->resolveCampaignBankId(Auth::user(), $data['bank_id'] ?? $campaign->bank_id);
+        }
+
         if (array_key_exists('whatsapp_from', $data) && empty($data['whatsapp_from'])) {
-            if (!empty($deptIds)) {
+            $bankId = $data['bank_id'] ?? $campaign->bank_id;
+            if (!empty($bankId)) {
+                $bank = \App\Models\Bank::find($bankId);
+                if ($bank?->primary_whatsapp_number) {
+                    $data['whatsapp_from'] = $bank->primary_whatsapp_number;
+                }
+            }
+            if (empty($data['whatsapp_from']) && !empty($deptIds)) {
                 $firstDept = \App\Models\Department::find($deptIds[0]);
                 $firstNumber = $firstDept?->primary_whatsapp_number ?? null;
                 if ($firstNumber) {
@@ -723,10 +740,6 @@ class CampaignController extends Controller
                 $settings = \App\Models\SystemSetting::first();
                 $data['whatsapp_from'] = $settings?->meta_whatsapp_display_phone_number ?: $settings?->twilio_whatsapp_from;
             }
-        }
-
-        if (array_key_exists('bank_id', $data) || !$campaign->bank_id) {
-            $data['bank_id'] = $this->resolveCampaignBankId(Auth::user(), $data['bank_id'] ?? $campaign->bank_id);
         }
 
         $campaign->update($data);

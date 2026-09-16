@@ -53,6 +53,70 @@ class CampaignBankSelectionTest extends TestCase
         ]);
     }
 
+    public function test_campaign_creation_defaults_whatsapp_from_to_selected_bank_whatsapp_number(): void
+    {
+        [$tenacity, $capfin] = $this->createBanks();
+        $capfin->update(['primary_whatsapp_number' => '+27 76 022 8742']);
+
+        $dept = \App\Models\Department::query()->create([
+            'name' => 'Banking',
+            'code' => 'banking',
+            'primary_whatsapp_number' => '+27 61 477 6401',
+        ]);
+
+        $admin = $this->createAdminAssignedToBanks($tenacity, $capfin);
+        $admin->departments()->sync([$dept->id]);
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/campaigns', [
+            'name' => 'Capfin Bank Number Campaign',
+            'bank_id' => $capfin->id,
+            'department_ids' => [$dept->id],
+            'channels' => ['WhatsApp'],
+            'status' => 'Draft',
+        ]);
+
+        $response->assertCreated();
+        $this->assertEquals('+27 76 022 8742', $response->json('whatsapp_from'));
+        $this->assertDatabaseHas('campaigns', [
+            'name' => 'Capfin Bank Number Campaign',
+            'bank_id' => $capfin->id,
+            'whatsapp_from' => '+27 76 022 8742',
+        ]);
+    }
+
+    public function test_campaign_creation_falls_back_to_department_when_bank_has_no_whatsapp_number(): void
+    {
+        [$tenacity, $capfin] = $this->createBanks();
+        // $capfin has null primary_whatsapp_number
+
+        $dept = \App\Models\Department::query()->create([
+            'name' => 'Banking',
+            'code' => 'banking',
+            'primary_whatsapp_number' => '+27 61 477 6401',
+        ]);
+
+        $admin = $this->createAdminAssignedToBanks($tenacity, $capfin);
+        $admin->departments()->sync([$dept->id]);
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/campaigns', [
+            'name' => 'Dept Fallback Campaign',
+            'bank_id' => $capfin->id,
+            'department_ids' => [$dept->id],
+            'channels' => ['WhatsApp'],
+            'status' => 'Draft',
+        ]);
+
+        $response->assertCreated();
+        $this->assertEquals('+27 61 477 6401', $response->json('whatsapp_from'));
+        $this->assertDatabaseHas('campaigns', [
+            'name' => 'Dept Fallback Campaign',
+            'bank_id' => $capfin->id,
+            'whatsapp_from' => '+27 61 477 6401',
+        ]);
+    }
+
     public function test_multi_bank_user_must_select_campaign_bank(): void
     {
         [$tenacity, $capfin] = $this->createBanks();

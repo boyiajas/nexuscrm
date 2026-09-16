@@ -214,7 +214,7 @@
 
                 <div class="col-md-6">
                   <label class="form-label">Bank</label>
-                  <select v-model="form.bank_id" class="form-select" :disabled="!canChooseBank">
+                  <select v-model="form.bank_id" class="form-select" :disabled="!canChooseBank" @change="onBankChange">
                     <option value="">Select bank</option>
                     <option v-for="bank in banks" :key="bank.id" :value="bank.id">
                       {{ bank.name }}
@@ -279,14 +279,14 @@
                   <select v-model="form.whatsapp_from" class="form-select">
                     <option value="">Default</option>
                     <option
-                      v-for="num in availableWhatsappNumbers"
-                      :key="num"
-                      :value="num"
+                      v-for="opt in availableWhatsappOptions"
+                      :key="opt.number"
+                      :value="opt.number"
                     >
-                      {{ num }}
+                      {{ opt.label }}
                     </option>
                   </select>
-                  <small class="text-muted">Defaults to department or system WhatsApp number if not selected.</small>
+                  <small class="text-muted">Defaults to bank, department or system WhatsApp number if not selected.</small>
                 </div>
 
                 <div class="col-md-6">
@@ -447,6 +447,58 @@ export default {
         this.refreshWhatsappNumbers();
         },
     },
+
+    availableWhatsappOptions() {
+      const selectedBank = (this.banks || []).find((b) => Number(b.id) === Number(this.form.bank_id));
+      const options = [];
+      const added = new Set();
+
+      // 1. Bank primary number
+      if (selectedBank && selectedBank.primary_whatsapp_number) {
+        options.push({
+          number: selectedBank.primary_whatsapp_number,
+          label: `${selectedBank.primary_whatsapp_number} (Bank: ${selectedBank.name})`,
+        });
+        added.add(selectedBank.primary_whatsapp_number);
+      }
+
+      // 2. Bank secondary numbers
+      if (selectedBank && Array.isArray(selectedBank.secondary_whatsapp_numbers)) {
+        selectedBank.secondary_whatsapp_numbers.forEach((num) => {
+          if (num && !added.has(num)) {
+            options.push({
+              number: num,
+              label: `${num} (Bank Secondary)`,
+            });
+            added.add(num);
+          }
+        });
+      }
+
+      // 3. Department primary numbers
+      const selectedIds = this.form.department_ids || [];
+      (this.departments || []).forEach((d) => {
+        if (selectedIds.length === 0 || selectedIds.includes(d.id)) {
+          if (d.primary_whatsapp_number && !added.has(d.primary_whatsapp_number)) {
+            options.push({
+              number: d.primary_whatsapp_number,
+              label: `${d.primary_whatsapp_number} (Dept: ${d.name})`,
+            });
+            added.add(d.primary_whatsapp_number);
+          }
+        }
+      });
+
+      // 4. Currently selected number if not in the list (e.g. edit mode with custom/legacy number)
+      if (this.form.whatsapp_from && !added.has(this.form.whatsapp_from)) {
+        options.push({
+          number: this.form.whatsapp_from,
+          label: this.form.whatsapp_from,
+        });
+      }
+
+      return options;
+    },
   },
   mounted() {
     this.modal = createManagedModal(this.$refs.modalRef);
@@ -495,16 +547,24 @@ export default {
         : [storedUser?.role].filter(Boolean);
       const availableBankIds = this.availableBankIds(storedUser);
       const canChooseBank = roleCodes.includes('SUPER_ADMIN') || availableBankIds.length > 1;
+      const initialBankId = canChooseBank ? '' : (availableBankIds[0] || storedUser?.bank_id || '');
+      let initialWhatsappFrom = '';
+      if (initialBankId) {
+        const selectedBank = (this.banks || []).find((b) => Number(b.id) === Number(initialBankId));
+        if (selectedBank && selectedBank.primary_whatsapp_number) {
+          initialWhatsappFrom = selectedBank.primary_whatsapp_number;
+        }
+      }
 
       return {
         id: null,
         name: '',
-        bank_id: canChooseBank ? '' : (availableBankIds[0] || storedUser?.bank_id || ''),
+        bank_id: initialBankId,
         department_ids: [], 
         status: 'Draft',
         scheduled_at: '',
         channels: [],
-        whatsapp_from: '',
+        whatsapp_from: initialWhatsappFrom,
         whatsapp_template: '',
         track_whatsapp_responses: false,
         enable_live_chat: false,
@@ -597,6 +657,17 @@ export default {
 
       return [...new Set(ids.map((id) => Number(id)).filter(Boolean))];
     },
+    onBankChange() {
+      const selectedBank = (this.banks || []).find((b) => Number(b.id) === Number(this.form.bank_id));
+      if (!this.isEdit) {
+        if (selectedBank && selectedBank.primary_whatsapp_number) {
+          this.form.whatsapp_from = selectedBank.primary_whatsapp_number;
+        } else {
+          this.form.whatsapp_from = '';
+        }
+      }
+      this.refreshWhatsappNumbers();
+    },
     ensureFormBankSelection() {
       if (!this.form || this.isEdit || this.canChooseBank) return;
 
@@ -604,6 +675,13 @@ export default {
       if (bankId && !this.form.bank_id) {
         this.form.bank_id = bankId;
       }
+      if (this.form.bank_id && !this.form.whatsapp_from) {
+        const selectedBank = (this.banks || []).find((b) => Number(b.id) === Number(this.form.bank_id));
+        if (selectedBank && selectedBank.primary_whatsapp_number) {
+          this.form.whatsapp_from = selectedBank.primary_whatsapp_number;
+        }
+      }
+      this.refreshWhatsappNumbers();
     },
     fetchDepartments() {
       axios.get('/api/departments', { params: { per_page: 200 } }).then((res) => {
@@ -612,24 +690,65 @@ export default {
       });
     },
     refreshWhatsappNumbers() {
-      const selectedIds = this.form.department_ids || [];
+      const selectedBank = (this.banks || []).find((b) => Number(b.id) === Number(this.form.bank_id));
       const nums = [];
-      this.departments.forEach((d) => {
+
+      // 1. Bank primary WhatsApp number (highest priority)
+      if (selectedBank && selectedBank.primary_whatsapp_number) {
+        nums.push(selectedBank.primary_whatsapp_number);
+      }
+
+      // 2. Bank secondary WhatsApp numbers (if any)
+      if (selectedBank && Array.isArray(selectedBank.secondary_whatsapp_numbers)) {
+        selectedBank.secondary_whatsapp_numbers.forEach((num) => {
+          if (num && !nums.includes(num)) {
+            nums.push(num);
+          }
+        });
+      }
+
+      // 3. Departments' primary WhatsApp numbers
+      const selectedIds = this.form.department_ids || [];
+      (this.departments || []).forEach((d) => {
         if (selectedIds.length === 0 || selectedIds.includes(d.id)) {
           if (d.primary_whatsapp_number && !nums.includes(d.primary_whatsapp_number)) {
             nums.push(d.primary_whatsapp_number);
           }
         }
       });
+
+      // Preserve existing value if editing
+      if (this.isEdit && this.form.whatsapp_from && !nums.includes(this.form.whatsapp_from)) {
+        nums.push(this.form.whatsapp_from);
+      }
+
       this.availableWhatsappNumbers = nums;
-      // clear selection if not available
+
+      // When creating a new campaign, auto-set to the bank's WhatsApp number if available
+      if (!this.isEdit) {
+        if (selectedBank && selectedBank.primary_whatsapp_number) {
+          this.form.whatsapp_from = selectedBank.primary_whatsapp_number;
+        } else if (!this.form.whatsapp_from && nums.length > 0) {
+          this.form.whatsapp_from = nums[0];
+        }
+      }
+
+      // If current selection is invalid, reset to bank number or empty
       if (this.form.whatsapp_from && !nums.includes(this.form.whatsapp_from)) {
-        this.form.whatsapp_from = '';
+        this.form.whatsapp_from = (selectedBank && selectedBank.primary_whatsapp_number)
+          ? selectedBank.primary_whatsapp_number
+          : '';
       }
     },
     openCreateModal() {
       this.isEdit = false;
       this.form = this.emptyForm();
+      if (this.form.bank_id) {
+        const selectedBank = (this.banks || []).find((b) => Number(b.id) === Number(this.form.bank_id));
+        if (selectedBank && selectedBank.primary_whatsapp_number) {
+          this.form.whatsapp_from = selectedBank.primary_whatsapp_number;
+        }
+      }
       this.refreshWhatsappNumbers();
       this.formErrors = [];
       this.modal.show();
