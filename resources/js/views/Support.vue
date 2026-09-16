@@ -666,9 +666,9 @@ export default {
           releaseDate: 'September 2026',
           highlight: true,
           description:
-            'When a customer replies to any dispatched WhatsApp template or flow, the system automatically auto-responds with the initial flow greeting (e.g. requesting debtor ID or verification). Subsequent replies advance through decision branches or linear steps. Opt-out responses (such as STOP) are strictly excluded from automated greetings to maintain compliance, and all bot greetings are synced into Live Chat in real time.',
+            'When a campaign message is dispatched from the Flow tab on the Add WhatsApp Template modal, the system automatically auto-responds to customer replies with the flow\'s initial Greeting step (e.g. requesting debtor ID or verification). Subsequent replies advance through decision branches or linear steps. Messages sent via the standard Template tab do not trigger flow auto-replies, and opt-out responses (such as STOP) are strictly excluded to ensure compliance.',
           howToUse:
-            'Navigate to WhatsApp Flows to create or edit an active flow linking an approved template with your Greeting message. Dispatched campaign replies automatically receive the greeting, advancing flow steps and logging all messages for agents in Live Chat.',
+            'In Campaign Details, click "Add WhatsApp Template" and switch to the "Flow" tab to select a saved flow. When recipients reply to the dispatched flow message, the Greeting step is automatically delivered and logged in Live Chat for agent review.',
           actionText: 'Manage WhatsApp Flows',
           route: 'whatsapp-flows',
         },

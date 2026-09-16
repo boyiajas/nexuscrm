@@ -209,29 +209,11 @@ class WhatsAppWebhookController extends Controller
             if ($recipient && !$isOptOut && $recipient->last_response) {
                 $flowDef = [];
 
-                // 1. Check if campaign message was dispatched as flow mode
+                // 1. Strictly trigger automated flow messages only if the message was sent from the Flow tab (mode === 'flow')
                 if ($messageBatch && $messageBatch->mode === 'flow') {
                     $flowDef = $messageBatch->flow_definition ?? [];
                     if (empty($flowDef) && $messageBatch->whatsapp_flow_id) {
                         $flowDef = \App\Models\WhatsAppFlow::find($messageBatch->whatsapp_flow_id)?->flow_definition ?? [];
-                    }
-                }
-
-                // 2. If not flow mode or flow definition was empty, check if an active WhatsAppFlow exists for this template
-                if (empty($flowDef) && $messageBatch) {
-                    $activeFlow = \App\Models\WhatsAppFlow::where('status', 'active')
-                        ->where(function ($query) use ($messageBatch) {
-                            if ($messageBatch->template_sid) {
-                                $query->where('template_sid', $messageBatch->template_sid);
-                            }
-                            if ($messageBatch->template_name) {
-                                $query->orWhere('template_name', $messageBatch->template_name);
-                            }
-                        })
-                        ->first();
-
-                    if ($activeFlow && !empty($activeFlow->flow_definition)) {
-                        $flowDef = $activeFlow->flow_definition;
                     }
                 }
 

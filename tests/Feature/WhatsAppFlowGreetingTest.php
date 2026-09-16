@@ -368,19 +368,12 @@ class WhatsAppFlowGreetingTest extends TestCase
         $this->assertNull($recipient->current_flow_step_id);
     }
 
-    public function test_template_mode_campaign_triggers_active_flow_greeting(): void
+    public function test_template_mode_campaign_does_not_trigger_flow_greeting_only_flow_tab_does(): void
     {
         $mockMeta = Mockery::mock(MetaWhatsAppService::class);
         $mockMeta->shouldReceive('appSecret')->andReturn(null);
-        // Expect greeting to be sent because an active WhatsAppFlow exists for this template!
-        $mockMeta->shouldReceive('sendTextMessage')
-            ->once()
-            ->with(
-                '27821112233',
-                'Hello from the active template flow greeting!',
-                Mockery::any()
-            )
-            ->andReturn(['messages' => [['id' => 'wamid.HBg...']]]);
+        // Automated flow greeting should NOT be sent when message was sent from template tab (mode = 'template')!
+        $mockMeta->shouldNotReceive('sendTextMessage');
 
         $this->app->instance(MetaWhatsAppService::class, $mockMeta);
         $this->app->instance(WhatsAppServiceInterface::class, $mockMeta);
@@ -421,7 +414,7 @@ class WhatsAppFlowGreetingTest extends TestCase
         $batch = CampaignWhatsappMessage::query()->create([
             'campaign_id' => $campaign->id,
             'created_by_user_id' => $this->user->id,
-            'mode' => 'template', // mode is template!
+            'mode' => 'template', // mode is template (sent from Template tab)!
             'template_sid' => 'standard_template_1',
             'track_responses' => true,
             'enable_live_chat' => true,
@@ -471,6 +464,6 @@ class WhatsAppFlowGreetingTest extends TestCase
         $response->assertOk();
 
         $recipient->refresh();
-        $this->assertEquals('greeting_tpl', $recipient->current_flow_step_id);
+        $this->assertNull($recipient->current_flow_step_id);
     }
 }
