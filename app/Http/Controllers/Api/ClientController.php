@@ -1204,8 +1204,11 @@ class ClientController extends Controller
             abort(422, 'Your user account is not assigned to a bank.');
         }
 
-        if ($requestedBankId && in_array((int) $requestedBankId, $ids, true)) {
-            return (int) $requestedBankId;
+        if ($requestedBankId) {
+            if ($user->canAccessBankId((int) $requestedBankId)) {
+                return (int) $requestedBankId;
+            }
+            abort(403, 'You are not assigned to the selected bank.');
         }
 
         return $ids[0];

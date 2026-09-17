@@ -47,6 +47,15 @@ class AuditTrailMiddleware
                     $input[$key] = '******';
                 }
             }
+            array_walk_recursive($input, function (&$val) {
+                if ($val instanceof \Symfony\Component\HttpFoundation\File\UploadedFile) {
+                    $val = [
+                        'filename' => $val->getClientOriginalName(),
+                        'size' => $val->getSize(),
+                        'mime' => $val->getClientMimeType(),
+                    ];
+                }
+            });
 
             $status = $response->getStatusCode();
 

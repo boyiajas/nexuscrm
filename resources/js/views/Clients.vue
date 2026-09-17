@@ -285,7 +285,7 @@
 
           <div class="modal-body">
             <div class="alert alert-info py-2">
-              Upload a CSV or Excel `.xlsx` file. The selected departments below will be attached to every imported client.
+              Upload a CSV or Excel `.xlsx` file. The selected bank and departments below will be attached to every imported client.
             </div>
 
             <div class="row g-3">
@@ -301,7 +301,7 @@
                 <small class="text-muted">Supported formats: `.csv` and `.xlsx`.</small>
               </div>
 
-              <div class="col-md-6" v-if="canChooseBank">
+              <div class="col-md-6">
                 <label class="form-label">Bank <span class="text-danger">*</span></label>
                 <select v-model="importForm.bank_id" class="form-select">
                   <option value="">Select bank</option>
@@ -309,6 +309,7 @@
                     {{ bank.name }}
                   </option>
                 </select>
+                <small class="text-muted">Select the bank or institution for all imported clients.</small>
               </div>
 
               <div class="col-12">
@@ -943,7 +944,7 @@ export default {
       const roles = Array.isArray(this.currentUser?.role_codes) && this.currentUser.role_codes.length
         ? this.currentUser.role_codes
         : [this.currentUser?.role].filter(Boolean);
-      return roles.includes('SUPER_ADMIN');
+      return roles.includes('SUPER_ADMIN') || (Array.isArray(this.banks) && this.banks.length > 1);
     },
     canChooseAssignee() {
       return this.hasPermission('edit_clients');
@@ -1597,9 +1598,14 @@ export default {
     // Import / Export
     openImportModal() {
       if (!this.canManage) return;
+      if (!this.banks || !this.banks.length) {
+        this.fetchBanks();
+      }
+      const defaultBankId = this.filters.bank_id 
+        || (this.banks.length === 1 ? this.banks[0].id : (this.currentUser?.bank_id || ''));
       this.importForm = {
         file: null,
-        bank_id: this.canChooseBank ? (this.filters.bank_id || '') : (this.currentUser?.bank_id || ''),
+        bank_id: defaultBankId,
         department_ids: [],
         uploading: false,
       };
@@ -1626,7 +1632,7 @@ export default {
         return;
       }
 
-      if (this.canChooseBank && !this.importForm.bank_id) {
+      if (!this.importForm.bank_id) {
         notify.warning('Please select a bank for this import.', 'Clients');
         return;
       }
