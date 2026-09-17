@@ -45,14 +45,339 @@ trait HasImportHelpers
 
     protected function normalizeImportHeader($header): array
     {
-        return collect($header ?? [])
+        $header = is_array($header) ? $header : [];
+        while (!empty($header) && trim((string) end($header)) === '') {
+            array_pop($header);
+        }
+
+        return collect($header)
             ->map(fn ($column) => $this->normalizeImportColumnName($column))
             ->all();
     }
 
     protected function isValidImportHeader(array $header): bool
     {
-        return in_array('name', $header, true);
+        $normalized = $this->normalizeImportHeader($header);
+
+        return empty($this->missingRequiredImportColumns($normalized));
+    }
+
+    protected function hasRequiredNameColumn(array $normalizedHeader): bool
+    {
+        $nameKeys = [
+            'name',
+            'first_name',
+            'firstname',
+            'full_name',
+            'fullname',
+            'client_name',
+            'clientname',
+            'customer_name',
+            'debtor_name',
+            'debtor',
+            'account_name',
+            'known_as',
+            'surname',
+            'last_name',
+            'lastname',
+        ];
+
+        foreach ($nameKeys as $key) {
+            if (in_array($key, $normalizedHeader, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function acceptedRequiredNameHeaders(): array
+    {
+        return [
+            'Name',
+            'First Name',
+            'Full Name',
+            'Client Name',
+            'Debtor Name',
+            'Debtor',
+            'Customer Name',
+            'Surname',
+            'Last Name',
+            'Known As',
+        ];
+    }
+
+    protected function requiredImportColumns(): array
+    {
+        return ['name'];
+    }
+
+    protected function supportedImportColumns(): array
+    {
+        return [
+            'acc_code',
+            'account_number',
+            'account_type',
+            'arrears_amount',
+            'bank_name',
+            'branch_code',
+            'cell',
+            'cell_phone',
+            'department',
+            'department_ids',
+            'easy_pay_number',
+            'email',
+            'email_personal',
+            'email_work',
+            'first_name',
+            'home',
+            'home_phone',
+            'id_number',
+            'initials',
+            'installment_amount',
+            'known_as',
+            'last_payment_amount',
+            'name',
+            'old_account_number',
+            'outstanding_balance',
+            'patient_email_personal',
+            'patient_email_work',
+            'phone',
+            'settlement_amount',
+            'store_number',
+            'surname',
+            'tags',
+            'three_months_amount',
+            'title',
+            'total_payment_amount',
+            'type',
+            'whatsapp_contact_basis',
+            'whatsapp_contact_basis_details',
+            'whatsapp_opt_in_source',
+            'whatsapp_opted_in_at',
+            'work',
+            'work_phone',
+        ];
+    }
+
+    protected function importColumnAliases(): array
+    {
+        return [
+            // Name aliases
+            'full_name' => 'name',
+            'fullname' => 'name',
+            'client_name' => 'name',
+            'clientname' => 'name',
+            'customer_name' => 'name',
+            'debtor_name' => 'name',
+            'debtor' => 'name',
+            'account_name' => 'name',
+            'contact_name' => 'name',
+            'firstname' => 'first_name',
+            'first_name' => 'first_name',
+            'first_names' => 'first_name',
+            'lastname' => 'surname',
+            'last_name' => 'surname',
+            'known_as' => 'name',
+
+            // ID Number aliases
+            'idno' => 'id_number',
+            'id_no' => 'id_number',
+            'id_num' => 'id_number',
+            'idnumber' => 'id_number',
+            'identity_number' => 'id_number',
+            'sa_id' => 'id_number',
+            'sa_id_number' => 'id_number',
+
+            // Account aliases
+            'account_number' => 'account_number',
+            'account_no' => 'account_number',
+            'accountno' => 'account_number',
+            'acc_no' => 'account_number',
+            'acc_code' => 'acc_code',
+            'account_num' => 'account_number',
+            'acc_num' => 'account_number',
+            'acct_no' => 'account_number',
+            'acct_number' => 'account_number',
+            'old_account_number' => 'old_account_number',
+
+            // Phone aliases
+            'phone_number' => 'phone',
+            'phonenumber' => 'phone',
+            'contact_number' => 'phone',
+            'cell_no' => 'cell_phone',
+            'cellphone' => 'cell_phone',
+            'cell_phone' => 'cell_phone',
+            'cell_number' => 'cell_phone',
+            'cellnumber' => 'cell_phone',
+            'mobile' => 'cell_phone',
+            'mobile_number' => 'cell_phone',
+            'mobile_no' => 'cell_phone',
+            'mobile_phone' => 'cell_phone',
+            'patient_cell' => 'cell_phone',
+            'patient_home' => 'home_phone',
+            'home_no' => 'home_phone',
+            'home_phone' => 'home_phone',
+            'home_number' => 'home_phone',
+            'patient_work' => 'work_phone',
+            'work_no' => 'work_phone',
+            'work_phone' => 'work_phone',
+            'work_number' => 'work_phone',
+
+            // Email aliases
+            'email_address' => 'email',
+            'emailaddress' => 'email',
+            'emailpersonal' => 'email_personal',
+            'email_personal' => 'email_personal',
+            'patient_email_personal' => 'email_personal',
+            'patient_email_work' => 'email_work',
+            'email_work' => 'email_work',
+
+            // EasyPay and Store
+            'easy_pay' => 'easy_pay_number',
+            'easypay' => 'easy_pay_number',
+            'easypay_number' => 'easy_pay_number',
+            'easy_pay_no' => 'easy_pay_number',
+            'store_number' => 'store_number',
+            'storenumber' => 'store_number',
+            'store_no' => 'store_number',
+            'store_code' => 'store_number',
+            'branch_code' => 'branch_code',
+            'branchcode' => 'branch_code',
+            'branch_no' => 'branch_code',
+
+            // Financial amounts
+            'outstandingbalance' => 'outstanding_balance',
+            'outstanding_balance' => 'outstanding_balance',
+            'balance' => 'outstanding_balance',
+            'current_balance' => 'outstanding_balance',
+            'currentbalance' => 'outstanding_balance',
+            'cur_bal' => 'outstanding_balance',
+            'current_liability' => 'outstanding_balance',
+            'liability' => 'outstanding_balance',
+            'total_due' => 'outstanding_balance',
+            'installmentamount' => 'installment_amount',
+            'installment_amount' => 'installment_amount',
+            'instalment' => 'installment_amount',
+            'instalment_amount' => 'installment_amount',
+            'arrearsamount' => 'arrears_amount',
+            'arrears_amount' => 'arrears_amount',
+            'arrears' => 'arrears_amount',
+            'arrear_amount' => 'arrears_amount',
+            'lastpaymentamount' => 'last_payment_amount',
+            'last_payment_amount' => 'last_payment_amount',
+            'totalpaymentamount' => 'total_payment_amount',
+            'total_payment_amount' => 'total_payment_amount',
+            'settlement' => 'settlement_amount',
+            'settlementamount' => 'settlement_amount',
+            'settlement_amount' => 'settlement_amount',
+            '3_months' => 'three_months_amount',
+            '3_month' => 'three_months_amount',
+            '3months' => 'three_months_amount',
+            '3month' => 'three_months_amount',
+            'three_months' => 'three_months_amount',
+        ];
+    }
+
+    protected function missingRequiredImportColumns(array $normalizedHeader): array
+    {
+        if ($this->hasRequiredNameColumn($normalizedHeader)) {
+            return [];
+        }
+
+        return ['name'];
+    }
+
+    protected function importFieldLabel(string $field): string
+    {
+        $labels = [
+            'name' => 'Client Name',
+            'first_name' => 'First Name',
+            'surname' => 'Surname',
+            'title' => 'Title',
+            'initials' => 'Initials',
+            'id_number' => 'ID Number',
+            'phone' => 'Phone',
+            'cell' => 'Cell Phone',
+            'cell_phone' => 'Cell Phone',
+            'home' => 'Home Phone',
+            'home_phone' => 'Home Phone',
+            'work' => 'Work Phone',
+            'work_phone' => 'Work Phone',
+            'email' => 'Email',
+            'email_personal' => 'Personal Email',
+            'email_work' => 'Work Email',
+            'bank_name' => 'Bank Name',
+            'account_number' => 'Account Number',
+            'acc_code' => 'Account Code',
+            'old_account_number' => 'Old Account Number',
+            'account_type' => 'Account Type',
+            'type' => 'Type / Book',
+            'branch_code' => 'Branch Code',
+            'easy_pay_number' => 'EasyPay Number',
+            'store_number' => 'Store Number',
+            'outstanding_balance' => 'Outstanding Balance',
+            'arrears_amount' => 'Arrears Amount',
+            'installment_amount' => 'Installment Amount',
+            'settlement_amount' => 'Settlement Amount',
+            'three_months_amount' => '3-Month Settlement',
+            'last_payment_amount' => 'Last Payment Amount',
+            'total_payment_amount' => 'Total Payment Amount',
+            'department' => 'Department',
+            'department_ids' => 'Department IDs',
+            'tags' => 'Tags',
+            'whatsapp_contact_basis' => 'WhatsApp Basis',
+            'whatsapp_contact_basis_details' => 'WhatsApp Basis Details',
+            'whatsapp_opt_in_source' => 'WhatsApp Opt-In Source',
+            'whatsapp_opted_in_at' => 'WhatsApp Opt-In Date',
+        ];
+
+        return $labels[$field] ?? Str::title(str_replace('_', ' ', $field));
+    }
+
+    protected function buildImportHeaderDiagnostics($rawHeader): array
+    {
+        $rawColumns = collect($rawHeader ?? [])
+            ->map(fn ($column) => preg_replace('/^\xEF\xBB\xBF/', '', trim((string) $column)))
+            ->filter(fn ($column) => $column !== '')
+            ->values()
+            ->all();
+
+        $normalizedHeader = $this->normalizeImportHeader($rawHeader ?? []);
+        $supported = $this->supportedImportColumns();
+
+        $recognizedColumns = [];
+        $unrecognizedColumns = [];
+        foreach ($rawColumns as $index => $rawCol) {
+            $normCol = $normalizedHeader[$index] ?? '';
+            if ($normCol !== '' && in_array($normCol, $supported, true)) {
+                $recognizedColumns[] = [
+                    'raw' => $rawCol,
+                    'normalized' => $normCol,
+                    'label' => $this->importFieldLabel($normCol),
+                ];
+            } else {
+                $unrecognizedColumns[] = $rawCol;
+            }
+        }
+
+        $missingRequired = $this->missingRequiredImportColumns($normalizedHeader);
+        $isValid = empty($missingRequired);
+
+        return [
+            'is_valid' => $isValid,
+            'has_required_name' => $this->hasRequiredNameColumn($normalizedHeader),
+            'required_headers' => $this->requiredImportColumns(),
+            'accepted_required_headers' => $this->acceptedRequiredNameHeaders(),
+            'missing_required_headers' => $missingRequired,
+            'detected_headers' => $rawColumns,
+            'normalized_detected_headers' => array_values(array_unique(array_filter($normalizedHeader))),
+            'recognized_columns' => $recognizedColumns,
+            'unsupported_headers' => array_values(array_unique($unrecognizedColumns)),
+            'supported_headers' => $supported,
+            'total_detected' => count($rawColumns),
+            'total_recognized' => count($recognizedColumns),
+        ];
     }
 
     protected function resolveImportDepartmentIds($user, array $departmentIds): array
@@ -98,6 +423,11 @@ trait HasImportHelpers
         $handle = fopen($path, 'r');
         if (!$handle) {
             abort(422, 'Import failed: unable to read the uploaded CSV file.');
+        }
+
+        $bom = fread($handle, 3);
+        if ($bom !== "\xEF\xBB\xBF") {
+            rewind($handle);
         }
 
         $rows = [];
@@ -299,36 +629,7 @@ trait HasImportHelpers
         $normalized = preg_replace('/[^a-z0-9]+/', '_', $normalized) ?? '';
         $normalized = trim($normalized, '_');
 
-        $aliases = [
-            'emailpersonal' => 'email_personal',
-            'easy_pay' => 'easy_pay_number',
-            'easypay' => 'easy_pay_number',
-            'store_number' => 'store_number',
-            'storenumber' => 'store_number',
-            'idno' => 'id_number',
-            'known_as' => 'name',
-            'patient_cell' => 'cell_phone',
-            'patient_home' => 'home_phone',
-            'patient_work' => 'work_phone',
-            'patient_email_personal' => 'email_personal',
-            'patient_email_work' => 'email_work',
-            'cell_no' => 'cell',
-            'home_no' => 'home',
-            'work_no' => 'work',
-            'outstandingbalance' => 'outstanding_balance',
-            'installmentamount' => 'installment_amount',
-            'arrearsamount' => 'arrears_amount',
-            'lastpaymentamount' => 'last_payment_amount',
-            'totalpaymentamount' => 'total_payment_amount',
-            'settlement' => 'settlement_amount',
-            'settlementamount' => 'settlement_amount',
-            'settlement_amount' => 'settlement_amount',
-            '3_months' => 'three_months_amount',
-            '3_month' => 'three_months_amount',
-            '3months' => 'three_months_amount',
-            '3month' => 'three_months_amount',
-            'three_months' => 'three_months_amount',
-        ];
+        $aliases = $this->importColumnAliases();
 
         return $aliases[$normalized] ?? $normalized;
     }

@@ -5,9 +5,14 @@
         <h2 class="h4 mb-0"><i class="bi bi-shield-check me-2"></i>Import Uploads</h2>
         <small class="text-muted">Track debtor import uploads, malware scan results, and import outcomes.</small>
       </div>
-      <button class="btn btn-outline-secondary btn-sm" @click="fetchUploads">
-        <i class="bi bi-arrow-repeat me-1"></i> Refresh
-      </button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-outline-primary btn-sm" @click="openColumnsReference">
+          <i class="bi bi-list-check me-1"></i> Column Requirements
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" @click="fetchUploads">
+          <i class="bi bi-arrow-repeat me-1"></i> Refresh
+        </button>
+      </div>
     </div>
 
     <div class="card shadow-sm mb-3">
@@ -88,6 +93,17 @@
               <td>
                 <span class="badge" :class="importBadge(upload.import_status)">{{ upload.import_status }}</span>
                 <div class="small text-muted mt-1" v-if="upload.error_message">{{ upload.error_message }}</div>
+                <div class="mt-1" v-if="upload.import_status === 'import_failed' || upload.import_summary?.header_diagnostics">
+                  <button
+                    type="button"
+                    class="btn btn-outline-danger btn-sm py-0 px-2 mt-1 d-inline-flex align-items-center"
+                    style="font-size: 0.75rem;"
+                    @click="openDiagnosticsModal(upload)"
+                    title="View missing required headers and column diagnostics"
+                  >
+                    <i class="bi bi-info-circle me-1"></i> More Info / Missing Columns
+                  </button>
+                </div>
               </td>
               <td class="small">
                 <template v-if="['uploaded', 'scanning', 'scan_passed', 'importing', 'deleting'].includes(upload.import_status)">
@@ -151,17 +167,21 @@
         </div>
       </div>
     </div>
+
+    <ImportHeaderDiagnosticsModal ref="diagnosticsModal" />
   </div>
 </template>
 
 <script>
 import axios from '../axios';
 import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
+import ImportHeaderDiagnosticsModal from '../components/ImportHeaderDiagnosticsModal.vue';
 
 export default {
   name: 'ImportUploadsView',
   components: {
     TableLoadingWrapper,
+    ImportHeaderDiagnosticsModal,
   },
   data() {
     return {
@@ -309,6 +329,18 @@ export default {
         deleting: 'bg-warning text-dark',
         deleted: 'bg-secondary',
       }[status] || 'bg-secondary';
+    },
+    openDiagnosticsModal(upload) {
+      this.$refs.diagnosticsModal?.open({
+        upload,
+        diagnostics: upload.import_summary?.header_diagnostics || null,
+        mode: 'diagnostics',
+      });
+    },
+    openColumnsReference() {
+      this.$refs.diagnosticsModal?.open({
+        mode: 'supported',
+      });
     },
   },
 };

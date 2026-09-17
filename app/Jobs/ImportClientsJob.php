@@ -72,9 +72,21 @@ class ImportClientsJob implements ShouldQueue
             $rows = $this->readImportRows($this->path, $this->originalName);
             $header = array_shift($rows);
             $normalizedHeader = $this->normalizeImportHeader($header);
+            $diagnostics = $this->buildImportHeaderDiagnostics($header);
 
             if (empty($normalizedHeader) || !$this->isValidImportHeader($normalizedHeader)) {
-                throw new \Exception('Import failed: the file header is invalid. Expected at least a name column and only supported client fields.');
+                $missingStr = !empty($diagnostics['missing_required_headers']) 
+                    ? implode(', ', $diagnostics['missing_required_headers']) 
+                    : 'name';
+                $errorMessage = "Import failed: the file header is missing a required client identification column (e.g. 'Name', 'First Name', or 'Full Name'). Missing: {$missingStr}.";
+
+                $importUpload->forceFill([
+                    'import_status' => 'import_failed',
+                    'import_summary' => ['header_diagnostics' => $diagnostics],
+                    'error_message' => $errorMessage,
+                ])->save();
+
+                throw new \Exception($errorMessage);
             }
 
             $totalRows = count($rows);
@@ -112,26 +124,50 @@ class ImportClientsJob implements ShouldQueue
                             'total_rows' => $totalRows,
                             'processed_rows' => $rowNumber - 1,
                             'imported' => $importCount,
+                            'header_diagnostics' => $diagnostics,
                         ]
                     ]);
                 }
 
-                if (count($row) !== count($normalizedHeader)) {
-                    $errors[] = "Row {$rowNumber} has an incorrect number of columns.";
-                    $skippedCount++;
-                    continue;
+                // Gracefully adjust trailing empty columns from Excel/CSV exports
+                if (count($row) < count($normalizedHeader)) {
+                    $row = array_pad($row, count($normalizedHeader), '');
+                } elseif (count($row) > count($normalizedHeader)) {
+                    $row = array_slice($row, 0, count($normalizedHeader));
                 }
 
                 $data = array_combine($normalizedHeader, $row);
 
-                $firstName = $this->cleanImportString($data['name'] ?? null);
-                $surname = $this->cleanImportString($data['surname'] ?? null);
+                $firstName = $this->firstNonEmptyImportValue([
+                    $data['first_name'] ?? null,
+                    $data['firstname'] ?? null,
+                    $data['name'] ?? null,
+                    $data['full_name'] ?? null,
+                    $data['fullname'] ?? null,
+                    $data['client_name'] ?? null,
+                    $data['customer_name'] ?? null,
+                    $data['debtor_name'] ?? null,
+                    $data['debtor'] ?? null,
+                    $data['known_as'] ?? null,
+                ]);
+                $surname = $this->firstNonEmptyImportValue([
+                    $data['surname'] ?? null,
+                    $data['last_name'] ?? null,
+                    $data['lastname'] ?? null,
+                ]);
                 $fullName = trim(implode(' ', array_filter([$firstName, $surname])));
                 if ($fullName === '') {
-                    $fullName = $firstName;
+                    $fullName = $this->firstNonEmptyImportValue([
+                        $firstName,
+                        $surname,
+                        $this->cleanImportString($data['known_as'] ?? null),
+                        $this->firstNonEmptyImportValue([$data['title'] ?? null, $data['initials'] ?? null]) ? trim(($data['title'] ?? '') . ' ' . ($data['initials'] ?? '') . ' ' . ($surname ?? '')) : null,
+                        !empty($data['account_number']) ? 'Account ' . $data['account_number'] : null,
+                        !empty($data['id_number']) ? 'Client ' . $data['id_number'] : null,
+                    ]);
                 }
 
-                if ($fullName === '') {
+                if ($fullName === '' || $fullName === null) {
                     $errors[] = "Row {$rowNumber} skipped: missing client name.";
                     $skippedCount++;
                     continue;
@@ -333,6 +369,7 @@ class ImportClientsJob implements ShouldQueue
                     'duplicates' => $duplicateCount,
                     'skipped' => $skippedCount,
                     'errors' => $errors,
+                    'header_diagnostics' => $diagnostics,
                 ],
             ])->save();
 
@@ -356,9 +393,15 @@ class ImportClientsJob implements ShouldQueue
         } catch (Throwable $e) {
             Log::error('ImportClientsJob failed: ' . $e->getMessage(), ['exception' => $e]);
             
+            $currentSummary = $importUpload->import_summary ?? [];
+            if (!isset($currentSummary['header_diagnostics']) && isset($diagnostics)) {
+                $currentSummary['header_diagnostics'] = $diagnostics;
+            }
+
             $importUpload->forceFill([
                 'import_status' => 'import_failed',
                 'error_message' => $e->getMessage(),
+                'import_summary' => $currentSummary,
             ])->save();
             
             $this->audit(

@@ -284,8 +284,27 @@
           </div>
 
           <div class="modal-body">
-            <div class="alert alert-info py-2">
-              Upload a CSV or Excel `.xlsx` file. The selected bank and departments below will be attached to every imported client.
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 p-2 bg-light rounded border gap-2">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-info-circle text-primary fs-5"></i>
+                <span class="small text-muted">Upload a CSV or Excel <code>.xlsx</code> file. Standard bank extract formats are supported.</span>
+              </div>
+              <div class="d-flex gap-2">
+                <button
+                  type="button"
+                  class="btn btn-outline-primary btn-sm d-inline-flex align-items-center"
+                  @click="openImportHeadersReference"
+                >
+                  <i class="bi bi-list-check me-1"></i> View Required Headers
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center"
+                  @click="downloadImportSampleTemplate"
+                >
+                  <i class="bi bi-download me-1"></i> Sample CSV
+                </button>
+              </div>
             </div>
 
             <div class="row g-3">
@@ -298,7 +317,52 @@
                   accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                   @change="onImportFileSelected"
                 />
-                <small class="text-muted">Supported formats: `.csv` and `.xlsx`.</small>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                  <small class="text-muted">Supported formats: <code>.csv</code> and <code>.xlsx</code>.</small>
+                  <button
+                    type="button"
+                    class="btn btn-link btn-sm p-0 text-decoration-none small"
+                    @click="openImportHeadersReference"
+                  >
+                    Column requirements
+                  </button>
+                </div>
+
+                <!-- Preflight Status Banner -->
+                <div v-if="importFilePreflight" class="mt-2">
+                  <div
+                    v-if="importFilePreflight.status === 'valid'"
+                    class="alert alert-success py-1 px-2 mb-0 small d-flex justify-content-between align-items-center"
+                  >
+                    <span>
+                      <i class="bi bi-check-circle-fill text-success me-1"></i>
+                      Header verified (<code>{{ importFilePreflight.matchedName }}</code> found).
+                    </span>
+                    <button
+                      type="button"
+                      class="btn btn-link btn-sm p-0 text-success text-decoration-none ms-2"
+                      @click="openPreflightDiagnostics"
+                    >
+                      Inspect columns &rarr;
+                    </button>
+                  </div>
+                  <div
+                    v-else-if="importFilePreflight.status === 'invalid'"
+                    class="alert alert-danger py-1 px-2 mb-0 small d-flex justify-content-between align-items-center"
+                  >
+                    <span>
+                      <i class="bi bi-exclamation-octagon-fill text-danger me-1"></i>
+                      Missing required column: <strong>Client Name</strong>
+                    </span>
+                    <button
+                      type="button"
+                      class="btn btn-danger btn-sm py-0 px-2 text-white ms-2"
+                      @click="openPreflightDiagnostics"
+                    >
+                      More info
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <div class="col-md-6">
@@ -798,6 +862,7 @@
       </div>
     </div>
 
+    <ImportHeaderDiagnosticsModal ref="importHeaderDiagnosticsModal" />
   </div>
 </template>
 
@@ -807,6 +872,7 @@ import VueMultiselect from 'vue-multiselect';
 import ExportRequestModal from '../components/ExportRequestModal.vue';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
+import ImportHeaderDiagnosticsModal from '../components/ImportHeaderDiagnosticsModal.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
@@ -818,6 +884,7 @@ export default {
     ExportRequestModal,
     ConfirmationModal,
     TableLoadingWrapper,
+    ImportHeaderDiagnosticsModal,
   },
   data() {
     return {
@@ -893,6 +960,7 @@ export default {
         department_ids: [],
         uploading: false,
       },
+      importFilePreflight: null,
       selectedClientIds: [],
     };
   },
@@ -1609,6 +1677,7 @@ export default {
         department_ids: [],
         uploading: false,
       };
+      this.importFilePreflight = null;
       this.importSelectedDepartments = [];
       if (this.$refs.importFileInput) {
         this.$refs.importFileInput.value = '';
@@ -1618,6 +1687,101 @@ export default {
     onImportFileSelected(event) {
       const file = event.target.files?.[0] || null;
       this.importForm.file = file;
+      this.importFilePreflight = null;
+      if (!file) return;
+
+      const extension = file.name.split('.').pop().toLowerCase();
+      if (extension === 'csv') {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target.result;
+            const lines = text.split(/\r\n|\n|\r/);
+            const firstLine = lines.find(line => line.trim().length > 0);
+            if (!firstLine) return;
+            
+            const rawColumns = firstLine
+              .replace(/^\uFEFF/, '')
+              .match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g) || firstLine.split(',');
+            const cleanedColumns = rawColumns.map(c => c.replace(/^["']|["']$/g, '').trim());
+            
+            const normalized = cleanedColumns.map(c => 
+              c.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+            );
+
+            const nameKeys = ['name', 'first_name', 'firstname', 'full_name', 'fullname', 'client_name', 'debtor_name', 'debtor', 'customer_name', 'surname', 'last_name', 'known_as'];
+            const foundIndex = normalized.findIndex(k => nameKeys.includes(k));
+
+            const recognizedAliases = {
+              'cell': 'Cell Phone', 'cell_phone': 'Cell Phone', 'cellphone': 'Cell Phone', 'mobile': 'Cell Phone',
+              'phone': 'Phone', 'account_number': 'Account Number', 'acc_no': 'Account Number', 'acc_code': 'Account Code',
+              'id_number': 'ID Number', 'id_no': 'ID Number', 'id': 'ID Number', 'identity_number': 'ID Number',
+              'email': 'Email', 'email_personal': 'Email', 'outstanding_balance': 'Outstanding Balance', 'balance': 'Outstanding Balance',
+              'arrears_amount': 'Arrears Amount', 'installment_amount': 'Installment Amount', 'settlement_amount': 'Settlement Amount',
+              'easy_pay_number': 'EasyPay Number', 'store_number': 'Store Number', 'surname': 'Surname', 'first_name': 'First Name',
+              'name': 'Client Name', 'full_name': 'Client Name', 'client_name': 'Client Name', 'debtor_name': 'Client Name',
+            };
+
+            const recognized = [];
+            const unsupported = [];
+            cleanedColumns.forEach((col, idx) => {
+              const norm = normalized[idx];
+              if (recognizedAliases[norm]) {
+                recognized.push({ raw: col, label: recognizedAliases[norm], normalized: norm });
+              } else {
+                unsupported.push(col);
+              }
+            });
+
+            if (foundIndex !== -1) {
+              this.importFilePreflight = {
+                status: 'valid',
+                matchedName: cleanedColumns[foundIndex],
+                detected_headers: cleanedColumns,
+                recognized_columns: recognized,
+                unsupported_headers: unsupported,
+                total_detected: cleanedColumns.length,
+                total_recognized: recognized.length,
+                is_valid: true,
+                has_required_name: true,
+                missing_required_headers: [],
+              };
+            } else {
+              this.importFilePreflight = {
+                status: 'invalid',
+                detected_headers: cleanedColumns,
+                recognized_columns: recognized,
+                unsupported_headers: unsupported,
+                total_detected: cleanedColumns.length,
+                total_recognized: recognized.length,
+                is_valid: false,
+                has_required_name: false,
+                missing_required_headers: ['Client Name (e.g. Name, First Name, Full Name, or Surname)'],
+              };
+            }
+          } catch (err) {
+            console.error('Error reading CSV header:', err);
+          }
+        };
+        reader.readAsText(file.slice(0, 4096));
+      }
+    },
+    openImportHeadersReference() {
+      this.$refs.importHeaderDiagnosticsModal?.open({
+        mode: 'supported',
+      });
+    },
+    downloadImportSampleTemplate() {
+      this.$refs.importHeaderDiagnosticsModal?.downloadSampleCsv();
+    },
+    openPreflightDiagnostics() {
+      this.$refs.importHeaderDiagnosticsModal?.open({
+        diagnostics: this.importFilePreflight,
+        upload: {
+          original_filename: this.importForm.file?.name || 'Selected File',
+        },
+        mode: 'diagnostics',
+      });
     },
     selectAllImportDepartments() {
       if (!Array.isArray(this.departmentOptions)) return;
