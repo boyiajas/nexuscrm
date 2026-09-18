@@ -1046,6 +1046,14 @@ class CampaignController extends Controller
                 $noResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['no'])->count();
             } else {
                 $counts = $this->batchService->recipientCounts($m);
+                // The recipient rows are the source of truth. Provider webhooks update
+                // them synchronously, while the denormalized counters on the parent
+                // message are refreshed by a queued job and can temporarily be stale.
+                // Use one live snapshot here so this list agrees with the recipient
+                // dashboard and its status columns always reconcile to the total.
+                $total = $counts['total'];
+                $delivered = $counts['delivered'];
+                $failed = $counts['failed'];
                 $queued = $counts['queued'];
                 $processing = $counts['processing'];
                 $paused = $counts['paused'];
