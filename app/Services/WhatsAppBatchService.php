@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 
 class WhatsAppBatchService
 {
-    public const DEFAULT_MESSAGES_PER_SECOND = 20;
+    public const DEFAULT_MESSAGES_PER_SECOND = 10;
 
     public function enforcedMessagesPerSecond(): int
     {

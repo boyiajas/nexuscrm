@@ -52,7 +52,7 @@ class DispatchCampaignWhatsappMessages extends Command
         }
 
         // 3. Fair-share chunking
-        $maxDispatchTotal = 200; // Max messages to push per minute total
+        $maxDispatchTotal = 150; // Max messages to push per minute total
         $activeCount = $activeMessages->count();
         $dispatchPerMessage = (int) ceil($maxDispatchTotal / $activeCount);
 
