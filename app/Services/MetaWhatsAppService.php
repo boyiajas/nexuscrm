@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\WhatsAppServiceInterface;
 use App\Models\SystemSetting;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -43,6 +44,47 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
         if (empty($this->accessToken) || empty($this->businessAccountId) || empty($this->phoneNumberId)) {
             throw new \RuntimeException('Meta WhatsApp credentials are incomplete. Configure access token, business account ID, and phone number ID.');
+        }
+
+        // Self-heal: If phoneNumberId was erroneously configured as the WABA ID,
+        // attempt to auto-resolve to the first registered phone number ID under this WABA.
+        if ((string) $this->phoneNumberId === (string) $this->businessAccountId) {
+            $this->selfHealPhoneNumberIdFromWaba();
+        }
+    }
+
+    protected function selfHealPhoneNumberIdFromWaba(): void
+    {
+        try {
+            $waAccount = \App\Models\WhatsappAccount::where('waba_id', $this->businessAccountId)
+                ->where('phone_number_id', '!=', $this->businessAccountId)
+                ->first();
+
+            if ($waAccount && !empty($waAccount->phone_number_id)) {
+                $this->phoneNumberId = (string) $waAccount->phone_number_id;
+                if (!empty($waAccount->display_phone_number)) {
+                    $this->displayPhoneNumber = (string) $waAccount->display_phone_number;
+                }
+                return;
+            }
+
+            $numbers = $this->getPhoneNumbers();
+            foreach ($numbers as $num) {
+                if (!empty($num['id']) && (string) $num['id'] !== (string) $this->businessAccountId) {
+                    $this->phoneNumberId = (string) $num['id'];
+                    if (!empty($num['display_phone_number'])) {
+                        $this->displayPhoneNumber = (string) $num['display_phone_number'];
+                    }
+                    Log::info('Self-healed Meta WhatsApp phone number ID from WABA account.', [
+                        'waba_id' => $this->businessAccountId,
+                        'resolved_phone_number_id' => $this->phoneNumberId,
+                        'display_phone_number' => $this->displayPhoneNumber,
+                    ]);
+                    break;
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Unable to self-heal phone number ID from WABA account: ' . $e->getMessage());
         }
     }
 
@@ -169,29 +211,44 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         }
     }
 
-    public function getPhoneNumbers(): array
+    public function getPhoneNumbers(bool $forceRefresh = false): array
     {
-        $fields = [
-            'id',
-            'display_phone_number',
-            'verified_name',
-            'quality_rating',
-            'code_verification_status',
-            'name_status',
-            'messaging_limit_tier',
-            'platform_type',
-            'throughput',
-        ];
+        $cacheKey = 'meta_waba_phone_numbers_' . md5((string) $this->businessAccountId);
 
-        $response = $this->get("{$this->businessAccountId}/phone_numbers", [
-            'fields' => implode(',', $fields),
-        ]);
+        if ($forceRefresh) {
+            Cache::forget($cacheKey);
+        }
 
-        return $response['data'] ?? [];
+        return Cache::remember($cacheKey, 600, function () {
+            $fields = [
+                'id',
+                'display_phone_number',
+                'verified_name',
+                'quality_rating',
+                'code_verification_status',
+                'name_status',
+                'messaging_limit_tier',
+                'platform_type',
+                'throughput',
+            ];
+
+            $response = $this->get("{$this->businessAccountId}/phone_numbers", [
+                'fields' => implode(',', $fields),
+            ]);
+
+            return $response['data'] ?? [];
+        });
+    }
+
+    public function clearPhoneNumbersCache(): void
+    {
+        Cache::forget('meta_waba_phone_numbers_' . md5((string) $this->businessAccountId));
     }
 
     public function addPhoneNumber(string $cc, string $phoneNumber, ?string $verifiedName = null): array
     {
+        $this->clearPhoneNumbersCache();
+
         $payload = [
             'cc' => $cc,
             'phone_number' => $phoneNumber,
@@ -213,6 +270,8 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function verifyCode(string $phoneNumberId, string $code): array
     {
+        $this->clearPhoneNumbersCache();
+
         return $this->post("{$phoneNumberId}/verify_code", [
             'code' => $code,
         ]);
@@ -220,6 +279,8 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function registerPhoneNumber(string $phoneNumberId, string $pin): array
     {
+        $this->clearPhoneNumbersCache();
+
         return $this->post("{$phoneNumberId}/register", [
             'messaging_product' => 'whatsapp',
             'pin' => $pin,
@@ -229,30 +290,52 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     public function resolveSenderContext(?string $overrideFrom = null): array
     {
         if ($overrideFrom) {
+            $overrideStr = trim((string) $overrideFrom);
+            $normalizedOverride = self::normalizePhoneNumber($overrideStr);
+
+            // Guard: If override matches the WABA ID, DO NOT use it as a phone_number_id.
+            // Map it to the valid phone number under this WABA.
+            if ($overrideStr === (string) $this->businessAccountId) {
+                return [
+                    'phone_number_id' => $this->phoneNumberId,
+                    'display_phone_number' => $this->displayPhoneNumber ?: $this->phoneNumberId,
+                ];
+            }
+
             $senders = $this->listWhatsappSenders();
-            $normalizedOverride = self::normalizePhoneNumber($overrideFrom);
             
-            $sender = collect($senders)->first(function ($s) use ($normalizedOverride, $overrideFrom) {
-                return self::normalizePhoneNumber($s['number']) === $normalizedOverride 
-                    || $s['number'] === $overrideFrom
-                    || (string) ($s['phone_number_id'] ?? '') === (string) $overrideFrom;
+            $sender = collect($senders)->first(function ($s) use ($normalizedOverride, $overrideStr) {
+                return self::normalizePhoneNumber($s['number'] ?? '') === $normalizedOverride 
+                    || ($s['number'] ?? '') === $overrideStr
+                    || (string) ($s['phone_number_id'] ?? '') === $overrideStr;
             });
             
-            if ($sender) {
+            if ($sender && !empty($sender['phone_number_id']) && (string) $sender['phone_number_id'] !== (string) $this->businessAccountId) {
                 return [
                     'phone_number_id' => $sender['phone_number_id'],
-                    'display_phone_number' => $sender['number'],
+                    'display_phone_number' => $sender['number'] ?? $overrideStr,
                 ];
             }
 
             try {
-                $waAccount = \App\Models\WhatsappAccount::where('phone_number_id', $overrideFrom)
-                    ->orWhere('display_phone_number', $overrideFrom)
+                // Check if overrideFrom matches a known WABA ID in WhatsappAccount
+                $waByWaba = \App\Models\WhatsappAccount::where('waba_id', $overrideStr)
+                    ->where('phone_number_id', '!=', $overrideStr)
+                    ->first();
+                if ($waByWaba && $waByWaba->phone_number_id) {
+                    return [
+                        'phone_number_id' => (string) $waByWaba->phone_number_id,
+                        'display_phone_number' => $waByWaba->display_phone_number ?: $overrideStr,
+                    ];
+                }
+
+                $waAccount = \App\Models\WhatsappAccount::where('phone_number_id', $overrideStr)
+                    ->orWhere('display_phone_number', $overrideStr)
                     ->orWhere('display_phone_number', $normalizedOverride)
                     ->first();
 
                 if (!$waAccount) {
-                    $digits = preg_replace('/\D+/', '', $overrideFrom);
+                    $digits = preg_replace('/\D+/', '', $overrideStr);
                     if ($digits) {
                         $waAccount = \App\Models\WhatsappAccount::all()->first(function ($a) use ($digits) {
                             $aDigits = preg_replace('/\D+/', '', (string) $a->display_phone_number);
@@ -261,20 +344,21 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                     }
                 }
 
-                if ($waAccount && $waAccount->phone_number_id) {
+                if ($waAccount && $waAccount->phone_number_id && (string) $waAccount->phone_number_id !== (string) $this->businessAccountId) {
                     return [
-                        'phone_number_id' => $waAccount->phone_number_id,
-                        'display_phone_number' => $waAccount->display_phone_number ?: $overrideFrom,
+                        'phone_number_id' => (string) $waAccount->phone_number_id,
+                        'display_phone_number' => $waAccount->display_phone_number ?: $overrideStr,
                     ];
                 }
             } catch (\Throwable $e) {
                 // Ignore DB lookup issues if model or table is missing
             }
 
-            if (preg_match('/^\d{14,20}$/', (string) $overrideFrom)) {
+            // Only treat as a direct phone_number_id if it does NOT match the WABA ID
+            if (preg_match('/^\d{14,20}$/', $overrideStr) && $overrideStr !== (string) $this->businessAccountId) {
                 return [
-                    'phone_number_id' => (string) $overrideFrom,
-                    'display_phone_number' => (string) $overrideFrom,
+                    'phone_number_id' => $overrideStr,
+                    'display_phone_number' => $overrideStr,
                 ];
             }
         }

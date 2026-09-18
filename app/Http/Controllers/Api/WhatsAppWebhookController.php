@@ -280,11 +280,21 @@ class WhatsAppWebhookController extends Controller
 
                 if ($stepToSend && !empty($stepToSend['message'])) {
                     try {
-                        $senderNumber = $messageBatch?->provider_display_phone_number
-                            ?: ($messageBatch?->provider_phone_number_id
-                            ?: ($payload['metadata']['display_phone_number'] ?? null
-                            ?: ($payload['metadata']['phone_number_id'] ?? null
-                            ?: ($messageBatch?->campaign?->whatsapp_from ?? null))));
+                        // Resolve sender phone number: prioritize metadata from incoming webhook (guaranteed valid recipient number),
+                        // followed by batch provider number, ensuring WABA ID is never used as sender number.
+                        $wabaIdFromEntry = (string) ($payload['entry'][0]['id'] ?? '');
+                        $metaPhoneId = $payload['metadata']['phone_number_id'] ?? null;
+                        $metaDisplayNumber = $payload['metadata']['display_phone_number'] ?? null;
+
+                        $candidateSenders = array_filter([
+                            $metaPhoneId,
+                            $metaDisplayNumber,
+                            $messageBatch?->provider_display_phone_number,
+                            $messageBatch?->provider_phone_number_id,
+                            $messageBatch?->campaign?->whatsapp_from,
+                        ], fn ($val) => !empty($val) && (string)$val !== $wabaIdFromEntry);
+
+                        $senderNumber = reset($candidateSenders) ?: null;
 
                         $whatsAppService = app(WhatsAppServiceInterface::class);
                         if (method_exists($whatsAppService, 'sendTextMessage')) {

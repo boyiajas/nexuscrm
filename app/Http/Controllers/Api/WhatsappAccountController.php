@@ -55,7 +55,7 @@ class WhatsappAccountController extends Controller
             'app_secret' => 'required|string',
             'access_token' => 'required|string',
             'waba_id' => 'required|string|max:255',
-            'phone_number_id' => 'required|string|max:255',
+            'phone_number_id' => 'required|string|max:255|different:waba_id',
             'display_phone_number' => 'nullable|string|max:255',
             'webhook_verify_token' => 'required|string',
         ]);
@@ -104,7 +104,7 @@ class WhatsappAccountController extends Controller
             'app_secret' => 'nullable|string',
             'access_token' => 'nullable|string',
             'waba_id' => 'required|string|max:255',
-            'phone_number_id' => 'required|string|max:255',
+            'phone_number_id' => 'required|string|max:255|different:waba_id',
             'display_phone_number' => 'nullable|string|max:255',
             'webhook_verify_token' => 'nullable|string',
         ]);

@@ -239,6 +239,18 @@ class SettingsController extends Controller
         $settings = SystemSetting::firstOrCreate([]);
         $isMetaUpdate = array_key_exists('meta_access_token', $data) || array_key_exists('meta_environment', $data);
 
+        $requestedWabaId = $data['meta_whatsapp_business_account_id'] ?? $settings->meta_whatsapp_business_account_id;
+        $requestedPhoneId = $data['meta_whatsapp_phone_number_id'] ?? $settings->meta_whatsapp_phone_number_id;
+
+        if (!empty($requestedWabaId) && !empty($requestedPhoneId) && trim((string)$requestedWabaId) === trim((string)$requestedPhoneId)) {
+            return response()->json([
+                'message' => 'Phone Number ID cannot be identical to the WhatsApp Business Account (WABA) ID. Please enter the Phone Number ID from your Meta App Console.',
+                'errors' => [
+                    'meta_whatsapp_phone_number_id' => ['The Phone Number ID cannot be the same as the WABA ID.'],
+                ],
+            ], 422);
+        }
+
         if ($isMetaUpdate) {
             $metaEnvironment = $data['meta_environment'] ?? $settings->meta_environment ?? env('META_ENVIRONMENT', 'production');
             if (
@@ -286,6 +298,14 @@ class SettingsController extends Controller
 
         $settings->fill($data);
         $settings->save();
+
+        if (array_key_exists('meta_whatsapp_business_account_id', $data) || array_key_exists('meta_whatsapp_phone_number_id', $data)) {
+            try {
+                app(\App\Services\MetaWhatsAppService::class)->clearPhoneNumbersCache();
+            } catch (\Throwable $e) {
+                // Ignore if Meta service is not fully initialized
+            }
+        }
 
         if ($logoUploaded) {
             $this->audit(
