@@ -180,46 +180,65 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function listWhatsappSenders(): array
     {
-        try {
-            $metaNumbers = $this->getPhoneNumbers();
-            $numbers = array_map(function($num) {
-                return [
-                    'number' => $num['display_phone_number'] ?? null,
-                    'label' => $num['verified_name'] ?? 'Meta WhatsApp Number',
-                    'default' => false,
-                    'phone_number_id' => $num['id'],
-                ];
-            }, $metaNumbers);
+        $cacheKey = 'meta_whatsapp_senders_list_' . md5((string) $this->businessAccountId);
+        return Cache::remember($cacheKey, 300, function () {
+            try {
+                $metaNumbers = $this->getPhoneNumbers();
+                $numbers = array_map(function($num) {
+                    return [
+                        'number' => $num['display_phone_number'] ?? null,
+                        'label' => $num['verified_name'] ?? 'Meta WhatsApp Number',
+                        'default' => false,
+                        'phone_number_id' => $num['id'],
+                    ];
+                }, $metaNumbers);
 
-            foreach ($numbers as &$num) {
-                if ($num['phone_number_id'] == $this->phoneNumberId) {
-                    $num['default'] = true;
+                foreach ($numbers as &$num) {
+                    if ($num['phone_number_id'] == $this->phoneNumberId) {
+                        $num['default'] = true;
+                    }
                 }
-            }
 
-            return $numbers;
-        } catch (\Throwable $e) {
-            Log::warning('Failed to load dynamic Meta WhatsApp senders for webhook list, falling back to static config.', [
-                'error' => $e->getMessage()
-            ]);
-            return [[
-                'number' => $this->displayPhoneNumber ?: $this->phoneNumberId,
-                'label' => 'Meta WhatsApp Number',
-                'default' => true,
-                'phone_number_id' => $this->phoneNumberId,
-            ]];
-        }
+                return $numbers;
+            } catch (\Throwable $e) {
+                Log::warning('Failed to load dynamic Meta WhatsApp senders for webhook list, falling back to static config.', [
+                    'error' => $e->getMessage()
+                ]);
+                return [[
+                    'number' => $this->displayPhoneNumber ?: $this->phoneNumberId,
+                    'label' => 'Meta WhatsApp Number',
+                    'default' => true,
+                    'phone_number_id' => $this->phoneNumberId,
+                ]];
+            }
+        });
     }
 
     public function getPhoneNumbers(bool $forceRefresh = false): array
     {
         $cacheKey = 'meta_waba_phone_numbers_' . md5((string) $this->businessAccountId);
+        $cooldownKey = 'meta_waba_rate_limit_cooldown_' . md5((string) $this->businessAccountId);
+        $lastGoodKey = 'meta_waba_phone_numbers_last_good_' . md5((string) $this->businessAccountId);
 
         if ($forceRefresh) {
             Cache::forget($cacheKey);
         }
 
-        return Cache::remember($cacheKey, 600, function () {
+        // If currently in rate-limit cooldown and not forced, return cached fallback immediately without calling Meta
+        if (!$forceRefresh && Cache::has($cooldownKey)) {
+            $lastGood = Cache::get($lastGoodKey);
+            if (!empty($lastGood)) {
+                return $lastGood;
+            }
+            return $this->fallbackPhoneNumbersList();
+        }
+
+        $cached = Cache::get($cacheKey);
+        if (!$forceRefresh && !empty($cached)) {
+            return $cached;
+        }
+
+        try {
             $fields = [
                 'id',
                 'display_phone_number',
@@ -236,13 +255,61 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                 'fields' => implode(',', $fields),
             ]);
 
-            return $response['data'] ?? [];
-        });
+            $numbers = $response['data'] ?? [];
+            if (!empty($numbers)) {
+                Cache::put($cacheKey, $numbers, 600);
+                Cache::put($lastGoodKey, $numbers, 86400);
+            }
+
+            return $numbers;
+        } catch (\Throwable $e) {
+            $isRateLimit = str_contains($e->getMessage(), '80008')
+                || str_contains(strtolower($e->getMessage()), 'too many calls')
+                || str_contains($e->getMessage(), '429');
+
+            if ($isRateLimit) {
+                // Trip the circuit breaker for 180 seconds to give Meta's rolling rate limit time to cool down
+                Cache::put($cooldownKey, true, 180);
+                Log::warning('Meta WABA rate limit (#80008) active. Engaged 180s backoff cooldown to prevent hammering Meta.', [
+                    'business_account_id' => $this->businessAccountId,
+                ]);
+            }
+
+            $lastGood = Cache::get($lastGoodKey);
+            if (!empty($lastGood)) {
+                return $lastGood;
+            }
+
+            if (!$forceRefresh) {
+                return $this->fallbackPhoneNumbersList();
+            }
+
+            throw $e;
+        }
+    }
+
+    protected function fallbackPhoneNumbersList(): array
+    {
+        $phoneId = $this->phoneNumberId;
+        $dispNumber = $this->displayPhoneNumber ?: '+27614776401';
+        if (!empty($phoneId) && (string) $phoneId !== (string) $this->businessAccountId) {
+            return [[
+                'id' => $phoneId,
+                'display_phone_number' => $dispNumber,
+                'verified_name' => 'Strauss Daly CRM',
+                'quality_rating' => 'GREEN',
+                'code_verification_status' => 'VERIFIED',
+                'name_status' => 'APPROVED',
+            ]];
+        }
+        return [];
     }
 
     public function clearPhoneNumbersCache(): void
     {
         Cache::forget('meta_waba_phone_numbers_' . md5((string) $this->businessAccountId));
+        Cache::forget('meta_whatsapp_senders_list_' . md5((string) $this->businessAccountId));
+        Cache::forget('meta_waba_rate_limit_cooldown_' . md5((string) $this->businessAccountId));
     }
 
     public function addPhoneNumber(string $cc, string $phoneNumber, ?string $verifiedName = null): array
@@ -995,14 +1062,30 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     protected function get(string $path, array $query = []): array
     {
         $url = str_starts_with($path, 'http') ? $path : "{$this->baseUrl}/{$path}";
-        $response = Http::withToken($this->accessToken)->retry(3, 500)->timeout(15)->get($url, $query);
+        $response = Http::withToken($this->accessToken)
+            ->retry(3, 500, $this->httpRetryWhen(), throw: false)
+            ->timeout(15)
+            ->get($url, $query);
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
     }
 
     protected function post(string $path, array $payload): array
     {
-        $response = Http::withToken($this->accessToken)->retry(3, 500)->timeout(15)->post("{$this->baseUrl}/{$path}", $payload);
+        $response = Http::withToken($this->accessToken)
+            ->retry(3, 500, $this->httpRetryWhen(), throw: false)
+            ->timeout(15)
+            ->post("{$this->baseUrl}/{$path}", $payload);
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
+    }
+
+    protected function httpRetryWhen(): callable
+    {
+        return function (\Throwable $exception) {
+            if ($exception instanceof \Illuminate\Http\Client\RequestException && $exception->response) {
+                return $exception->response->status() >= 500;
+            }
+            return true;
+        };
     }
 
     protected function decodeResponse(int $status, array $payload, string $path): array

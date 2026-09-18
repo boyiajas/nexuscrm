@@ -165,4 +165,40 @@ class MetaWhatsAppRateLimitAndSenderResolutionTest extends TestCase
         $this->assertEquals('1247262038476724', $context['phone_number_id']);
         $this->assertEquals('+27 61 477 6401', $context['display_phone_number']);
     }
+
+    public function test_rate_limit_circuit_breaker_prevents_repeated_calls_on_80008(): void
+    {
+        $callCount = 0;
+        Http::fake([
+            'https://graph.facebook.com/v25.0/1455412218881488/phone_numbers*' => function () use (&$callCount) {
+                $callCount++;
+                return Http::response([
+                    'error' => [
+                        'message' => '(#80008) There have been too many calls to this WhatsApp Business account. Wait a bit and try again.',
+                        'type' => 'OAuthException',
+                        'code' => 80008,
+                    ],
+                ], 400);
+            },
+        ]);
+
+        $service = new MetaWhatsAppService();
+
+        // First call triggers HTTP, encounters 80008, trips circuit breaker, and returns fallback
+        $numbers1 = $service->getPhoneNumbers();
+        $this->assertEquals(1, $callCount);
+        $this->assertCount(1, $numbers1);
+        $this->assertEquals('1247262038476724', $numbers1[0]['id']);
+
+        // Subsequent calls within cooldown MUST NOT make another HTTP request to Meta
+        $numbers2 = $service->getPhoneNumbers();
+        $this->assertEquals(1, $callCount); // Call count remains 1!
+        $this->assertEquals('1247262038476724', $numbers2[0]['id']);
+
+        // listWhatsappSenders also uses circuit breaker and fallback smoothly
+        $senders = $service->listWhatsappSenders();
+        $this->assertEquals(1, $callCount); // Still no new HTTP calls!
+        $this->assertNotEmpty($senders);
+        $this->assertEquals('1247262038476724', $senders[0]['phone_number_id']);
+    }
 }
