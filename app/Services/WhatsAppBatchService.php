@@ -107,7 +107,7 @@ class WhatsAppBatchService
 
         if ($markQueuedRecipients) {
             $message->recipients()
-                ->whereIn('status', ['Queued', 'Processing'])
+                ->whereIn('status', ['Pending Dispatch', 'Queued', 'Processing'])
                 ->update([
                     'status' => 'Paused',
                     'error_message' => $reason,
@@ -122,12 +122,13 @@ class WhatsAppBatchService
     {
         $now = now();
 
-        $message->recipients()
+        $resumedCount = $message->recipients()
             ->where('status', 'Paused')
             ->update([
-                'status' => 'Queued',
-                'queued_at' => $now,
+                'status' => 'Pending Dispatch',
+                'queued_at' => null,
                 'processing_started_at' => null,
+                'error_message' => null,
                 'updated_at' => $now,
             ]);
 
@@ -140,11 +141,9 @@ class WhatsAppBatchService
             'messages_per_second' => $message->messages_per_second ?: $this->enforcedMessagesPerSecond(),
         ]);
 
-        $queuedCount = $this->dispatchQueuedRecipients($message->fresh());
-
         return [
             'message' => $this->syncMessageProgress($message->fresh()),
-            'queued_count' => $queuedCount,
+            'queued_count' => $resumedCount,
         ];
     }
 
@@ -252,7 +251,7 @@ class WhatsAppBatchService
             return 'Draft';
         }
 
-        if (($message->status === 'Paused' || $message->paused_at) && ($counts['queued'] > 0 || $counts['pending_dispatch'] > 0 || $counts['processing'] > 0)) {
+        if (($message->status === 'Paused' || $message->paused_at) && ($counts['queued'] > 0 || $counts['pending_dispatch'] > 0 || $counts['processing'] > 0 || $counts['paused'] > 0)) {
             return 'Paused';
         }
 

@@ -801,7 +801,7 @@
 
             <div class="d-flex align-items-center gap-2">
               <button
-                v-if="recipientModal.channel === 'WhatsApp'"
+                v-if="recipientModal.channel === 'WhatsApp' && !canResumeRecipientBatch"
                 type="button"
                 class="btn btn-outline-secondary btn-sm rounded-2 px-3 fw-semibold d-flex align-items-center gap-1 shadow-sm"
                 @click="pauseBatch"
@@ -810,6 +810,17 @@
                 <span v-if="pausingBatch" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                 <i v-else class="bi bi-pause-btn me-1"></i>
                 {{ pausingBatch ? 'Pausing...' : 'Pause Batch' }}
+              </button>
+              <button
+                v-if="recipientModal.channel === 'WhatsApp' && canResumeRecipientBatch"
+                type="button"
+                class="btn btn-outline-success btn-sm rounded-2 px-3 fw-semibold d-flex align-items-center gap-1 shadow-sm"
+                @click="resumeBatch"
+                :disabled="resumingBatch"
+              >
+                <span v-if="resumingBatch" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                <i v-else class="bi bi-play-btn me-1"></i>
+                {{ resumingBatch ? 'Resuming...' : 'Resume Batch' }}
               </button>
               <button
                 type="button"
@@ -2214,6 +2225,7 @@ export default {
       recipientsModal: null,
       sendingBatch: false,
       pausingBatch: false,
+      resumingBatch: false,
       retryingBatch: false,
       recipientModal: {
         title: '',
@@ -2323,6 +2335,10 @@ export default {
       if (this.recipientModal.channel !== 'WhatsApp') return false;
       const status = String(this.recipientModal.meta?.status || '').toLowerCase();
       return ['queued', 'processing'].includes(status);
+    },
+    canResumeRecipientBatch() {
+      if (this.recipientModal.channel !== 'WhatsApp') return false;
+      return String(this.recipientModal.meta?.status || '').toLowerCase() === 'paused';
     },
     previewHeaderText() {
         if (!this.currentWhatsappTemplate || !this.currentWhatsappTemplate.header_text) return '';
@@ -3120,6 +3136,30 @@ export default {
         notify.error('Failed to pause batch: ' + (error.response?.data?.message || error.message), 'Campaigns');
       } finally {
         this.pausingBatch = false;
+      }
+    },
+    async resumeBatch() {
+      if (!this.canResumeRecipientBatch || !this.recipientModal.meta?.id) return;
+
+      const id = this.$route.params.id;
+      const messageId = this.recipientModal.meta.id;
+      this.resumingBatch = true;
+
+      try {
+        const res = await axios.post(`/api/campaigns/${id}/whatsapp-messages/${messageId}/resume`);
+        notify.success(res.data?.message || 'WhatsApp batch resumed.', 'Campaigns');
+        if (res.data?.batch) {
+          this.recipientModal.meta = Object.assign({}, this.recipientModal.meta, {
+            status: res.data.batch.status || 'Queued',
+          });
+        }
+        this.fetchWhatsApp();
+        this.fetchStats();
+        await this.refreshRecipientModal();
+      } catch (error) {
+        notify.error('Failed to resume batch: ' + (error.response?.data?.message || error.message), 'Campaigns');
+      } finally {
+        this.resumingBatch = false;
       }
     },
     sendBatchNow() {
