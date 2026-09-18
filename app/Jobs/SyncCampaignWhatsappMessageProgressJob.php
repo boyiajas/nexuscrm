@@ -17,6 +17,8 @@ class SyncCampaignWhatsappMessageProgressJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public $queue = 'whatsapp';
+
     public $messageId;
 
     /**
