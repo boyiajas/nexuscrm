@@ -801,12 +801,15 @@
 
             <div class="d-flex align-items-center gap-2">
               <button
+                v-if="recipientModal.channel === 'WhatsApp'"
                 type="button"
                 class="btn btn-outline-secondary btn-sm rounded-2 px-3 fw-semibold d-flex align-items-center gap-1 shadow-sm"
-                @click="sendBatchNow"
-                :disabled="sendingBatch"
+                @click="pauseBatch"
+                :disabled="pausingBatch || !canPauseRecipientBatch"
               >
-                <i class="bi bi-pause-btn me-1"></i> Pause Batch
+                <span v-if="pausingBatch" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                <i v-else class="bi bi-pause-btn me-1"></i>
+                {{ pausingBatch ? 'Pausing...' : 'Pause Batch' }}
               </button>
               <button
                 type="button"
@@ -2210,6 +2213,7 @@ export default {
       // dashboard modal
       recipientsModal: null,
       sendingBatch: false,
+      pausingBatch: false,
       retryingBatch: false,
       recipientModal: {
         title: '',
@@ -2314,6 +2318,11 @@ export default {
     canManageCampaign() {
       if (!this.currentUser) return false;
       return this.hasPermission('edit_campaigns') || this.hasPermission('create_campaigns');
+    },
+    canPauseRecipientBatch() {
+      if (this.recipientModal.channel !== 'WhatsApp') return false;
+      const status = String(this.recipientModal.meta?.status || '').toLowerCase();
+      return ['queued', 'processing'].includes(status);
     },
     previewHeaderText() {
         if (!this.currentWhatsappTemplate || !this.currentWhatsappTemplate.header_text) return '';
@@ -3068,10 +3077,50 @@ export default {
         this.recipientsModal.show();
       });
     },
+    async refreshRecipientModal() {
+      if (!this.recipientModal.meta || !this.recipientModal.meta.id || this.recipientModal.channel !== 'WhatsApp') return;
+
+      const id = this.$route.params.id;
+      const messageId = this.recipientModal.meta.id;
+      const res = await axios.get(`/api/campaigns/${id}/whatsapp-messages/${messageId}/recipients`);
+
+      if (res.data.summary) {
+        this.recipientModal.summary = Object.assign({ replies: 0 }, res.data.summary);
+      }
+      this.recipientModal.rows = res.data.recipients || [];
+      this.recipientModal.agents = res.data.agents || [];
+      if (res.data.meta) {
+        this.recipientModal.meta = Object.assign({}, this.recipientModal.meta, res.data.meta);
+      }
+    },
     agentPercent(agent) {
       const total = (this.recipientModal.agents || []).reduce((sum, a) => sum + (a.count || 0), 0);
       if (!total) return 0;
       return Math.round(((agent.count || 0) / total) * 100);
+    },
+    async pauseBatch() {
+      if (!this.canPauseRecipientBatch || !this.recipientModal.meta?.id) return;
+
+      const id = this.$route.params.id;
+      const messageId = this.recipientModal.meta.id;
+      this.pausingBatch = true;
+
+      try {
+        const res = await axios.post(`/api/campaigns/${id}/whatsapp-messages/${messageId}/pause`);
+        notify.success(res.data?.message || 'WhatsApp batch paused.', 'Campaigns');
+        if (res.data?.batch) {
+          this.recipientModal.meta = Object.assign({}, this.recipientModal.meta, {
+            status: res.data.batch.status || 'Paused',
+          });
+        }
+        this.fetchWhatsApp();
+        this.fetchStats();
+        await this.refreshRecipientModal();
+      } catch (error) {
+        notify.error('Failed to pause batch: ' + (error.response?.data?.message || error.message), 'Campaigns');
+      } finally {
+        this.pausingBatch = false;
+      }
     },
     sendBatchNow() {
       if (!this.recipientModal.meta || !this.recipientModal.meta.id) return;
