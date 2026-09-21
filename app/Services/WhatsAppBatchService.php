@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Jobs\ProcessCampaignWhatsappRecipientJob;
 use App\Models\Campaign;
 use App\Models\CampaignWhatsappMessage;
 use App\Models\CampaignWhatsappRecipient;
@@ -17,19 +16,6 @@ class WhatsAppBatchService
     public function enforcedMessagesPerSecond(): int
     {
         return self::DEFAULT_MESSAGES_PER_SECOND;
-    }
-
-    public function dispatchQueuedRecipients(CampaignWhatsappMessage $message): int
-    {
-        $recipientIds = $message->recipients()
-            ->whereRaw('LOWER(status) = ?', ['queued'])
-            ->pluck('id');
-
-        foreach ($recipientIds as $recipientId) {
-            ProcessCampaignWhatsappRecipientJob::dispatch((int) $recipientId)->onQueue('whatsapp');
-        }
-
-        return $recipientIds->count();
     }
 
     public function queueAllRecipients(CampaignWhatsappMessage $message): int
@@ -151,11 +137,11 @@ class WhatsAppBatchService
     {
         $now = now();
 
-        $message->recipients()
+        $queuedCount = $message->recipients()
             ->whereRaw('LOWER(status) = ?', ['failed'])
             ->update([
-                'status' => 'Queued',
-                'queued_at' => $now,
+                'status' => 'Pending Dispatch',
+                'queued_at' => null,
                 'processing_started_at' => null,
                 'error_code' => null,
                 'error_message' => null,
@@ -170,8 +156,6 @@ class WhatsAppBatchService
             'completed_at' => null,
             'messages_per_second' => $message->messages_per_second ?: $this->enforcedMessagesPerSecond(),
         ]);
-
-        $queuedCount = $this->dispatchQueuedRecipients($message->fresh());
 
         return [
             'message' => $this->syncMessageProgress($message->fresh()),

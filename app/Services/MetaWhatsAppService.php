@@ -1071,10 +1071,15 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     protected function post(string $path, array $payload): array
     {
-        $response = Http::withToken($this->accessToken)
-            ->retry(3, 500, $this->httpRetryWhen(), throw: false)
-            ->timeout(15)
-            ->post("{$this->baseUrl}/{$path}", $payload);
+        $request = Http::withToken($this->accessToken)->timeout(15);
+
+        // A timed-out or 5xx message POST may already have been accepted by
+        // Meta. Retrying it can send the same WhatsApp message more than once.
+        if (!str_ends_with($path, '/messages')) {
+            $request = $request->retry(3, 500, $this->httpRetryWhen(), throw: false);
+        }
+
+        $response = $request->post("{$this->baseUrl}/{$path}", $payload);
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
     }
 

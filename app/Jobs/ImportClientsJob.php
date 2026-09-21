@@ -42,6 +42,7 @@ class ImportClientsJob implements ShouldQueue
         string $importBatchNumber,
         array $scanResult
     ) {
+        $this->onQueue('imports');
         $this->importUploadId = $importUploadId;
         $this->userId = $userId;
         $this->bankId = $bankId;
@@ -118,7 +119,6 @@ class ImportClientsJob implements ShouldQueue
                 
                 // Update progress every 50 rows
                 if ($rowNumber % 50 === 0) {
-                    $this->refreshImportExecutionWindow();
                     $importUpload->update([
                         'import_summary' => [
                             'total_rows' => $totalRows,

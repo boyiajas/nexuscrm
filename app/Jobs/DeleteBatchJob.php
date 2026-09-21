@@ -23,7 +23,9 @@ class DeleteBatchJob implements ShouldQueue
     public function __construct(
         public string $batchNumber,
         public int $userId
-    ) {}
+    ) {
+        $this->onQueue('imports');
+    }
 
     public function handle(): void
     {

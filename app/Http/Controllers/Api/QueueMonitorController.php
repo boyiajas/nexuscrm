@@ -118,6 +118,20 @@ class QueueMonitorController extends Controller
             abort(403, 'Unauthorized.');
         }
 
+        // A generic queue retry bypasses the campaign dispatcher and may
+        // replay a send whose outcome at Meta is still unknown.
+        $failedJob = DB::table('failed_jobs');
+        $containsCampaignSend = $id === 'all'
+            ? (clone $failedJob)->where('payload', 'like', '%ProcessCampaignWhatsappRecipientJob%')->exists()
+            : (clone $failedJob)->where('uuid', $id)
+                ->where('payload', 'like', '%ProcessCampaignWhatsappRecipientJob%')->exists();
+
+        if ($containsCampaignSend) {
+            return response()->json([
+                'message' => 'Campaign WhatsApp send jobs must be reviewed and retried from the campaign. Retry All cannot include them.',
+            ], 422);
+        }
+
         if ($id === 'all') {
             Artisan::call('queue:retry', ['id' => ['all']]);
         } else {

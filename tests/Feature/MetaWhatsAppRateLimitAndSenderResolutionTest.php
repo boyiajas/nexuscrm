@@ -51,6 +51,29 @@ class MetaWhatsAppRateLimitAndSenderResolutionTest extends TestCase
         Cache::flush();
     }
 
+    public function test_message_post_is_not_retried_after_a_server_error(): void
+    {
+        Http::fakeSequence()
+            ->push(['error' => ['message' => 'Temporary failure']], 500)
+            ->push(['messages' => [['id' => 'duplicate']]], 200);
+
+        $service = new class extends MetaWhatsAppService {
+            public function postMessageForTest(): array
+            {
+                return $this->post('123/messages', ['messaging_product' => 'whatsapp']);
+            }
+        };
+
+        try {
+            $service->postMessageForTest();
+            $this->fail('The first Meta error should be reported without another POST.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('Meta API error [500]', $exception->getMessage());
+        }
+
+        Http::assertSentCount(1);
+    }
+
     public function test_get_phone_numbers_caches_results_to_prevent_rate_limiting(): void
     {
         Http::fake([

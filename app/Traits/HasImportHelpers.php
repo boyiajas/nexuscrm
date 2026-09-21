@@ -682,13 +682,6 @@ trait HasImportHelpers
         }
     }
 
-    protected function refreshImportExecutionWindow(int $seconds = 30): void
-    {
-        if (function_exists('set_time_limit')) {
-            @set_time_limit($seconds);
-        }
-    }
-
     public function updateOptIn(Request $request, Client $client)
     {
         $user = Auth::user();

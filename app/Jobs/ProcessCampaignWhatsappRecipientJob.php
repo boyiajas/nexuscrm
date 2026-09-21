@@ -19,7 +19,20 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    // RateLimited releases count as attempts. Give throttled jobs time to run,
+    // while still limiting actual exceptions separately.
+    public int $tries = 0;
+
+    public int $maxExceptions = 3;
+
+    public int $timeout = 120;
+
+    public bool $failOnTimeout = true;
+
+    public function retryUntil(): \DateTimeInterface
+    {
+        return now()->addHours(6);
+    }
 
     public function __construct(public int $recipientId)
     {
@@ -61,8 +74,10 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
             return;
         }
 
-        if (in_array($recipient->status, ['Delivered', 'Delivered (Ecosystem Warning)', 'Suppressed', 'No Lawful Basis', 'No Phone'], true)) {
-            $batchService->syncMessageProgress($message);
+        // Only the dispatcher or an explicit failed-recipient retry can set
+        // Queued. A queue:retry or expired reservation must not resend a
+        // message whose previous Meta request may already have succeeded.
+        if ($recipient->status !== 'Queued') {
             return;
         }
 
@@ -125,18 +140,28 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
             'pause_reason' => null,
         ]);
 
-        $recipient->update([
-            'status' => 'Processing',
-            'queued_at' => $recipient->queued_at ?: $now,
-            'processing_started_at' => $now,
-            'attempts_count' => (int) $recipient->attempts_count + 1,
-            'last_attempted_at' => $now,
-            'phone' => $phone,
-        ]);
+        // Claim this recipient once even if the same database job was queued
+        // twice or a reservation expired while another worker was running.
+        $claimed = CampaignWhatsappRecipient::whereKey($recipient->id)
+            ->where('status', 'Queued')
+            ->update([
+                'status' => 'Processing',
+                'queued_at' => $recipient->queued_at ?: $now,
+                'processing_started_at' => $now,
+                'attempts_count' => (int) $recipient->attempts_count + 1,
+                'last_attempted_at' => $now,
+                'phone' => $phone,
+            ]);
 
-        $attempt = $batchService->startAttempt($recipient->fresh(['message']));
+        if ($claimed === 0) {
+            return;
+        }
 
+        $recipient->refresh();
+
+        $attempt = null;
         try {
+            $attempt = $batchService->startAttempt($recipient->fresh(['message']));
             $subject = $client?->name ?? '';
             $bodyVar = $message->mode === 'flow'
                 ? ($message->flow_definition[0]['message'] ?? '')
@@ -241,17 +266,21 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                     ]);
             }
 
-            $batchService->completeAttempt($attempt, $recipient->fresh(), 'Failed', null, null, $errorMsg);
+            if ($attempt) {
+                $batchService->completeAttempt($attempt, $recipient->fresh(), 'Failed', null, null, $errorMsg);
+            }
             $batchService->syncMessageProgress($message->fresh());
 
-            throw $e;
+            // The provider may have accepted the request even when its reply
+            // failed. Leave another send to the explicit campaign retry flow.
+            return;
         }
     }
 
     public function failed(\Throwable $e): void
     {
         $recipient = CampaignWhatsappRecipient::with('message')->find($this->recipientId);
-        if (!$recipient || !$recipient->message) {
+        if (!$recipient || !$recipient->message || !in_array($recipient->status, ['Queued', 'Processing'], true)) {
             return;
         }
 

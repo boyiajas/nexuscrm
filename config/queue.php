@@ -40,7 +40,18 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 180),
+            'after_commit' => false,
+        ],
+
+        // Imports can run for up to an hour. Isolate them from short jobs while
+        // keeping the same database jobs table and a longer reservation.
+        'database_long' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'imports',
+            'retry_after' => (int) env('DB_LONG_QUEUE_RETRY_AFTER', 3900),
             'after_commit' => false,
         ],
 

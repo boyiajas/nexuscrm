@@ -33,8 +33,9 @@ class DispatchCampaignWhatsappMessages extends Command
         // 1. Check Queue Depth
         $queueSize = Queue::size('whatsapp');
         $maxQueueDepth = 300; // Threshold before pausing dispatch
+        $availableSlots = max(0, $maxQueueDepth - $queueSize);
 
-        if ($queueSize >= $maxQueueDepth) {
+        if ($availableSlots === 0) {
             $this->warn("WhatsApp queue size ($queueSize) exceeds threshold ($maxQueueDepth). Skipping dispatch.");
             Log::info("WhatsApp dispatcher paused. Queue depth: $queueSize");
             return;
@@ -52,16 +53,20 @@ class DispatchCampaignWhatsappMessages extends Command
         }
 
         // 3. Fair-share chunking
-        $maxDispatchTotal = 150; // Max messages to push per minute total
+        $maxDispatchTotal = min(150, $availableSlots); // Respect queue headroom.
         $activeCount = $activeMessages->count();
         $dispatchPerMessage = (int) ceil($maxDispatchTotal / $activeCount);
 
         $totalDispatched = 0;
 
         foreach ($activeMessages as $message) {
+            if ($totalDispatched >= $maxDispatchTotal) {
+                break;
+            }
+
             $recipients = $message->recipients()
                 ->where('status', 'Pending Dispatch')
-                ->limit($dispatchPerMessage)
+                ->limit(min($dispatchPerMessage, $maxDispatchTotal - $totalDispatched))
                 ->get();
 
             if ($recipients->isEmpty()) {
