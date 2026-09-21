@@ -351,7 +351,7 @@ class ChatController extends Controller
         return response()->json(compact('banks', 'departments', 'wabas', 'liveChatLocked', 'liveChatLockedMessage'));
     }
 
-    public function show(ChatSession $session)
+    public function show(Request $request, ChatSession $session)
     {
         $user = $this->authorizeView();
         $this->authorizeSessionScope($user, $session);
@@ -361,11 +361,28 @@ class ChatController extends Controller
         }, 'agent', 'client']);
 
         // Keep review-only roles read-only by skipping unread-count mutation.
-        if (!$user->isReadOnlyRole()) {
+        if (!$user->isReadOnlyRole() && !$request->boolean('peek')) {
             $session->update(['unread_count' => 0]);
         }
 
         return $this->appendCampaignMessages($session);
+    }
+
+    public function markUnread(ChatSession $session)
+    {
+        $this->authorizeManage();
+        $this->authorizeSessionScope(Auth::user(), $session);
+
+        // Only change chats that are currently read, so repeated clicks cannot
+        // replace a real unread message count that arrived in the meantime.
+        ChatSession::query()
+            ->whereKey($session->id)
+            ->where(function ($query) {
+                $query->where('unread_count', 0)->orWhereNull('unread_count');
+            })
+            ->update(['unread_count' => 1]);
+
+        return response()->json($session->refresh());
     }
 
     public function storeMessage(Request $request, ChatSession $session)

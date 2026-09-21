@@ -121,6 +121,11 @@
                     <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
                     <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
                       <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-vcard text-primary me-3"></i>Client Info</a></li>
+                      <li v-if="canManageChat && !session.is_client_only && !session.unread_count && loadingSessionId !== session.id">
+                        <a class="dropdown-item py-2" href="#" @click.prevent.stop="markSessionUnread(session)">
+                          <i class="bi bi-envelope text-primary me-3"></i>Mark as unread
+                        </a>
+                      </li>
                       <li v-if="canManageChat && !sessionHasClient(session)">
                         <a class="dropdown-item py-2" href="#" @click.prevent="openAddClientModal(session)">
                           <i class="bi bi-person-plus text-success me-3"></i>Add Client
@@ -215,6 +220,11 @@
               <i class="bi bi-three-dots-vertical" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" title="Menu"></i>
               <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 220px;">
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(activeSession)"><i class="bi bi-person-vcard me-2 text-primary"></i>Client Info</a></li>
+                <li v-if="canManageChat && !loadingMessages">
+                  <a class="dropdown-item py-2" href="#" @click.prevent="markSessionUnread(activeSession)">
+                    <i class="bi bi-envelope me-2 text-primary"></i>Mark as unread
+                  </a>
+                </li>
                 <li v-if="canManageChat && !sessionHasClient(activeSession)">
                   <a class="dropdown-item py-2" href="#" @click.prevent="openAddClientModal(activeSession)">
                     <i class="bi bi-person-plus text-success me-2"></i>Add Client
@@ -610,6 +620,7 @@ export default {
       loadingSessionId: null,
       loadingMessages: false,
       loadingSessions: false,
+      markingUnreadSessionId: null,
       currentSessionPage: 1,
       hasMoreSessions: false,
       filterDepartment: 'all',
@@ -826,6 +837,8 @@ export default {
       axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
         this.activeSession = res.data;
         this.messages = res.data.messages || [];
+        const listSession = this.sessions.find((item) => item.id === session.id);
+        if (listSession) listSession.unread_count = res.data.unread_count;
         this.$nextTick(this.scrollToBottom);
       }).catch((err) => {
         console.error('Failed to load chat history', err);
@@ -882,7 +895,9 @@ export default {
 
       // Soft refresh active session messages (only when not loading a new session and real session exists)
       if (this.activeSession && !this.loadingMessages && !this.activeSession.is_client_only && !String(this.activeSession.id).startsWith('client_')) {
-        axios.get(`/api/chat/sessions/${this.activeSession.id}`).then((res) => {
+        const activeSessionId = this.activeSession.id;
+        axios.get(`/api/chat/sessions/${activeSessionId}`, { params: { peek: 1 } }).then((res) => {
+          if (this.activeSession?.id !== activeSessionId) return;
           const fetchedMessages = res.data.messages || [];
           if (fetchedMessages.length > this.messages.length) {
             this.messages = fetchedMessages;
@@ -1046,6 +1061,24 @@ export default {
         });
       }
     },
+    markSessionUnread(session) {
+      if (!this.canManageChat || !session || session.is_client_only || this.markingUnreadSessionId) return;
+      this.markingUnreadSessionId = session.id;
+      axios.post(`/api/chat/sessions/${session.id}/mark-unread`).then((res) => {
+        if (this.activeSession?.id === session.id) {
+          this.activeSession = null;
+          this.messages = [];
+        }
+        session.unread_count = res.data.unread_count;
+        this.fetchSessions();
+        notify.success('Chat marked as unread.', 'Chat');
+      }).catch((err) => {
+        console.error('Failed to mark chat as unread', err);
+        notify.error('Failed to mark chat as unread.', 'Chat');
+      }).finally(() => {
+        this.markingUnreadSessionId = null;
+      });
+    },
     blockClient(session) {
       if (!this.canManageChat || !session) return;
       if (confirm(`Are you sure you want to block ${session.client_name}? They will be opted out of WhatsApp communications.`)) {
@@ -1196,7 +1229,7 @@ export default {
       };
 
       if (session.id && !session.is_client_only && !String(session.id).startsWith('client_')) {
-        axios.get(`/api/chat/sessions/${session.id}`).then((res) => {
+        axios.get(`/api/chat/sessions/${session.id}`, { params: { peek: 1 } }).then((res) => {
           openModal(res.data);
         }).catch(() => {
           openModal(session);

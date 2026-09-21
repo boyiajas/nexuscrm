@@ -294,6 +294,82 @@ class ChatSearchScopeTest extends TestCase
         $this->getJson('/api/chat/sessions?search=Test&department_id=' . $deptB->id)->assertForbidden();
     }
 
+    public function test_mark_unread_restores_the_unread_filter_after_opening_a_chat(): void
+    {
+        $bank = Bank::query()->create(['name' => 'Bank Alpha', 'code' => 'ALPHA', 'status' => 'Active']);
+        $department = Department::query()->create(['name' => 'Support', 'code' => 'SUPP']);
+        $user = $this->createChatUser($bank, [$department], User::ROLE_AGENT);
+
+        $session = ChatSession::query()->create([
+            'bank_id' => $bank->id,
+            'client_name' => 'Accidentally Opened Chat',
+            'phone' => '+27821112222',
+            'status' => 'active',
+            'platform' => 'web',
+            'unread_count' => 2,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/chat/sessions/{$session->id}")
+            ->assertOk()
+            ->assertJsonPath('unread_count', 0);
+
+        $this->postJson("/api/chat/sessions/{$session->id}/mark-unread")
+            ->assertOk()
+            ->assertJsonPath('unread_count', 1);
+
+        $this->getJson('/api/chat/sessions?status=unread')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $session->id);
+
+        $this->getJson("/api/chat/sessions/{$session->id}?peek=1")
+            ->assertOk()
+            ->assertJsonPath('unread_count', 1);
+
+        $this->postJson("/api/chat/sessions/{$session->id}/mark-unread")
+            ->assertOk()
+            ->assertJsonPath('unread_count', 1);
+
+        $session->update(['unread_count' => 3]);
+        $this->postJson("/api/chat/sessions/{$session->id}/mark-unread")
+            ->assertOk()
+            ->assertJsonPath('unread_count', 3);
+    }
+
+    public function test_mark_unread_requires_chat_management_permission_and_session_access(): void
+    {
+        $bankA = Bank::query()->create(['name' => 'Bank Alpha', 'code' => 'ALPHA', 'status' => 'Active']);
+        $bankB = Bank::query()->create(['name' => 'Bank Beta', 'code' => 'BETA', 'status' => 'Active']);
+        $department = Department::query()->create(['name' => 'Support', 'code' => 'SUPP']);
+        $user = $this->createChatUser($bankA, [$department], User::ROLE_AGENT);
+
+        $ownSession = ChatSession::query()->create([
+            'bank_id' => $bankA->id,
+            'client_name' => 'Own Chat',
+            'status' => 'active',
+            'platform' => 'web',
+            'unread_count' => 0,
+        ]);
+        $otherSession = ChatSession::query()->create([
+            'bank_id' => $bankB->id,
+            'client_name' => 'Other Bank Chat',
+            'status' => 'active',
+            'platform' => 'web',
+            'unread_count' => 0,
+        ]);
+
+        Sanctum::actingAs($user);
+        $this->postJson("/api/chat/sessions/{$otherSession->id}/mark-unread")->assertForbidden();
+
+        Role::query()->where('code', User::ROLE_AGENT)->firstOrFail()
+            ->permissions()->sync($this->permissionIds(['view_live_chat']));
+        $this->postJson("/api/chat/sessions/{$ownSession->id}/mark-unread")->assertForbidden();
+
+        $this->assertDatabaseHas('chat_sessions', ['id' => $ownSession->id, 'unread_count' => 0]);
+        $this->assertDatabaseHas('chat_sessions', ['id' => $otherSession->id, 'unread_count' => 0]);
+    }
+
     private function createChatUser(Bank $bank, array $departments, string $roleCode): User
     {
         $role = Role::query()->where('code', $roleCode)->firstOrFail();
