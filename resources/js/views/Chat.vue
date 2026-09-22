@@ -103,7 +103,7 @@
               </div>
               <div class="d-flex justify-content-between align-items-center">
                 <small class="text-muted text-truncate w-100 pe-2 d-flex align-items-center">
-                  <i v-if="isLastMessageFromUser(session)" class="bi bi-check2-all text-primary me-1 flex-shrink-0" style="font-size: 1.05rem;" title="Replied"></i>
+                  <i v-if="isLastMessageFromAgent(session)" class="bi bi-reply-fill text-muted me-1 flex-shrink-0" title="Agent reply"></i>
                   <i v-else-if="session.last_message === 'quick reply'" class="bi bi-reply-fill text-muted me-1 flex-shrink-0"></i>
                   <i v-else-if="session.is_client_only" class="bi bi-chat-plus text-primary me-1 flex-shrink-0"></i>
                   <span class="text-truncate">
@@ -335,7 +335,10 @@
                   <small class="timestamp text-muted ms-3">
                     {{ formatTime(msg.sent_at || msg.created_at) }}
                   </small>
-                  <i v-if="msg.sender === 'agent'" class="bi bi-check-all ms-1 text-primary" style="font-size: 1.1em;"></i>
+                  <i v-if="msg.sender === 'agent' && activeSession?.platform === 'whatsapp'"
+                    :class="['bi', 'ms-1', deliveryStatusIcon(msg.delivery_status), deliveryStatusClass(msg.delivery_status)]"
+                    :title="deliveryStatusTitle(msg.delivery_status, msg.delivery_status_at)"
+                    style="font-size: 1.1em;"></i>
                 </div>
               </div>
             </div>
@@ -717,28 +720,53 @@ export default {
 
       return false;
     },
-    isLastMessageFromUser(session) {
+    isLastMessageFromAgent(session) {
       if (!session || !session.last_message) return false;
 
       // 1. Active session with locally loaded messages
       if (this.activeSession && this.activeSession.id === session.id && this.messages && this.messages.length > 0) {
         const lastMsg = this.messages[this.messages.length - 1];
         if (lastMsg) {
-          return lastMsg.sender !== 'client';
+          return lastMsg.sender === 'agent';
         }
       }
 
       // 2. Eager loaded latest_message object
       if (session.latest_message && session.latest_message.sender) {
-        return session.latest_message.sender !== 'client';
+        return session.latest_message.sender === 'agent';
       }
 
       // 3. Fallback direct last_sender check
       if (session.last_sender) {
-        return session.last_sender !== 'client';
+        return session.last_sender === 'agent';
       }
 
       return false;
+    },
+    deliveryStatusIcon(status) {
+      if (status === 'read' || status === 'delivered') return 'bi-check-all';
+      if (status === 'sent') return 'bi-check';
+      if (status === 'failed') return 'bi-exclamation-circle';
+      if (status === 'pending' || status === 'accepted') return 'bi-clock';
+      return 'bi-question-circle';
+    },
+    deliveryStatusClass(status) {
+      if (status === 'read') return 'text-primary';
+      if (status === 'failed') return 'text-danger';
+      return 'text-muted';
+    },
+    deliveryStatusTitle(status, statusAt) {
+      if (status === 'read' && statusAt) {
+        return `Customer read receipt received at ${new Date(statusAt).toLocaleString()}`;
+      }
+      return {
+        pending: 'Waiting for WhatsApp',
+        accepted: 'Accepted by WhatsApp; delivery not yet confirmed',
+        sent: 'Sent; delivery not yet confirmed',
+        delivered: 'Delivered; reading not confirmed',
+        read: 'Customer read receipt received',
+        failed: 'WhatsApp message failed',
+      }[status] || 'Delivery status unavailable';
     },
     sessionHasClient(session) {
       return !!(session?.client_id || session?.client?.id);
@@ -899,9 +927,15 @@ export default {
         axios.get(`/api/chat/sessions/${activeSessionId}`, { params: { peek: 1 } }).then((res) => {
           if (this.activeSession?.id !== activeSessionId) return;
           const fetchedMessages = res.data.messages || [];
-          if (fetchedMessages.length > this.messages.length) {
+          const hasNewMessages = fetchedMessages.length > this.messages.length;
+          const statusChanged = fetchedMessages.some((message, index) =>
+            message.id === this.messages[index]?.id &&
+            (message.delivery_status !== this.messages[index]?.delivery_status ||
+              message.delivery_status_at !== this.messages[index]?.delivery_status_at)
+          );
+          if (fetchedMessages.length !== this.messages.length || statusChanged) {
             this.messages = fetchedMessages;
-            this.$nextTick(this.scrollToBottom);
+            if (hasNewMessages) this.$nextTick(this.scrollToBottom);
           }
         });
       }
@@ -1017,6 +1051,11 @@ export default {
           this.clearSelectedFile();
           this.$nextTick(this.scrollToBottom);
           this.fetchSessions();
+          if (res.data.delivery_status === 'failed') {
+            notify.error('WhatsApp could not send this message. It is marked as failed in the chat.', 'Chat');
+          } else if (res.data.delivery_status === 'unknown') {
+            notify.error('WhatsApp delivery could not be confirmed for this message.', 'Chat');
+          }
         })
         .catch((err) => {
           console.error('Failed to send message', err);

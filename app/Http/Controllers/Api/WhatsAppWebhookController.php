@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CampaignClient;
 use App\Models\CampaignWhatsappMessage;
 use App\Models\CampaignWhatsappRecipient;
+use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Models\Client;
 use App\Mail\WhatsAppInboundReplyNotification;
@@ -95,9 +96,21 @@ class WhatsAppWebhookController extends Controller
             $recipient = CampaignWhatsappRecipient::where('provider_message_id', $messageId)
                 ->orWhere('message_sid', $messageId)
                 ->first();
+
+            // Campaign receipts remain on their existing hot path. Only look in
+            // live chat when the provider ID did not match a campaign message.
+            if (!$recipient) {
+                $chatMessage = ChatMessage::query()->where('provider_message_id', $messageId)->first();
+                if ($chatMessage) {
+                    $this->updateChatMessageStatus($chatMessage, $statusName, $status);
+                    return;
+                }
+            }
         }
 
-        if (!$recipient && $recipientPhone) {
+        // A status with its own Meta ID must never be attributed to an
+        // unrelated campaign message solely because the phone matches.
+        if (!$recipient && !$messageId && $recipientPhone) {
             $recipient = $this->findRecipientByPhone($recipientPhone, $phoneNumberId);
         }
 
@@ -149,6 +162,37 @@ class WhatsAppWebhookController extends Controller
         }
 
         $this->refreshWhatsappMessageCounts($recipient->message);
+    }
+
+    protected function updateChatMessageStatus(ChatMessage $message, string $statusName, array $status): void
+    {
+        // Webhooks may arrive out of order. Only advance the visible receipt;
+        // a late "delivered" event must never replace an existing "read".
+        $previousStatuses = match ($statusName) {
+            'sent' => ['pending', 'accepted', 'unknown'],
+            'delivered' => ['pending', 'accepted', 'unknown', 'sent', 'failed'],
+            'read' => ['pending', 'accepted', 'unknown', 'sent', 'delivered', 'failed'],
+            'failed' => ['pending', 'accepted', 'unknown', 'sent'],
+            default => null,
+        };
+
+        if ($previousStatuses === null) {
+            return;
+        }
+
+        $statusAt = is_numeric($status['timestamp'] ?? null)
+            ? Carbon::createFromTimestamp((int) $status['timestamp'], 'UTC')
+            : now();
+
+        ChatMessage::query()
+            ->whereKey($message->id)
+            ->where(function ($query) use ($previousStatuses) {
+                $query->whereNull('delivery_status')->orWhereIn('delivery_status', $previousStatuses);
+            })
+            ->update([
+                'delivery_status' => $statusName,
+                'delivery_status_at' => $statusAt,
+            ]);
     }
 
     protected function handleInboundMessage(array $message, array $payload = []): void

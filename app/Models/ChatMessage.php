@@ -17,10 +17,14 @@ class ChatMessage extends Model
         'media_type',
         'is_template',
         'sent_at',
+        'provider_message_id',
+        'delivery_status',
+        'delivery_status_at',
     ];
 
     protected $casts = [
         'sent_at' => 'datetime',
+        'delivery_status_at' => 'datetime',
     ];
 
     public function session()

@@ -451,6 +451,7 @@ class ChatController extends Controller
             'media_type'  => $mediaType,
             'is_template' => $data['is_template'] ?? false,
             'sent_at'     => now(),
+            'delivery_status' => $session->platform === 'whatsapp' ? 'pending' : null,
         ]);
 
         $session->update([
@@ -458,12 +459,36 @@ class ChatController extends Controller
             'updated_at'   => now(),
         ]);
 
-        // Try sending outbound WhatsApp for live chat sessions
+        // Keep Meta's message ID so status webhooks can update this exact chat message.
         if ($session->platform === 'whatsapp') {
-            if ($mediaUrl) {
-                $this->sendWhatsappMediaReply($session, $mediaType, $mediaUrl, $data['content'] ?? null, $originalFilename);
-            } else {
-                $this->sendWhatsappReply($session, $content);
+            $result = null;
+            try {
+                $result = $mediaUrl
+                    ? $this->sendWhatsappMediaReply($session, $mediaType, $mediaUrl, $data['content'] ?? null, $originalFilename)
+                    : $this->sendWhatsappReply($session, $content);
+            } catch (\Throwable $e) {
+                // A timeout or Meta 5xx may happen after Meta accepted the POST.
+                // Without a message ID, its outcome is unknown, not failed.
+                $outcomeUnknown = $e instanceof \Illuminate\Http\Client\ConnectionException
+                    || preg_match('/^Meta API error \[5\d\d\]:/', $e->getMessage()) === 1;
+                $message->update([
+                    'delivery_status' => $outcomeUnknown ? 'unknown' : 'failed',
+                    'delivery_status_at' => now(),
+                ]);
+                Log::error('Failed to send WhatsApp chat reply', [
+                    'session_id' => $session->id,
+                    'chat_message_id' => $message->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            if ($result !== null) {
+                $providerMessageId = $result['message_id'] ?? $result['sid'] ?? null;
+                $message->update([
+                    'provider_message_id' => $providerMessageId,
+                    'delivery_status' => $providerMessageId ? 'accepted' : 'unknown',
+                    'delivery_status_at' => now(),
+                ]);
             }
         }
 
@@ -721,73 +746,55 @@ class ChatController extends Controller
         $this->authorizeClientScopeForUser($user, $client, 'access');
     }
 
-    protected function sendWhatsappReply(ChatSession $session, string $body): void
+    protected function sendWhatsappReply(ChatSession $session, string $body): array
     {
         $client = $session->client;
         $to = $client?->phone ?: $session->phone;
         if (!$to) {
-            Log::warning('Chat WhatsApp reply skipped: no phone on session', ['session_id' => $session->id]);
-            return;
+            throw new \RuntimeException('No phone number on chat session.');
         }
 
-        try {
-            Log::info('Chat WhatsApp reply attempt', [
-                'session_id' => $session->id,
-                'client_id' => $session->client_id,
-                'to' => $to,
-                'body_length' => mb_strlen($body),
-            ]);
+        Log::info('Chat WhatsApp reply attempt', [
+            'session_id' => $session->id,
+            'client_id' => $session->client_id,
+            'to' => $to,
+            'body_length' => mb_strlen($body),
+        ]);
 
-            $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
-                ? $this->whatsApp->resolveSenderForClient($client)
-                : null;
-            $overrideFrom = $senderContext['display_phone_number'] ?? null;
+        $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
+            ? $this->whatsApp->resolveSenderForClient($client)
+            : null;
+        $overrideFrom = $senderContext['display_phone_number'] ?? null;
 
-            $this->whatsApp->sendPlainWhatsapp($to, $body, $overrideFrom);
-        } catch (\Throwable $e) {
-            Log::error('Failed to send WhatsApp chat reply', [
-                'session_id' => $session->id,
-                'to'         => $to,
-                'error'      => $e->getMessage(),
-            ]);
-        }
+        return $this->whatsApp->sendPlainWhatsapp($to, $body, $overrideFrom);
     }
 
-    protected function sendWhatsappMediaReply(ChatSession $session, string $mediaType, string $mediaUrl, ?string $caption = null, ?string $filename = null): void
+    protected function sendWhatsappMediaReply(ChatSession $session, string $mediaType, string $mediaUrl, ?string $caption = null, ?string $filename = null): array
     {
         $client = $session->client;
         $to = $client?->phone ?: $session->phone;
         if (!$to) {
-            Log::warning('Chat WhatsApp media reply skipped: no phone on session', ['session_id' => $session->id]);
-            return;
+            throw new \RuntimeException('No phone number on chat session.');
         }
 
-        try {
-            Log::info('Chat WhatsApp media reply attempt', [
-                'session_id' => $session->id,
-                'client_id' => $session->client_id,
-                'to' => $to,
-                'media_type' => $mediaType,
-                'media_url' => $mediaUrl,
-            ]);
+        Log::info('Chat WhatsApp media reply attempt', [
+            'session_id' => $session->id,
+            'client_id' => $session->client_id,
+            'to' => $to,
+            'media_type' => $mediaType,
+            'media_url' => $mediaUrl,
+        ]);
 
-            $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
-                ? $this->whatsApp->resolveSenderForClient($client)
-                : null;
-            $overrideFrom = $senderContext['display_phone_number'] ?? null;
+        $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
+            ? $this->whatsApp->resolveSenderForClient($client)
+            : null;
+        $overrideFrom = $senderContext['display_phone_number'] ?? null;
 
-            if (method_exists($this->whatsApp, 'sendMediaWhatsapp')) {
-                $this->whatsApp->sendMediaWhatsapp($to, $mediaType, $mediaUrl, $caption, $filename, $overrideFrom);
-            } else {
-                $this->whatsApp->sendPlainWhatsapp($to, $caption ?: "[Attachment: {$mediaUrl}]", $overrideFrom);
-            }
-        } catch (\Throwable $e) {
-            Log::error('Failed to send WhatsApp chat media reply', [
-                'session_id' => $session->id,
-                'to'         => $to,
-                'error'      => $e->getMessage(),
-            ]);
+        if (method_exists($this->whatsApp, 'sendMediaWhatsapp')) {
+            return $this->whatsApp->sendMediaWhatsapp($to, $mediaType, $mediaUrl, $caption, $filename, $overrideFrom);
         }
+
+        return $this->whatsApp->sendPlainWhatsapp($to, $caption ?: "[Attachment: {$mediaUrl}]", $overrideFrom);
     }
 
     public function updateOptIn(Request $request, ChatSession $session)
