@@ -464,22 +464,90 @@
                     <span class="badge bg-success">Approved</span>
                   </div>
 
-                  <div class="template-phone-preview rounded-3 p-3 mb-4 shadow-sm">
-                    <img
-                      v-if="selectedTemplate.header_format === 'IMAGE' && selectedTemplate.media_urls?.[0]"
-                      :src="selectedTemplate.media_urls[0]"
-                      class="w-100 rounded mb-2 template-header-image"
-                      alt="Template header"
-                    />
-                    <div v-else-if="selectedTemplate.header_format && selectedTemplate.header_format !== 'TEXT'" class="small text-muted border rounded p-2 mb-2 bg-light">
-                      <i class="bi bi-paperclip me-1"></i>{{ selectedTemplate.header_format }} header
+                  <div class="whatsapp-phone-preview mb-4 shadow">
+                    <div class="whatsapp-phone-statusbar d-flex align-items-center justify-content-between px-3">
+                      <span class="fw-semibold">{{ templatePreviewTime }}</span>
+                      <span class="d-flex align-items-center gap-1">
+                        <i class="bi bi-reception-4"></i>
+                        <i class="bi bi-wifi"></i>
+                        <i class="bi bi-battery-full"></i>
+                      </span>
                     </div>
-                    <div v-if="renderedTemplateHeader" class="fw-bold mb-2 template-message-text">{{ renderedTemplateHeader }}</div>
-                    <div class="template-message-text">{{ renderedTemplateBody || 'No message preview is available.' }}</div>
-                    <div v-if="selectedTemplate.footer_text" class="text-muted small mt-2">{{ selectedTemplate.footer_text }}</div>
-                    <div v-if="selectedTemplate.buttons?.length" class="mt-3 border-top pt-2 text-center">
-                      <div v-for="(button, index) in selectedTemplate.buttons" :key="index" class="small text-primary py-1">
-                        <i class="bi bi-box-arrow-up-right me-1"></i>{{ button.text || button.type || 'Action' }}
+
+                    <div class="whatsapp-phone-header d-flex align-items-center px-2 py-2">
+                      <i class="bi bi-arrow-left text-white fs-5 me-2"></i>
+                      <div class="whatsapp-contact-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                        <i class="bi bi-building text-white"></i>
+                      </div>
+                      <div class="min-w-0 ms-2 flex-grow-1">
+                        <div class="text-white fw-semibold text-truncate whatsapp-contact-name">
+                          {{ templatePreviewBusinessName }}
+                          <i class="bi bi-patch-check-fill ms-1 whatsapp-verified-icon" title="Official business account"></i>
+                        </div>
+                        <div class="text-white-50 text-truncate whatsapp-contact-number">{{ templatePreviewBusinessNumber }}</div>
+                      </div>
+                      <div class="d-flex align-items-center gap-3 text-white ms-2 fs-5">
+                        <i class="bi bi-camera-video"></i>
+                        <i class="bi bi-telephone"></i>
+                        <i class="bi bi-three-dots-vertical"></i>
+                      </div>
+                    </div>
+
+                    <div class="whatsapp-chat-wallpaper position-relative p-3">
+                      <div class="whatsapp-encryption-note mx-auto mb-3 px-3 py-2 text-center">
+                        <i class="bi bi-lock-fill me-1"></i>Messages are end-to-end encrypted.
+                      </div>
+                      <div class="whatsapp-date-chip mx-auto mb-3 px-3 py-1 text-center">TODAY</div>
+
+                      <div class="whatsapp-template-message position-relative">
+                        <svg viewBox="0 0 8 13" width="8" height="13" class="whatsapp-bubble-tail" aria-hidden="true">
+                          <path fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"></path>
+                        </svg>
+
+                        <img
+                          v-if="selectedTemplate.header_format === 'IMAGE' && selectedTemplate.media_urls?.[0]"
+                          :src="selectedTemplate.media_urls[0]"
+                          class="w-100 rounded mb-2 template-header-image"
+                          alt="Template header"
+                        />
+                        <video
+                          v-else-if="selectedTemplate.header_format === 'VIDEO' && selectedTemplate.media_urls?.[0]"
+                          :src="selectedTemplate.media_urls[0]"
+                          class="w-100 rounded mb-2 template-header-image"
+                          controls
+                          preload="metadata"
+                        ></video>
+                        <div v-else-if="selectedTemplate.header_format === 'IMAGE'" class="whatsapp-document-preview rounded p-3 mb-2 text-center">
+                          <i class="bi bi-image fs-2 d-block text-secondary"></i>
+                          <small class="text-muted">Image header</small>
+                        </div>
+                        <div v-else-if="selectedTemplate.header_format === 'DOCUMENT'" class="whatsapp-document-preview rounded p-3 mb-2 d-flex align-items-center gap-2">
+                          <i class="bi bi-file-earmark-text-fill fs-2 text-secondary"></i>
+                          <div class="min-w-0">
+                            <div class="fw-semibold text-truncate">Template document</div>
+                            <small class="text-muted">Document attachment</small>
+                          </div>
+                        </div>
+                        <div v-else-if="selectedTemplate.header_format && !['TEXT', 'IMAGE'].includes(selectedTemplate.header_format)" class="whatsapp-document-preview rounded p-2 mb-2 small text-muted">
+                          <i class="bi bi-paperclip me-1"></i>{{ selectedTemplate.header_format }} header
+                        </div>
+
+                        <div v-if="renderedTemplateHeader" class="fw-bold mb-1 template-message-text whatsapp-message-header">{{ renderedTemplateHeader }}</div>
+                        <div class="template-message-text whatsapp-message-body">{{ renderedTemplateBody || 'No message preview is available.' }}</div>
+                        <div class="d-flex align-items-end justify-content-between gap-2 mt-1">
+                          <div v-if="selectedTemplate.footer_text" class="text-muted whatsapp-message-footer">{{ selectedTemplate.footer_text }}</div>
+                          <span v-else></span>
+                          <div class="text-muted whatsapp-message-time text-nowrap">{{ templatePreviewTime }}</div>
+                        </div>
+
+                        <div v-if="selectedTemplate.buttons?.length" class="whatsapp-template-buttons mt-2">
+                          <div v-for="(button, index) in selectedTemplate.buttons" :key="index" class="whatsapp-template-button text-center py-2">
+                            <i v-if="String(button.type || '').toUpperCase() === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
+                            <i v-else-if="String(button.type || '').toUpperCase() === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
+                            <i v-else class="bi bi-box-arrow-up-right me-1"></i>
+                            {{ button.text || button.type || 'Action' }}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -828,6 +896,23 @@ export default {
     activeWaba() {
       if (!this.activeSession || !this.activeSession.waba_phone_number_id) return null;
       return this.availableWabas.find(w => String(w.phone_number_id) === String(this.activeSession.waba_phone_number_id)) || null;
+    },
+    templatePreviewWaba() {
+      if (!this.templateSession?.waba_phone_number_id) return this.activeWaba;
+      return this.availableWabas.find((waba) =>
+        String(waba.phone_number_id) === String(this.templateSession.waba_phone_number_id)
+      ) || this.activeWaba;
+    },
+    templatePreviewBusinessName() {
+      return this.templatePreviewWaba?.label
+        || this.templatePreviewWaba?.bank_name
+        || 'WhatsApp Business';
+    },
+    templatePreviewBusinessNumber() {
+      return this.templatePreviewWaba?.number || 'Business account';
+    },
+    templatePreviewTime() {
+      return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     },
     filteredTemplates() {
       const search = this.templateSearch.trim().toLowerCase();
@@ -1578,11 +1663,6 @@ export default {
   max-height: 68vh;
 }
 
-.template-phone-preview {
-  background-color: #ffffff;
-  border: 1px solid #d8e2dc;
-}
-
 .template-message-text {
   line-height: 1.45;
   white-space: pre-wrap;
@@ -1590,8 +1670,132 @@ export default {
 }
 
 .template-header-image {
-  max-height: 240px;
+  max-height: 220px;
   object-fit: cover;
+}
+
+.min-w-0 {
+  min-width: 0;
+}
+
+.whatsapp-phone-preview {
+  max-width: 430px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 6px solid #263238;
+  border-radius: 22px;
+  background: #efeae2;
+}
+
+.whatsapp-phone-statusbar {
+  height: 26px;
+  color: #ffffff;
+  background: #075e54;
+  font-size: 0.68rem;
+}
+
+.whatsapp-phone-header {
+  min-height: 58px;
+  background: #008069;
+}
+
+.whatsapp-contact-avatar {
+  width: 40px;
+  height: 40px;
+  background: #607d8b;
+}
+
+.whatsapp-contact-name {
+  font-size: 0.9rem;
+  line-height: 1.15;
+}
+
+.whatsapp-contact-number {
+  margin-top: 3px;
+  font-size: 0.69rem;
+}
+
+.whatsapp-verified-icon {
+  color: #8edfd2;
+  font-size: 0.78rem;
+}
+
+.whatsapp-chat-wallpaper {
+  min-height: 350px;
+  background-color: #efeae2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%238b9b93' stroke-opacity='.11' stroke-width='1.3'%3E%3Cpath d='M14 18c7-5 15 4 10 11s-15 3-14-5m71-13 8 8-8 8-8-8zm-40 39c4-7 15-5 16 3s-10 13-15 7m45 13c8-2 13 8 7 14s-15 0-12-8M9 88c8-6 18 3 12 11S5 102 6 94m50-3 9 9m-9 0 9-9m37 2c4-7 14-3 12 5s-13 8-14 0'/%3E%3Cpath d='M36 7c3 7 11 8 16 3m-20 63c8 0 12 7 8 13m34-48c5 6 13 5 17-1m13 39c-7 2-9 10-4 15'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.whatsapp-encryption-note {
+  width: fit-content;
+  max-width: 88%;
+  border-radius: 7px;
+  color: #6b6252;
+  background: #ffeecd;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+  font-size: 0.64rem;
+}
+
+.whatsapp-date-chip {
+  width: fit-content;
+  border-radius: 7px;
+  color: #54656f;
+  background: #ffffffd9;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+  font-size: 0.64rem;
+}
+
+.whatsapp-template-message {
+  width: 88%;
+  padding: 8px 8px 5px;
+  margin-left: 7px;
+  border-radius: 0 8px 8px 8px;
+  color: #111b21;
+  background: #ffffff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.14);
+}
+
+.whatsapp-bubble-tail {
+  position: absolute;
+  top: 0;
+  left: -8px;
+  color: #ffffff;
+}
+
+.whatsapp-message-header {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.whatsapp-message-body {
+  font-size: 0.82rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.whatsapp-message-footer {
+  font-size: 0.68rem;
+}
+
+.whatsapp-message-time {
+  font-size: 0.62rem;
+}
+
+.whatsapp-document-preview {
+  background: #f0f2f5;
+  border: 1px solid #e1e5e7;
+}
+
+.whatsapp-template-buttons {
+  margin-right: -8px;
+  margin-left: -8px;
+  margin-bottom: -5px;
+}
+
+.whatsapp-template-button {
+  color: #00a884;
+  border-top: 1px solid #e9edef;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .last-variable-field:last-child {
