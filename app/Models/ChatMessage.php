@@ -23,6 +23,7 @@ class ChatMessage extends Model
     ];
 
     protected $casts = [
+        'is_template' => 'boolean',
         'sent_at' => 'datetime',
         'delivery_status_at' => 'datetime',
     ];

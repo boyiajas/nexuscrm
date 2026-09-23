@@ -10,6 +10,7 @@ use App\Models\ChatSession;
 use App\Models\ChatMessage;
 use App\Models\Client;
 use App\Models\CampaignWhatsappRecipient;
+use App\Models\WhatsappTemplateCache;
 use App\Services\BankWabaResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -495,6 +496,109 @@ class ChatController extends Controller
         return response()->json($message, 201);
     }
 
+    public function storeTemplateMessage(Request $request, ChatSession $session)
+    {
+        $this->authorizeManage();
+        $this->authorizeSessionScope(Auth::user(), $session);
+
+        $data = $request->validate([
+            'template_id' => ['required', 'string', 'max:255'],
+            'variables' => ['sometimes', 'array'],
+            'variables.*' => ['nullable', 'string', 'max:1024'],
+        ]);
+
+        if (strtolower((string) $session->platform) !== 'whatsapp') {
+            return response()->json(['message' => 'Templates can only be sent to WhatsApp chats.'], 422);
+        }
+
+        $settings = \App\Models\SystemSetting::first();
+        if ($settings && $settings->live_chat_locked) {
+            return response()->json([
+                'message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.'
+            ], 403);
+        }
+
+        $template = WhatsappTemplateCache::query()
+            ->where('sid', $data['template_id'])
+            ->first();
+
+        if (!$template || strtoupper((string) $template->status) !== 'APPROVED') {
+            return response()->json(['message' => 'The selected WhatsApp template is unavailable or is not approved.'], 422);
+        }
+
+        $submittedVariables = $data['variables'] ?? [];
+        $variables = [];
+        foreach (array_keys($template->variables ?? []) as $key) {
+            $value = trim((string) ($submittedVariables[$key] ?? ''));
+            if ($value === '') {
+                return response()->json([
+                    'message' => "A value is required for template variable {$key}.",
+                    'errors' => ["variables.{$key}" => ["A value is required for template variable {$key}."]],
+                ], 422);
+            }
+            $variables[$key] = $value;
+        }
+
+        $to = $session->client?->phone ?: $session->phone;
+        if (!$to) {
+            return response()->json(['message' => 'No phone number is available for this chat.'], 422);
+        }
+
+        $this->enforceMetaPermissionHealthForProduction('Live chat WhatsApp template sending');
+
+        $content = $this->renderTemplateMessage($template, $variables);
+        $message = $session->messages()->create([
+            'sender' => 'agent',
+            'content' => $content,
+            'is_template' => true,
+            'sent_at' => now(),
+            'delivery_status' => 'pending',
+        ]);
+
+        $session->update([
+            'last_message' => $content,
+            'updated_at' => now(),
+        ]);
+
+        try {
+            $senderContext = null;
+            if (!$session->waba_phone_number_id && method_exists($this->whatsApp, 'resolveSenderForClient')) {
+                $senderContext = $this->whatsApp->resolveSenderForClient($session->client);
+            }
+
+            $result = $this->whatsApp->sendTemplateFromSubjectMessage(
+                $to,
+                $template->sid,
+                '',
+                '',
+                $variables,
+                $session->waba_phone_number_id ?: ($senderContext['display_phone_number'] ?? null)
+            );
+
+            $providerMessageId = $result['message_id'] ?? $result['sid'] ?? null;
+            $message->update([
+                'provider_message_id' => $providerMessageId,
+                'delivery_status' => $providerMessageId ? 'accepted' : 'unknown',
+                'delivery_status_at' => now(),
+            ]);
+        } catch (\Throwable $e) {
+            $outcomeUnknown = $e instanceof \Illuminate\Http\Client\ConnectionException
+                || preg_match('/^Meta API error \[5\d\d\]:/', $e->getMessage()) === 1;
+            $message->update([
+                'delivery_status' => $outcomeUnknown ? 'unknown' : 'failed',
+                'delivery_status_at' => now(),
+            ]);
+            Log::error('Failed to send WhatsApp chat template', [
+                'session_id' => $session->id,
+                'chat_message_id' => $message->id,
+                'template' => $template->sid,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return response()->json($message->fresh(), 201);
+    }
+
     public function destroy(ChatSession $session)
     {
         $this->authorizeManage();
@@ -767,6 +871,27 @@ class ChatController extends Controller
         $overrideFrom = $senderContext['display_phone_number'] ?? null;
 
         return $this->whatsApp->sendPlainWhatsapp($to, $body, $overrideFrom);
+    }
+
+    protected function renderTemplateMessage(WhatsappTemplateCache $template, array $variables): string
+    {
+        $render = static function (?string $text, string $prefix) use ($variables): string {
+            return preg_replace_callback(
+                '/{{(\d+)}}/',
+                static fn (array $match) => $variables["{$prefix}_{$match[1]}"] ?? $match[0],
+                (string) $text
+            );
+        };
+
+        $parts = array_filter([
+            $render($template->header_text, 'header'),
+            $render($template->body_preview, 'body'),
+            trim((string) $template->footer_text),
+        ], static fn (string $part) => trim($part) !== '');
+
+        return $parts
+            ? implode("\n", $parts)
+            : 'Template: ' . $template->friendly_name;
     }
 
     protected function sendWhatsappMediaReply(ChatSession $session, string $mediaType, string $mediaUrl, ?string $caption = null, ?string $filename = null): array

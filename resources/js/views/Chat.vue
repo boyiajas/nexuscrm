@@ -225,6 +225,17 @@
                     <i class="bi bi-envelope me-2 text-primary"></i>Mark as unread
                   </a>
                 </li>
+                <li v-if="canManageChat && activeSession.platform?.toLowerCase() === 'whatsapp'">
+                  <a
+                    class="dropdown-item py-2"
+                    :class="{ disabled: liveChatLocked }"
+                    href="#"
+                    :aria-disabled="liveChatLocked"
+                    @click.prevent="openTemplateModal(activeSession)"
+                  >
+                    <i class="bi bi-file-earmark-text me-2 text-success"></i>Send Template
+                  </a>
+                </li>
                 <li v-if="canManageChat && !sessionHasClient(activeSession)">
                   <a class="dropdown-item py-2" href="#" @click.prevent="openAddClientModal(activeSession)">
                     <i class="bi bi-person-plus text-success me-2"></i>Add Client
@@ -391,6 +402,128 @@
       </div>
     </div>
     
+    <!-- Send WhatsApp Template Modal -->
+    <div class="modal fade" id="sendTemplateModal" tabindex="-1" ref="templateModal">
+      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow border-0">
+          <div class="modal-header border-bottom py-3">
+            <div>
+              <h5 class="modal-title h6 mb-1 text-dark fw-bold">
+                <i class="bi bi-file-earmark-text text-success me-2"></i>Send WhatsApp Template
+              </h5>
+              <small class="text-muted" v-if="templateSession">
+                To {{ templateSession.client_name }} · {{ templateSession.client?.phone || templateSession.phone }}
+              </small>
+            </div>
+            <button type="button" class="btn-close" @click="closeTemplateModal" aria-label="Close"></button>
+          </div>
+
+          <div class="modal-body p-0">
+            <div class="row g-0 template-picker-body">
+              <div class="col-md-5 border-end d-flex flex-column">
+                <div class="p-3 border-bottom bg-light">
+                  <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                    <input v-model="templateSearch" type="search" class="form-control" placeholder="Search approved templates..." />
+                  </div>
+                </div>
+
+                <div v-if="templatesLoading" class="flex-grow-1 d-flex align-items-center justify-content-center text-muted py-5">
+                  <span class="spinner-border spinner-border-sm text-primary me-2"></span>Loading templates...
+                </div>
+                <div v-else-if="filteredTemplates.length === 0" class="flex-grow-1 d-flex flex-column align-items-center justify-content-center text-muted text-center p-4">
+                  <i class="bi bi-file-earmark-x fs-2 mb-2"></i>
+                  <div class="fw-semibold">No approved templates found</div>
+                  <small>Sync approved templates in Settings, then reopen this window.</small>
+                </div>
+                <div v-else class="list-group list-group-flush overflow-auto template-list">
+                  <button
+                    v-for="template in filteredTemplates"
+                    :key="template.sid"
+                    type="button"
+                    class="list-group-item list-group-item-action p-3"
+                    :class="{ active: selectedTemplateId === template.sid }"
+                    @click="selectTemplate(template)"
+                  >
+                    <div class="fw-semibold text-break">{{ template.name || template.sid }}</div>
+                    <div class="d-flex gap-1 mt-2 flex-wrap">
+                      <span class="badge" :class="selectedTemplateId === template.sid ? 'bg-white text-primary' : 'bg-light text-dark border'">{{ template.language || 'Unknown language' }}</span>
+                      <span class="badge" :class="selectedTemplateId === template.sid ? 'bg-white text-primary' : 'bg-light text-dark border'">{{ template.category || 'Template' }}</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div class="col-md-7 bg-light p-4 overflow-auto template-preview-column">
+                <div v-if="selectedTemplate" class="mx-auto" style="max-width: 520px;">
+                  <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                      <h6 class="fw-bold mb-1">{{ selectedTemplate.name || selectedTemplate.sid }}</h6>
+                      <small class="text-muted">Preview of the message the client will receive</small>
+                    </div>
+                    <span class="badge bg-success">Approved</span>
+                  </div>
+
+                  <div class="template-phone-preview rounded-3 p-3 mb-4 shadow-sm">
+                    <img
+                      v-if="selectedTemplate.header_format === 'IMAGE' && selectedTemplate.media_urls?.[0]"
+                      :src="selectedTemplate.media_urls[0]"
+                      class="w-100 rounded mb-2 template-header-image"
+                      alt="Template header"
+                    />
+                    <div v-else-if="selectedTemplate.header_format && selectedTemplate.header_format !== 'TEXT'" class="small text-muted border rounded p-2 mb-2 bg-light">
+                      <i class="bi bi-paperclip me-1"></i>{{ selectedTemplate.header_format }} header
+                    </div>
+                    <div v-if="renderedTemplateHeader" class="fw-bold mb-2 template-message-text">{{ renderedTemplateHeader }}</div>
+                    <div class="template-message-text">{{ renderedTemplateBody || 'No message preview is available.' }}</div>
+                    <div v-if="selectedTemplate.footer_text" class="text-muted small mt-2">{{ selectedTemplate.footer_text }}</div>
+                    <div v-if="selectedTemplate.buttons?.length" class="mt-3 border-top pt-2 text-center">
+                      <div v-for="(button, index) in selectedTemplate.buttons" :key="index" class="small text-primary py-1">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>{{ button.text || button.type || 'Action' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="templateVariableEntries.length" class="card border-0 shadow-sm">
+                    <div class="card-body">
+                      <h6 class="fw-bold mb-1">Template values</h6>
+                      <p class="text-muted small mb-3">Enter the values required for this client. The preview updates as you type.</p>
+                      <div v-for="entry in templateVariableEntries" :key="entry.key" class="mb-3 last-variable-field">
+                        <label class="form-label small fw-semibold">
+                          {{ entry.label }} <span class="text-danger">*</span>
+                        </label>
+                        <input
+                          v-model="templateVariableValues[entry.key]"
+                          type="text"
+                          class="form-control form-control-sm"
+                          :placeholder="`Value for ${entry.key}`"
+                          maxlength="1024"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else-if="!templatesLoading" class="h-100 d-flex flex-column align-items-center justify-content-center text-muted text-center">
+                  <i class="bi bi-chat-square-text fs-1 mb-3"></i>
+                  <h6>Select a template</h6>
+                  <small>Choose an approved template from the list to preview it.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer bg-white py-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" @click="closeTemplateModal" :disabled="sendingTemplate">Cancel</button>
+            <button type="button" class="btn btn-success btn-sm px-3" @click="sendTemplate" :disabled="!canSendSelectedTemplate">
+              <span v-if="sendingTemplate" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-send-fill me-1"></i>Send Template
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Client Info Modal -->
     <div class="modal fade" id="contactInfoModal" tabindex="-1" ref="contactInfoModal">
       <div class="modal-dialog modal-md modal-dialog-centered">
@@ -619,6 +752,14 @@ export default {
       searchQuery: '',
       contactInfoSession: null,
       modalInstance: null,
+      templateModalInstance: null,
+      templateSession: null,
+      templates: [],
+      templatesLoading: false,
+      templateSearch: '',
+      selectedTemplateId: null,
+      templateVariableValues: {},
+      sendingTemplate: false,
       showClientInfoModal: false,
       loadingSessionId: null,
       loadingMessages: false,
@@ -687,6 +828,34 @@ export default {
     activeWaba() {
       if (!this.activeSession || !this.activeSession.waba_phone_number_id) return null;
       return this.availableWabas.find(w => String(w.phone_number_id) === String(this.activeSession.waba_phone_number_id)) || null;
+    },
+    filteredTemplates() {
+      const search = this.templateSearch.trim().toLowerCase();
+      if (!search) return this.templates;
+
+      return this.templates.filter((template) => [
+        template.name,
+        template.sid,
+        template.language,
+        template.category,
+        template.body_preview,
+      ].some((value) => String(value || '').toLowerCase().includes(search)));
+    },
+    selectedTemplate() {
+      return this.templates.find((template) => template.sid === this.selectedTemplateId) || null;
+    },
+    templateVariableEntries() {
+      return Object.entries(this.selectedTemplate?.variables || {}).map(([key, label]) => ({ key, label }));
+    },
+    renderedTemplateHeader() {
+      return this.renderTemplatePart(this.selectedTemplate?.header_text, 'header');
+    },
+    renderedTemplateBody() {
+      return this.renderTemplatePart(this.selectedTemplate?.body_preview, 'body');
+    },
+    canSendSelectedTemplate() {
+      if (!this.selectedTemplate || this.sendingTemplate || this.liveChatLocked) return false;
+      return this.templateVariableEntries.every(({ key }) => String(this.templateVariableValues[key] || '').trim() !== '');
     }
   },
   mounted() {
@@ -706,6 +875,8 @@ export default {
       }
       this.modalInstance = null;
     }
+    disposeManagedModal(this.templateModalInstance);
+    this.templateModalInstance = null;
   },
   methods: {
     hasPermission(permCode) {
@@ -1156,6 +1327,93 @@ export default {
         notify.error('Failed to update opt-in status.');
       });
     },
+    openTemplateModal(session) {
+      if (!this.canManageChat || !session || this.liveChatLocked) return;
+      if (String(session.platform || '').toLowerCase() !== 'whatsapp') {
+        notify.error('Templates can only be sent to WhatsApp chats.', 'Chat');
+        return;
+      }
+
+      this.templateSession = session;
+      this.templateSearch = '';
+      this.selectedTemplateId = null;
+      this.templateVariableValues = {};
+      this.loadTemplates();
+
+      this.$nextTick(() => {
+        if (!this.templateModalInstance && this.$refs.templateModal) {
+          this.templateModalInstance = createManagedModal(this.$refs.templateModal);
+        }
+        this.templateModalInstance?.show();
+      });
+    },
+    closeTemplateModal() {
+      if (!this.sendingTemplate) {
+        this.templateModalInstance?.hide();
+      }
+    },
+    loadTemplates() {
+      this.templatesLoading = true;
+      axios.get('/api/whatsapp-templates', { params: { approved: true } })
+        .then((res) => {
+          this.templates = Array.isArray(res.data) ? res.data : [];
+          if (this.templates.length) {
+            this.selectTemplate(this.templates[0]);
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to load WhatsApp templates', err);
+          this.templates = [];
+          notify.error(err.response?.data?.message || 'Failed to load approved WhatsApp templates.', 'Chat');
+        })
+        .finally(() => {
+          this.templatesLoading = false;
+        });
+    },
+    selectTemplate(template) {
+      this.selectedTemplateId = template.sid;
+      this.templateVariableValues = Object.keys(template.variables || {}).reduce((values, key) => {
+        values[key] = '';
+        return values;
+      }, {});
+    },
+    renderTemplatePart(text, prefix) {
+      return String(text || '').replace(/{{(\d+)}}/g, (placeholder, index) => {
+        return String(this.templateVariableValues[`${prefix}_${index}`] || '').trim() || placeholder;
+      });
+    },
+    sendTemplate() {
+      if (!this.canSendSelectedTemplate || !this.templateSession) return;
+
+      const sessionId = this.templateSession.id;
+      this.sendingTemplate = true;
+      axios.post(`/api/chat/sessions/${sessionId}/templates`, {
+        template_id: this.selectedTemplate.sid,
+        variables: this.templateVariableValues,
+      }).then((res) => {
+        if (this.activeSession?.id === sessionId && !this.messages.some((message) => message.id === res.data.id)) {
+          this.messages.push(res.data);
+          this.$nextTick(this.scrollToBottom);
+        }
+
+        this.templateModalInstance?.hide();
+        this.fetchSessions();
+
+        if (res.data.delivery_status === 'failed') {
+          notify.error('WhatsApp rejected the template message. It is marked as failed in the chat.', 'Chat');
+        } else if (res.data.delivery_status === 'unknown') {
+          notify.error('WhatsApp accepted the request, but delivery could not be confirmed.', 'Chat');
+        } else {
+          notify.success('WhatsApp template sent.', 'Chat');
+        }
+      }).catch((err) => {
+        console.error('Failed to send WhatsApp template', err);
+        const validationMessage = Object.values(err.response?.data?.errors || {})[0]?.[0];
+        notify.error(validationMessage || err.response?.data?.message || 'Failed to send WhatsApp template.', 'Chat');
+      }).finally(() => {
+        this.sendingTemplate = false;
+      });
+    },
     loadFilters() {
       axios.get('/api/chat/filters').then((res) => {
         this.availableBanks = res.data.banks || [];
@@ -1308,6 +1566,51 @@ export default {
 .locked-input::placeholder {
   color: #dc3545 !important;
   opacity: 1 !important;
+}
+
+.template-picker-body {
+  min-height: 540px;
+  max-height: 68vh;
+}
+
+.template-list,
+.template-preview-column {
+  max-height: 68vh;
+}
+
+.template-phone-preview {
+  background-color: #ffffff;
+  border: 1px solid #d8e2dc;
+}
+
+.template-message-text {
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.template-header-image {
+  max-height: 240px;
+  object-fit: cover;
+}
+
+.last-variable-field:last-child {
+  margin-bottom: 0 !important;
+}
+
+@media (max-width: 767.98px) {
+  .template-picker-body {
+    min-height: auto;
+    max-height: none;
+  }
+
+  .template-list {
+    max-height: 260px;
+  }
+
+  .template-preview-column {
+    max-height: none;
+  }
 }
 
 /* Preserve existing multiselect tag color if used elsewhere in the view */

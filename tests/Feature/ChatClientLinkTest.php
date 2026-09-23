@@ -13,6 +13,7 @@ use App\Models\Client;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
+use App\Models\WhatsappTemplateCache;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -244,6 +245,72 @@ class ChatClientLinkTest extends TestCase
             'provider_message_id' => 'wamid.campaign-message',
             'status' => 'Sent',
         ]);
+    }
+
+    public function test_agent_can_send_an_approved_template_to_the_current_chat(): void
+    {
+        $session = $this->createWhatsAppSessionForDeliveryTest();
+        WhatsappTemplateCache::query()->create([
+            'sid' => 'payment_reminder',
+            'friendly_name' => 'Payment reminder',
+            'language' => 'en_US',
+            'category' => 'utility',
+            'status' => 'APPROVED',
+            'header_text' => 'Payment reminder',
+            'body_preview' => 'Hello {{1}}, please pay {{2}}.',
+            'footer_text' => 'Thank you',
+            'variables' => [
+                'body_1' => 'Client name',
+                'body_2' => 'Payment amount',
+            ],
+        ]);
+
+        $this->mock(WhatsAppServiceInterface::class)
+            ->shouldReceive('sendTemplateFromSubjectMessage')
+            ->once()
+            ->with(
+                '+27763399083',
+                'payment_reminder',
+                '',
+                '',
+                ['body_1' => 'Lerato', 'body_2' => 'R 100.00'],
+                null
+            )
+            ->andReturn(['message_id' => 'wamid.live-chat-template-1', 'status' => 'accepted']);
+
+        $this->postJson("/api/chat/sessions/{$session->id}/templates", [
+            'template_id' => 'payment_reminder',
+            'variables' => ['body_1' => 'Lerato', 'body_2' => 'R 100.00'],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('is_template', true)
+            ->assertJsonPath('content', "Payment reminder\nHello Lerato, please pay R 100.00.\nThank you")
+            ->assertJsonPath('provider_message_id', 'wamid.live-chat-template-1')
+            ->assertJsonPath('delivery_status', 'accepted');
+    }
+
+    public function test_live_chat_rejects_unapproved_templates(): void
+    {
+        $session = $this->createWhatsAppSessionForDeliveryTest();
+        WhatsappTemplateCache::query()->create([
+            'sid' => 'pending_template',
+            'friendly_name' => 'Pending template',
+            'language' => 'en_US',
+            'category' => 'utility',
+            'status' => 'PENDING',
+            'body_preview' => 'This template is pending.',
+        ]);
+
+        $this->mock(WhatsAppServiceInterface::class)
+            ->shouldNotReceive('sendTemplateFromSubjectMessage');
+
+        $this->postJson("/api/chat/sessions/{$session->id}/templates", [
+            'template_id' => 'pending_template',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'The selected WhatsApp template is unavailable or is not approved.');
+
+        $this->assertDatabaseCount('chat_messages', 0);
     }
 
     private function createWhatsAppSessionForDeliveryTest(): ChatSession
