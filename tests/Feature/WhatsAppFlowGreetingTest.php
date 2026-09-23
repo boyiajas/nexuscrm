@@ -13,6 +13,7 @@ use App\Models\Client;
 use App\Models\Department;
 use App\Models\User;
 use App\Models\WhatsAppFlow;
+use App\Models\WhatsappTemplateCache;
 use App\Services\MetaWhatsAppService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
@@ -165,6 +166,175 @@ class WhatsAppFlowGreetingTest extends TestCase
 
         $this->assertEquals('agent', $messages[1]->sender);
         $this->assertEquals('Thank you for contacting Strauss Daly Attorneys. Please provide me with your ID number to assist you further.', $messages[1]->content);
+    }
+
+    public function test_flow_step_can_send_an_approved_template_with_client_variables(): void
+    {
+        $mockMeta = Mockery::mock(MetaWhatsAppService::class);
+        $mockMeta->shouldReceive('appSecret')->andReturn(null);
+        $mockMeta->shouldNotReceive('sendTextMessage');
+        $mockMeta->shouldReceive('sendTemplateFromSubjectMessage')
+            ->once()
+            ->with(
+                '27821112233',
+                'flow_follow_up',
+                '',
+                '',
+                ['body_1' => 'John', 'body_2' => 'Flow Campaign'],
+                '10987654321'
+            )
+            ->andReturn([
+                'message_id' => 'wamid.flow.template.1',
+                'status' => 'accepted',
+            ]);
+
+        $this->app->instance(MetaWhatsAppService::class, $mockMeta);
+        $this->app->instance(WhatsAppServiceInterface::class, $mockMeta);
+
+        $client = Client::query()->create([
+            'name' => 'John Doe',
+            'first_name' => 'John',
+            'phone' => '+27821112233',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+        ]);
+
+        $campaign = Campaign::query()->create([
+            'name' => 'Flow Campaign',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+            'created_by' => $this->user->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+
+        $batch = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'created_by_user_id' => $this->user->id,
+            'mode' => 'flow',
+            'template_sid' => 'initial_template',
+            'flow_definition' => [[
+                'id' => 'follow_up',
+                'label' => 'Follow Up',
+                'reply_type' => 'template',
+                'message' => '',
+                'template_sid' => 'flow_follow_up',
+                'template_name' => 'flow_follow_up',
+                'template_preview' => 'Hello {{1}}, welcome to {{2}}.',
+                'template_variables' => [
+                    'body_1' => ['source' => 'client.first_name', 'custom_value' => ''],
+                    'body_2' => ['source' => 'campaign.name', 'custom_value' => ''],
+                ],
+                'decision' => false,
+            ]],
+            'track_responses' => true,
+            'enable_live_chat' => true,
+        ]);
+
+        $recipient = CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $batch->id,
+            'client_id' => $client->id,
+            'phone' => '+27821112233',
+            'status' => 'Delivered',
+            'current_flow_step_id' => null,
+        ]);
+
+        $response = $this->postJson('/api/whatsapp/webhook', [
+            'entry' => [[
+                'id' => '123456789',
+                'changes' => [[
+                    'field' => 'messages',
+                    'value' => [
+                        'messaging_product' => 'whatsapp',
+                        'metadata' => [
+                            'display_phone_number' => '27614774098',
+                            'phone_number_id' => '10987654321',
+                        ],
+                        'contacts' => [
+                            ['profile' => ['name' => 'John Doe'], 'wa_id' => '27821112233'],
+                        ],
+                        'messages' => [[
+                            'from' => '27821112233',
+                            'id' => 'wamid.inbound.template.1',
+                            'timestamp' => (string) time(),
+                            'type' => 'text',
+                            'text' => ['body' => 'Hello'],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ]);
+
+        $response->assertOk();
+
+        $recipient->refresh();
+        $this->assertSame('follow_up', $recipient->current_flow_step_id);
+
+        $outbound = ChatMessage::query()
+            ->where('sender', 'agent')
+            ->where('provider_message_id', 'wamid.flow.template.1')
+            ->first();
+
+        $this->assertNotNull($outbound);
+        $this->assertTrue($outbound->is_template);
+        $this->assertSame('Hello John, welcome to Flow Campaign.', $outbound->content);
+        $this->assertSame('accepted', $outbound->delivery_status);
+    }
+
+    public function test_flow_editor_saves_canonical_approved_template_step_details(): void
+    {
+        $superAdminRole = \App\Models\Role::query()->where('code', User::ROLE_SUPER_ADMIN)->firstOrFail();
+        $this->user->roles()->sync([$superAdminRole->id]);
+        $this->user->update([
+            'role' => User::ROLE_SUPER_ADMIN,
+            'status' => 'Active',
+            'password_reset_required' => false,
+            'password_changed_at' => now(),
+        ]);
+
+        WhatsappTemplateCache::query()->create([
+            'sid' => 'flow_follow_up',
+            'friendly_name' => 'Flow Follow Up',
+            'language' => 'en',
+            'category' => 'UTILITY',
+            'status' => 'approved',
+            'header_text' => 'Account update',
+            'body_preview' => 'Hello {{1}}, your account is {{2}}.',
+            'footer_text' => 'Thank you',
+            'variables' => [
+                'body_1' => 'Body Variable 1',
+                'body_2' => 'Body Variable 2',
+            ],
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->user->fresh());
+
+        $response = $this->postJson('/api/whatsapp-flows', [
+            'name' => 'Template Step Flow',
+            'template_sid' => 'initial_template',
+            'template_name' => 'Initial Template',
+            'template_language' => 'en',
+            'status' => 'active',
+            'flow_definition' => [[
+                'id' => 'follow_up',
+                'label' => 'Follow Up',
+                'reply_type' => 'template',
+                'template_sid' => 'flow_follow_up',
+                'template_variables' => [
+                    'body_1' => ['source' => 'client.first_name', 'custom_value' => 'ignored'],
+                    'body_2' => ['source' => 'custom', 'custom_value' => 'active'],
+                ],
+                'decision' => false,
+            ]],
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('flow_definition.0.reply_type', 'template')
+            ->assertJsonPath('flow_definition.0.template_name', 'Flow Follow Up')
+            ->assertJsonPath('flow_definition.0.template_preview', 'Hello {{1}}, your account is {{2}}.')
+            ->assertJsonPath('flow_definition.0.template_variables.body_1.source', 'client.first_name')
+            ->assertJsonPath('flow_definition.0.template_variables.body_1.custom_value', '')
+            ->assertJsonPath('flow_definition.0.template_variables.body_2.custom_value', 'active');
     }
 
     public function test_subsequent_client_reply_advances_flow_step(): void

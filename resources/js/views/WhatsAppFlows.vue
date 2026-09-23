@@ -223,12 +223,92 @@
                             </button>
                           </div>
                         </div>
+                        <div class="row g-2 mt-1 align-items-end">
+                          <div class="col-md-5">
+                            <label class="form-label small fw-semibold mb-1">Auto reply with</label>
+                            <select class="form-select form-select-sm" v-model="step.reply_type">
+                              <option value="message">Message</option>
+                              <option value="template">WhatsApp template</option>
+                            </select>
+                          </div>
+                          <div v-if="step.reply_type === 'template'" class="col-md-7">
+                            <label class="form-label small fw-semibold mb-1">Approved template</label>
+                            <select
+                              class="form-select form-select-sm"
+                              v-model="step.template_sid"
+                              @change="handleStepTemplateChange(step)"
+                              required
+                            >
+                              <option value="" disabled>Select an approved template</option>
+                              <option v-for="tpl in templates" :key="tpl.sid" :value="tpl.sid">
+                                {{ tpl.name }} — {{ tpl.language }}
+                              </option>
+                            </select>
+                          </div>
+                        </div>
+
                         <textarea
+                          v-if="step.reply_type !== 'template'"
                           class="form-control form-control-sm mt-2"
                           rows="2"
                           v-model="step.message"
                           placeholder="Message or prompt for this step"
+                          required
                         ></textarea>
+
+                        <div v-else-if="step.template_sid" class="step-template-card mt-2">
+                          <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                              <div class="fw-semibold small">{{ step.template_name || step.template_sid }}</div>
+                              <div class="text-muted" style="font-size: 0.72rem;">
+                                {{ step.template_language || 'n/a' }} · Approved template
+                              </div>
+                            </div>
+                            <i class="bi bi-whatsapp text-success fs-5"></i>
+                          </div>
+                          <div class="step-template-preview">
+                            <div v-if="step.template_header_text" class="fw-bold mb-1">
+                              {{ renderStepTemplateText(step, step.template_header_text, 'header') }}
+                            </div>
+                            <div class="text-body" style="white-space: pre-wrap;">
+                              {{ renderStepTemplateText(step, step.template_preview, 'body') || 'Template preview unavailable.' }}
+                            </div>
+                            <div v-if="step.template_footer_text" class="text-muted mt-2" style="font-size: 0.72rem;">
+                              {{ step.template_footer_text }}
+                            </div>
+                          </div>
+
+                          <div v-if="stepTemplateVariableKeys(step).length" class="mt-3">
+                            <div class="small fw-semibold mb-2">Template values</div>
+                            <div
+                              v-for="key in stepTemplateVariableKeys(step)"
+                              :key="key"
+                              class="row g-2 align-items-center mb-2"
+                            >
+                              <div class="col-md-3">
+                                <span class="badge bg-primary-subtle text-primary border w-100">{{ key }}</span>
+                              </div>
+                              <div class="col-md-9">
+                                <select
+                                  class="form-select form-select-sm"
+                                  v-model="getStepTemplateVariable(step, key).source"
+                                >
+                                  <option value="">Select value</option>
+                                  <option v-for="option in templateVariableSources" :key="option.value" :value="option.value">
+                                    {{ option.label }}
+                                  </option>
+                                </select>
+                                <input
+                                  v-if="getStepTemplateVariable(step, key).source === 'custom'"
+                                  class="form-control form-control-sm mt-2"
+                                  type="text"
+                                  v-model="getStepTemplateVariable(step, key).custom_value"
+                                  placeholder="Enter custom value"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                         <div class="form-check mt-2">
                           <input
                             class="form-check-input"
@@ -457,7 +537,7 @@
               <div v-for="(step, idx) in diagramSteps" :key="idx" class="diagram-node mb-3">
                 <div class="small text-muted">{{ step.id }}</div>
                 <div class="fw-semibold">{{ step.label || 'Step' }}</div>
-                <div class="small mb-2">{{ step.message }}</div>
+                <div class="small mb-2">{{ flowStepSummary(step) }}</div>
               </div>
             </div>
             <div v-else class="text-muted">No steps available.</div>
@@ -479,6 +559,25 @@ import axios from '../axios';
 import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { notify } from '../utils/notify';
+
+const normalizeStep = (step = {}) => ({
+  reply_type: 'message',
+  message: '',
+  template_sid: '',
+  template_name: '',
+  template_language: '',
+  template_preview: '',
+  template_header_text: '',
+  template_footer_text: '',
+  template_variables: {},
+  decision: false,
+  yesLabel: '',
+  noLabel: '',
+  yesNextId: null,
+  noNextId: null,
+  ...step,
+  template_variables: JSON.parse(JSON.stringify(step.template_variables || {})),
+});
 
 const defaultSteps = () => ([
   {
@@ -560,7 +659,35 @@ const defaultSteps = () => ([
     yesNextId: null,
     noNextId: null,
   },
-]);
+]).map((step) => normalizeStep(step));
+
+const flowStepSummary = (step = {}) => (
+  step.reply_type === 'template'
+    ? `Template: ${step.template_name || step.template_sid || 'Not selected'}`
+    : (step.message || '')
+);
+
+const templateVariableSources = [
+  { value: 'client.name', label: 'Client Full Name' },
+  { value: 'client.title', label: 'Client Title' },
+  { value: 'client.first_name', label: 'Client First Name' },
+  { value: 'client.surname', label: 'Client Surname' },
+  { value: 'client.phone', label: 'Client Phone' },
+  { value: 'client.email', label: 'Client Email' },
+  { value: 'client.id_number', label: 'Client ID Number' },
+  { value: 'client.account_number', label: 'Client Account Number' },
+  { value: 'client.easy_pay_number', label: 'Client Easy Pay Number' },
+  { value: 'client.bank_name', label: 'Client Bank' },
+  { value: 'client.branch_code', label: 'Client Branch Code' },
+  { value: 'client.outstanding_balance', label: 'Outstanding Balance' },
+  { value: 'client.arrears_amount', label: 'Arrears Amount' },
+  { value: 'client.settlement_amount', label: 'Settlement Amount' },
+  { value: 'client.three_months_amount', label: 'Three Months Amount' },
+  { value: 'client.installment_amount', label: 'Installment Amount' },
+  { value: 'campaign.name', label: 'Campaign Name' },
+  { value: 'campaign.status', label: 'Campaign Status' },
+  { value: 'custom', label: 'Custom Value' },
+];
 
 const TreeNode = {
   name: 'TreeNode',
@@ -589,7 +716,7 @@ const TreeNode = {
       h('div', { class: cardClasses.join(' ') }, [
         h('div', { class: 'small text-muted text-uppercase mb-1' }, step.id || ''),
         h('div', { class: 'fw-semibold' }, step.label || 'Step'),
-        h('div', { class: 'small mb-2 text-muted' }, step.message || ''),
+        h('div', { class: 'small mb-2 text-muted' }, flowStepSummary(step)),
         step.decision
           ? h('div', { class: 'decision-grid' }, [
               h('div', { class: 'decision-card yes' }, [
@@ -622,6 +749,7 @@ export default {
       flows: [],
       loadingFlows: false,
       templates: [],
+      templateVariableSources,
       saving: false,
       showModal: false,
       editingFlowId: null,
@@ -834,6 +962,56 @@ export default {
           label: s.label || s.id,
         }));
     },
+    selectedStepTemplate(step) {
+      if (!step?.template_sid) return null;
+      return this.templates.find((template) => (
+        template.sid === step.template_sid || template.id === step.template_sid
+      )) || null;
+    },
+    handleStepTemplateChange(step) {
+      const template = this.selectedStepTemplate(step);
+      if (!template) return;
+
+      step.template_name = template.name || template.friendly_name || template.sid;
+      step.template_language = template.language || '';
+      step.template_preview = template.body_preview || template.preview || '';
+      step.template_header_text = template.header_text || '';
+      step.template_footer_text = template.footer_text || '';
+
+      const currentMappings = step.template_variables || {};
+      step.template_variables = Object.keys(template.variables || {}).reduce((mappings, key) => {
+        const current = currentMappings[key] || {};
+        mappings[key] = {
+          source: current.source || '',
+          custom_value: current.custom_value || '',
+        };
+        return mappings;
+      }, {});
+    },
+    stepTemplateVariableKeys(step) {
+      const template = this.selectedStepTemplate(step);
+      return Object.keys(template?.variables || step?.template_variables || {});
+    },
+    getStepTemplateVariable(step, key) {
+      if (!step.template_variables || typeof step.template_variables !== 'object') {
+        step.template_variables = {};
+      }
+      if (!step.template_variables[key]) {
+        step.template_variables[key] = { source: '', custom_value: '' };
+      }
+      return step.template_variables[key];
+    },
+    renderStepTemplateText(step, text, prefix) {
+      return String(text || '').replace(/{{(\d+)}}/g, (match, number) => {
+        const key = `${prefix}_${number}`;
+        const mapping = step.template_variables?.[key];
+        if (!mapping?.source) return match;
+        if (mapping.source === 'custom') return mapping.custom_value || match;
+        const option = this.templateVariableSources.find((item) => item.value === mapping.source);
+        return option ? `[${option.label}]` : match;
+      });
+    },
+    flowStepSummary,
     async fetchTemplates() {
       try {
         const res = await axios.get('/api/whatsapp-templates?approved=1');
@@ -923,16 +1101,10 @@ export default {
     },
     addStep() {
       const id = `step-${Date.now()}`;
-      this.flowForm.steps.push({
+      this.flowForm.steps.push(normalizeStep({
         id,
         label: 'New Step',
-        message: '',
-        decision: false,
-        yesLabel: '',
-        noLabel: '',
-        yesNextId: null,
-        noNextId: null,
-      });
+      }));
     },
     removeStep(idx) {
       if (this.flowForm.steps.length === 1) return;
@@ -950,14 +1122,7 @@ export default {
         template_language: flow.template_language,
         status: flow.status || 'active',
         steps: Array.isArray(flow.flow_definition)
-          ? JSON.parse(JSON.stringify(flow.flow_definition)).map((s) => ({
-              decision: false,
-              yesLabel: '',
-              noLabel: '',
-              yesNextId: null,
-              noNextId: null,
-              ...s,
-            }))
+          ? JSON.parse(JSON.stringify(flow.flow_definition)).map((step) => normalizeStep(step))
           : defaultSteps(),
       };
       this.templatePreview = {
@@ -1003,6 +1168,12 @@ export default {
     async saveFlow() {
       if (!this.canManageFlows) return;
 
+      const validationError = this.validateFlowSteps();
+      if (validationError) {
+        notify.error(validationError, 'WhatsApp Flows');
+        return;
+      }
+
       this.saving = true;
       try {
         const payload = {
@@ -1025,9 +1196,32 @@ export default {
         this.showModal = false;
       } catch (e) {
         console.error('Failed to save WhatsApp flow', e);
+        notify.error(e.response?.data?.message || 'Failed to save WhatsApp flow.', 'WhatsApp Flows');
       } finally {
         this.saving = false;
       }
+    },
+    validateFlowSteps() {
+      for (const [index, step] of this.flowForm.steps.entries()) {
+        const stepName = step.label || `Step ${index + 1}`;
+        if (step.reply_type === 'template') {
+          if (!step.template_sid) {
+            return `Select an approved template for ${stepName}.`;
+          }
+          for (const key of this.stepTemplateVariableKeys(step)) {
+            const mapping = step.template_variables?.[key];
+            if (!mapping?.source) {
+              return `Select a value for ${key} in ${stepName}.`;
+            }
+            if (mapping.source === 'custom' && !String(mapping.custom_value || '').trim()) {
+              return `Enter a custom value for ${key} in ${stepName}.`;
+            }
+          }
+        } else if (!String(step.message || '').trim()) {
+          return `Enter a message for ${stepName}.`;
+        }
+      }
+      return null;
     },
     formatDate(value) {
       if (!value) return '';
@@ -1040,6 +1234,32 @@ export default {
 <style scoped>
 .flow-steps textarea {
   font-size: 0.9rem;
+}
+.step-template-card {
+  padding: 0.75rem;
+  border: 1px solid #cfe7dc;
+  border-radius: 0.5rem;
+  background: #e7f5ef;
+}
+.step-template-preview {
+  position: relative;
+  max-width: 95%;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.45rem 0.45rem 0.45rem 0;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+.step-template-preview::before {
+  position: absolute;
+  bottom: 0;
+  left: -7px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-right: 8px solid #ffffff;
+  content: '';
 }
 .modal-body {
   max-height: 70vh;

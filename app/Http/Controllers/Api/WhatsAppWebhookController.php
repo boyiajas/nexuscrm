@@ -241,6 +241,7 @@ class WhatsAppWebhookController extends Controller
         $shouldTrackResponse = (bool) ($messageBatch?->track_responses ?? false) || $isFlow;
         $shouldOpenLiveChat = !$messageBatch || (bool) ($messageBatch->enable_live_chat ?? false);
         $isOptOut = $this->isOptOutMessage($body, $reply['keywords']);
+        $sentFlowReply = null;
 
         if ($recipient) {
             $recipient->provider_message_id = $recipient->provider_message_id ?: $messageId;
@@ -258,8 +259,6 @@ class WhatsAppWebhookController extends Controller
 
             $recipient->save();
             $this->refreshWhatsappMessageCounts($recipient->message);
-
-            $sentFlowMessage = null;
 
             // Strictly only send automated messages if the message was sent from the Flow tab or has a flow attached
             if ($recipient && !$isOptOut && $isFlow) {
@@ -319,10 +318,18 @@ class WhatsAppWebhookController extends Controller
                     'flow_def_count' => is_countable($flowDef) ? count($flowDef) : 0,
                     'current_step_id' => $currentStepId,
                     'next_step_id' => $nextStepId,
+                    'reply_type' => $stepToSend['reply_type'] ?? 'message',
                     'step_message' => $stepToSend['message'] ?? null,
+                    'step_template' => $stepToSend['template_sid'] ?? null,
                 ]);
 
-                if ($stepToSend && !empty($stepToSend['message'])) {
+                $replyType = $stepToSend['reply_type'] ?? 'message';
+                $hasReply = $stepToSend && (
+                    ($replyType === 'template' && !empty($stepToSend['template_sid']))
+                    || ($replyType === 'message' && !empty($stepToSend['message']))
+                );
+
+                if ($hasReply) {
                     try {
                         // Resolve sender phone number: prioritize metadata from incoming webhook (guaranteed valid recipient number),
                         // followed by batch provider number, ensuring WABA ID is never used as sender number.
@@ -341,29 +348,54 @@ class WhatsAppWebhookController extends Controller
                         $senderNumber = reset($candidateSenders) ?: null;
 
                         $whatsAppService = app(WhatsAppServiceInterface::class);
-                        if (method_exists($whatsAppService, 'sendTextMessage')) {
-                            $whatsAppService->sendTextMessage(
+                        if ($replyType === 'template') {
+                            $campaign = $messageBatch?->campaign;
+                            if (!$campaign) {
+                                throw new \RuntimeException('The campaign for this WhatsApp flow could not be loaded.');
+                            }
+
+                            $resolvedVariables = app(WhatsAppBatchService::class)->resolveTemplateVariableValues(
+                                $stepToSend['template_variables'] ?? [],
+                                $client,
+                                $campaign
+                            );
+                            $sendResult = $whatsAppService->sendTemplateFromSubjectMessage(
                                 $from,
-                                $stepToSend['message'],
+                                $stepToSend['template_sid'],
+                                '',
+                                '',
+                                $resolvedVariables,
                                 $senderNumber
                             );
+                            $sentContent = $this->renderFlowTemplateMessage($stepToSend, $resolvedVariables);
                         } else {
-                            $whatsAppService->sendPlainWhatsapp(
-                                $from,
-                                $stepToSend['message'],
-                                $senderNumber
-                            );
+                            $sendResult = method_exists($whatsAppService, 'sendTextMessage')
+                                ? $whatsAppService->sendTextMessage($from, $stepToSend['message'], $senderNumber)
+                                : $whatsAppService->sendPlainWhatsapp($from, $stepToSend['message'], $senderNumber);
+                            $sentContent = $stepToSend['message'];
                         }
 
                         $recipient->current_flow_step_id = $nextStepId;
                         $recipient->save();
 
-                        $sentFlowMessage = $stepToSend['message'];
+                        $providerMessageId = $sendResult['message_id']
+                            ?? $sendResult['sid']
+                            ?? data_get($sendResult, 'messages.0.id')
+                            ?? data_get($sendResult, 'raw.messages.0.id');
+                        $sentFlowReply = [
+                            'content' => $sentContent,
+                            'is_template' => $replyType === 'template',
+                            'provider_message_id' => $providerMessageId,
+                            'delivery_status' => $providerMessageId ? 'accepted' : 'unknown',
+                        ];
 
                         Log::info('Meta WhatsApp flow step sent.', [
                             'from' => $from,
                             'recipient_id' => $recipient->id,
                             'step_id' => $nextStepId,
+                            'reply_type' => $replyType,
+                            'template_sid' => $stepToSend['template_sid'] ?? null,
+                            'provider_message_id' => $providerMessageId,
                             'sender' => $senderNumber,
                             'is_greeting' => empty($currentStepId),
                         ]);
@@ -454,14 +486,18 @@ class WhatsAppWebhookController extends Controller
             'waba_phone_number_id' => $phoneNumberId ?: $session->waba_phone_number_id,
         ]);
 
-        if (!empty($sentFlowMessage)) {
+        if ($sentFlowReply) {
             $session->messages()->create([
                 'sender' => 'agent',
-                'content' => $sentFlowMessage,
+                'content' => $sentFlowReply['content'],
+                'is_template' => $sentFlowReply['is_template'],
+                'provider_message_id' => $sentFlowReply['provider_message_id'],
+                'delivery_status' => $sentFlowReply['delivery_status'],
+                'delivery_status_at' => now(),
                 'sent_at' => Carbon::now(),
             ]);
             $session->update([
-                'last_message' => $sentFlowMessage,
+                'last_message' => $sentFlowReply['content'],
                 'updated_at' => now(),
             ]);
         }
@@ -486,6 +522,27 @@ class WhatsAppWebhookController extends Controller
             'failed'            => 'Failed',
             default             => 'Pending',
         };
+    }
+
+    protected function renderFlowTemplateMessage(array $step, array $variables): string
+    {
+        $render = static function (?string $text, string $prefix) use ($variables): string {
+            return preg_replace_callback(
+                '/{{(\d+)}}/',
+                static fn (array $match) => $variables["{$prefix}_{$match[1]}"] ?? $match[0],
+                (string) $text
+            );
+        };
+
+        $parts = array_filter([
+            $render($step['template_header_text'] ?? null, 'header'),
+            $render($step['template_preview'] ?? null, 'body'),
+            trim((string) ($step['template_footer_text'] ?? '')),
+        ], static fn (string $part) => trim($part) !== '');
+
+        return $parts
+            ? implode("\n", $parts)
+            : 'Template: ' . ($step['template_name'] ?? $step['template_sid'] ?? 'WhatsApp template');
     }
 
     protected function refreshWhatsappMessageCounts(?CampaignWhatsappMessage $message): void
