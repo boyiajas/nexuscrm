@@ -309,6 +309,20 @@
                             </div>
                           </div>
                         </div>
+                        <div class="mt-2 p-2 border rounded bg-white">
+                          <label class="form-label small fw-semibold mb-1">
+                            Expected client replies <span class="text-muted fw-normal">(optional)</span>
+                          </label>
+                          <textarea
+                            class="form-control form-control-sm"
+                            rows="2"
+                            v-model="step.expected_replies_text"
+                            placeholder="For example: opt-in, accept, 1"
+                          ></textarea>
+                          <div class="form-text" style="font-size: 0.72rem;">
+                            Enter one value per line or separate values with commas. The flow advances only when the client's text, button title, or button ID matches one of these values.
+                          </div>
+                        </div>
                         <div class="form-check mt-2">
                           <input
                             class="form-check-input"
@@ -560,24 +574,32 @@ import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { notify } from '../utils/notify';
 
-const normalizeStep = (step = {}) => ({
-  reply_type: 'message',
-  message: '',
-  template_sid: '',
-  template_name: '',
-  template_language: '',
-  template_preview: '',
-  template_header_text: '',
-  template_footer_text: '',
-  template_variables: {},
-  decision: false,
-  yesLabel: '',
-  noLabel: '',
-  yesNextId: null,
-  noNextId: null,
-  ...step,
-  template_variables: JSON.parse(JSON.stringify(step.template_variables || {})),
-});
+const normalizeStep = (step = {}) => {
+  const expectedReplies = Array.isArray(step.expected_replies) ? step.expected_replies : [];
+
+  return {
+    reply_type: 'message',
+    message: '',
+    expected_replies: expectedReplies,
+    expected_replies_text: expectedReplies.join('\n'),
+    template_sid: '',
+    template_name: '',
+    template_language: '',
+    template_preview: '',
+    template_header_text: '',
+    template_footer_text: '',
+    template_variables: {},
+    decision: false,
+    yesLabel: '',
+    noLabel: '',
+    yesNextId: null,
+    noNextId: null,
+    ...step,
+    expected_replies: [...expectedReplies],
+    expected_replies_text: expectedReplies.join('\n'),
+    template_variables: JSON.parse(JSON.stringify(step.template_variables || {})),
+  };
+};
 
 const defaultSteps = () => ([
   {
@@ -1012,6 +1034,28 @@ export default {
       });
     },
     flowStepSummary,
+    parseExpectedReplies(value) {
+      const seen = new Set();
+      return String(value || '')
+        .split(/[\n,]+/)
+        .map((reply) => reply.trim())
+        .filter((reply) => {
+          if (!reply) return false;
+          const key = reply.toLocaleLowerCase();
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+    },
+    serializeFlowSteps() {
+      return this.flowForm.steps.map((step) => {
+        const { expected_replies_text: expectedRepliesText, ...storedStep } = step;
+        return {
+          ...storedStep,
+          expected_replies: this.parseExpectedReplies(expectedRepliesText),
+        };
+      });
+    },
     async fetchTemplates() {
       try {
         const res = await axios.get('/api/whatsapp-templates?approved=1');
@@ -1183,7 +1227,7 @@ export default {
           template_name: this.flowForm.template_name,
           template_language: this.flowForm.template_language,
           status: this.flowForm.status || 'active',
-          flow_definition: this.flowForm.steps,
+          flow_definition: this.serializeFlowSteps(),
         };
 
         if (this.editingFlowId) {

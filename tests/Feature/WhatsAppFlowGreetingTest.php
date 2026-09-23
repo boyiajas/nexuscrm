@@ -319,6 +319,7 @@ class WhatsAppFlowGreetingTest extends TestCase
                 'id' => 'follow_up',
                 'label' => 'Follow Up',
                 'reply_type' => 'template',
+                'expected_replies' => [' Accept ', '1', 'accept'],
                 'template_sid' => 'flow_follow_up',
                 'template_variables' => [
                     'body_1' => ['source' => 'client.first_name', 'custom_value' => 'ignored'],
@@ -332,6 +333,7 @@ class WhatsAppFlowGreetingTest extends TestCase
             ->assertJsonPath('flow_definition.0.reply_type', 'template')
             ->assertJsonPath('flow_definition.0.template_name', 'Flow Follow Up')
             ->assertJsonPath('flow_definition.0.template_preview', 'Hello {{1}}, your account is {{2}}.')
+            ->assertJsonPath('flow_definition.0.expected_replies', ['Accept', '1'])
             ->assertJsonPath('flow_definition.0.template_variables.body_1.source', 'client.first_name')
             ->assertJsonPath('flow_definition.0.template_variables.body_1.custom_value', '')
             ->assertJsonPath('flow_definition.0.template_variables.body_2.custom_value', 'active');
@@ -440,6 +442,122 @@ class WhatsAppFlowGreetingTest extends TestCase
 
         $recipient->refresh();
         $this->assertEquals('verification', $recipient->current_flow_step_id);
+    }
+
+    public function test_flow_waits_for_an_expected_reply_and_accepts_quick_reply_values(): void
+    {
+        $mockMeta = Mockery::mock(MetaWhatsAppService::class);
+        $mockMeta->shouldReceive('appSecret')->andReturn(null);
+        $mockMeta->shouldReceive('sendTextMessage')
+            ->once()
+            ->with('27821112233', 'Your opt-in was accepted.', Mockery::any())
+            ->andReturn(['messages' => [['id' => 'wamid.expected.reply.1']]]);
+
+        $this->app->instance(MetaWhatsAppService::class, $mockMeta);
+        $this->app->instance(WhatsAppServiceInterface::class, $mockMeta);
+
+        $client = Client::query()->create([
+            'name' => 'John Doe',
+            'phone' => '+27821112233',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+        ]);
+
+        $campaign = Campaign::query()->create([
+            'name' => 'Expected Reply Campaign',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+            'created_by' => $this->user->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+
+        $batch = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'created_by_user_id' => $this->user->id,
+            'mode' => 'flow',
+            'template_sid' => 'initial_template',
+            'flow_definition' => [
+                [
+                    'id' => 'choice',
+                    'label' => 'Opt-in Choice',
+                    'message' => 'Reply 1 or tap Opt-In.',
+                    'expected_replies' => ['1', 'opt-in', 'accept'],
+                    'decision' => false,
+                ],
+                [
+                    'id' => 'accepted',
+                    'label' => 'Accepted',
+                    'message' => 'Your opt-in was accepted.',
+                    'decision' => false,
+                ],
+            ],
+            'track_responses' => true,
+            'enable_live_chat' => true,
+        ]);
+
+        $recipient = CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $batch->id,
+            'client_id' => $client->id,
+            'phone' => '+27821112233',
+            'status' => 'Delivered',
+            'current_flow_step_id' => 'choice',
+        ]);
+
+        $payload = function (string $messageId, array $messageData): array {
+            return [
+                'entry' => [[
+                    'id' => '123456789',
+                    'changes' => [[
+                        'field' => 'messages',
+                        'value' => [
+                            'messaging_product' => 'whatsapp',
+                            'metadata' => [
+                                'display_phone_number' => '27614774098',
+                                'phone_number_id' => '10987654321',
+                            ],
+                            'contacts' => [
+                                ['profile' => ['name' => 'John Doe'], 'wa_id' => '27821112233'],
+                            ],
+                            'messages' => [[
+                                'from' => '27821112233',
+                                'id' => $messageId,
+                                'timestamp' => (string) time(),
+                                ...$messageData,
+                            ]],
+                        ],
+                    ]],
+                ]],
+            ];
+        };
+
+        $this->postJson('/api/whatsapp/webhook', $payload('wamid.expected.inbound.1', [
+            'type' => 'text',
+            'text' => ['body' => 'Maybe later'],
+        ]))->assertOk();
+
+        $recipient->refresh();
+        $this->assertSame('choice', $recipient->current_flow_step_id);
+        $this->assertSame(0, ChatMessage::query()->where('sender', 'agent')->count());
+
+        $this->postJson('/api/whatsapp/webhook', $payload('wamid.expected.inbound.2', [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button_reply',
+                'button_reply' => [
+                    'id' => '1',
+                    'title' => 'Opt-In',
+                ],
+            ],
+        ]))->assertOk();
+
+        $recipient->refresh();
+        $this->assertSame('accepted', $recipient->current_flow_step_id);
+        $this->assertDatabaseHas('chat_messages', [
+            'sender' => 'agent',
+            'content' => 'Your opt-in was accepted.',
+            'provider_message_id' => 'wamid.expected.reply.1',
+        ]);
     }
 
     public function test_opt_out_reply_does_not_trigger_flow_and_sets_opt_in_no(): void

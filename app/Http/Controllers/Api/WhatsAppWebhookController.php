@@ -288,7 +288,24 @@ class WhatsAppWebhookController extends Controller
                     // Subsequent reply: Advance according to decision or linear sequence
                     $currentStep = collect($flowDef)->firstWhere('id', $currentStepId);
                     if ($currentStep) {
-                        if (!empty($currentStep['decision'])) {
+                        $expectedReplies = array_values(array_filter(
+                            is_array($currentStep['expected_replies'] ?? null)
+                                ? $currentStep['expected_replies']
+                                : [],
+                            fn ($value) => is_scalar($value) && trim((string) $value) !== ''
+                        ));
+                        $replyMatches = empty($expectedReplies)
+                            || $this->replyMatchesExpectedValues($expectedReplies, array_merge([$body], $reply['keywords']));
+
+                        if (!$replyMatches) {
+                            Log::info('WhatsApp flow reply did not match the expected values.', [
+                                'from' => $from,
+                                'recipient_id' => $recipient->id,
+                                'current_step_id' => $currentStepId,
+                                'expected_replies' => $expectedReplies,
+                                'received_reply' => $body,
+                            ]);
+                        } elseif (!empty($currentStep['decision'])) {
                             if ($normalizedReply === 'yes') {
                                 $nextStepId = $currentStep['yesNextId'] ?? null;
                             } elseif ($normalizedReply === 'no') {
@@ -648,6 +665,42 @@ class WhatsAppWebhookController extends Controller
             '2', 'no', 'n' => 'no',
             default => $trimmed,
         };
+    }
+
+    protected function replyMatchesExpectedValues(array $expectedReplies, array $receivedValues): bool
+    {
+        $variants = function (array $values): array {
+            return collect($values)
+                ->flatMap(function ($value) {
+                    $normalized = $this->normalizeExpectedReplyValue((string) $value);
+                    if ($normalized === null) {
+                        return [];
+                    }
+
+                    $decisionAlias = match ($normalized) {
+                        '1', 'yes', 'y' => 'yes',
+                        '2', 'no', 'n' => 'no',
+                        default => $normalized,
+                    };
+
+                    return array_values(array_unique([$normalized, $decisionAlias]));
+                })
+                ->unique()
+                ->values()
+                ->all();
+        };
+
+        return count(array_intersect($variants($expectedReplies), $variants($receivedValues))) > 0;
+    }
+
+    protected function normalizeExpectedReplyValue(string $value): ?string
+    {
+        $normalized = mb_strtolower(trim($value));
+        $normalized = preg_replace('/[_-]+/u', ' ', $normalized);
+        $normalized = preg_replace('/[^\pL\pN]+/u', ' ', $normalized);
+        $normalized = trim((string) preg_replace('/\s+/u', ' ', (string) $normalized));
+
+        return $normalized === '' ? null : $normalized;
     }
 
     protected function isOptOutMessage(string $body, array $keywords = []): bool

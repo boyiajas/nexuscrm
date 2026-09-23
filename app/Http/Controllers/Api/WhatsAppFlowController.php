@@ -83,6 +83,8 @@ class WhatsAppFlowController extends Controller
             'flow_definition.*.label' => ['nullable', 'string', 'max:150'],
             'flow_definition.*.reply_type' => ['nullable', Rule::in(['message', 'template'])],
             'flow_definition.*.message' => ['nullable', 'string'],
+            'flow_definition.*.expected_replies' => ['nullable', 'array'],
+            'flow_definition.*.expected_replies.*' => ['string', 'max:255'],
             'flow_definition.*.template_sid' => ['nullable', 'string', 'max:255'],
             'flow_definition.*.template_variables' => ['nullable', 'array'],
             'flow_definition.*.template_variables.*' => ['array'],
@@ -143,6 +145,14 @@ class WhatsAppFlowController extends Controller
 
             $replyType = $step['reply_type'] ?? 'message';
             $step['reply_type'] = $replyType;
+            $expectedReplies = collect($step['expected_replies'] ?? [])
+                ->map(fn ($value) => trim((string) $value))
+                ->filter(fn ($value) => $value !== '')
+                ->unique(fn ($value) => mb_strtolower($value))
+                ->values()
+                ->all();
+            $step['expected_replies'] = $expectedReplies;
+            unset($step['expected_replies_text']);
 
             if ($replyType === 'message') {
                 if (trim((string) ($step['message'] ?? '')) === '') {
