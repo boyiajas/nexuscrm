@@ -186,16 +186,57 @@ class ChatClientLinkTest extends TestCase
         $this->mock(WhatsAppServiceInterface::class)
             ->shouldReceive('sendPlainWhatsapp')
             ->once()
-            ->andThrow(new \RuntimeException('Meta rejected this message'));
+            ->andThrow(new \RuntimeException('Meta API error [400] (Meta code 131047): Re-engagement message — More than 24 hours have passed.'));
 
         $this->postJson("/api/chat/sessions/{$session->id}/messages", ['content' => 'Hello customer'])
             ->assertCreated()
             ->assertJsonPath('delivery_status', 'failed')
-            ->assertJsonPath('provider_message_id', null);
+            ->assertJsonPath('provider_message_id', null)
+            ->assertJsonPath('delivery_error_code', '131047')
+            ->assertJsonPath('delivery_error_message', 'Meta API error [400] (Meta code 131047): Re-engagement message — More than 24 hours have passed.');
 
         $this->assertDatabaseHas('chat_messages', [
             'chat_session_id' => $session->id,
             'delivery_status' => 'failed',
+            'delivery_error_code' => '131047',
+        ]);
+    }
+
+    public function test_meta_failure_receipt_records_the_actual_error_for_live_chat(): void
+    {
+        $session = $this->createWhatsAppSessionForDeliveryTest();
+        $providerId = 'wamid.live-chat-failed-1';
+        $this->mock(WhatsAppServiceInterface::class)
+            ->shouldReceive('sendPlainWhatsapp')
+            ->once()
+            ->andReturn(['message_id' => $providerId, 'status' => 'accepted']);
+
+        $messageId = $this->postJson("/api/chat/sessions/{$session->id}/messages", ['content' => 'Hello customer'])
+            ->assertCreated()
+            ->json('id');
+
+        $this->postMetaStatus($providerId, 'failed', '1790000005', [[
+            'code' => 131026,
+            'title' => 'Message undeliverable',
+            'message' => 'Message undeliverable',
+            'error_data' => [
+                'details' => 'The recipient phone number is not a WhatsApp phone number.',
+            ],
+        ]])->assertOk();
+
+        $this->getJson("/api/chat/sessions/{$session->id}")
+            ->assertOk()
+            ->assertJsonPath('messages.0.delivery_status', 'failed')
+            ->assertJsonPath('messages.0.delivery_error_code', '131026')
+            ->assertJsonPath(
+                'messages.0.delivery_error_message',
+                'Message undeliverable — The recipient phone number is not a WhatsApp phone number.'
+            );
+
+        $this->assertDatabaseHas('chat_messages', [
+            'id' => $messageId,
+            'delivery_status' => 'failed',
+            'delivery_error_code' => '131026',
         ]);
     }
 
@@ -332,20 +373,25 @@ class ChatClientLinkTest extends TestCase
         ]);
     }
 
-    private function postMetaStatus(string $providerId, string $status, string $timestamp)
+    private function postMetaStatus(string $providerId, string $status, string $timestamp, array $errors = [])
     {
+        $statusPayload = [
+            'id' => $providerId,
+            'status' => $status,
+            'timestamp' => $timestamp,
+            'recipient_id' => '27763399083',
+        ];
+        if ($errors !== []) {
+            $statusPayload['errors'] = $errors;
+        }
+
         return $this->postJson('/api/whatsapp/webhook', [
             'object' => 'whatsapp_business_account',
             'entry' => [[
                 'changes' => [[
                     'field' => 'messages',
                     'value' => [
-                        'statuses' => [[
-                            'id' => $providerId,
-                            'status' => $status,
-                            'timestamp' => $timestamp,
-                            'recipient_id' => '27763399083',
-                        ]],
+                        'statuses' => [$statusPayload],
                     ],
                 ]],
             ]],

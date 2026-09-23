@@ -20,6 +20,8 @@ class ChatMessage extends Model
         'provider_message_id',
         'delivery_status',
         'delivery_status_at',
+        'delivery_error_code',
+        'delivery_error_message',
     ];
 
     protected $casts = [

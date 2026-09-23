@@ -471,10 +471,13 @@ class ChatController extends Controller
                 // A timeout or Meta 5xx may happen after Meta accepted the POST.
                 // Without a message ID, its outcome is unknown, not failed.
                 $outcomeUnknown = $e instanceof \Illuminate\Http\Client\ConnectionException
-                    || preg_match('/^Meta API error \[5\d\d\]:/', $e->getMessage()) === 1;
+                    || preg_match('/^Meta API error \[5\d\d\](?:\s|:)/', $e->getMessage()) === 1;
+                [$errorCode, $errorMessage] = $this->chatDeliveryErrorFromException($e);
                 $message->update([
                     'delivery_status' => $outcomeUnknown ? 'unknown' : 'failed',
                     'delivery_status_at' => now(),
+                    'delivery_error_code' => $errorCode,
+                    'delivery_error_message' => $errorMessage,
                 ]);
                 Log::error('Failed to send WhatsApp chat reply', [
                     'session_id' => $session->id,
@@ -489,6 +492,8 @@ class ChatController extends Controller
                     'provider_message_id' => $providerMessageId,
                     'delivery_status' => $providerMessageId ? 'accepted' : 'unknown',
                     'delivery_status_at' => now(),
+                    'delivery_error_code' => null,
+                    'delivery_error_message' => null,
                 ]);
             }
         }
@@ -580,13 +585,18 @@ class ChatController extends Controller
                 'provider_message_id' => $providerMessageId,
                 'delivery_status' => $providerMessageId ? 'accepted' : 'unknown',
                 'delivery_status_at' => now(),
+                'delivery_error_code' => null,
+                'delivery_error_message' => null,
             ]);
         } catch (\Throwable $e) {
             $outcomeUnknown = $e instanceof \Illuminate\Http\Client\ConnectionException
-                || preg_match('/^Meta API error \[5\d\d\]:/', $e->getMessage()) === 1;
+                || preg_match('/^Meta API error \[5\d\d\](?:\s|:)/', $e->getMessage()) === 1;
+            [$errorCode, $errorMessage] = $this->chatDeliveryErrorFromException($e);
             $message->update([
                 'delivery_status' => $outcomeUnknown ? 'unknown' : 'failed',
                 'delivery_status_at' => now(),
+                'delivery_error_code' => $errorCode,
+                'delivery_error_message' => $errorMessage,
             ]);
             Log::error('Failed to send WhatsApp chat template', [
                 'session_id' => $session->id,
@@ -597,6 +607,20 @@ class ChatController extends Controller
         }
 
         return response()->json($message->fresh(), 201);
+    }
+
+    protected function chatDeliveryErrorFromException(\Throwable $exception): array
+    {
+        $message = trim($exception->getMessage());
+        $code = null;
+
+        if (preg_match('/Meta code\s+(\d+)/i', $message, $matches) === 1) {
+            $code = $matches[1];
+        } elseif (preg_match('/^Meta API error \[(\d+)\](?:\s|:)/', $message, $matches) === 1) {
+            $code = 'HTTP ' . $matches[1];
+        }
+
+        return [$code, $message !== '' ? $message : 'WhatsApp rejected the message without an error description.'];
     }
 
     public function destroy(ChatSession $session)

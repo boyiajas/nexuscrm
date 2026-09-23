@@ -348,8 +348,15 @@
                   </small>
                   <i v-if="msg.sender === 'agent' && activeSession?.platform === 'whatsapp'"
                     :class="['bi', 'ms-1', deliveryStatusIcon(msg.delivery_status), deliveryStatusClass(msg.delivery_status)]"
-                    :title="deliveryStatusTitle(msg.delivery_status, msg.delivery_status_at)"
+                    :title="deliveryStatusTitle(msg.delivery_status, msg.delivery_status_at, msg)"
                     style="font-size: 1.1em;"></i>
+                </div>
+                <div
+                  v-if="msg.sender === 'agent' && ['failed', 'unknown'].includes(msg.delivery_status)"
+                  class="delivery-error-message mt-1"
+                  :class="msg.delivery_status === 'failed' ? 'text-danger' : 'text-warning-emphasis'"
+                >
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ deliveryErrorText(msg) }}
                 </div>
               </div>
             </div>
@@ -1011,9 +1018,20 @@ export default {
       if (status === 'failed') return 'text-danger';
       return 'text-muted';
     },
-    deliveryStatusTitle(status, statusAt) {
+    deliveryErrorText(message) {
+      const code = message?.delivery_error_code ? ` (${message.delivery_error_code})` : '';
+      const fallback = message?.delivery_status === 'unknown'
+        ? 'The delivery result could not be confirmed.'
+        : 'Meta did not provide an error description for this message.';
+
+      return `WhatsApp ${message?.delivery_status || 'delivery'}${code}: ${message?.delivery_error_message || fallback}`;
+    },
+    deliveryStatusTitle(status, statusAt, message = null) {
       if (status === 'read' && statusAt) {
         return `Customer read receipt received at ${new Date(statusAt).toLocaleString()}`;
+      }
+      if (status === 'failed' || status === 'unknown') {
+        return this.deliveryErrorText(message || { delivery_status: status });
       }
       return {
         pending: 'Waiting for WhatsApp',
@@ -1021,7 +1039,6 @@ export default {
         sent: 'Sent; delivery not yet confirmed',
         delivered: 'Delivered; reading not confirmed',
         read: 'Customer read receipt received',
-        failed: 'WhatsApp message failed',
       }[status] || 'Delivery status unavailable';
     },
     sessionHasClient(session) {
@@ -1187,7 +1204,9 @@ export default {
           const statusChanged = fetchedMessages.some((message, index) =>
             message.id === this.messages[index]?.id &&
             (message.delivery_status !== this.messages[index]?.delivery_status ||
-              message.delivery_status_at !== this.messages[index]?.delivery_status_at)
+              message.delivery_status_at !== this.messages[index]?.delivery_status_at ||
+              message.delivery_error_code !== this.messages[index]?.delivery_error_code ||
+              message.delivery_error_message !== this.messages[index]?.delivery_error_message)
           );
           if (fetchedMessages.length !== this.messages.length || statusChanged) {
             this.messages = fetchedMessages;
@@ -1308,9 +1327,9 @@ export default {
           this.$nextTick(this.scrollToBottom);
           this.fetchSessions();
           if (res.data.delivery_status === 'failed') {
-            notify.error('WhatsApp could not send this message. It is marked as failed in the chat.', 'Chat');
+            notify.error(this.deliveryErrorText(res.data), 'Chat');
           } else if (res.data.delivery_status === 'unknown') {
-            notify.error('WhatsApp delivery could not be confirmed for this message.', 'Chat');
+            notify.error(this.deliveryErrorText(res.data), 'Chat');
           }
         })
         .catch((err) => {
@@ -1485,9 +1504,9 @@ export default {
         this.fetchSessions();
 
         if (res.data.delivery_status === 'failed') {
-          notify.error('WhatsApp rejected the template message. It is marked as failed in the chat.', 'Chat');
+          notify.error(this.deliveryErrorText(res.data), 'Chat');
         } else if (res.data.delivery_status === 'unknown') {
-          notify.error('WhatsApp accepted the request, but delivery could not be confirmed.', 'Chat');
+          notify.error(this.deliveryErrorText(res.data), 'Chat');
         } else {
           notify.success('WhatsApp template sent.', 'Chat');
         }
@@ -1651,6 +1670,15 @@ export default {
 .locked-input::placeholder {
   color: #dc3545 !important;
   opacity: 1 !important;
+}
+
+.delivery-error-message {
+  max-width: 34rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid rgba(220, 53, 69, 0.2);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .template-picker-body {

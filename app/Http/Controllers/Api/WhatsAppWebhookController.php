@@ -185,6 +185,8 @@ class WhatsAppWebhookController extends Controller
             ? Carbon::createFromTimestamp((int) $status['timestamp'], 'UTC')
             : now();
 
+        [$errorCode, $errorMessage] = $this->chatDeliveryError($status);
+
         ChatMessage::query()
             ->whereKey($message->id)
             ->where(function ($query) use ($previousStatuses) {
@@ -193,7 +195,38 @@ class WhatsAppWebhookController extends Controller
             ->update([
                 'delivery_status' => $statusName,
                 'delivery_status_at' => $statusAt,
+                'delivery_error_code' => $statusName === 'failed' ? $errorCode : null,
+                'delivery_error_message' => $statusName === 'failed' ? $errorMessage : null,
             ]);
+    }
+
+    /**
+     * Extract the useful failure information from a Meta status webhook.
+     * Meta may put the customer-facing reason in title, message, or error_data.details.
+     */
+    protected function chatDeliveryError(array $status): array
+    {
+        $error = $status['errors'][0] ?? null;
+        if (!is_array($error)) {
+            return [null, null];
+        }
+
+        $parts = [];
+        foreach ([
+            $error['title'] ?? null,
+            $error['message'] ?? null,
+            $error['error_data']['details'] ?? null,
+        ] as $part) {
+            $part = trim((string) $part);
+            if ($part !== '' && !in_array($part, $parts, true)) {
+                $parts[] = $part;
+            }
+        }
+
+        return [
+            isset($error['code']) ? (string) $error['code'] : null,
+            $parts !== [] ? implode(' — ', $parts) : null,
+        ];
     }
 
     protected function handleInboundMessage(array $message, array $payload = []): void

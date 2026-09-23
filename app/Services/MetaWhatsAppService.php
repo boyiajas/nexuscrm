@@ -1096,14 +1096,26 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     protected function decodeResponse(int $status, array $payload, string $path): array
     {
         if ($status >= 400) {
-            $message = $payload['error']['message'] ?? 'Unknown Meta API error';
+            $error = $payload['error'] ?? [];
+            $messageParts = [];
+            foreach ([
+                $error['message'] ?? null,
+                $error['error_data']['details'] ?? null,
+            ] as $messagePart) {
+                $messagePart = trim((string) $messagePart);
+                if ($messagePart !== '' && !in_array($messagePart, $messageParts, true)) {
+                    $messageParts[] = $messagePart;
+                }
+            }
+            $message = $messageParts !== [] ? implode(' — ', $messageParts) : 'Unknown Meta API error';
+            $providerCode = isset($error['code']) ? ' (Meta code ' . $error['code'] . ')' : '';
             Log::error('Meta WhatsApp API error', [
                 'path' => $path,
                 'status' => $status,
                 'payload' => $payload,
             ]);
 
-            throw new \RuntimeException("Meta API error [{$status}]: {$message}");
+            throw new \RuntimeException("Meta API error [{$status}]{$providerCode}: {$message}");
         }
 
         return $payload;
