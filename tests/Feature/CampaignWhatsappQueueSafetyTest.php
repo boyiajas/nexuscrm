@@ -149,6 +149,43 @@ class CampaignWhatsappQueueSafetyTest extends TestCase
         $this->assertNotNull(Queue::connection('database_long')->pop('imports'));
     }
 
+    public function test_campaign_recipient_rows_are_inserted_in_database_safe_chunks(): void
+    {
+        $recipient = $this->recipient('Draft');
+        $message = $recipient->message;
+        $client = $recipient->client;
+        $recipient->delete();
+
+        $now = now();
+        $rows = array_fill(0, 1201, [
+            'whatsapp_message_id' => $message->id,
+            'client_id' => $client->id,
+            'phone' => $client->phone,
+            'provider_phone_number_id' => '123456789',
+            'provider_display_phone_number' => '+27821112233',
+            'status' => 'Draft',
+            'queued_at' => null,
+            'processing_started_at' => null,
+            'last_attempted_at' => null,
+            'attempts_count' => 0,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $insertBindingCounts = [];
+
+        DB::listen(function ($query) use (&$insertBindingCounts): void {
+            if (str_contains(strtolower($query->sql), 'insert into "campaign_whatsapp_recipients"')) {
+                $insertBindingCounts[] = count($query->bindings);
+            }
+        });
+
+        app(WhatsAppBatchService::class)->insertRecipientRows($rows);
+
+        $this->assertSame(1201, $message->recipients()->count());
+        $this->assertCount(3, $insertBindingCounts);
+        $this->assertLessThanOrEqual(6000, max($insertBindingCounts));
+    }
+
     private function recipient(string $status): CampaignWhatsappRecipient
     {
         $bank = Bank::query()->create([

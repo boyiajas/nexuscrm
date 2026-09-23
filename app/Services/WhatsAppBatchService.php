@@ -12,10 +12,18 @@ use Illuminate\Support\Carbon;
 class WhatsAppBatchService
 {
     public const DEFAULT_MESSAGES_PER_SECOND = 10;
+    public const RECIPIENT_INSERT_CHUNK_SIZE = 500;
 
     public function enforcedMessagesPerSecond(): int
     {
         return self::DEFAULT_MESSAGES_PER_SECOND;
+    }
+
+    public function insertRecipientRows(array $rows): void
+    {
+        foreach (array_chunk($rows, self::RECIPIENT_INSERT_CHUNK_SIZE) as $chunk) {
+            CampaignWhatsappRecipient::query()->insert($chunk);
+        }
     }
 
     public function queueAllRecipients(CampaignWhatsappMessage $message): int

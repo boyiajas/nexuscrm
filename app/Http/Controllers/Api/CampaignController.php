@@ -1319,9 +1319,6 @@ class CampaignController extends Controller
         $total = $clients->count();
         $now   = now();
 
-        // Reset recipients
-        CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)->delete();
-
         $rows = [];
         foreach ($clients as $client) {
             $rows[] = [
@@ -1339,55 +1336,76 @@ class CampaignController extends Controller
                 'updated_at'          => $now,
             ];
         }
-        CampaignWhatsappRecipient::insert($rows);
 
-        $message->update([
-            'mode'             => $mode,
-            'template_sid'     => $templateSid,
-            'template_name'    => $friendlyName,
-            'provider_phone_number_id' => $senderContext['phone_number_id'],
-            'provider_display_phone_number' => $senderContext['display_phone_number'],
-            'name'             => $friendlyName,
-            'preview_body'     => $previewBody,
-            'template_variables' => $templateVariables,
-            'whatsapp_flow_id' => $flowId,
-            'flow_name'        => $flowName,
-            'flow_definition'  => $flowDef,
-            'sent_at'          => $sendNow ? $now : null,
-            'total'            => $total,
-            'delivered'        => 0,
-            'failed'           => 0,
-            'pending'          => $sendNow ? $total : 0,
-            'status'           => $sendNow ? 'Queued' : 'Draft',
-            'queued_at'        => $sendNow ? $now : null,
-            'processing_started_at' => null,
-            'completed_at'     => null,
-            'paused_at'        => null,
-            'pause_reason'     => null,
-            'last_processed_at'=> null,
-            'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
-            'track_responses'  => ($mode === 'flow' || !empty($flowId)) ? true : ($data['track_responses'] ?? $message->track_responses),
-            'enable_live_chat' => $data['enable_live_chat'] ?? $message->enable_live_chat,
-            'enable_email_notification' => $data['enable_email_notification'] ?? $message->enable_email_notification,
-            'created_by_user_id' => $message->created_by_user_id ?: Auth::id(),
-        ]);
+        $queuedCount = \Illuminate\Support\Facades\DB::transaction(function () use (
+            $campaign,
+            $clients,
+            $data,
+            $flowDef,
+            $flowId,
+            $flowName,
+            $friendlyName,
+            $message,
+            $mode,
+            $now,
+            $previewBody,
+            $rows,
+            $sendNow,
+            $senderContext,
+            $templateSid,
+            $templateVariables,
+            $total
+        ) {
+            CampaignWhatsappRecipient::where('whatsapp_message_id', $message->id)->delete();
+            $this->batchService->insertRecipientRows($rows);
 
-        if (isset($data['auto_replies'])) {
-            $message->autoReplies()->delete();
-            foreach ($data['auto_replies'] as $reply) {
-                $message->autoReplies()->create([
-                    'trigger_keyword' => $reply['trigger_keyword'],
-                    'template_sid' => $reply['template_sid'],
-                    'template_name' => $reply['template_name'] ?? null,
-                    'template_variables' => $reply['template_variables'] ?? null,
-                ]);
+            $message->update([
+                'mode'             => $mode,
+                'template_sid'     => $templateSid,
+                'template_name'    => $friendlyName,
+                'provider_phone_number_id' => $senderContext['phone_number_id'],
+                'provider_display_phone_number' => $senderContext['display_phone_number'],
+                'name'             => $friendlyName,
+                'preview_body'     => $previewBody,
+                'template_variables' => $templateVariables,
+                'whatsapp_flow_id' => $flowId,
+                'flow_name'        => $flowName,
+                'flow_definition'  => $flowDef,
+                'sent_at'          => $sendNow ? $now : null,
+                'total'            => $total,
+                'delivered'        => 0,
+                'failed'           => 0,
+                'pending'          => $sendNow ? $total : 0,
+                'status'           => $sendNow ? 'Queued' : 'Draft',
+                'queued_at'        => $sendNow ? $now : null,
+                'processing_started_at' => null,
+                'completed_at'     => null,
+                'paused_at'        => null,
+                'pause_reason'     => null,
+                'last_processed_at'=> null,
+                'messages_per_second' => $message->messages_per_second ?: $this->batchService->enforcedMessagesPerSecond(),
+                'track_responses'  => ($mode === 'flow' || !empty($flowId)) ? true : ($data['track_responses'] ?? $message->track_responses),
+                'enable_live_chat' => $data['enable_live_chat'] ?? $message->enable_live_chat,
+                'enable_email_notification' => $data['enable_email_notification'] ?? $message->enable_email_notification,
+                'created_by_user_id' => $message->created_by_user_id ?: Auth::id(),
+            ]);
+
+            if (isset($data['auto_replies'])) {
+                $message->autoReplies()->delete();
+                foreach ($data['auto_replies'] as $reply) {
+                    $message->autoReplies()->create([
+                        'trigger_keyword' => $reply['trigger_keyword'],
+                        'template_sid' => $reply['template_sid'],
+                        'template_name' => $reply['template_name'] ?? null,
+                        'template_variables' => $reply['template_variables'] ?? null,
+                    ]);
+                }
             }
-        }
 
+            if (!$sendNow) {
+                return 0;
+            }
 
-        $queuedCount = 0;
-        if ($sendNow) {
-            // Mark campaign clients as pending
             CampaignClient::where('campaign_id', $campaign->id)
                 ->whereIn('client_id', $clients->pluck('id'))
                 ->update([
@@ -1395,8 +1413,9 @@ class CampaignController extends Controller
                     'whatsapp_sent_at' => $now,
                     'updated_at'       => $now,
                 ]);
-            $queuedCount = $this->batchService->queueAllRecipients($message->fresh());
-        }
+
+            return $this->batchService->queueAllRecipients($message->fresh());
+        });
 
         return response()->json([
             'message' => 'Batch ' . ($sendNow ? 'queued' : 'updated') . ' successfully.',
@@ -2215,6 +2234,16 @@ class CampaignController extends Controller
             ], 422);
         }
 
+        if ($sendNow) {
+            $limitCheck = $this->dailyLimitService->validateSendAllowance(Auth::user(), $clients->count());
+            if (!$limitCheck['allowed']) {
+                return response()->json([
+                    'message' => $limitCheck['message'],
+                    'whatsapp_daily_limit' => $limitCheck['summary'],
+                ], 422);
+            }
+        }
+
         $templateSid  = null;
         $friendlyName = null;
         $previewBody  = null;
@@ -2271,96 +2300,104 @@ class CampaignController extends Controller
         $isScheduled = !$sendNow && !empty($data['scheduled_at']);
         $status = $sendNow ? 'Queued' : ($isScheduled ? 'Scheduled' : 'Draft');
         
-        $message = $campaign->whatsappMessages()->create([
-            'created_by_user_id' => Auth::id(),
-            'mode'              => $mode,
-            'template_sid'      => $templateSid,
-            'template_name'     => $friendlyName,
-            'provider_phone_number_id' => $senderContext['phone_number_id'],
-            'provider_display_phone_number' => $senderContext['display_phone_number'],
-            'name'              => $friendlyName,
-            'preview_body'      => $previewBody,
-            'template_variables'=> $templateVariables,
-            'whatsapp_flow_id'  => $flowId,
-            'flow_name'         => $flowName,
-            'flow_definition'   => $flowDef,
-            'sent_at'           => $sendNow ? $now : null,
-            'total'             => $total,
-            'delivered'         => 0,
-            'failed'            => 0,
-            'pending'           => ($sendNow || $isScheduled) ? $total : 0,
-            'status'            => $status,
-            'scheduled_at'      => $isScheduled ? $data['scheduled_at'] : null,
-            'queued_at'         => $sendNow ? $now : null,
-            'processing_started_at' => null,
-            'completed_at'      => null,
-            'paused_at'         => null,
-            'pause_reason'      => null,
-            'last_processed_at' => null,
-            'messages_per_second' => $this->batchService->enforcedMessagesPerSecond(),
-            'track_responses'   => ($mode === 'flow' || !empty($flowId)) ? true : ($data['track_responses'] ?? true),
-            'enable_live_chat'  => $data['enable_live_chat'] ?? false,
-            'enable_email_notification' => $data['enable_email_notification'] ?? true,
-        ]);
+        [$message, $queuedCount] = \Illuminate\Support\Facades\DB::transaction(function () use (
+            $campaign,
+            $clients,
+            $data,
+            $flowDef,
+            $flowId,
+            $flowName,
+            $friendlyName,
+            $isScheduled,
+            $mode,
+            $now,
+            $previewBody,
+            $sendNow,
+            $senderContext,
+            $status,
+            $templateSid,
+            $templateVariables,
+            $total
+        ) {
+            $message = $campaign->whatsappMessages()->create([
+                'created_by_user_id' => Auth::id(),
+                'mode'              => $mode,
+                'template_sid'      => $templateSid,
+                'template_name'     => $friendlyName,
+                'provider_phone_number_id' => $senderContext['phone_number_id'],
+                'provider_display_phone_number' => $senderContext['display_phone_number'],
+                'name'              => $friendlyName,
+                'preview_body'      => $previewBody,
+                'template_variables'=> $templateVariables,
+                'whatsapp_flow_id'  => $flowId,
+                'flow_name'         => $flowName,
+                'flow_definition'   => $flowDef,
+                'sent_at'           => $sendNow ? $now : null,
+                'total'             => $total,
+                'delivered'         => 0,
+                'failed'            => 0,
+                'pending'           => ($sendNow || $isScheduled) ? $total : 0,
+                'status'            => $status,
+                'scheduled_at'      => $isScheduled ? $data['scheduled_at'] : null,
+                'queued_at'         => $sendNow ? $now : null,
+                'processing_started_at' => null,
+                'completed_at'      => null,
+                'paused_at'         => null,
+                'pause_reason'      => null,
+                'last_processed_at' => null,
+                'messages_per_second' => $this->batchService->enforcedMessagesPerSecond(),
+                'track_responses'   => ($mode === 'flow' || !empty($flowId)) ? true : ($data['track_responses'] ?? true),
+                'enable_live_chat'  => $data['enable_live_chat'] ?? false,
+                'enable_email_notification' => $data['enable_email_notification'] ?? true,
+            ]);
 
-        if ($sendNow) {
-            $limitCheck = $this->dailyLimitService->validateSendAllowance(Auth::user(), $clients->count());
-            if (!$limitCheck['allowed']) {
-                $message->delete();
-                return response()->json([
-                    'message' => $limitCheck['message'],
-                    'whatsapp_daily_limit' => $limitCheck['summary'],
-                ], 422);
+            if (isset($data['auto_replies'])) {
+                foreach ($data['auto_replies'] as $reply) {
+                    $message->autoReplies()->create([
+                        'trigger_keyword' => $reply['trigger_keyword'],
+                        'template_sid' => $reply['template_sid'],
+                        'template_name' => $reply['template_name'] ?? null,
+                        'template_variables' => $reply['template_variables'] ?? null,
+                    ]);
+                }
             }
-        }
 
-        if (isset($data['auto_replies'])) {
-            foreach ($data['auto_replies'] as $reply) {
-                $message->autoReplies()->create([
-                    'trigger_keyword' => $reply['trigger_keyword'],
-                    'template_sid' => $reply['template_sid'],
-                    'template_name' => $reply['template_name'] ?? null,
-                    'template_variables' => $reply['template_variables'] ?? null,
-                ]);
+            $rows = [];
+            foreach ($clients as $client) {
+                $rows[] = [
+                    'whatsapp_message_id' => $message->id,
+                    'client_id'                    => $client->id,
+                    'phone'                        => $this->resolveClientPhone($client),
+                    'provider_phone_number_id'     => $senderContext['phone_number_id'],
+                    'provider_display_phone_number'=> $senderContext['display_phone_number'],
+                    'status'                       => $status,
+                    'queued_at'                    => $sendNow ? $now : null,
+                    'processing_started_at'        => null,
+                    'last_attempted_at'            => null,
+                    'attempts_count'               => 0,
+                    'created_at'                   => $now,
+                    'updated_at'                   => $now,
+                ];
             }
-        }
 
-        // Create recipients for this batch
-        $rows = [];
-        foreach ($clients as $client) {
-            $rows[] = [
-                'whatsapp_message_id' => $message->id,
-                'client_id'                    => $client->id,
-                'phone'                        => $this->resolveClientPhone($client),
-                'provider_phone_number_id'     => $senderContext['phone_number_id'],
-                'provider_display_phone_number'=> $senderContext['display_phone_number'],
-                'status'                       => $status,
-                'queued_at'                    => $sendNow ? $now : null,
-                'processing_started_at'        => null,
-                'last_attempted_at'            => null,
-                'attempts_count'               => 0,
-                'created_at'                   => $now,
-                'updated_at'                   => $now,
-            ];
-        }
+            $this->batchService->insertRecipientRows($rows);
 
-        CampaignWhatsappRecipient::insert($rows);
+            if ($sendNow) {
+                CampaignClient::where('campaign_id', $campaign->id)
+                    ->whereIn('client_id', $clients->pluck('id'))
+                    ->update([
+                        'whatsapp_status'   => 'Pending',
+                        'whatsapp_sent_at'  => $now,
+                        'updated_at'        => $now,
+                    ]);
+            }
 
-        if ($sendNow) {
-            // Update pivot status for these clients (optional, but matches the rest of your code)
-            CampaignClient::where('campaign_id', $campaign->id)
-                ->whereIn('client_id', $clients->pluck('id'))
-                ->update([
-                    'whatsapp_status'   => 'Pending',
-                    'whatsapp_sent_at'  => $now,
-                    'updated_at'        => $now,
-                ]);
-        }
-        
-        $queuedCount = 0;
-        if ($sendNow) {
-            $queuedCount = $this->batchService->queueAllRecipients($message->fresh());
-        }
+            $queuedCount = $sendNow
+                ? $this->batchService->queueAllRecipients($message->fresh())
+                : 0;
+
+            return [$message, $queuedCount];
+        });
 
        
 
