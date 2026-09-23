@@ -480,7 +480,7 @@
               <div class="d-flex gap-2">
                 <button
                   class="btn btn-sm btn-outline-primary"
-                  @click="openAddWhatsappTemplateModal"
+                  @click="openAddWhatsappTemplateModal()"
                   :disabled="whatsappModalLoading || !canManageCampaign"
                 >
                   <span
@@ -3542,7 +3542,10 @@ export default {
 
     // WhatsApp Template flow
     openAddWhatsappTemplateModal(preselectedClients = null, clientsMode = 'selected') {
-      const existingSelected = preselectedClients !== null ? preselectedClients : [];
+      const existingSelected = Array.isArray(preselectedClients) ? preselectedClients : [];
+      const initialClientsMode = ['all', 'selected', 'unsent'].includes(clientsMode)
+        ? clientsMode
+        : (existingSelected.length ? 'selected' : 'all');
 
       this.whatsappModalLoading = true;
       this.editingWhatsappMessageId = null;
@@ -3551,7 +3554,7 @@ export default {
         templateId: '',
         flowId: '',
         templateVariables: {},
-        clientsMode: clientsMode,
+        clientsMode: initialClientsMode,
         selectedClients: existingSelected,
         trackResponses: true,
         enableLiveChat: true,
@@ -3594,11 +3597,15 @@ export default {
 
       const id = this.$route.params.id;
       
-      let finalClientsMode = this.whatsappForm.clientsMode;
-      let finalClientIds = [];
+      const selectedClientIds = Array.isArray(this.whatsappForm.selectedClients)
+        ? this.whatsappForm.selectedClients.map(c => c.id).filter(id => id !== 'ALL')
+        : [];
+      let finalClientsMode = ['all', 'selected', 'unsent'].includes(this.whatsappForm.clientsMode)
+        ? this.whatsappForm.clientsMode
+        : (selectedClientIds.length ? 'selected' : 'all');
+      let finalClientIds = finalClientsMode === 'selected' ? selectedClientIds : [];
 
       if (finalClientsMode === 'selected') {
-        finalClientIds = this.whatsappForm.selectedClients.map(c => c.id).filter(id => id !== 'ALL');
         if (finalClientIds.length === 0) {
           finalClientsMode = 'all';
         }
@@ -3704,6 +3711,7 @@ export default {
         templateId: templateId || '',
         flowId: isFlow ? (message.whatsapp_flow_id || message.flow_id || message.flowId || message.flow?.id || '') : '',
         templateVariables: parsedVariables,
+        clientsMode: 'selected',
         selectedClients: [],
         trackResponses: true,
         enableLiveChat: !!message.enable_live_chat,
