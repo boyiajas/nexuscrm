@@ -180,6 +180,29 @@ class ChatClientLinkTest extends TestCase
         $this->assertDatabaseHas('chat_messages', ['id' => $messageId, 'delivery_status' => 'read']);
     }
 
+    public function test_live_chat_reply_uses_the_session_waba_that_received_the_customer_message(): void
+    {
+        $session = $this->createWhatsAppSessionForDeliveryTest();
+        $session->update(['waba_phone_number_id' => '1339665505890059']);
+
+        $this->mock(WhatsAppServiceInterface::class)
+            ->shouldReceive('sendPlainWhatsapp')
+            ->once()
+            ->with('+27763399083', 'Reply on the existing conversation', '1339665505890059')
+            ->andReturn([
+                'message_id' => 'wamid.correct-session-sender',
+                'status' => 'accepted',
+                'phone_number_id' => '1339665505890059',
+            ]);
+
+        $this->postJson("/api/chat/sessions/{$session->id}/messages", [
+            'content' => 'Reply on the existing conversation',
+        ])
+            ->assertCreated()
+            ->assertJsonPath('provider_message_id', 'wamid.correct-session-sender')
+            ->assertJsonPath('delivery_status', 'accepted');
+    }
+
     public function test_failed_live_chat_send_does_not_appear_delivered_or_read(): void
     {
         $session = $this->createWhatsAppSessionForDeliveryTest();

@@ -92,6 +92,18 @@ class WhatsAppWebhookController extends Controller
         $recipientPhone = MetaWhatsAppService::normalizePhoneNumber((string) ($status['recipient_id'] ?? ''));
 
         $phoneNumberId = $payload['metadata']['phone_number_id'] ?? null;
+        if ($statusName === 'failed') {
+            [$deliveryErrorCode, $deliveryErrorMessage] = $this->chatDeliveryError($status);
+            Log::warning('Meta WhatsApp delivery failed', [
+                'message_id' => $messageId,
+                'recipient_id' => $status['recipient_id'] ?? null,
+                'sender_phone_number_id' => $phoneNumberId,
+                'sender_display_phone_number' => $payload['metadata']['display_phone_number'] ?? null,
+                'error_code' => $deliveryErrorCode,
+                'error_message' => $deliveryErrorMessage,
+            ]);
+        }
+
         $recipient = null;
         if ($messageId) {
             $recipient = CampaignWhatsappRecipient::where('provider_message_id', $messageId)
@@ -124,8 +136,7 @@ class WhatsAppWebhookController extends Controller
         }
 
         $mappedStatus = $this->mapStatus($statusName);
-        $errorCode = $status['errors'][0]['code'] ?? null;
-        $errorTitle = $status['errors'][0]['title'] ?? $status['errors'][0]['message'] ?? '';
+        [$errorCode, $errorTitle] = $this->chatDeliveryError($status);
 
         $isEcosystemWarning = (string)$errorCode === '131049'
             || str_contains(strtolower((string)$errorTitle), 'maintain healthy ecosystem engagement');

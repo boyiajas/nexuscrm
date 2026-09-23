@@ -886,13 +886,11 @@ class ChatController extends Controller
             'session_id' => $session->id,
             'client_id' => $session->client_id,
             'to' => $to,
+            'sender_reference' => $session->waba_phone_number_id,
             'body_length' => mb_strlen($body),
         ]);
 
-        $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
-            ? $this->whatsApp->resolveSenderForClient($client)
-            : null;
-        $overrideFrom = $senderContext['display_phone_number'] ?? null;
+        $overrideFrom = $this->resolveChatSenderReference($session);
 
         return $this->whatsApp->sendPlainWhatsapp($to, $body, $overrideFrom);
     }
@@ -930,20 +928,37 @@ class ChatController extends Controller
             'session_id' => $session->id,
             'client_id' => $session->client_id,
             'to' => $to,
+            'sender_reference' => $session->waba_phone_number_id,
             'media_type' => $mediaType,
             'media_url' => $mediaUrl,
         ]);
 
-        $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
-            ? $this->whatsApp->resolveSenderForClient($client)
-            : null;
-        $overrideFrom = $senderContext['display_phone_number'] ?? null;
+        $overrideFrom = $this->resolveChatSenderReference($session);
 
         if (method_exists($this->whatsApp, 'sendMediaWhatsapp')) {
             return $this->whatsApp->sendMediaWhatsapp($to, $mediaType, $mediaUrl, $caption, $filename, $overrideFrom);
         }
 
         return $this->whatsApp->sendPlainWhatsapp($to, $caption ?: "[Attachment: {$mediaUrl}]", $overrideFrom);
+    }
+
+    /**
+     * Replies must leave through the same WhatsApp number that received the
+     * customer's message. The open 24-hour conversation window belongs to
+     * that sender/customer pair, not merely to the client's bank.
+     */
+    protected function resolveChatSenderReference(ChatSession $session): ?string
+    {
+        $sessionSender = trim((string) $session->waba_phone_number_id);
+        if ($sessionSender !== '') {
+            return $sessionSender;
+        }
+
+        $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
+            ? $this->whatsApp->resolveSenderForClient($session->client)
+            : null;
+
+        return $senderContext['display_phone_number'] ?? null;
     }
 
     public function updateOptIn(Request $request, ChatSession $session)
