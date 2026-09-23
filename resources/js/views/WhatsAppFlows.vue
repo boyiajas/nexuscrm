@@ -176,7 +176,7 @@
                     </div>
                     <div class="col-12">
                       <label class="form-label fw-semibold">Approved WhatsApp template</label>
-                      <select class="form-select" v-model="flowForm.template_sid" @change="syncTemplateMeta" required>
+                      <select class="form-select" v-model="flowForm.template_sid" @change="syncTemplateMeta(false)" required>
                         <option value="" disabled>Select an approved template</option>
                         <option v-for="tpl in templates" :key="tpl.sid" :value="tpl.sid">
                           {{ tpl.name }} — {{ tpl.language }} ({{ tpl.status }})
@@ -186,6 +186,7 @@
                         Using {{ flowForm.template_name }} · Lang: {{ flowForm.template_language || 'n/a' }}
                       </div>
                     </div>
+
                   </div>
 
                   <!-- Flow steps builder -->
@@ -500,6 +501,42 @@
                         </div>
                       </div>
                     </div>
+
+                    <div v-if="mainTemplateVariableKeys.length" class="card border-0 bg-light shadow-sm mt-3">
+                      <div class="card-header bg-white py-2 d-flex justify-content-between align-items-center">
+                        <strong class="small">Template Values</strong>
+                        <span class="badge bg-primary-subtle text-primary border">
+                          {{ mainTemplateVariableKeys.length }} variable<span v-if="mainTemplateVariableKeys.length !== 1">s</span>
+                        </span>
+                      </div>
+                      <div class="card-body p-3">
+                        <p class="text-muted small mb-3">
+                          Map each value used by the initial template. These mappings are saved with the flow.
+                        </p>
+                        <div v-for="key in mainTemplateVariableKeys" :key="key" class="mb-3 last-variable-mapping">
+                          <label class="form-label small fw-semibold mb-1">
+                            <span class="badge bg-primary me-1">{{ key }}</span>
+                            {{ selectedTemplate?.variables?.[key] || templatePreview?.variables?.[key] || 'Template variable' }}
+                          </label>
+                          <select
+                            class="form-select form-select-sm"
+                            v-model="getMainTemplateVariable(key).source"
+                          >
+                            <option value="">Select value</option>
+                            <option v-for="option in templateVariableSources" :key="option.value" :value="option.value">
+                              {{ option.label }}
+                            </option>
+                          </select>
+                          <input
+                            v-if="getMainTemplateVariable(key).source === 'custom'"
+                            class="form-control form-control-sm mt-2"
+                            type="text"
+                            v-model="getMainTemplateVariable(key).custom_value"
+                            placeholder="Enter custom value"
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   <!-- Empty State -->
@@ -785,6 +822,7 @@ export default {
         template_sid: '',
         template_name: '',
         template_language: '',
+        template_variables: {},
         status: 'active',
         steps: defaultSteps(),
       },
@@ -815,20 +853,27 @@ export default {
       if (!this.flowForm.template_sid) return null;
       return this.templates.find((t) => t.sid === this.flowForm.template_sid || t.id === this.flowForm.template_sid) || null;
     },
+    mainTemplateVariableKeys() {
+      const selectedVariables = this.selectedTemplate?.variables || {};
+      return Object.keys(selectedVariables).length
+        ? Object.keys(selectedVariables)
+        : Object.keys(this.templatePreview?.variables || {});
+    },
     previewHeaderText() {
       const tpl = this.selectedTemplate || this.templatePreview;
       let text = this.templatePreview.header_text || tpl.header_text || '';
-      if (!this.showSamplePreview || !text) return text;
-      return text.replace(/{{(\d+)}}/g, (match, p1) => `Sample ${p1}`);
+      if (!text) return text;
+      return text.replace(/{{(\d+)}}/g, (match, number) => (
+        this.resolveMainPreviewVariable(`header_${number}`) || match
+      ));
     },
     previewBodyText() {
       const tpl = this.selectedTemplate || {};
       let text = this.templatePreview.body_preview || tpl.body_preview || tpl.preview || '';
-      if (!this.showSamplePreview || !text) return text;
-      return text.replace(/{{(\d+)}}/g, (match, p1) => {
-        const samples = { '1': 'John Doe', '2': 'R1,250.00', '3': 'R450.00' };
-        return samples[p1] || `[Variable ${p1}]`;
-      });
+      if (!text) return text;
+      return text.replace(/{{(\d+)}}/g, (match, number) => (
+        this.resolveMainPreviewVariable(`body_${number}`) || match
+      ));
     },
     previewButtons() {
       return this.templatePreview.buttons?.length
@@ -1060,11 +1105,14 @@ export default {
       try {
         const res = await axios.get('/api/whatsapp-templates?approved=1');
         this.templates = res.data || [];
+        if (this.showModal && this.flowForm.template_sid) {
+          this.syncTemplateMeta(true);
+        }
       } catch (e) {
         console.error('Failed to load templates', e);
       }
     },
-    syncTemplateMeta() {
+    syncTemplateMeta(preserveExistingMappings = false) {
       const tpl = this.templates.find((t) => t.sid === this.flowForm.template_sid || t.id === this.flowForm.template_sid);
       if (tpl) {
         this.flowForm.template_name = tpl.name;
@@ -1079,8 +1127,12 @@ export default {
           buttons: tpl.buttons || [],
           variables: tpl.variables || [],
         };
+        this.syncMainTemplateVariables(tpl.variables || {}, preserveExistingMappings);
         this.fetchTemplatePreview(tpl.sid || tpl.id);
       } else {
+        if (!preserveExistingMappings) {
+          this.flowForm.template_variables = {};
+        }
         this.templatePreview = {
           media: [],
           header_format: null,
@@ -1091,6 +1143,59 @@ export default {
           variables: [],
         };
       }
+    },
+    syncMainTemplateVariables(variables, preserveExistingMappings = false) {
+      const current = preserveExistingMappings ? (this.flowForm.template_variables || {}) : {};
+      this.flowForm.template_variables = Object.keys(variables || {}).reduce((mappings, key) => {
+        const existing = current[key] || {};
+        mappings[key] = {
+          source: existing.source || '',
+          custom_value: existing.custom_value || '',
+        };
+        return mappings;
+      }, {});
+    },
+    getMainTemplateVariable(key) {
+      if (!this.flowForm.template_variables[key]) {
+        this.flowForm.template_variables[key] = { source: '', custom_value: '' };
+      }
+      return this.flowForm.template_variables[key];
+    },
+    resolveMainPreviewVariable(key) {
+      const mapping = this.flowForm.template_variables?.[key];
+      if (!mapping?.source) {
+        return this.showSamplePreview ? `[${key}]` : null;
+      }
+      if (mapping.source === 'custom') {
+        return mapping.custom_value || null;
+      }
+
+      if (this.showSamplePreview) {
+        const samples = {
+          'client.name': 'John Doe',
+          'client.title': 'Mr',
+          'client.first_name': 'John',
+          'client.surname': 'Doe',
+          'client.phone': '+27 82 123 4567',
+          'client.email': 'john@example.com',
+          'client.id_number': '8001015009087',
+          'client.account_number': 'ACC-10025',
+          'client.easy_pay_number': '1234 5678 9012',
+          'client.bank_name': 'Example Bank',
+          'client.branch_code': '250655',
+          'client.outstanding_balance': 'R1,250.00',
+          'client.arrears_amount': 'R450.00',
+          'client.settlement_amount': 'R850.00',
+          'client.three_months_amount': 'R300.00',
+          'client.installment_amount': 'R150.00',
+          'campaign.name': 'Account Communication',
+          'campaign.status': 'Active',
+        };
+        return samples[mapping.source] || `[${key}]`;
+      }
+
+      const option = this.templateVariableSources.find((item) => item.value === mapping.source);
+      return option ? `[${option.label}]` : null;
     },
     async fetchTemplatePreview(templateSid) {
       if (!templateSid) return;
@@ -1106,6 +1211,9 @@ export default {
           buttons: template.buttons || this.templatePreview.buttons || [],
           variables: template.variables || this.templatePreview.variables || [],
         };
+        if (Object.keys(template.variables || {}).length) {
+          this.syncMainTemplateVariables(template.variables, true);
+        }
       } catch (e) {
         console.error('Failed to load template preview', e);
       }
@@ -1128,6 +1236,7 @@ export default {
         template_sid: '',
         template_name: '',
         template_language: '',
+        template_variables: {},
         status: 'active',
         steps: defaultSteps(),
       };
@@ -1164,6 +1273,7 @@ export default {
         template_sid: flow.template_sid,
         template_name: flow.template_name,
         template_language: flow.template_language,
+        template_variables: JSON.parse(JSON.stringify(flow.template_variables || {})),
         status: flow.status || 'active',
         steps: Array.isArray(flow.flow_definition)
           ? JSON.parse(JSON.stringify(flow.flow_definition)).map((step) => normalizeStep(step))
@@ -1176,7 +1286,7 @@ export default {
         footer_text: flow.footer_text || null,
       };
       this.showModal = true;
-      this.syncTemplateMeta();
+      this.syncTemplateMeta(true);
     },
     async deleteFlow(flow) {
       if (!this.canManageFlows) return;
@@ -1226,6 +1336,7 @@ export default {
           template_sid: this.flowForm.template_sid,
           template_name: this.flowForm.template_name,
           template_language: this.flowForm.template_language,
+          template_variables: this.flowForm.template_variables,
           status: this.flowForm.status || 'active',
           flow_definition: this.serializeFlowSteps(),
         };
@@ -1246,6 +1357,16 @@ export default {
       }
     },
     validateFlowSteps() {
+      for (const key of this.mainTemplateVariableKeys) {
+        const mapping = this.flowForm.template_variables?.[key];
+        if (!mapping?.source) {
+          return `Select a value for ${key} in the initial template.`;
+        }
+        if (mapping.source === 'custom' && !String(mapping.custom_value || '').trim()) {
+          return `Enter a custom value for ${key} in the initial template.`;
+        }
+      }
+
       for (const [index, step] of this.flowForm.steps.entries()) {
         const stepName = step.label || `Step ${index + 1}`;
         if (step.reply_type === 'template') {

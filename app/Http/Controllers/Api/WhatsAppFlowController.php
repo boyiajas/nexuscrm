@@ -32,6 +32,12 @@ class WhatsAppFlowController extends Controller
         $this->authorizeManage();
 
         $data = $request->validate($this->validationRules(false));
+        $template = $this->approvedTemplate($data['template_sid'], 'template_sid');
+        $data['template_variables'] = $this->normalizeTemplateMappings(
+            $template,
+            $data['template_variables'] ?? [],
+            'template_variables'
+        );
         $data['flow_definition'] = $this->normalizeFlowDefinition($data['flow_definition']);
 
         $flow = WhatsAppFlow::create([
@@ -56,6 +62,16 @@ class WhatsAppFlowController extends Controller
 
         $data = $request->validate($this->validationRules(true));
 
+        if (array_key_exists('template_sid', $data) || array_key_exists('template_variables', $data)) {
+            $templateSid = $data['template_sid'] ?? $whatsappFlow->template_sid;
+            $template = $this->approvedTemplate($templateSid, 'template_sid');
+            $data['template_variables'] = $this->normalizeTemplateMappings(
+                $template,
+                $data['template_variables'] ?? ($whatsappFlow->template_variables ?? []),
+                'template_variables'
+            );
+        }
+
         if (array_key_exists('flow_definition', $data)) {
             $data['flow_definition'] = $this->normalizeFlowDefinition($data['flow_definition']);
         }
@@ -76,6 +92,10 @@ class WhatsAppFlowController extends Controller
             'template_sid'      => [$required, 'string', 'max:255'],
             'template_name'     => ['nullable', 'string', 'max:255'],
             'template_language' => ['nullable', 'string', 'max:50'],
+            'template_variables' => ['nullable', 'array'],
+            'template_variables.*' => ['array'],
+            'template_variables.*.source' => ['nullable', 'string', 'max:100'],
+            'template_variables.*.custom_value' => ['nullable', 'string', 'max:1024'],
             'status'            => [$updating ? 'sometimes' : 'nullable', 'string', 'max:50'],
             'flow_definition'   => [$required, 'array', 'min:1'],
             'flow_definition.*' => ['array'],
@@ -108,31 +128,9 @@ class WhatsAppFlowController extends Controller
             ->get()
             ->keyBy('sid');
 
-        $allowedSources = [
-            'client.name',
-            'client.title',
-            'client.first_name',
-            'client.surname',
-            'client.phone',
-            'client.email',
-            'client.id_number',
-            'client.account_number',
-            'client.easy_pay_number',
-            'client.bank_name',
-            'client.branch_code',
-            'client.outstanding_balance',
-            'client.arrears_amount',
-            'client.settlement_amount',
-            'client.three_months_amount',
-            'client.installment_amount',
-            'campaign.name',
-            'campaign.status',
-            'custom',
-        ];
-
         $seenIds = [];
 
-        return collect($steps)->values()->map(function (array $step, int $index) use ($templates, $allowedSources, &$seenIds) {
+        return collect($steps)->values()->map(function (array $step, int $index) use ($templates, &$seenIds) {
             $field = "flow_definition.{$index}";
             $stepId = trim((string) ($step['id'] ?? ''));
 
@@ -177,32 +175,6 @@ class WhatsAppFlowController extends Controller
                 ]);
             }
 
-            $submittedMappings = $step['template_variables'] ?? [];
-            $normalizedMappings = [];
-
-            foreach (array_keys($template->variables ?? []) as $variableKey) {
-                $mapping = $submittedMappings[$variableKey] ?? null;
-                $source = is_array($mapping) ? trim((string) ($mapping['source'] ?? '')) : '';
-
-                if (!in_array($source, $allowedSources, true)) {
-                    throw ValidationException::withMessages([
-                        "{$field}.template_variables.{$variableKey}.source" => ["Select a value for template variable {$variableKey}."],
-                    ]);
-                }
-
-                $customValue = is_array($mapping) ? trim((string) ($mapping['custom_value'] ?? '')) : '';
-                if ($source === 'custom' && $customValue === '') {
-                    throw ValidationException::withMessages([
-                        "{$field}.template_variables.{$variableKey}.custom_value" => ["Enter a custom value for template variable {$variableKey}."],
-                    ]);
-                }
-
-                $normalizedMappings[$variableKey] = [
-                    'source' => $source,
-                    'custom_value' => $source === 'custom' ? $customValue : '',
-                ];
-            }
-
             $step['message'] = '';
             $step['template_sid'] = $template->sid;
             $step['template_name'] = $template->friendly_name;
@@ -210,10 +182,89 @@ class WhatsAppFlowController extends Controller
             $step['template_preview'] = $template->body_preview;
             $step['template_header_text'] = $template->header_text;
             $step['template_footer_text'] = $template->footer_text;
-            $step['template_variables'] = $normalizedMappings;
+            $step['template_variables'] = $this->normalizeTemplateMappings(
+                $template,
+                $step['template_variables'] ?? [],
+                "{$field}.template_variables"
+            );
 
             return $step;
         })->all();
+    }
+
+    private function approvedTemplate(string $templateSid, string $field): WhatsappTemplateCache
+    {
+        $template = WhatsappTemplateCache::query()
+            ->where('sid', $templateSid)
+            ->whereRaw('LOWER(status) = ?', ['approved'])
+            ->first();
+
+        if (!$template) {
+            throw ValidationException::withMessages([
+                $field => ['Select an approved WhatsApp template.'],
+            ]);
+        }
+
+        return $template;
+    }
+
+    private function normalizeTemplateMappings(
+        WhatsappTemplateCache $template,
+        array $submittedMappings,
+        string $field
+    ): array {
+        $normalizedMappings = [];
+        $allowedSources = $this->allowedTemplateVariableSources();
+
+        foreach (array_keys($template->variables ?? []) as $variableKey) {
+            $mapping = $submittedMappings[$variableKey] ?? null;
+            $source = is_array($mapping) ? trim((string) ($mapping['source'] ?? '')) : '';
+
+            if (!in_array($source, $allowedSources, true)) {
+                throw ValidationException::withMessages([
+                    "{$field}.{$variableKey}.source" => ["Select a value for template variable {$variableKey}."],
+                ]);
+            }
+
+            $customValue = is_array($mapping) ? trim((string) ($mapping['custom_value'] ?? '')) : '';
+            if ($source === 'custom' && $customValue === '') {
+                throw ValidationException::withMessages([
+                    "{$field}.{$variableKey}.custom_value" => ["Enter a custom value for template variable {$variableKey}."],
+                ]);
+            }
+
+            $normalizedMappings[$variableKey] = [
+                'source' => $source,
+                'custom_value' => $source === 'custom' ? $customValue : '',
+            ];
+        }
+
+        return $normalizedMappings;
+    }
+
+    private function allowedTemplateVariableSources(): array
+    {
+        return [
+            'client.name',
+            'client.title',
+            'client.first_name',
+            'client.surname',
+            'client.phone',
+            'client.email',
+            'client.id_number',
+            'client.account_number',
+            'client.easy_pay_number',
+            'client.bank_name',
+            'client.branch_code',
+            'client.outstanding_balance',
+            'client.arrears_amount',
+            'client.settlement_amount',
+            'client.three_months_amount',
+            'client.installment_amount',
+            'campaign.name',
+            'campaign.status',
+            'custom',
+        ];
     }
 
     public function destroy(WhatsAppFlow $whatsappFlow): JsonResponse
@@ -234,6 +285,7 @@ class WhatsAppFlowController extends Controller
             'template_sid'      => $flow->template_sid,
             'template_name'     => $flow->template_name,
             'template_language' => $flow->template_language,
+            'template_variables' => $flow->template_variables ?? [],
             'status'            => $flow->status,
             'flow_definition'   => $flow->flow_definition,
             'created_by'        => $flow->created_by,

@@ -1727,6 +1727,7 @@
                                 style="max-width: 320px; background-color: #ffffff;"
                               >
                                 <option value="">-- Select mapping --</option>
+                                <option value="client.name">Client Full Name</option>
                                 <option value="client.title">Client Title</option>
                                 <option value="client.first_name">Client First Name</option>
                                 <option value="client.surname">Client Surname</option>
@@ -2845,18 +2846,19 @@ export default {
       }
     },
     handleWhatsappTemplateChange() {
-      // Avoid overwriting if we are editing and haven't actually changed the template
-      const currentVars = this.whatsappForm.templateVariables || {};
-      this.whatsappForm.templateVariables = { ...currentVars };
-
       const tpl = this.currentWhatsappTemplate;
-      if (tpl && tpl.variables) {
-        Object.keys(tpl.variables).forEach((key) => {
-          if (!this.whatsappForm.templateVariables[key]) {
-            this.whatsappForm.templateVariables[key] = { source: '', custom_value: '' };
-          }
-        });
-      }
+      const flowDefaults = this.whatsappForm.mode === 'flow'
+        ? (this.currentWhatsappFlow?.template_variables || {})
+        : {};
+
+      this.whatsappForm.templateVariables = Object.keys(tpl?.variables || {}).reduce((mappings, key) => {
+        const saved = flowDefaults[key] || {};
+        mappings[key] = {
+          source: saved.source || '',
+          custom_value: saved.custom_value || '',
+        };
+        return mappings;
+      }, {});
     },
     getTemplateVariable(key) {
       if (!this.whatsappForm.templateVariables[key]) {

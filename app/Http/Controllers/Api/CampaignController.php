@@ -1301,11 +1301,15 @@ class CampaignController extends Controller
                     $previewBody = collect($flowTemplate['components'] ?? [])
                         ->firstWhere('type', 'BODY')['text'] ?? ($flowTemplate['preview'] ?? $previewBody);
                     $templateVariables = $this->normalizeTemplateVariables(
-                        $data['template_variables'] ?? [],
+                        !empty($data['template_variables'])
+                            ? $data['template_variables']
+                            : ($flow->template_variables ?? []),
                         $flowTemplate['variables'] ?? []
                     );
                 } catch (\Throwable $e) {
-                    $templateVariables = $data['template_variables'] ?? null;
+                    $templateVariables = !empty($data['template_variables'])
+                        ? $data['template_variables']
+                        : $flow->template_variables;
                 }
             }
         }
@@ -2245,11 +2249,15 @@ class CampaignController extends Controller
                     $previewBody = collect($flowTemplate['components'] ?? [])
                         ->firstWhere('type', 'BODY')['text'] ?? ($flowTemplate['preview'] ?? $previewBody);
                     $templateVariables = $this->normalizeTemplateVariables(
-                        $data['template_variables'] ?? [],
+                        !empty($data['template_variables'])
+                            ? $data['template_variables']
+                            : ($flow->template_variables ?? []),
                         $flowTemplate['variables'] ?? []
                     );
                 } catch (\Throwable $e) {
-                    $templateVariables = $data['template_variables'] ?? null;
+                    $templateVariables = !empty($data['template_variables'])
+                        ? $data['template_variables']
+                        : $flow->template_variables;
                 }
             }
         }

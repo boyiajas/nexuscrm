@@ -293,6 +293,18 @@ class WhatsAppFlowGreetingTest extends TestCase
         ]);
 
         WhatsappTemplateCache::query()->create([
+            'sid' => 'initial_template',
+            'friendly_name' => 'Initial Template',
+            'language' => 'en',
+            'category' => 'UTILITY',
+            'status' => 'approved',
+            'body_preview' => 'Good day {{1}}.',
+            'variables' => [
+                'body_1' => 'Body Variable 1',
+            ],
+        ]);
+
+        WhatsappTemplateCache::query()->create([
             'sid' => 'flow_follow_up',
             'friendly_name' => 'Flow Follow Up',
             'language' => 'en',
@@ -314,6 +326,9 @@ class WhatsAppFlowGreetingTest extends TestCase
             'template_sid' => 'initial_template',
             'template_name' => 'Initial Template',
             'template_language' => 'en',
+            'template_variables' => [
+                'body_1' => ['source' => 'client.first_name', 'custom_value' => 'ignored'],
+            ],
             'status' => 'active',
             'flow_definition' => [[
                 'id' => 'follow_up',
@@ -330,6 +345,8 @@ class WhatsAppFlowGreetingTest extends TestCase
         ]);
 
         $response->assertCreated()
+            ->assertJsonPath('template_variables.body_1.source', 'client.first_name')
+            ->assertJsonPath('template_variables.body_1.custom_value', '')
             ->assertJsonPath('flow_definition.0.reply_type', 'template')
             ->assertJsonPath('flow_definition.0.template_name', 'Flow Follow Up')
             ->assertJsonPath('flow_definition.0.template_preview', 'Hello {{1}}, your account is {{2}}.')
@@ -812,6 +829,10 @@ class WhatsAppFlowGreetingTest extends TestCase
             'name' => 'Test Flow',
             'template_name' => '55_settlement_offer',
             'template_sid' => '55_settlement_offer',
+            'template_variables' => [
+                'body_1' => ['source' => 'client.first_name', 'custom_value' => ''],
+                'body_2' => ['source' => 'custom', 'custom_value' => '1000'],
+            ],
             'flow_definition' => [
                 ['id' => 'greeting', 'message' => 'Greeting text'],
             ],
@@ -825,10 +846,6 @@ class WhatsAppFlowGreetingTest extends TestCase
             'mode' => 'flow',
             'flow_id' => $flow->id,
             'clients_mode' => 'all',
-            'template_variables' => [
-                '1' => ['source' => 'client.first_name', 'custom_value' => ''],
-                'body_2' => ['source' => 'custom', 'custom_value' => '1000'],
-            ],
             'send_now' => false,
         ]);
 
