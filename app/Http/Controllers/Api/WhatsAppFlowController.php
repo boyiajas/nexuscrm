@@ -38,6 +38,9 @@ class WhatsAppFlowController extends Controller
             $data['template_variables'] ?? [],
             'template_variables'
         );
+        $data['initial_expected_replies'] = $this->normalizeExpectedReplies(
+            $data['initial_expected_replies'] ?? []
+        );
         $data['flow_definition'] = $this->normalizeFlowDefinition($data['flow_definition']);
 
         $flow = WhatsAppFlow::create([
@@ -76,6 +79,12 @@ class WhatsAppFlowController extends Controller
             $data['flow_definition'] = $this->normalizeFlowDefinition($data['flow_definition']);
         }
 
+        if (array_key_exists('initial_expected_replies', $data)) {
+            $data['initial_expected_replies'] = $this->normalizeExpectedReplies(
+                $data['initial_expected_replies'] ?? []
+            );
+        }
+
         $whatsappFlow->fill($data);
         $whatsappFlow->save();
 
@@ -96,6 +105,8 @@ class WhatsAppFlowController extends Controller
             'template_variables.*' => ['array'],
             'template_variables.*.source' => ['nullable', 'string', 'max:100'],
             'template_variables.*.custom_value' => ['nullable', 'string', 'max:1024'],
+            'initial_expected_replies' => ['nullable', 'array'],
+            'initial_expected_replies.*' => ['string', 'max:255'],
             'status'            => [$updating ? 'sometimes' : 'nullable', 'string', 'max:50'],
             'flow_definition'   => [$required, 'array', 'min:1'],
             'flow_definition.*' => ['array'],
@@ -143,13 +154,7 @@ class WhatsAppFlowController extends Controller
 
             $replyType = $step['reply_type'] ?? 'message';
             $step['reply_type'] = $replyType;
-            $expectedReplies = collect($step['expected_replies'] ?? [])
-                ->map(fn ($value) => trim((string) $value))
-                ->filter(fn ($value) => $value !== '')
-                ->unique(fn ($value) => mb_strtolower($value))
-                ->values()
-                ->all();
-            $step['expected_replies'] = $expectedReplies;
+            $step['expected_replies'] = $this->normalizeExpectedReplies($step['expected_replies'] ?? []);
             unset($step['expected_replies_text']);
 
             if ($replyType === 'message') {
@@ -190,6 +195,16 @@ class WhatsAppFlowController extends Controller
 
             return $step;
         })->all();
+    }
+
+    private function normalizeExpectedReplies(array $values): array
+    {
+        return collect($values)
+            ->map(fn ($value) => trim((string) $value))
+            ->filter(fn ($value) => $value !== '')
+            ->unique(fn ($value) => mb_strtolower($value))
+            ->values()
+            ->all();
     }
 
     private function approvedTemplate(string $templateSid, string $field): WhatsappTemplateCache
@@ -286,6 +301,7 @@ class WhatsAppFlowController extends Controller
             'template_name'     => $flow->template_name,
             'template_language' => $flow->template_language,
             'template_variables' => $flow->template_variables ?? [],
+            'initial_expected_replies' => $flow->initial_expected_replies ?? [],
             'status'            => $flow->status,
             'flow_definition'   => $flow->flow_definition,
             'created_by'        => $flow->created_by,

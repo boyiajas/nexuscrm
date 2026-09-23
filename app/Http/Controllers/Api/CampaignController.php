@@ -1276,6 +1276,7 @@ class CampaignController extends Controller
         $flowName     = null;
         $flowDef      = null;
         $templateVariables = null;
+        $initialExpectedReplies = [];
 
         if ($mode === 'template') {
             $templateSid  = $data['template_id'];
@@ -1292,6 +1293,7 @@ class CampaignController extends Controller
             $flowId      = $flow->id;
             $flowName    = $flow->name;
             $flowDef     = $flow->flow_definition;
+            $initialExpectedReplies = $flow->initial_expected_replies ?? [];
             $templateSid = $flow->template_sid;
             $friendlyName = $flowName;
             $previewBody = $flowDef && isset($flowDef[0]['message']) ? $flowDef[0]['message'] : 'Flow start';
@@ -1345,6 +1347,7 @@ class CampaignController extends Controller
             $flowId,
             $flowName,
             $friendlyName,
+            $initialExpectedReplies,
             $message,
             $mode,
             $now,
@@ -1371,6 +1374,7 @@ class CampaignController extends Controller
                 'whatsapp_flow_id' => $flowId,
                 'flow_name'        => $flowName,
                 'flow_definition'  => $flowDef,
+                'initial_expected_replies' => $initialExpectedReplies,
                 'sent_at'          => $sendNow ? $now : null,
                 'total'            => $total,
                 'delivered'        => 0,
@@ -2252,6 +2256,7 @@ class CampaignController extends Controller
         $flowDef      = null;
         $flowTemplateSid = null;
         $templateVariables = null;
+        $initialExpectedReplies = [];
 
         if ($mode === 'template') {
             $templateSid   = $data['template_id'];
@@ -2268,6 +2273,7 @@ class CampaignController extends Controller
             $flowId   = $flow->id;
             $flowName = $flow->name;
             $flowDef  = $flow->flow_definition;
+            $initialExpectedReplies = $flow->initial_expected_replies ?? [];
             $flowTemplateSid = $flow->template_sid;
             $friendlyName = $flowName;
             $templateSid  = $flowTemplateSid;
@@ -2308,6 +2314,7 @@ class CampaignController extends Controller
             $flowId,
             $flowName,
             $friendlyName,
+            $initialExpectedReplies,
             $isScheduled,
             $mode,
             $now,
@@ -2332,6 +2339,7 @@ class CampaignController extends Controller
                 'whatsapp_flow_id'  => $flowId,
                 'flow_name'         => $flowName,
                 'flow_definition'   => $flowDef,
+                'initial_expected_replies' => $initialExpectedReplies,
                 'sent_at'           => $sendNow ? $now : null,
                 'total'             => $total,
                 'delivered'         => 0,

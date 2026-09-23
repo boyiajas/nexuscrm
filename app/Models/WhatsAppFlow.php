@@ -17,6 +17,7 @@ class WhatsAppFlow extends Model
         'template_name',
         'template_language',
         'template_variables',
+        'initial_expected_replies',
         'status',
         'description',
         'flow_definition',
@@ -26,6 +27,7 @@ class WhatsAppFlow extends Model
     protected $casts = [
         'flow_definition' => 'array',
         'template_variables' => 'array',
+        'initial_expected_replies' => 'array',
     ];
 
     public function creator()

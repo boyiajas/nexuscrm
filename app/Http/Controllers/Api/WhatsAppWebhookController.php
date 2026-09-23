@@ -10,6 +10,7 @@ use App\Models\CampaignWhatsappRecipient;
 use App\Models\ChatMessage;
 use App\Models\ChatSession;
 use App\Models\Client;
+use App\Models\WhatsAppFlow;
 use App\Mail\WhatsAppInboundReplyNotification;
 use App\Services\MetaWhatsAppService;
 use App\Services\WhatsAppBatchService;
@@ -279,10 +280,33 @@ class WhatsAppWebhookController extends Controller
                 $nextStepId = null;
 
                 if (empty($currentStepId)) {
-                    // First inbound response from client: Deliver Step 0 (Greeting!)
-                    $stepToSend = $flowDef[0] ?? null;
-                    if ($stepToSend) {
-                        $nextStepId = $stepToSend['id'] ?? 'greeting';
+                    $initialExpectedReplies = $messageBatch?->initial_expected_replies;
+                    if ($initialExpectedReplies === null && $messageBatch?->whatsapp_flow_id) {
+                        $initialExpectedReplies = WhatsAppFlow::find($messageBatch->whatsapp_flow_id)
+                            ?->initial_expected_replies;
+                    }
+                    $initialExpectedReplies = array_values(array_filter(
+                        is_array($initialExpectedReplies) ? $initialExpectedReplies : [],
+                        fn ($value) => is_scalar($value) && trim((string) $value) !== ''
+                    ));
+                    $replyMatches = empty($initialExpectedReplies)
+                        || $this->replyMatchesExpectedValues(
+                            $initialExpectedReplies,
+                            array_merge([$body], $reply['keywords'])
+                        );
+
+                    if (!$replyMatches) {
+                        Log::info('WhatsApp flow initial reply did not match the expected values.', [
+                            'from' => $from,
+                            'recipient_id' => $recipient->id,
+                            'expected_replies' => $initialExpectedReplies,
+                            'received_reply' => $body,
+                        ]);
+                    } else {
+                        $stepToSend = $flowDef[0] ?? null;
+                        if ($stepToSend) {
+                            $nextStepId = $stepToSend['id'] ?? 'greeting';
+                        }
                     }
                 } else {
                     // Subsequent reply: Advance according to decision or linear sequence

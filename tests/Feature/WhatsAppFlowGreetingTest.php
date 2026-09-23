@@ -168,6 +168,114 @@ class WhatsAppFlowGreetingTest extends TestCase
         $this->assertEquals('Thank you for contacting Strauss Daly Attorneys. Please provide me with your ID number to assist you further.', $messages[1]->content);
     }
 
+    public function test_first_flow_step_waits_for_an_expected_initial_template_reply(): void
+    {
+        $mockMeta = Mockery::mock(MetaWhatsAppService::class);
+        $mockMeta->shouldReceive('appSecret')->andReturn(null);
+        $mockMeta->shouldReceive('sendTextMessage')
+            ->once()
+            ->with('27821112233', 'Welcome to Flow Step 1.', Mockery::any())
+            ->andReturn(['messages' => [['id' => 'wamid.initial.match.1']]]);
+
+        $this->app->instance(MetaWhatsAppService::class, $mockMeta);
+        $this->app->instance(WhatsAppServiceInterface::class, $mockMeta);
+
+        $client = Client::query()->create([
+            'name' => 'John Doe',
+            'phone' => '+27821112233',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+        ]);
+
+        $campaign = Campaign::query()->create([
+            'name' => 'Initial Reply Campaign',
+            'bank_id' => $this->bank->id,
+            'department_id' => $this->dept->id,
+            'created_by' => $this->user->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+
+        $batch = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'created_by_user_id' => $this->user->id,
+            'mode' => 'flow',
+            'template_sid' => 'initial_template',
+            'initial_expected_replies' => ['1', 'opt-in'],
+            'flow_definition' => [[
+                'id' => 'greeting',
+                'label' => 'Greeting',
+                'message' => 'Welcome to Flow Step 1.',
+                'decision' => false,
+            ]],
+            'track_responses' => true,
+            'enable_live_chat' => true,
+        ]);
+
+        $recipient = CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $batch->id,
+            'client_id' => $client->id,
+            'phone' => '+27821112233',
+            'status' => 'Delivered',
+            'current_flow_step_id' => null,
+        ]);
+
+        $payload = function (string $messageId, array $messageData): array {
+            return [
+                'entry' => [[
+                    'id' => '123456789',
+                    'changes' => [[
+                        'field' => 'messages',
+                        'value' => [
+                            'messaging_product' => 'whatsapp',
+                            'metadata' => [
+                                'display_phone_number' => '27614774098',
+                                'phone_number_id' => '10987654321',
+                            ],
+                            'contacts' => [
+                                ['profile' => ['name' => 'John Doe'], 'wa_id' => '27821112233'],
+                            ],
+                            'messages' => [[
+                                'from' => '27821112233',
+                                'id' => $messageId,
+                                'timestamp' => (string) time(),
+                                ...$messageData,
+                            ]],
+                        ],
+                    ]],
+                ]],
+            ];
+        };
+
+        $this->postJson('/api/whatsapp/webhook', $payload('wamid.initial.no-match', [
+            'type' => 'text',
+            'text' => ['body' => 'Maybe later'],
+        ]))->assertOk();
+
+        $recipient->refresh();
+        $this->assertNull($recipient->current_flow_step_id);
+        $this->assertSame(0, ChatMessage::query()->where('sender', 'agent')->count());
+
+        $this->postJson('/api/whatsapp/webhook', $payload('wamid.initial.match', [
+            'type' => 'interactive',
+            'interactive' => [
+                'type' => 'button_reply',
+                'button_reply' => [
+                    'id' => '1',
+                    'title' => 'Opt-In',
+                ],
+            ],
+        ]))->assertOk();
+
+        $recipient->refresh();
+        $this->assertSame('greeting', $recipient->current_flow_step_id);
+        $this->assertDatabaseHas('chat_messages', [
+            'sender' => 'agent',
+            'content' => 'Welcome to Flow Step 1.',
+            'provider_message_id' => 'wamid.initial.match.1',
+        ]);
+    }
+
     public function test_flow_step_can_send_an_approved_template_with_client_variables(): void
     {
         $mockMeta = Mockery::mock(MetaWhatsAppService::class);
@@ -329,6 +437,7 @@ class WhatsAppFlowGreetingTest extends TestCase
             'template_variables' => [
                 'body_1' => ['source' => 'client.first_name', 'custom_value' => 'ignored'],
             ],
+            'initial_expected_replies' => [' Opt-In ', '1', 'opt-in'],
             'status' => 'active',
             'flow_definition' => [[
                 'id' => 'follow_up',
@@ -347,6 +456,7 @@ class WhatsAppFlowGreetingTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('template_variables.body_1.source', 'client.first_name')
             ->assertJsonPath('template_variables.body_1.custom_value', '')
+            ->assertJsonPath('initial_expected_replies', ['Opt-In', '1'])
             ->assertJsonPath('flow_definition.0.reply_type', 'template')
             ->assertJsonPath('flow_definition.0.template_name', 'Flow Follow Up')
             ->assertJsonPath('flow_definition.0.template_preview', 'Hello {{1}}, your account is {{2}}.')
@@ -833,6 +943,7 @@ class WhatsAppFlowGreetingTest extends TestCase
                 'body_1' => ['source' => 'client.first_name', 'custom_value' => ''],
                 'body_2' => ['source' => 'custom', 'custom_value' => '1000'],
             ],
+            'initial_expected_replies' => ['1', 'opt-in'],
             'flow_definition' => [
                 ['id' => 'greeting', 'message' => 'Greeting text'],
             ],
@@ -859,6 +970,7 @@ class WhatsAppFlowGreetingTest extends TestCase
         $this->assertEquals('client.first_name', $message->template_variables['body_1']['source']);
         $this->assertEquals('custom', $message->template_variables['body_2']['source']);
         $this->assertEquals('1000', $message->template_variables['body_2']['custom_value']);
+        $this->assertSame(['1', 'opt-in'], $message->initial_expected_replies);
     }
 
     public function test_flow_batch_updates_template_variables(): void
@@ -918,6 +1030,7 @@ class WhatsAppFlowGreetingTest extends TestCase
             'name' => 'Test Flow',
             'template_name' => '55_settlement_offer',
             'template_sid' => '55_settlement_offer',
+            'initial_expected_replies' => ['accept'],
             'flow_definition' => [
                 ['id' => 'greeting', 'message' => 'Greeting text'],
             ],
@@ -957,6 +1070,7 @@ class WhatsAppFlowGreetingTest extends TestCase
         $batch->refresh();
         $this->assertEquals('client.first_name', $batch->template_variables['body_1']['source']);
         $this->assertEquals('client.outstanding_balance', $batch->template_variables['body_2']['source']);
+        $this->assertSame(['accept'], $batch->initial_expected_replies);
     }
 
     public function test_quick_reply_button_with_context_id_triggers_greeting_when_track_responses_is_false(): void

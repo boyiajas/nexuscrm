@@ -186,6 +186,22 @@
                         Using {{ flowForm.template_name }} · Lang: {{ flowForm.template_language || 'n/a' }}
                       </div>
                     </div>
+                    <div class="col-12">
+                      <div class="p-3 border rounded bg-light">
+                        <label class="form-label fw-semibold mb-1">
+                          Initial template expected replies <span class="text-muted fw-normal">(optional)</span>
+                        </label>
+                        <textarea
+                          class="form-control form-control-sm"
+                          rows="2"
+                          v-model="flowForm.initial_expected_replies_text"
+                          placeholder="For example: opt-in, accept, 1"
+                        ></textarea>
+                        <div class="form-text">
+                          Flow Step 1 is sent only when the client's response to the main template matches a text value, button title, or button ID entered here. Leave blank to accept any response.
+                        </div>
+                      </div>
+                    </div>
 
                   </div>
 
@@ -823,6 +839,7 @@ export default {
         template_name: '',
         template_language: '',
         template_variables: {},
+        initial_expected_replies_text: '',
         status: 'active',
         steps: defaultSteps(),
       },
@@ -1237,6 +1254,7 @@ export default {
         template_name: '',
         template_language: '',
         template_variables: {},
+        initial_expected_replies_text: '',
         status: 'active',
         steps: defaultSteps(),
       };
@@ -1274,6 +1292,9 @@ export default {
         template_name: flow.template_name,
         template_language: flow.template_language,
         template_variables: JSON.parse(JSON.stringify(flow.template_variables || {})),
+        initial_expected_replies_text: Array.isArray(flow.initial_expected_replies)
+          ? flow.initial_expected_replies.join('\n')
+          : '',
         status: flow.status || 'active',
         steps: Array.isArray(flow.flow_definition)
           ? JSON.parse(JSON.stringify(flow.flow_definition)).map((step) => normalizeStep(step))
@@ -1337,6 +1358,7 @@ export default {
           template_name: this.flowForm.template_name,
           template_language: this.flowForm.template_language,
           template_variables: this.flowForm.template_variables,
+          initial_expected_replies: this.parseExpectedReplies(this.flowForm.initial_expected_replies_text),
           status: this.flowForm.status || 'active',
           flow_definition: this.serializeFlowSteps(),
         };
