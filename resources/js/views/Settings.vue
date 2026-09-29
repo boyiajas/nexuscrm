@@ -2747,10 +2747,10 @@ export default {
       }
     },
     qualityRatingBadge(rating) {
-      const r = (rating || '').toUpperCase();
-      if (r === 'HIGH') return 'bg-success';
-      if (r === 'MEDIUM') return 'bg-warning';
-      if (r === 'LOW') return 'bg-danger';
+      const r = String(rating || '').trim().toUpperCase();
+      if (['GREEN', 'HIGH'].includes(r)) return 'bg-success text-white';
+      if (['YELLOW', 'MEDIUM'].includes(r)) return 'bg-warning text-dark';
+      if (['RED', 'LOW'].includes(r)) return 'bg-danger text-white';
       return 'bg-secondary';
     },
     statusBadge(status) {
