@@ -1133,8 +1133,10 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             $error = $payload['error'] ?? [];
             $messageParts = [];
             foreach ([
+                $error['error_user_title'] ?? null,
+                $error['error_user_msg'] ?? null,
+                $error['error_data']['details'] ?? (is_string($error['error_data'] ?? null) ? $error['error_data'] : null),
                 $error['message'] ?? null,
-                $error['error_data']['details'] ?? null,
             ] as $messagePart) {
                 $messagePart = trim((string) $messagePart);
                 if ($messagePart !== '' && !in_array($messagePart, $messageParts, true)) {
@@ -1142,7 +1144,14 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                 }
             }
             $message = $messageParts !== [] ? implode(' — ', $messageParts) : 'Unknown Meta API error';
-            $providerCode = isset($error['code']) ? ' (Meta code ' . $error['code'] . ')' : '';
+            $codeParts = [];
+            if (isset($error['code'])) {
+                $codeParts[] = 'code ' . $error['code'];
+            }
+            if (isset($error['error_subcode'])) {
+                $codeParts[] = 'subcode ' . $error['error_subcode'];
+            }
+            $providerCode = $codeParts !== [] ? ' (Meta ' . implode(', ', $codeParts) . ')' : '';
             Log::error('Meta WhatsApp API error', [
                 'path' => $path,
                 'status' => $status,

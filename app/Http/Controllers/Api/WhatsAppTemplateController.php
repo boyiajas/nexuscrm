@@ -9,6 +9,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WhatsAppTemplateController extends Controller
@@ -208,14 +209,56 @@ class WhatsAppTemplateController extends Controller
 
         $this->validateBodyExamples($data['body'], $data['body_examples'] ?? []);
 
-        $created = $this->whatsApp->createWhatsAppTemplate(
-            $data['friendly_name'],
-            $data['body'],
-            $data['language'],
-            $data['category'],
-            $data['media_urls'] ?? [],
-            $data['body_examples'] ?? []
-        );
+        $normalizedName = Str::of($data['friendly_name'])
+            ->lower()
+            ->replaceMatches('/[^a-z0-9_]+/', '_')
+            ->trim('_')
+            ->value();
+
+        if ($normalizedName === '') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'friendly_name' => 'Template name must contain valid lowercase alphanumeric characters or underscores.',
+            ]);
+        }
+
+        $existing = WhatsappTemplateCache::where('sid', $normalizedName)
+            ->orWhere('friendly_name', $normalizedName)
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'message' => "A template named '{$normalizedName}' already exists in your CRM (status: {$existing->status}). Please choose a unique name or edit the existing template.",
+            ], 422);
+        }
+
+        try {
+            $created = $this->whatsApp->createWhatsAppTemplate(
+                $normalizedName,
+                $data['body'],
+                $data['language'],
+                $data['category'],
+                $data['media_urls'] ?? [],
+                $data['body_examples'] ?? []
+            );
+        } catch (\Throwable $e) {
+            if ($this->isAlreadyExistsError($e->getMessage())) {
+                try {
+                    $details = $this->whatsApp->getTemplateDetails($normalizedName);
+                    if ($details) {
+                        $this->syncFromMeta(false);
+
+                        return response()->json([
+                            'message' => "A template named '{$normalizedName}' already exists on Meta (status: " . ($details['status'] ?? 'unknown') . "). It has now been synced into your CRM templates list.",
+                            'template' => $details,
+                        ], 409);
+                    }
+                } catch (\Throwable $syncError) {
+                    Log::warning('Failed to sync existing template after conflict', ['error' => $syncError->getMessage()]);
+                }
+            }
+
+            throw $e;
+        }
 
         $whatsapp = $created['whatsapp'] ?? [];
         $record = WhatsappTemplateCache::updateOrCreate(
@@ -265,8 +308,22 @@ class WhatsAppTemplateController extends Controller
             'body_examples' => $data['body_examples'] ?? [],
         ];
 
+        $targetId = (string) ($record->meta_id ?: '');
+        if ($targetId === '') {
+            try {
+                $details = $this->whatsApp->getTemplateDetails($record->sid);
+                $targetId = (string) ($details['meta_id'] ?? '');
+                if ($targetId !== '') {
+                    $record->meta_id = $targetId;
+                    $record->save();
+                }
+            } catch (\Throwable $lookupError) {
+                Log::warning('Failed to resolve Meta ID for template update', ['error' => $lookupError->getMessage()]);
+            }
+        }
+
         $updated = $this->whatsApp->updateWhatsAppTemplate(
-            (string) ($record->meta_id ?: $id),
+            $targetId !== '' ? $targetId : $id,
             $payload
         );
 
@@ -395,6 +452,14 @@ class WhatsAppTemplateController extends Controller
         }
 
         return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '';
+    }
+
+    private function isAlreadyExistsError(string $message): bool
+    {
+        return str_contains($message, 'already exists')
+            || str_contains($message, '2388024')
+            || str_contains($message, 'Content in this language already exists')
+            || str_contains($message, 'There is already');
     }
 
     private function excelCell(mixed $value): string

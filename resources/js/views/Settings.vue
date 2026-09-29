@@ -1259,7 +1259,10 @@
                   <div class="col-md-6">
                     <label class="form-label">Friendly Name</label>
                     <input v-model.trim="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" maxlength="512" pattern="[a-z0-9_]+" :readonly="wa.viewOnly || !!wa.form.sid" />
-                    <small v-if="!wa.viewOnly" class="text-muted">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
+                    <small v-if="!wa.viewOnly && !duplicateTemplateWarning" class="text-muted">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
+                    <div v-if="duplicateTemplateWarning" class="text-danger small mt-1">
+                      <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ duplicateTemplateWarning }}
+                    </div>
                   </div>
                   <div class="col-md-3">
                     <label class="form-label">Language</label>
@@ -1428,7 +1431,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wa.saving">Close</button>
-            <button v-if="!wa.viewOnly" class="btn btn-primary" @click="saveTemplate" :disabled="wa.saving">
+            <button v-if="!wa.viewOnly" class="btn btn-primary" @click="saveTemplate" :disabled="wa.saving || (!wa.form.sid && !!duplicateTemplateWarning)">
               <span v-if="wa.saving" class="spinner-border spinner-border-sm me-1"></span>
               {{ wa.form.sid ? 'Update Template' : 'Submit to Meta for Approval' }}
             </button>
@@ -1977,6 +1980,22 @@ export default {
       return [...new Set(matches.map((match) => Number(match[1])))]
         .filter((index) => Number.isInteger(index) && index > 0)
         .sort((a, b) => a - b);
+    },
+    duplicateTemplateWarning() {
+      if (this.wa.viewOnly || this.wa.form.sid || !this.wa.form.friendly_name) return '';
+      const normalized = String(this.wa.form.friendly_name)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      if (!normalized) return '';
+      const match = this.wa.templates.find(
+        (t) => (t.name || '').toLowerCase() === normalized || (t.sid || '').toLowerCase() === normalized
+      );
+      if (match) {
+        return `A template named "${normalized}" already exists in your templates list (status: ${match.status || 'unknown'}).`;
+      }
+      return '';
     },
     firstMediaUrl() {
       const urls = (this.wa.form.media_urls || '')
@@ -2811,14 +2830,44 @@ export default {
         return;
       }
 
-      const bodyExamples = this.templateBodyVariableIndexes.map((index) => this.wa.form.body_examples[index] || '');
+      const normalizedName = String(this.wa.form.friendly_name)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/g, '_')
+        .replace(/^_+|_+$/g, '');
+
+      if (!normalizedName) {
+        notify.warning('Please provide a valid friendly name (lowercase letters, numbers, underscores).', 'Settings');
+        return;
+      }
+
+      if (!this.wa.form.sid) {
+        const existing = this.wa.templates.find(
+          (t) => (t.name || '').toLowerCase() === normalizedName || (t.sid || '').toLowerCase() === normalizedName
+        );
+        if (existing) {
+          notify.warning(`A template named "${normalizedName}" already exists (status: ${existing.status || 'unknown'}). Please choose a unique name or edit the existing template.`, 'Settings');
+          return;
+        }
+      }
+
+      const indexes = this.templateBodyVariableIndexes;
+      if (indexes.length > 0) {
+        const maxIndex = Math.max(...indexes);
+        if (indexes[0] !== 1 || indexes.length !== maxIndex) {
+          notify.warning('Template variables must start at {{1}} and be sequential (e.g. {{1}}, {{2}}, {{3}}) without skipping numbers.', 'Settings');
+          return;
+        }
+      }
+
+      const bodyExamples = indexes.map((index) => this.wa.form.body_examples[index] || '');
       if (bodyExamples.some((example) => !example.trim())) {
         notify.warning('Provide a realistic example value for every template variable.', 'Settings');
         return;
       }
 
       const payload = {
-        friendly_name: this.wa.form.friendly_name,
+        friendly_name: normalizedName,
         body: this.wa.form.body,
         language: this.wa.form.language,
         category: this.wa.form.category,
@@ -2839,7 +2888,12 @@ export default {
           this.templateModal?.hide();
         })
         .catch((err) => {
-          notify.error('Failed to save template: ' + (err.response?.data?.message || err.message), 'Settings');
+          const message = err.response?.data?.message || err.message;
+          notify.error('Failed to save template: ' + message, 'Settings');
+          if (err.response?.status === 409) {
+            this.loadWhatsappTemplates();
+            this.templateModal?.hide();
+          }
         })
         .finally(() => {
           this.wa.saving = false;

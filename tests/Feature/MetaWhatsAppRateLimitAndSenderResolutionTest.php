@@ -546,4 +546,94 @@ class MetaWhatsAppRateLimitAndSenderResolutionTest extends TestCase
         );
         $this->assertDatabaseMissing('whatsapp_templates_cache', ['sid' => 'past_due_notice']);
     }
+
+    public function test_existing_template_on_meta_is_synced_and_returns_conflict_message(): void
+    {
+        Http::fake(function ($request) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+            if ($request->method() === 'POST' && str_ends_with($path, '/1455412218881488/message_templates')) {
+                return Http::response([
+                    'error' => [
+                        'message' => 'Invalid parameter',
+                        'type' => 'OAuthException',
+                        'code' => 100,
+                        'error_subcode' => 2388024,
+                        'error_user_title' => 'Content in this language already exists',
+                        'error_user_msg' => 'There is already English (US) content for this template. You can create a new template and try again.',
+                    ],
+                ], 400);
+            }
+
+            if ($request->method() === 'GET' && str_ends_with($path, '/1455412218881488/message_templates')) {
+                return Http::response([
+                    'data' => [
+                        [
+                            'id' => '9988776655',
+                            'name' => 'existing_notice',
+                            'status' => 'APPROVED',
+                            'language' => 'en_US',
+                            'category' => 'MARKETING',
+                            'components' => [
+                                [
+                                    'type' => 'BODY',
+                                    'text' => 'Good day {{1}}',
+                                ],
+                            ],
+                        ],
+                    ],
+                ], 200);
+            }
+
+            return Http::response(['error' => ['message' => 'Unexpected request: ' . $request->url()]], 404);
+        });
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $response = $this->postJson('/api/whatsapp-templates', [
+            'friendly_name' => 'existing_notice',
+            'body' => 'Good day {{1}}',
+            'language' => 'en_US',
+            'category' => 'marketing',
+            'media_urls' => [],
+            'body_examples' => ['Thandi'],
+        ]);
+
+        $response->assertStatus(409)
+            ->assertJsonPath('message', "A template named 'existing_notice' already exists on Meta (status: APPROVED). It has now been synced into your CRM templates list.");
+
+        $this->assertDatabaseHas('whatsapp_templates_cache', [
+            'sid' => 'existing_notice',
+            'status' => 'APPROVED',
+        ]);
+    }
+
+    public function test_existing_template_in_crm_cache_is_rejected_with_validation_error(): void
+    {
+        \App\Models\WhatsappTemplateCache::query()->create([
+            'sid' => 'already_cached_notice',
+            'friendly_name' => 'already_cached_notice',
+            'language' => 'en_US',
+            'category' => 'marketing',
+            'status' => 'APPROVED',
+            'body_preview' => 'Hello {{1}}',
+            'variables' => [],
+            'media_urls' => [],
+            'buttons' => [],
+            'raw_whatsapp' => [],
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $response = $this->postJson('/api/whatsapp-templates', [
+            'friendly_name' => 'already_cached_notice',
+            'body' => 'Hello {{1}}',
+            'language' => 'en_US',
+            'category' => 'marketing',
+            'media_urls' => [],
+            'body_examples' => ['Thandi'],
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('message', "A template named 'already_cached_notice' already exists in your CRM (status: APPROVED). Please choose a unique name or edit the existing template.");
+    }
 }
