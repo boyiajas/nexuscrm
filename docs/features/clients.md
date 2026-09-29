@@ -13,16 +13,17 @@ Manage customer records, tags, banking info, and department ownership; supply re
   - `DELETE /api/clients/{id}`: delete client.
   - `POST /api/clients/import`: CSV import (multipart). Expects `file`; returns counts/errors.
   - `GET /api/clients/export`: CSV export honoring filters.
-- **Model**: `Client` with `tags` array, contact + banking fields; belongsToMany `departments`, belongsToMany `campaigns` via pivot `campaign_clients`. Accessor `department` for legacy single-dept code.
+- **Model**: `Client` with `tags` array, contact + banking fields (including separate Store Number and Client Store Name); belongsToMany `departments`, belongsToMany `campaigns` via pivot `campaign_clients`. Accessor `department` for legacy single-dept code.
 - **Audit**: uses `HasAuditLogging` to log creates/updates with payload meta.
 - **Permissions**: create/update/delete restricted to SUPER_ADMIN/MANAGER; list scoped to department for non-super-admin.
 
 ## Frontend
 - View: `resources/js/views/Clients.vue`.
 - Features: filters + pagination, CSV import/export, create/edit modal with `VueMultiselect` for departments, tags parsing, delete action.
-- Import flow: hidden file input -> POST to `/api/clients/import` -> alert on result -> refresh list.
+- Import flow: hidden file input -> POST to `/api/clients/import` -> alert on result -> refresh list. `Store Name`, `StoreName`, and `Client Store Name` map to `clients.store_name`.
 - Export flow: opens `/api/clients/export` with current filters in a new tab for CSV download.
 
 ## Data Considerations
 - Department association mandatory (multi-select); client pivot data used later by campaigns for channel statuses.
 - Tags stored as simple string arrays; UI accepts comma-separated input.
+- WhatsApp campaign and flow templates can map a variable to `client.store_name`.

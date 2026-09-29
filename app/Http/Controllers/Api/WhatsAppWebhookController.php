@@ -293,6 +293,10 @@ class WhatsAppWebhookController extends Controller
             $recipient->message_sid = $recipient->message_sid ?: $messageId;
             $recipient->status_payload = $payload;
             $recipient->provider_status_payload = $payload;
+            $recipient->reply_type = $isOptOut ? 'opt_out' : $reply['reply_type'];
+            $recipient->reply_label = $reply['reply_label'] ?: $body;
+            $recipient->reply_key = $reply['reply_key'];
+            $recipient->reply_source = $reply['reply_source'];
             if ($client && !$recipient->client_id) {
                 $recipient->client_id = $client->id;
             }
@@ -869,12 +873,42 @@ class WhatsAppWebhookController extends Controller
             $interactiveListId,
         ])->first(fn ($value) => trim((string) $value) !== '') ?? '';
 
+        $replyType = 'text';
+        $replyLabel = $textBody;
+        $replyKey = null;
+        $replySource = 'text';
+
+        if ($interactiveType === 'button_reply') {
+            $replyType = 'quick_reply';
+            $replyLabel = $interactiveButtonTitle;
+            $replyKey = $interactiveButtonId ?: null;
+            $replySource = 'interactive.button_reply';
+        } elseif ($messageType === 'button' || $buttonText !== '' || $buttonPayload !== '') {
+            $replyType = 'quick_reply';
+            $replyLabel = $buttonText;
+            $replyKey = $buttonPayload ?: null;
+            $replySource = 'button';
+        } elseif ($interactiveType === 'list_reply') {
+            $replyType = 'list_reply';
+            $replyLabel = $interactiveListTitle;
+            $replyKey = $interactiveListId ?: null;
+            $replySource = 'interactive.list_reply';
+        } elseif ($messageType !== 'text') {
+            $replyType = $messageType;
+            $replyLabel = $textBody;
+            $replySource = $messageType;
+        }
+
         return [
             'display_text' => trim((string) $displayText),
             'message_type' => $messageType,
             'interactive_type' => $interactiveType !== '' ? $interactiveType : null,
             'media_url' => $mediaUrl,
             'media_type' => $mediaType,
+            'reply_type' => $replyType,
+            'reply_label' => trim((string) ($replyLabel ?: $displayText)),
+            'reply_key' => $replyKey,
+            'reply_source' => $replySource,
             'keywords' => array_values(array_filter([
                 $interactiveButtonTitle,
                 $interactiveButtonId,

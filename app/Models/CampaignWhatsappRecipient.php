@@ -26,6 +26,10 @@ class CampaignWhatsappRecipient extends Model
         'delivered_at',
         'last_response',
         'last_response_at',
+        'reply_type',
+        'reply_label',
+        'reply_key',
+        'reply_source',
         'current_flow_step_id',
     ];
 

@@ -484,6 +484,13 @@ export default {
           example: 'ACKERMANS 3rd PL, ERA02434',
         },
         {
+          id: 'store_name',
+          name: 'Store Name',
+          required: false,
+          aliases: ['Store Name', 'StoreName', 'Client Store Name'],
+          example: 'Ackermans Cape Town',
+        },
+        {
           id: 'branch_code',
           name: 'Branch Code',
           required: false,

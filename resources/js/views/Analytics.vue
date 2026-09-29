@@ -328,11 +328,13 @@
             <div class="card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
               <div>
                 <h5 class="fw-bold mb-1">Campaign Performance Matrix <span class="badge bg-success-subtle text-success ms-2">{{ tables.campaigns.length }} Active Dispatches</span></h5>
-                <p class="text-muted small mb-0">Real-time cohort execution, debtor interaction & financial recovery rules</p>
+                <p class="text-muted small mb-0">Unique WhatsApp client responses and payment options per campaign</p>
               </div>
               <div class="d-flex gap-2">
                 <button class="btn btn-sm btn-light border"><i class="bi bi-layout-three-columns me-1"></i> Columns</button>
-                <button class="btn btn-sm btn-light border"><i class="bi bi-cloud-download me-1"></i> Export</button>
+                <button class="btn btn-sm btn-light border" @click="exportCampaignReport">
+                  <i class="bi bi-cloud-download me-1"></i> Export
+                </button>
               </div>
             </div>
             <div class="card-body">
@@ -345,7 +347,11 @@
                       <th>ASSIGNED AGENTS</th>
                       <th class="text-end">MESSAGES SENT</th>
                       <th class="text-end">DELIVERY %</th>
-                      <th class="text-end">REPLIES RECEIVED</th>
+                      <th class="text-end">UNIQUE REPLIES</th>
+                      <th class="text-end">QUICK REPLIES</th>
+                      <th class="text-end">OPT-OUTS</th>
+                      <th class="text-end">PTP</th>
+                      <th class="text-end">DEBIT ORDER</th>
                       <th class="text-end">META COST</th>
                       <th class="text-end">RECOVERY RATE</th>
                     </tr>
@@ -373,7 +379,14 @@
                       </td>
                       <td class="text-end fw-semibold">{{ cmp.sent }}</td>
                       <td class="text-end fw-bold text-success">{{ cmp.delivery }}</td>
-                      <td class="text-end">{{ cmp.replies }}</td>
+                      <td class="text-end fw-semibold">{{ cmp.replies }}</td>
+                      <td class="text-end text-primary fw-semibold">{{ cmp.quick_replies }}</td>
+                      <td class="text-end text-danger fw-semibold">{{ cmp.opt_outs }}</td>
+                      <td class="text-end text-warning-emphasis fw-semibold">{{ cmp.ptp }}</td>
+                      <td class="text-end">
+                        <div class="text-success fw-semibold">{{ cmp.debit_order }}</div>
+                        <div class="text-muted" style="font-size: 0.7rem;">Not set: {{ cmp.payment_not_set }}</div>
+                      </td>
                       <td class="text-end">{{ cmp.cost }}</td>
                       <td class="text-end">
                         <div class="fw-bold text-success">{{ cmp.recoveryPct }}</div>
@@ -521,6 +534,44 @@ export default {
           this.initChart();
         });
       }
+    },
+    exportCampaignReport() {
+      const headers = [
+        'Campaign',
+        'Campaign ID',
+        'Bank / Department',
+        'Messages Sent',
+        'Unique Clients Replied',
+        'Unique Quick Replies',
+        'Unique Opt-Outs',
+        'PTP',
+        'Debit Order',
+        'Payment Option Not Set',
+      ];
+      const rows = this.tables.campaigns.map((campaign) => [
+        campaign.name,
+        campaign.id,
+        campaign.bank,
+        campaign.sent,
+        campaign.replies,
+        campaign.quick_replies,
+        campaign.opt_outs,
+        campaign.ptp,
+        campaign.debit_order,
+        campaign.payment_not_set,
+      ]);
+      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const csv = [headers, ...rows]
+        .map((row) => row.map(escapeCsv).join(','))
+        .join('\r\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `campaign-whatsapp-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
     },
     initChart() {
       const canvas = this.$refs.funnelChart;

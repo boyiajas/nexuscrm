@@ -119,7 +119,7 @@
                   <span v-if="session.unread_count > 0" class="badge rounded-pill bg-success unread-badge">{{ session.unread_count }}</span>
                   <div class="dropdown chat-list-dropdown">
                     <i class="bi bi-chevron-down text-muted" style="cursor: pointer; font-size: 1.1rem; transform: translateY(2px); display: inline-block;" data-bs-toggle="dropdown" aria-expanded="false"></i>
-                    <ul class="dropdown-menu shadow border-0" style="min-width: 220px;">
+                    <ul class="dropdown-menu shadow border-0 chat-action-menu" style="min-width: 220px;">
                       <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(session)"><i class="bi bi-person-vcard text-primary me-3"></i>Client Info</a></li>
                       <li v-if="canManageChat && !session.is_client_only && !session.unread_count && loadingSessionId !== session.id">
                         <a class="dropdown-item py-2" href="#" @click.prevent.stop="markSessionUnread(session)">
@@ -158,6 +158,28 @@
                             <i v-if="!session.client?.opt_in || session.client?.opt_in === 'none' || session.opt_in === 'none'" class="bi bi-check2"></i>
                           </a>
                         </li>
+                        <template v-if="canManageChat && sessionHasClient(session)">
+                          <li><hr class="dropdown-divider"></li>
+                          <li class="dropdown-header text-uppercase small fw-bold text-muted">Payment Option</li>
+                          <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#" @click.prevent="setPaymentOption(session, 'ptp')">
+                              <span><i class="bi bi-calendar-check text-warning me-2"></i>PTP</span>
+                              <i v-if="session.client?.payment_option === 'ptp'" class="bi bi-check2"></i>
+                            </a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item d-flex align-items-center justify-content-between" href="#" @click.prevent="setPaymentOption(session, 'debit_order')">
+                              <span><i class="bi bi-bank text-primary me-2"></i>Debit Order</span>
+                              <i v-if="session.client?.payment_option === 'debit_order'" class="bi bi-check2"></i>
+                            </a>
+                          </li>
+                          <li>
+                            <a class="dropdown-item text-secondary d-flex align-items-center justify-content-between" href="#" @click.prevent="setPaymentOption(session, 'none')">
+                              <span><i class="bi bi-dash-circle me-2"></i>Not Set</span>
+                              <i v-if="!session.client?.payment_option" class="bi bi-check2"></i>
+                            </a>
+                          </li>
+                        </template>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item py-2" href="#" @click.prevent="clearChat(session)"><i class="bi bi-eraser text-muted me-3"></i>Clear chat</a></li>
                         <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(session)"><i class="bi bi-trash text-danger me-3"></i>Delete chat</a></li>
@@ -206,6 +228,9 @@
               <span v-else class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 ms-1" title="Unset">
                 <i class="bi bi-dash-circle me-1"></i>Opt-In: None
               </span>
+              <span v-if="activeSession.client?.payment_option" class="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25 ms-1" title="Payment Option">
+                <i class="bi bi-credit-card-2-front me-1"></i>Payment: {{ paymentOptionLabel(activeSession.client.payment_option) }}
+              </span>
             </div>
             <small class="text-muted">
               {{ activeSession.platform }}
@@ -218,7 +243,7 @@
             <i class="bi bi-search" style="cursor: pointer;" title="Search"></i>
             <div class="dropdown">
               <i class="bi bi-three-dots-vertical" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" title="Menu"></i>
-              <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="min-width: 220px;">
+              <ul class="dropdown-menu dropdown-menu-end shadow border-0 chat-action-menu" style="min-width: 220px;">
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(activeSession)"><i class="bi bi-person-vcard me-2 text-primary"></i>Client Info</a></li>
                 <li v-if="canManageChat && !loadingMessages">
                   <a class="dropdown-item py-2" href="#" @click.prevent="markSessionUnread(activeSession)">
@@ -262,6 +287,28 @@
                     <i v-if="!activeSession.client?.opt_in || activeSession.client?.opt_in === 'none' || activeSession.opt_in === 'none'" class="bi bi-check2"></i>
                   </a>
                 </li>
+                <template v-if="canManageChat && sessionHasClient(activeSession)">
+                  <li><hr class="dropdown-divider"></li>
+                  <li class="dropdown-header text-uppercase small fw-bold text-muted">Payment Option</li>
+                  <li>
+                    <a class="dropdown-item d-flex align-items-center justify-content-between" href="#" @click.prevent="setPaymentOption(activeSession, 'ptp')">
+                      <span><i class="bi bi-calendar-check text-warning me-2"></i>PTP</span>
+                      <i v-if="activeSession.client?.payment_option === 'ptp'" class="bi bi-check2"></i>
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item d-flex align-items-center justify-content-between" href="#" @click.prevent="setPaymentOption(activeSession, 'debit_order')">
+                      <span><i class="bi bi-bank text-primary me-2"></i>Debit Order</span>
+                      <i v-if="activeSession.client?.payment_option === 'debit_order'" class="bi bi-check2"></i>
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item text-secondary d-flex align-items-center justify-content-between" href="#" @click.prevent="setPaymentOption(activeSession, 'none')">
+                      <span><i class="bi bi-dash-circle me-2"></i>Not Set</span>
+                      <i v-if="!activeSession.client?.payment_option" class="bi bi-check2"></i>
+                    </a>
+                  </li>
+                </template>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="clearChat(activeSession)"><i class="bi bi-eraser me-2 text-muted"></i>Clear chat</a></li>
                 <li><a class="dropdown-item py-2 text-danger" href="#" @click.prevent="deleteSession(activeSession)"><i class="bi bi-trash text-danger me-2"></i>Delete chat</a></li>
@@ -629,6 +676,9 @@
                   <span v-else class="badge bg-secondary">
                     <i class="bi bi-dash-circle me-1"></i>Opt-In: None
                   </span>
+                  <span v-if="contactInfoSession.client?.payment_option" class="badge bg-warning text-dark">
+                    <i class="bi bi-credit-card-2-front me-1"></i>{{ paymentOptionLabel(contactInfoSession.client.payment_option) }}
+                  </span>
                 </div>
               </div>
             </div>
@@ -680,6 +730,13 @@
                 <label class="small text-muted fw-medium d-block mb-1">Installment Amount</label>
                 <div class="text-dark bg-light p-2 rounded border small">
                   {{ formatCurrency(contactInfoSession.client?.installment_amount) }}
+                </div>
+              </div>
+
+              <div class="col-6">
+                <label class="small text-muted fw-medium d-block mb-1">Payment Option</label>
+                <div class="fw-semibold text-dark bg-light p-2 rounded border small">
+                  {{ paymentOptionLabel(contactInfoSession.client?.payment_option) }}
                 </div>
               </div>
 
@@ -1430,6 +1487,28 @@ export default {
         console.error('Failed to update opt-in status', err);
         notify.error('Failed to update opt-in status.');
       });
+    },
+    setPaymentOption(session, paymentOption) {
+      if (!this.canManageChat || !session || !this.sessionHasClient(session)) return;
+
+      axios.post(`/api/chat/sessions/${session.id}/payment-option`, { payment_option: paymentOption }).then((res) => {
+        const matchingSessions = [session, this.activeSession, this.contactInfoSession];
+        matchingSessions.forEach((item) => {
+          if (item?.id === session.id && item.client) {
+            item.client.payment_option = res.data.payment_option;
+            item.client.payment_option_updated_at = res.data.payment_option_updated_at;
+          }
+        });
+        notify.success(res.data.message || 'Payment option updated successfully.', 'Payment Option');
+      }).catch((err) => {
+        console.error('Failed to update payment option', err);
+        notify.error(err.response?.data?.message || 'Failed to update payment option.', 'Payment Option');
+      });
+    },
+    paymentOptionLabel(paymentOption) {
+      if (paymentOption === 'ptp') return 'PTP';
+      if (paymentOption === 'debit_order') return 'Debit Order';
+      return 'Not Set';
     },
     openTemplateModal(session) {
       if (!this.canManageChat || !session || this.liveChatLocked) return;

@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\WhatsAppFlow;
 use App\Models\WhatsappTemplateCache;
 use App\Services\MetaWhatsAppService;
+use App\Services\WhatsAppBatchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Mockery;
 use Tests\TestCase;
@@ -48,6 +49,27 @@ class WhatsAppFlowGreetingTest extends TestCase
             'bank_id' => $this->bank->id,
             'department_id' => $this->dept->id,
         ]);
+    }
+
+    public function test_store_name_resolves_as_a_whatsapp_template_variable(): void
+    {
+        $client = Client::query()->create([
+            'name' => 'Jane Doe',
+            'store_name' => 'Ackermans Cape Town',
+            'bank_id' => $this->bank->id,
+        ]);
+        $campaign = Campaign::query()->create([
+            'name' => 'Store Campaign',
+            'bank_id' => $this->bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+
+        $values = app(WhatsAppBatchService::class)->resolveTemplateVariableValues([
+            'body_1' => ['source' => 'client.store_name', 'custom_value' => ''],
+        ], $client, $campaign);
+
+        $this->assertSame('Ackermans Cape Town', $values['body_1']);
     }
 
     public function test_first_client_reply_triggers_automated_greeting_and_sets_flow_step(): void
@@ -435,7 +457,7 @@ class WhatsAppFlowGreetingTest extends TestCase
             'template_name' => 'Initial Template',
             'template_language' => 'en',
             'template_variables' => [
-                'body_1' => ['source' => 'client.first_name', 'custom_value' => 'ignored'],
+                'body_1' => ['source' => 'client.store_name', 'custom_value' => 'ignored'],
             ],
             'initial_expected_replies' => [' Opt-In ', '1', 'opt-in'],
             'status' => 'active',
@@ -454,7 +476,7 @@ class WhatsAppFlowGreetingTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('template_variables.body_1.source', 'client.first_name')
+            ->assertJsonPath('template_variables.body_1.source', 'client.store_name')
             ->assertJsonPath('template_variables.body_1.custom_value', '')
             ->assertJsonPath('initial_expected_replies', ['Opt-In', '1'])
             ->assertJsonPath('flow_definition.0.reply_type', 'template')

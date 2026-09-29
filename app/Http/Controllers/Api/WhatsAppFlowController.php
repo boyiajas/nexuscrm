@@ -269,6 +269,7 @@ class WhatsAppFlowController extends Controller
             'client.id_number',
             'client.account_number',
             'client.easy_pay_number',
+            'client.store_name',
             'client.bank_name',
             'client.branch_code',
             'client.outstanding_balance',

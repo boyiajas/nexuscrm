@@ -17,6 +17,7 @@ use App\Models\CampaignWhatsappRecipient;
 use App\Models\ExportRequest;
 use App\Models\WhatsAppFlow;
 use App\Models\Client;
+use App\Services\CampaignWhatsappReportService;
 use App\Services\MetaWhatsAppService;
 use App\Services\WhatsAppBatchService;
 use App\Services\WhatsAppDailyLimitService;
@@ -34,16 +35,19 @@ class CampaignController extends Controller
     protected WhatsAppServiceInterface $whatsApp;
     protected WhatsAppDailyLimitService $dailyLimitService;
     protected WhatsAppBatchService $batchService;
+    protected CampaignWhatsappReportService $campaignReportService;
 
     public function __construct(
         WhatsAppServiceInterface $whatsApp,
         WhatsAppDailyLimitService $dailyLimitService,
-        WhatsAppBatchService $batchService
+        WhatsAppBatchService $batchService,
+        CampaignWhatsappReportService $campaignReportService
     )
     {
         $this->whatsApp = $whatsApp;
         $this->dailyLimitService = $dailyLimitService;
         $this->batchService = $batchService;
+        $this->campaignReportService = $campaignReportService;
     }
     /**
      * List campaigns (department + role scoped).
@@ -963,7 +967,10 @@ class CampaignController extends Controller
                     $q->whereRaw('LOWER(last_response) = ?', ['no']);
                 },
                 'recipients as replies_count' => function ($q) {
-                    $q->whereNotNull('last_response');
+                    $q->where(function ($replyQuery) {
+                        $replyQuery->whereNotNull('reply_type')
+                            ->orWhereNotNull('last_response');
+                    });
                 },
             ])
             ->get([
@@ -1041,7 +1048,10 @@ class CampaignController extends Controller
                 $processing = (clone $recipientQuery)->whereRaw("LOWER(status) = 'processing'")->count();
                 $paused = (clone $recipientQuery)->whereRaw("LOWER(status) = 'paused'")->count();
                 $pending = (clone $recipientQuery)->whereRaw("LOWER(status) in ('pending','queued','processing','paused','scheduled','sent')")->count();
-                $repliesCount = (clone $recipientQuery)->whereNotNull('last_response')->count();
+                $repliesCount = (clone $recipientQuery)->where(function ($replyQuery) {
+                    $replyQuery->whereNotNull('reply_type')
+                        ->orWhereNotNull('last_response');
+                })->count();
                 $yesResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['yes'])->count();
                 $noResponsesCount = (clone $recipientQuery)->whereRaw('LOWER(last_response) = ?', ['no'])->count();
             } else {
@@ -1140,10 +1150,20 @@ class CampaignController extends Controller
 
         $this->markSensitiveExportCompleted($exportRequest, $fileName);
 
-        return response()->stream(function () use ($campaign, $user, $bankScope) {
+        $engagementReport = $this->campaignEngagementReport($campaign, $user);
+
+        return response()->stream(function () use ($campaign, $user, $bankScope, $engagementReport) {
             $handle = fopen('php://output', 'w');
             $this->writeExportMetadataRows($handle, 'Campaign WhatsApp Recipients', $user, $bankScope, $campaign);
-            fputcsv($handle, ['Batch ID', 'Template', 'Client Name', 'Phone', 'Bank', 'Assigned Owner', 'Status', 'Delivered At', 'Last Response', 'Last Response At']);
+            fputcsv($handle, ['Campaign Response & Payment Summary']);
+            fputcsv($handle, ['Clients Replied', $engagementReport['clients_replied']]);
+            fputcsv($handle, ['Quick Reply Clients', $engagementReport['quick_reply_clients']]);
+            fputcsv($handle, ['Opt-Out Reply Clients', $engagementReport['opt_out_clients']]);
+            fputcsv($handle, ['PTP Clients', $engagementReport['payment_options']['ptp']]);
+            fputcsv($handle, ['Debit Order Clients', $engagementReport['payment_options']['debit_order']]);
+            fputcsv($handle, ['Payment Option Not Set', $engagementReport['payment_options']['not_set']]);
+            fputcsv($handle, []);
+            fputcsv($handle, ['Batch ID', 'Template', 'Client Name', 'Phone', 'Bank', 'Assigned Owner', 'Status', 'Delivered At', 'Last Response', 'Reply Type', 'Reply Label', 'Opt-Out Reply', 'Payment Option', 'Last Response At']);
 
             $query = CampaignWhatsappRecipient::with(['client.assignedTo:id,name', 'message'])
                 ->whereIn('whatsapp_message_id', $campaign->whatsappMessages()->select('id'));
@@ -1156,6 +1176,7 @@ class CampaignController extends Controller
 
             $query->orderByDesc('id')->chunk(200, function ($rows) use ($handle) {
                 foreach ($rows as $row) {
+                    $replyMeta = $this->extractWhatsappReplyMeta($row);
                     fputcsv($handle, [
                         $row->whatsapp_message_id,
                         $row->message?->template_name ?? $row->message?->name,
@@ -1166,6 +1187,14 @@ class CampaignController extends Controller
                         $row->status,
                         optional($row->delivered_at)->toDateTimeString(),
                         $row->last_response,
+                        $replyMeta['type'],
+                        $replyMeta['label'],
+                        $replyMeta['type'] === 'Opt Out' ? 'Yes' : 'No',
+                        match ($row->client?->payment_option) {
+                            Client::PAYMENT_OPTION_PTP => 'PTP',
+                            Client::PAYMENT_OPTION_DEBIT_ORDER => 'Debit Order',
+                            default => 'Not Set',
+                        },
                         optional($row->last_response_at)->toDateTimeString(),
                     ]);
                 }
@@ -1242,6 +1271,7 @@ class CampaignController extends Controller
             'clients.email',
             'clients.id_number',
             'clients.account_number',
+            'clients.store_name',
             'clients.bank_name',
             'clients.branch_code',
             'clients.whatsapp_opted_out_at',
@@ -2056,6 +2086,7 @@ class CampaignController extends Controller
                 'reply_label'      => $replyMeta['label'],
                 'reply_key'        => $replyMeta['key'],
                 'reply_source'     => $replyMeta['source'],
+                'payment_option'   => $client?->payment_option,
                 'current_flow_step_id' => $r->current_flow_step_id,
             ];
         });
@@ -2086,7 +2117,14 @@ class CampaignController extends Controller
             'queued'     => $queued,
             'processing' => $processing,
             'paused'     => $paused,
-            'replies'    => $recipients->filter(fn ($r) => !empty($r['last_response']))->count(),
+            'replies'    => $recipients->filter(fn ($r) => !empty($r['reply_type']) || !empty($r['last_response']))->count(),
+            'quick_reply_count' => $recipients->filter(fn ($r) =>
+                $r['reply_type'] === 'Quick Reply'
+                || in_array($r['reply_source'], ['interactive.button_reply', 'button'], true)
+            )->count(),
+            'opt_out_count' => $recipients->where('reply_type', 'Opt Out')->count(),
+            'ptp_count' => $recipients->where('payment_option', Client::PAYMENT_OPTION_PTP)->count(),
+            'debit_order_count' => $recipients->where('payment_option', Client::PAYMENT_OPTION_DEBIT_ORDER)->count(),
             'yes_count'  => $recipients->filter(fn ($r) => strcasecmp((string)$r['reply_key'], 'yes') === 0 || strcasecmp((string)$r['last_response'], 'yes') === 0)->count(),
             'no_count'   => $recipients->filter(fn ($r) => strcasecmp((string)$r['reply_key'], 'no') === 0 || strcasecmp((string)$r['last_response'], 'no') === 0)->count(),
             'delivery_rate' => $totalRecipients > 0 ? round(($delivered / $totalRecipients) * 100) : 0,
@@ -2216,6 +2254,7 @@ class CampaignController extends Controller
             'clients.email',
             'clients.id_number',
             'clients.account_number',
+            'clients.store_name',
             'clients.bank_name',
             'clients.branch_code',
             'clients.whatsapp_opted_out_at',
@@ -2620,6 +2659,7 @@ class CampaignController extends Controller
             'client.email' => (string) ($client?->email ?? ''),
             'client.id_number' => (string) ($client?->id_number ?? ''),
             'client.account_number' => (string) ($client?->account_number ?? ''),
+            'client.store_name' => (string) ($client?->store_name ?? ''),
             'client.bank_name' => (string) ($client?->bank_name ?? $campaign->bank?->name ?? ''),
             'client.branch_code' => (string) ($client?->branch_code ?? ''),
             'campaign.name' => (string) ($campaign->name ?? ''),
@@ -2638,114 +2678,27 @@ class CampaignController extends Controller
         $this->batchService->syncMessageProgress($message);
     }
 
+    /**
+     * Campaign-level engagement and payment totals. Client IDs are used as the
+     * counting key so a person is only counted once across multiple batches.
+     */
+    protected function campaignEngagementReport(Campaign $campaign, $user): array
+    {
+        return $this->campaignReportService->build(
+            $campaign,
+            !$user?->isSuperAdmin()
+                ? function ($recipientQuery) use ($user) {
+                    $recipientQuery->whereHas('client', function ($clientQuery) use ($user) {
+                        $this->scopeClientQueryToUser($clientQuery, $user);
+                    });
+                }
+                : null
+        );
+    }
+
     protected function extractWhatsappReplyMeta(CampaignWhatsappRecipient $recipient): array
     {
-        $payload = $recipient->provider_status_payload ?: $recipient->status_payload ?: [];
-        $message = $this->extractInboundWhatsappPayloadMessage(is_array($payload) ? $payload : []);
-
-        $textBody = trim((string) data_get($message, 'text.body', ''));
-        $buttonText = trim((string) data_get($message, 'button.text', ''));
-        $buttonPayload = trim((string) data_get($message, 'button.payload', ''));
-        $interactiveType = strtolower(trim((string) data_get($message, 'interactive.type', '')));
-        $interactiveButtonTitle = trim((string) data_get($message, 'interactive.button_reply.title', ''));
-        $interactiveButtonId = trim((string) data_get($message, 'interactive.button_reply.id', ''));
-        $interactiveListTitle = trim((string) data_get($message, 'interactive.list_reply.title', ''));
-        $interactiveListId = trim((string) data_get($message, 'interactive.list_reply.id', ''));
-        $normalizedResponse = trim((string) ($recipient->last_response ?? ''));
-
-        $keywords = array_values(array_filter([
-            $interactiveButtonTitle,
-            $interactiveButtonId,
-            $buttonText,
-            $buttonPayload,
-            $interactiveListTitle,
-            $interactiveListId,
-            $textBody,
-            $normalizedResponse,
-        ], fn ($value) => trim((string) $value) !== ''));
-
-        $replyType = null;
-        $replyLabel = null;
-        $replyKey = null;
-        $replySource = null;
-
-        if ($interactiveType === 'button_reply') {
-            $replyType = 'Quick Reply';
-            $replyLabel = $interactiveButtonTitle ?: $normalizedResponse;
-            $replyKey = $interactiveButtonId ?: null;
-            $replySource = 'interactive.button_reply';
-        } elseif ($interactiveType === 'list_reply') {
-            $replyType = 'List Reply';
-            $replyLabel = $interactiveListTitle ?: $normalizedResponse;
-            $replyKey = $interactiveListId ?: null;
-            $replySource = 'interactive.list_reply';
-        } elseif ($buttonText !== '' || $buttonPayload !== '') {
-            $replyType = 'Quick Reply';
-            $replyLabel = $buttonText ?: $normalizedResponse;
-            $replyKey = $buttonPayload ?: null;
-            $replySource = 'button';
-        } elseif ($textBody !== '' || $normalizedResponse !== '') {
-            $replyType = 'Text Reply';
-            $replyLabel = $textBody ?: $normalizedResponse;
-            $replySource = 'text';
-        }
-
-        if ($this->isOptOutMessage($normalizedResponse !== '' ? $normalizedResponse : ($replyLabel ?? ''), $keywords)) {
-            $replyType = 'Opt Out';
-            $replyLabel = $replyLabel ?: ($normalizedResponse !== '' ? $normalizedResponse : 'Opt Out');
-            $replySource = $replySource ?: 'opt_out';
-        } elseif (in_array(strtolower($normalizedResponse), ['yes', 'no'], true) && $replyType === 'Text Reply') {
-            $replyType = 'Yes/No Reply';
-        }
-
-        return [
-            'type' => $replyType,
-            'label' => $replyLabel ?: ($normalizedResponse !== '' ? $normalizedResponse : null),
-            'key' => $replyKey ?: null,
-            'source' => $replySource,
-        ];
-    }
-
-    protected function extractInboundWhatsappPayloadMessage(array $payload): ?array
-    {
-        foreach (($payload['entry'] ?? []) as $entry) {
-            foreach (($entry['changes'] ?? []) as $change) {
-                $value = $change['value'] ?? [];
-                foreach (($value['messages'] ?? []) as $message) {
-                    if (is_array($message)) {
-                        return $message;
-                    }
-                }
-            }
-        }
-
-        return null;
-    }
-
-    protected function isOptOutMessage(string $body, array $keywords = []): bool
-    {
-        $phrases = array_filter(array_map(
-            fn ($value) => strtolower(trim((string) $value)),
-            array_merge([$body], $keywords)
-        ));
-
-        $optOutTriggers = [
-            'stop',
-            'unsubscribe',
-            'opt out',
-            'optout',
-            'cancel',
-            'end',
-            'quit',
-        ];
-
-        foreach ($phrases as $phrase) {
-            if (in_array($phrase, $optOutTriggers, true)) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->campaignReportService->replyMeta($recipient);
     }
 
      /**

@@ -290,6 +290,8 @@ Security/business fields:
 - `installment_amount`
 - `last_payment_amount`
 - `total_payment_amount`
+- `payment_option` (`ptp`, `debit_order`, or `null`)
+- `payment_option_updated_at`
 - `whatsapp_opted_out_at`
 - `whatsapp_opt_out_reason`
 - `whatsapp_contact_basis`
@@ -464,11 +466,20 @@ npm run build
 - `POST /api/campaigns/{campaign}/whatsapp-messages`
 - `PUT /api/campaigns/{campaign}/whatsapp-messages/{message}`
 - `POST /api/campaigns/{campaign}/whatsapp-messages/{message}/send`
+- `GET /api/analytics` includes a per-campaign unique-client WhatsApp engagement report in the Campaign Performance data:
+  - clients who replied
+  - clients who selected a quick-reply button
+  - clients who sent an opt-out reply
+  - PTP / Debit Order / not-set payment-option totals
+- `CampaignShow.vue` no longer renders this report; `Analytics.vue` owns the report table and CSV export.
 - campaign detail exports now exist:
   - `GET /api/campaigns/{campaign}/clients/export`
   - `GET /api/campaigns/{campaign}/whatsapp-messages/export`
   - `GET /api/campaigns/{campaign}/emails/export`
   - `GET /api/campaigns/{campaign}/sms-messages/export`
+- the campaign WhatsApp CSV includes the engagement/payment summary plus per-recipient reply type, opt-out flag, and payment option
+- inbound WhatsApp replies persist normalized `reply_type`, `reply_label`, `reply_key`, and `reply_source` metadata on campaign recipients
+- Live Chat can update the linked client's payment option through `POST /api/chat/sessions/{session}/payment-option`
 
 ### Bank and Portfolio Operations
 
@@ -545,6 +556,7 @@ These are still not fully implemented and should not be restated as complete unt
 - Removed all legacy hardcoded role bypass lists (`STAFF`, `AGENT`, etc.) across model, controllers (`ClientController`, `CampaignController`), and frontend SPA views (`Clients.vue`, `Campaigns.vue`, `CampaignShow.vue`, `MainLayout.vue`)
 - Top utility header user avatar dropdown menu (View Profile, Logout, Activity Logs)
 - Client schema extended with financial fields: Arrears Amount, Outstanding Balance, Installment Amount, Last Payment Amount, Total Payment Amount
+- Client Store Name is persisted separately from Store Number, supported by imports and create/edit forms, and available to WhatsApp mappings as `client.store_name`
 - Bulk client assignment by import batch number (`import_batch_number`)
 - Dynamic app name formatting across system mailers using `config('app.name')`
 - Home dashboard card counts and metrics calculation fixes

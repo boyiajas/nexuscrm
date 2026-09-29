@@ -16,6 +16,9 @@ Plan and send multi-channel (WhatsApp/Email/SMS) campaigns scoped to departments
   - `POST /api/campaigns/{campaign}/attach-clients`: attach all or selected clients (initial statuses set to Pending).
 - **Stats**:
   - `GET /api/campaigns/{campaign}/stats`: aggregates sent/delivered/failed/pending across channels plus client count.
+- **Analytics**:
+  - `GET /api/analytics`: the Campaign Performance table includes WhatsApp totals per campaign for unique clients who replied, selected a quick reply, opted out, chose PTP, chose Debit Order, or have no payment option set.
+  - `CampaignWhatsappReportService` centralizes the unique-client rules shared by Analytics and campaign WhatsApp exports.
 - **WhatsApp channel**:
   - `GET /api/campaigns/{campaign}/whatsapp-messages`: list batches with yes/no response counts, flow/template metadata.
   - `POST /api/campaigns/{campaign}/whatsapp-messages`: create batch (template or flow), optionally send immediately; creates `CampaignWhatsappMessage` + recipients and optionally calls Twilio via `TwilioWhatsAppService`.
@@ -41,10 +44,12 @@ Plan and send multi-channel (WhatsApp/Email/SMS) campaigns scoped to departments
   - SMS tab: add template and view recipients dashboard.
   - Header actions: Send Now (stubbed server response) and Refresh.
 - **WhatsappTemplatePreview.vue**: deep link to inspect Twilio template content/media + variables via `/api/whatsapp-templates/{sid}`.
+- **Analytics.vue**: Campaign Performance contains the per-campaign WhatsApp response/payment report and exports the displayed report to CSV.
 
 ## Data & Permissions
 - Department scoping for non-super-admin applies to listing, viewing, attaching clients.
 - WhatsApp sending relies on valid Twilio ContentSid; flow batches reuse `WhatsAppFlow` template_sid + definition.
-- Recipients tables (`campaign_*_recipients`) hold delivery state; batch tables hold summary counts.
+- Recipients tables (`campaign_*_recipients`) hold delivery state; WhatsApp recipients also retain normalized reply type/label/key/source metadata; batch tables hold summary counts.
+- The campaign WhatsApp CSV contains a campaign-level response/payment summary and detailed reply/payment columns per recipient.
 - Live chat toggle (`enable_live_chat`) is stored on WhatsApp batches for UI/display; chat routing beyond storing flag is not implemented here.
 - Twilio setup: point WhatsApp status callback/webhook to `/api/twilio/webhook/whatsapp` (public) so delivery + replies update batches and chat.

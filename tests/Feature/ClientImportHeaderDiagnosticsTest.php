@@ -142,9 +142,9 @@ class ClientImportHeaderDiagnosticsTest extends TestCase
         $user = User::factory()->create(['role' => 'SUPER_ADMIN', 'bank_id' => $bank->id]);
 
         // Simulating Capfin / FinChoice export where some rows have First Name empty but Surname, Title, Initials present
-        $csvContent = "Acc Code,Account Number,Title,Initials,Known As,Name,Surname,ID Number,Cell,Outstanding balance\n" .
-                      "4964194,36889408,MS,N,,,NDLANGAMANDLA,0009301143088,0649355738,125.32\n" .
-                      "4964195,36889409,MR,T,,TERENCE,GERTZE,8101195041080,0837309861,2417.56\n";
+        $csvContent = "Acc Code,Account Number,Title,Initials,Known As,Name,Surname,ID Number,Cell,Outstanding balance,Store Name\n" .
+                      "4964194,36889408,MS,N,,,NDLANGAMANDLA,0009301143088,0649355738,125.32,Ackermans Cape Town\n" .
+                      "4964195,36889409,MR,T,,TERENCE,GERTZE,8101195041080,0837309861,2417.56,Refinery Bellville\n";
 
         $tempPath = tempnam(sys_get_temp_dir(), 'cap_') . '.csv';
         file_put_contents($tempPath, $csvContent);
@@ -179,10 +179,12 @@ class ClientImportHeaderDiagnosticsTest extends TestCase
         $client1 = Client::where('account_number', '36889408')->first();
         $this->assertNotNull($client1);
         $this->assertStringContainsString('NDLANGAMANDLA', $client1->name);
+        $this->assertSame('Ackermans Cape Town', $client1->store_name);
 
         $client2 = Client::where('account_number', '36889409')->first();
         $this->assertNotNull($client2);
         $this->assertStringContainsString('TERENCE GERTZE', $client2->name);
+        $this->assertSame('Refinery Bellville', $client2->store_name);
 
         @unlink($tempPath);
     }

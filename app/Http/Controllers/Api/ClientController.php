@@ -56,7 +56,8 @@ class ClientController extends Controller
                   ->orWhere('id_number', 'like', "%$search%")
                   ->orWhere('account_number', 'like', "%$search%")
                   ->orWhere('easy_pay_number', 'like', "%$search%")
-                  ->orWhere('store_number', 'like', "%$search%");
+                  ->orWhere('store_number', 'like', "%$search%")
+                  ->orWhere('store_name', 'like', "%$search%");
             });
         }
 
@@ -255,6 +256,7 @@ class ClientController extends Controller
             'surname' => ['nullable', 'string', 'max:255'],
             'easy_pay_number' => ['nullable', 'string', 'max:255'],
             'store_number' => ['nullable', 'string', 'max:255'],
+            'store_name' => ['nullable', 'string', 'max:255'],
             'outstanding_balance' => ['nullable', 'numeric'],
             'arrears_amount' => ['nullable', 'numeric'],
             'settlement_amount' => ['nullable', 'numeric'],
@@ -262,6 +264,7 @@ class ClientController extends Controller
             'installment_amount' => ['nullable', 'numeric'],
             'last_payment_amount' => ['nullable', 'numeric'],
             'total_payment_amount' => ['nullable', 'numeric'],
+            'payment_option' => ['nullable', 'string', Rule::in(Client::PAYMENT_OPTIONS)],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'account_number' => ['nullable', 'string', 'max:255'],
             'branch_code' => ['nullable', 'string', 'max:255'],
@@ -302,6 +305,7 @@ class ClientController extends Controller
                 'surname' => $data['surname'] ?? null,
                 'easy_pay_number' => $data['easy_pay_number'] ?? null,
                 'store_number' => $data['store_number'] ?? null,
+                'store_name' => $data['store_name'] ?? null,
                 'outstanding_balance' => $data['outstanding_balance'] ?? null,
                 'arrears_amount' => $data['arrears_amount'] ?? null,
                 'settlement_amount' => $data['settlement_amount'] ?? null,
@@ -309,6 +313,8 @@ class ClientController extends Controller
                 'installment_amount' => $data['installment_amount'] ?? null,
                 'last_payment_amount' => $data['last_payment_amount'] ?? null,
                 'total_payment_amount' => $data['total_payment_amount'] ?? null,
+                'payment_option' => $data['payment_option'] ?? null,
+                'payment_option_updated_at' => !empty($data['payment_option']) ? now() : null,
                 'bank_name' => $this->resolveBankName($bankId, $data['bank_name'] ?? null),
                 'account_number' => $data['account_number'] ?? null,
                 'branch_code' => $data['branch_code'] ?? null,
@@ -372,6 +378,7 @@ class ClientController extends Controller
             'surname' => ['nullable', 'string', 'max:255'],
             'easy_pay_number' => ['nullable', 'string', 'max:255'],
             'store_number' => ['nullable', 'string', 'max:255'],
+            'store_name' => ['nullable', 'string', 'max:255'],
             'outstanding_balance' => ['nullable', 'numeric'],
             'arrears_amount' => ['nullable', 'numeric'],
             'settlement_amount' => ['nullable', 'numeric'],
@@ -379,6 +386,7 @@ class ClientController extends Controller
             'installment_amount' => ['nullable', 'numeric'],
             'last_payment_amount' => ['nullable', 'numeric'],
             'total_payment_amount' => ['nullable', 'numeric'],
+            'payment_option' => ['nullable', 'string', Rule::in(Client::PAYMENT_OPTIONS)],
             'bank_name' => ['nullable', 'string', 'max:255'],
             'account_number' => ['nullable', 'string', 'max:255'],
             'branch_code' => ['nullable', 'string', 'max:255'],
@@ -426,6 +434,7 @@ class ClientController extends Controller
                 'surname' => $data['surname'] ?? $client->surname,
                 'easy_pay_number' => $data['easy_pay_number'] ?? $client->easy_pay_number,
                 'store_number' => $data['store_number'] ?? $client->store_number,
+                'store_name' => $data['store_name'] ?? $client->store_name,
                 'outstanding_balance' => array_key_exists('outstanding_balance', $data) ? $data['outstanding_balance'] : $client->outstanding_balance,
                 'arrears_amount' => array_key_exists('arrears_amount', $data) ? $data['arrears_amount'] : $client->arrears_amount,
                 'settlement_amount' => array_key_exists('settlement_amount', $data) ? $data['settlement_amount'] : $client->settlement_amount,
@@ -433,6 +442,8 @@ class ClientController extends Controller
                 'installment_amount' => array_key_exists('installment_amount', $data) ? $data['installment_amount'] : $client->installment_amount,
                 'last_payment_amount' => array_key_exists('last_payment_amount', $data) ? $data['last_payment_amount'] : $client->last_payment_amount,
                 'total_payment_amount' => array_key_exists('total_payment_amount', $data) ? $data['total_payment_amount'] : $client->total_payment_amount,
+                'payment_option' => array_key_exists('payment_option', $data) ? $data['payment_option'] : $client->payment_option,
+                'payment_option_updated_at' => array_key_exists('payment_option', $data) ? now() : $client->payment_option_updated_at,
                 'bank_name' => $this->resolveBankName($bankId, $data['bank_name'] ?? $client->bank_name),
                 'account_number' => $data['account_number'] ?? $client->account_number,
                 'branch_code' => $data['branch_code'] ?? $client->branch_code,
@@ -585,7 +596,8 @@ class ClientController extends Controller
                     ->orWhere('id_number', 'like', "%$search%")
                     ->orWhere('account_number', 'like', "%$search%")
                     ->orWhere('easy_pay_number', 'like', "%$search%")
-                    ->orWhere('store_number', 'like', "%$search%");
+                    ->orWhere('store_number', 'like', "%$search%")
+                    ->orWhere('store_name', 'like', "%$search%");
             });
         }
 

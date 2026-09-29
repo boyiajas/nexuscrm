@@ -298,6 +298,7 @@ class ImportClientsJob implements ShouldQueue
                     'type' => $this->cleanImportString($data['type'] ?? null),
                     'easy_pay_number' => $this->cleanImportString($data['easy_pay_number'] ?? null),
                     'store_number' => $this->cleanImportString($data['store_number'] ?? null),
+                    'store_name' => $this->cleanImportString($data['store_name'] ?? null),
                     'branch_code' => $this->cleanImportString($data['branch_code'] ?? null),
                     'arrears_amount' => $this->parseImportAmount($data['arrears_amount'] ?? null),
                     'outstanding_balance' => $this->parseImportAmount($data['outstanding_balance'] ?? null),

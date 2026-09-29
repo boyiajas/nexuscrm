@@ -10,12 +10,18 @@ use App\Models\CampaignWhatsappRecipient;
 use App\Models\ChatSession;
 use App\Models\User;
 use App\Models\WhatsappTemplateCache;
+use App\Services\CampaignWhatsappReportService;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 class AnalyticsController extends Controller
 {
     use AppliesAccessScopes;
+
+    public function __construct(
+        protected CampaignWhatsappReportService $campaignReportService
+    ) {
+    }
 
     public function index(Request $request)
     {
@@ -207,19 +213,36 @@ class AnalyticsController extends Controller
         // CAMPAIGNS DATA
         $campaignsQuery = Campaign::with(['bank', 'clients'])->orderBy('created_at', 'desc')->limit(15);
         $this->scopeCampaignQueryToUser($campaignsQuery, $user);
-        $campaignsData = $campaignsQuery->get()->map(function ($cmp) {
+        $campaignsData = $campaignsQuery->get()->map(function ($cmp) use ($user) {
             // Very simplified mock calculation for table display based on campaign
             $sent = $cmp->clients->count();
             // Blended cost estimate based on utility rates
             $cost = $sent * 0.0076;
+            $report = $this->campaignReportService->build(
+                $cmp,
+                !$user?->isSuperAdmin()
+                    ? function ($recipientQuery) use ($user) {
+                        $recipientQuery->whereHas('client', function ($clientQuery) use ($user) {
+                            $this->scopeClientQueryToUser($clientQuery, $user);
+                        });
+                    }
+                    : null
+            );
+
             return [
+                'id' => $cmp->id,
                 'name' => $cmp->name,
                 'batch' => 'ID-' . $cmp->id,
                 'bank' => $cmp->bank ? $cmp->bank->name : 'N/A',
                 'agents' => ['AG'], // Mock agent initials
                 'sent' => number_format($sent),
                 'delivery' => $sent > 0 ? '98.5%' : '0%',
-                'replies' => number_format(round($sent * 0.3)),
+                'replies' => $report['clients_replied'],
+                'quick_replies' => $report['quick_reply_clients'],
+                'opt_outs' => $report['opt_out_clients'],
+                'ptp' => $report['payment_options']['ptp'],
+                'debit_order' => $report['payment_options']['debit_order'],
+                'payment_not_set' => $report['payment_options']['not_set'],
                 'cost' => '$' . number_format($cost, 2),
                 'recoveryPct' => rand(15, 55) . '.' . rand(0, 9) . '%',
                 'recoveryAmt' => '$' . number_format(rand(5000, 80000) / 1000, 1) . 'k',

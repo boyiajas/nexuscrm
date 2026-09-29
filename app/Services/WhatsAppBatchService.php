@@ -378,6 +378,7 @@ class WhatsAppBatchService
                 'client.id_number' => (string) ($client?->id_number ?? ''),
                 'client.account_number' => (string) ($client?->account_number ?? ''),
                 'client.easy_pay_number' => (string) ($client?->easy_pay_number ?? ''),
+                'client.store_name' => (string) ($client?->store_name ?? ''),
                 'client.outstanding_balance' => (string) ($client?->outstanding_balance ?? ''),
                 'client.arrears_amount' => (string) ($client?->arrears_amount ?? ''),
                 'client.settlement_amount' => (string) ($client?->settlement_amount ?? ''),

@@ -9,6 +9,14 @@ class Client extends Model
 {
     use HasFactory;
 
+    public const PAYMENT_OPTION_PTP = 'ptp';
+    public const PAYMENT_OPTION_DEBIT_ORDER = 'debit_order';
+
+    public const PAYMENT_OPTIONS = [
+        self::PAYMENT_OPTION_PTP,
+        self::PAYMENT_OPTION_DEBIT_ORDER,
+    ];
+
     protected $fillable = [
         'name',
         'bank_id',
@@ -28,6 +36,7 @@ class Client extends Model
         'branch_code',
         'easy_pay_number',
         'store_number',
+        'store_name',
         'cell_phone',
         'home_phone',
         'work_phone',
@@ -38,6 +47,8 @@ class Client extends Model
         'installment_amount',
         'last_payment_amount',
         'total_payment_amount',
+        'payment_option',
+        'payment_option_updated_at',
         'import_batch_number',
         'whatsapp_opted_out_at',
         'whatsapp_opt_out_reason',
@@ -62,6 +73,7 @@ class Client extends Model
         'installment_amount' => 'decimal:2',
         'last_payment_amount' => 'decimal:2',
         'total_payment_amount' => 'decimal:2',
+        'payment_option_updated_at' => 'datetime',
         'whatsapp_opted_out_at' => 'datetime',
         'whatsapp_opted_in_at' => 'datetime',
         'opt_in_updated_at' => 'datetime',
@@ -212,5 +224,18 @@ class Client extends Model
     public function clearWhatsappOptOut(): void
     {
         $this->setOptIn('none');
+    }
+
+    public function setPaymentOption(?string $paymentOption): void
+    {
+        $paymentOption = strtolower(trim((string) $paymentOption));
+        if (!in_array($paymentOption, self::PAYMENT_OPTIONS, true)) {
+            $paymentOption = null;
+        }
+
+        $this->forceFill([
+            'payment_option' => $paymentOption,
+            'payment_option_updated_at' => now(),
+        ])->save();
     }
 }

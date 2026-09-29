@@ -46,6 +46,7 @@
                 <div class="col-md-6 mb-2"><strong>Branch Code:</strong> {{ client.branch_code || '-' }}</div>
                 <div class="col-md-6 mb-2"><strong>Easy Pay Number:</strong> {{ client.easy_pay_number || '-' }}</div>
                 <div class="col-md-6 mb-2"><strong>Store Number:</strong> {{ client.store_number || '-' }}</div>
+                <div class="col-md-6 mb-2"><strong>Client Store Name:</strong> {{ client.store_name || '-' }}</div>
                 <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ client.arrears_amount ? 'R' + Number(client.arrears_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (client.arrears_amount || '-') }}</div>
                 <div class="col-md-6 mb-2"><strong>Outstanding Balance:</strong> {{ client.outstanding_balance ? 'R' + Number(client.outstanding_balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (client.outstanding_balance || '-') }}</div>
                 <div class="col-md-6 mb-2"><strong>Settlement Amount:</strong> {{ client.settlement_amount ? 'R' + Number(client.settlement_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (client.settlement_amount || '-') }}</div>

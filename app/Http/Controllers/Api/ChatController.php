@@ -982,4 +982,37 @@ class ChatController extends Controller
             'opt_in_updated_at' => optional($client?->opt_in_updated_at)->toDateTimeString(),
         ]);
     }
+
+    public function updatePaymentOption(Request $request, ChatSession $session)
+    {
+        $this->authorizeManage();
+        $this->authorizeSessionScope(Auth::user(), $session);
+
+        $data = $request->validate([
+            'payment_option' => [
+                'required',
+                'string',
+                \Illuminate\Validation\Rule::in([
+                    Client::PAYMENT_OPTION_PTP,
+                    Client::PAYMENT_OPTION_DEBIT_ORDER,
+                    'none',
+                ]),
+            ],
+        ]);
+
+        $client = $session->client;
+        if (!$client) {
+            return response()->json([
+                'message' => 'Link this chat to a client before setting a payment option.',
+            ], 422);
+        }
+
+        $client->setPaymentOption($data['payment_option'] === 'none' ? null : $data['payment_option']);
+
+        return response()->json([
+            'message' => 'Payment option updated successfully',
+            'payment_option' => $client->payment_option,
+            'payment_option_updated_at' => optional($client->payment_option_updated_at)->toDateTimeString(),
+        ]);
+    }
 }
