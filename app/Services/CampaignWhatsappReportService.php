@@ -24,7 +24,10 @@ class CampaignWhatsappReportService
         $repliedClientIds = [];
         $quickReplyClientIds = [];
         $optOutClientIds = [];
-        $recipientClientIds = [];
+        $sentClientIds = [];
+        $messagesSent = 0;
+        $messagesAccepted = 0;
+        $messagesDelivered = 0;
 
         $recipientQuery->select([
             'id',
@@ -34,16 +37,29 @@ class CampaignWhatsappReportService
             'reply_label',
             'reply_key',
             'reply_source',
+            'status',
+            'error_code',
+            'error_message',
             'status_payload',
             'provider_status_payload',
-        ])->chunkById(500, function ($recipients) use (&$repliedClientIds, &$quickReplyClientIds, &$optOutClientIds, &$recipientClientIds) {
+        ])->chunkById(500, function ($recipients) use (&$repliedClientIds, &$quickReplyClientIds, &$optOutClientIds, &$sentClientIds, &$messagesSent, &$messagesAccepted, &$messagesDelivered) {
             foreach ($recipients as $recipient) {
                 $clientId = (int) $recipient->client_id;
                 if ($clientId <= 0) {
                     continue;
                 }
 
-                $recipientClientIds[$clientId] = true;
+                if ($this->wasAttempted($recipient)) {
+                    $messagesSent++;
+                }
+                if ($this->wasSent($recipient)) {
+                    $sentClientIds[$clientId] = true;
+                    $messagesAccepted++;
+                }
+                if ($this->wasDelivered($recipient)) {
+                    $messagesDelivered++;
+                }
+
                 $replyMeta = $this->replyMeta($recipient);
 
                 if (!$replyMeta['type'] && trim((string) $recipient->last_response) === '') {
@@ -66,7 +82,7 @@ class CampaignWhatsappReportService
         });
 
         $sentClients = Client::query()
-            ->whereIn('id', array_keys($recipientClientIds))
+            ->whereIn('id', array_keys($sentClientIds))
             ->get(['id', 'payment_option']);
 
         $paymentOptions = [
@@ -77,11 +93,45 @@ class CampaignWhatsappReportService
         $paymentOptions['not_set'] = max($sentClients->count() - $paymentOptions['total_selected'], 0);
 
         return [
+            'messages_sent' => $messagesSent,
+            'messages_accepted' => $messagesAccepted,
+            'messages_delivered' => $messagesDelivered,
+            'delivery_rate' => $messagesSent > 0 ? round(($messagesDelivered / $messagesSent) * 100, 1) : 0.0,
             'clients_replied' => count($repliedClientIds),
             'quick_reply_clients' => count($quickReplyClientIds),
             'opt_out_clients' => count($optOutClientIds),
             'payment_options' => $paymentOptions,
         ];
+    }
+
+    private function wasAttempted(CampaignWhatsappRecipient $recipient): bool
+    {
+        $status = strtolower(trim((string) $recipient->status));
+
+        return in_array($status, ['sent', 'accepted', 'delivered', 'read', 'delivered (ecosystem warning)', 'failed'], true)
+            || $this->isEcosystemDelivery($recipient);
+    }
+
+    private function wasSent(CampaignWhatsappRecipient $recipient): bool
+    {
+        $status = strtolower(trim((string) $recipient->status));
+
+        return in_array($status, ['sent', 'accepted', 'delivered', 'read', 'delivered (ecosystem warning)'], true)
+            || $this->isEcosystemDelivery($recipient);
+    }
+
+    private function wasDelivered(CampaignWhatsappRecipient $recipient): bool
+    {
+        $status = strtolower(trim((string) $recipient->status));
+
+        return in_array($status, ['delivered', 'read', 'delivered (ecosystem warning)'], true)
+            || $this->isEcosystemDelivery($recipient);
+    }
+
+    private function isEcosystemDelivery(CampaignWhatsappRecipient $recipient): bool
+    {
+        return (string) $recipient->error_code === '131049'
+            || str_contains(strtolower((string) $recipient->error_message), 'maintain healthy ecosystem engagement');
     }
 
     public function replyMeta(CampaignWhatsappRecipient $recipient): array
@@ -170,6 +220,14 @@ class CampaignWhatsappReportService
 
     private function extractInboundPayloadMessage(array $payload): ?array
     {
+        // Inbound replies are stored from the webhook's `value` object, where
+        // messages are top-level. Older records may contain the full webhook.
+        foreach (($payload['messages'] ?? []) as $message) {
+            if (is_array($message)) {
+                return $message;
+            }
+        }
+
         foreach (($payload['entry'] ?? []) as $entry) {
             foreach (($entry['changes'] ?? []) as $change) {
                 foreach ((($change['value'] ?? [])['messages'] ?? []) as $message) {

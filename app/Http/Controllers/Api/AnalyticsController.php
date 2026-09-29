@@ -47,9 +47,17 @@ class AnalyticsController extends Controller
                 COUNT(*) as total_dispatched,
                 SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as total_delivered,
                 SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as total_read,
-                SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL THEN 1 ELSE 0 END) as total_replied
+                SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL OR campaign_whatsapp_recipients.reply_type IS NOT NULL THEN 1 ELSE 0 END) as total_replied
             ')
             ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+            ->whereIn(DB::raw('LOWER(campaign_whatsapp_recipients.status)'), [
+                'sent',
+                'accepted',
+                'delivered',
+                'read',
+                'delivered (ecosystem warning)',
+                'failed',
+            ])
             ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
             ->first();
 
@@ -108,9 +116,17 @@ class AnalyticsController extends Controller
                     COUNT(*) as dispatched,
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
-                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL OR campaign_whatsapp_recipients.reply_type IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
                 ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->whereIn(DB::raw('LOWER(campaign_whatsapp_recipients.status)'), [
+                'sent',
+                'accepted',
+                'delivered',
+                'read',
+                'delivered (ecosystem warning)',
+                'failed',
+            ])
                 ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -137,9 +153,17 @@ class AnalyticsController extends Controller
                     COUNT(*) as dispatched,
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
-                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL OR campaign_whatsapp_recipients.reply_type IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
                 ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->whereIn(DB::raw('LOWER(campaign_whatsapp_recipients.status)'), [
+                'sent',
+                'accepted',
+                'delivered',
+                'read',
+                'delivered (ecosystem warning)',
+                'failed',
+            ])
                 ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -167,9 +191,17 @@ class AnalyticsController extends Controller
                     COUNT(*) as dispatched,
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) IN ("delivered", "read", "delivered (ecosystem warning)") THEN 1 ELSE 0 END) as delivered,
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
-                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL THEN 1 ELSE 0 END) as replied
+                    SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL OR campaign_whatsapp_recipients.reply_type IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
                 ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->whereIn(DB::raw('LOWER(campaign_whatsapp_recipients.status)'), [
+                'sent',
+                'accepted',
+                'delivered',
+                'read',
+                'delivered (ecosystem warning)',
+                'failed',
+            ])
                 ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -211,13 +243,11 @@ class AnalyticsController extends Controller
         });
 
         // CAMPAIGNS DATA
-        $campaignsQuery = Campaign::with(['bank', 'clients'])->orderBy('created_at', 'desc')->limit(15);
+        $campaignsQuery = Campaign::with(['bank', 'whatsappMessages.createdBy:id,name'])
+            ->orderBy('created_at', 'desc')
+            ->limit(15);
         $this->scopeCampaignQueryToUser($campaignsQuery, $user);
         $campaignsData = $campaignsQuery->get()->map(function ($cmp) use ($user) {
-            // Very simplified mock calculation for table display based on campaign
-            $sent = $cmp->clients->count();
-            // Blended cost estimate based on utility rates
-            $cost = $sent * 0.0076;
             $report = $this->campaignReportService->build(
                 $cmp,
                 !$user?->isSuperAdmin()
@@ -228,15 +258,32 @@ class AnalyticsController extends Controller
                     }
                     : null
             );
+            $sent = $report['messages_sent'];
+            $cost = $report['messages_accepted'] * 0.0076;
+            $agents = $cmp->whatsappMessages
+                ->pluck('createdBy')
+                ->filter()
+                ->unique('id')
+                ->map(function ($agent) {
+                    $names = preg_split('/\s+/', trim((string) $agent->name)) ?: [];
+
+                    return strtoupper(
+                        substr($names[0] ?? 'A', 0, 1)
+                        . substr($names[1] ?? '', 0, 1)
+                    );
+                })
+                ->values()
+                ->all();
 
             return [
                 'id' => $cmp->id,
                 'name' => $cmp->name,
                 'batch' => 'ID-' . $cmp->id,
                 'bank' => $cmp->bank ? $cmp->bank->name : 'N/A',
-                'agents' => ['AG'], // Mock agent initials
+                'status' => $cmp->status,
+                'agents' => $agents,
                 'sent' => number_format($sent),
-                'delivery' => $sent > 0 ? '98.5%' : '0%',
+                'delivery' => number_format($report['delivery_rate'], 1) . '%',
                 'replies' => $report['clients_replied'],
                 'quick_replies' => $report['quick_reply_clients'],
                 'opt_outs' => $report['opt_out_clients'],
@@ -244,8 +291,8 @@ class AnalyticsController extends Controller
                 'debit_order' => $report['payment_options']['debit_order'],
                 'payment_not_set' => $report['payment_options']['not_set'],
                 'cost' => '$' . number_format($cost, 2),
-                'recoveryPct' => rand(15, 55) . '.' . rand(0, 9) . '%',
-                'recoveryAmt' => '$' . number_format(rand(5000, 80000) / 1000, 1) . 'k',
+                'recoveryPct' => 'N/A',
+                'recoveryAmt' => 'Not tracked',
             ];
         });
 

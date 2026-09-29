@@ -10,6 +10,7 @@ use App\Models\ChatSession;
 use App\Models\Client;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\CampaignWhatsappReportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -117,6 +118,38 @@ class PaymentOptionCampaignReportTest extends TestCase
         $this->createRecipient($firstMessage, $clients[2], 'text', 'Please call me');
         $this->createRecipient($firstMessage, $clients[3]);
         $this->createRecipient($secondMessage, $clients[0], 'text', 'I will pay Friday');
+        CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $firstMessage->id,
+            'client_id' => $clients[4]->id,
+            'phone' => $clients[4]->phone,
+            'status' => 'Failed',
+            'error_code' => '131000',
+            'error_message' => 'Provider rejected the message.',
+        ]);
+
+        $draftCampaign = Campaign::query()->create([
+            'name' => 'Unsent Draft Campaign',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        $draftCampaign->clients()->attach($clients[4]->id);
+        $draftMessage = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $draftCampaign->id,
+            'created_by_user_id' => $user->id,
+            'template_name' => 'unsent_payment_options',
+            'status' => 'Draft',
+            'total' => 1,
+            'delivered' => 0,
+            'failed' => 0,
+            'pending' => 0,
+        ]);
+        CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $draftMessage->id,
+            'client_id' => $clients[4]->id,
+            'phone' => $clients[4]->phone,
+            'status' => 'Draft',
+        ]);
 
         Sanctum::actingAs($user);
 
@@ -124,15 +157,97 @@ class PaymentOptionCampaignReportTest extends TestCase
             ->assertOk()
             ->assertJsonMissingPath('engagement_report');
 
-        $this->getJson('/api/analytics?timeframe=daily')
-            ->assertOk()
-            ->assertJsonPath('tables.campaigns.0.id', $campaign->id)
-            ->assertJsonPath('tables.campaigns.0.replies', 3)
-            ->assertJsonPath('tables.campaigns.0.quick_replies', 2)
-            ->assertJsonPath('tables.campaigns.0.opt_outs', 1)
-            ->assertJsonPath('tables.campaigns.0.ptp', 1)
-            ->assertJsonPath('tables.campaigns.0.debit_order', 1)
-            ->assertJsonPath('tables.campaigns.0.payment_not_set', 2);
+        $response = $this->getJson('/api/analytics?timeframe=daily')->assertOk();
+        $response
+            ->assertJsonPath('summary.dispatched', '6')
+            ->assertJsonPath('summary.delivered', '5');
+        $campaignRows = collect($response->json('tables.campaigns'));
+
+        $sentRow = $campaignRows->firstWhere('id', $campaign->id);
+        $this->assertSame('6', $sentRow['sent']);
+        $this->assertSame('83.3%', $sentRow['delivery']);
+        $this->assertSame(3, $sentRow['replies']);
+        $this->assertSame(2, $sentRow['quick_replies']);
+        $this->assertSame(1, $sentRow['opt_outs']);
+        $this->assertSame(1, $sentRow['ptp']);
+        $this->assertSame(1, $sentRow['debit_order']);
+        $this->assertSame(2, $sentRow['payment_not_set']);
+        $this->assertSame('$0.04', $sentRow['cost']);
+        $this->assertSame('N/A', $sentRow['recoveryPct']);
+        $this->assertSame('Not tracked', $sentRow['recoveryAmt']);
+
+        $draftRow = $campaignRows->firstWhere('id', $draftCampaign->id);
+        $this->assertSame('0', $draftRow['sent']);
+        $this->assertSame('0.0%', $draftRow['delivery']);
+        $this->assertSame(0, $draftRow['replies']);
+        $this->assertSame(0, $draftRow['quick_replies']);
+        $this->assertSame(0, $draftRow['opt_outs']);
+        $this->assertSame(0, $draftRow['ptp']);
+        $this->assertSame(0, $draftRow['debit_order']);
+        $this->assertSame(0, $draftRow['payment_not_set']);
+        $this->assertSame('$0.00', $draftRow['cost']);
+    }
+
+    public function test_campaign_report_reads_legacy_top_level_quick_reply_and_opt_out_payloads(): void
+    {
+        [$user, $bank] = $this->createSuperAdminAndBank();
+        $campaign = Campaign::query()->create([
+            'name' => 'Legacy Reply Campaign',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        $message = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'created_by_user_id' => $user->id,
+            'template_name' => 'legacy_buttons',
+            'sent_at' => now(),
+        ]);
+        $quickReplyClient = Client::query()->create([
+            'name' => 'Legacy Button Client',
+            'phone' => '+27821110001',
+            'bank_id' => $bank->id,
+        ]);
+        $optOutClient = Client::query()->create([
+            'name' => 'Legacy Opt Out Client',
+            'phone' => '+27821110002',
+            'bank_id' => $bank->id,
+        ]);
+
+        CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $message->id,
+            'client_id' => $quickReplyClient->id,
+            'phone' => $quickReplyClient->phone,
+            'status' => 'Delivered',
+            'last_response' => 'pay now',
+            'provider_status_payload' => [
+                'messages' => [[
+                    'interactive' => [
+                        'type' => 'button_reply',
+                        'button_reply' => ['id' => 'pay_now', 'title' => 'Pay now'],
+                    ],
+                ]],
+            ],
+        ]);
+        CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $message->id,
+            'client_id' => $optOutClient->id,
+            'phone' => $optOutClient->phone,
+            'status' => 'Delivered',
+            'last_response' => 'stop',
+            'provider_status_payload' => [
+                'messages' => [[
+                    'text' => ['body' => 'Stop'],
+                ]],
+            ],
+        ]);
+
+        $report = app(CampaignWhatsappReportService::class)->build($campaign);
+
+        $this->assertSame(2, $report['messages_sent']);
+        $this->assertSame(2, $report['clients_replied']);
+        $this->assertSame(1, $report['quick_reply_clients']);
+        $this->assertSame(1, $report['opt_out_clients']);
     }
 
     private function createRecipient(

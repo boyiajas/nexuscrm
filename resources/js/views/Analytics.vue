@@ -327,7 +327,7 @@
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
               <div>
-                <h5 class="fw-bold mb-1">Campaign Performance Matrix <span class="badge bg-success-subtle text-success ms-2">{{ tables.campaigns.length }} Active Dispatches</span></h5>
+                <h5 class="fw-bold mb-1">Campaign Performance Matrix <span class="badge bg-success-subtle text-success ms-2">{{ tables.campaigns.length }} Campaigns</span></h5>
                 <p class="text-muted small mb-0">Unique WhatsApp client responses and payment options per campaign</p>
               </div>
               <div class="d-flex gap-2">
@@ -352,7 +352,7 @@
                       <th class="text-end">OPT-OUTS</th>
                       <th class="text-end">PTP</th>
                       <th class="text-end">DEBIT ORDER</th>
-                      <th class="text-end">META COST</th>
+                      <th class="text-end">EST. META COST</th>
                       <th class="text-end">RECOVERY RATE</th>
                     </tr>
                   </thead>
@@ -360,10 +360,14 @@
                     <tr v-for="(cmp, idx) in tables.campaigns" :key="idx">
                       <td>
                         <div class="d-flex align-items-center gap-2">
-                          <i class="bi bi-circle-fill text-success" style="font-size: 0.5rem;"></i>
+                          <i
+                            class="bi bi-circle-fill"
+                            :class="cmp.status === 'Active' ? 'text-success' : (cmp.status === 'Draft' ? 'text-secondary' : 'text-warning')"
+                            style="font-size: 0.5rem;"
+                          ></i>
                           <div>
                             <div class="fw-bold text-dark">{{ cmp.name }}</div>
-                            <div class="text-muted" style="font-size: 0.75rem;">Batch: {{ cmp.batch }}</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">Batch: {{ cmp.batch }} · {{ cmp.status }}</div>
                           </div>
                         </div>
                       </td>
@@ -371,14 +375,15 @@
                         <div class="fw-semibold text-dark" style="font-size: 0.85rem;">{{ cmp.bank }}</div>
                       </td>
                       <td>
-                        <div class="d-flex position-relative">
+                        <div v-if="cmp.agents.length" class="d-flex position-relative">
                           <div v-for="(agent, aIdx) in cmp.agents" :key="aIdx" class="avatar-sm rounded-circle border border-2 border-white d-flex align-items-center justify-content-center bg-dark text-white shadow-sm" :style="{ marginLeft: aIdx === 0 ? '0' : '-10px', width: '28px', height: '28px', fontSize: '0.65rem' }">
                             {{ agent }}
                           </div>
                         </div>
+                        <span v-else class="text-muted">—</span>
                       </td>
                       <td class="text-end fw-semibold">{{ cmp.sent }}</td>
-                      <td class="text-end fw-bold text-success">{{ cmp.delivery }}</td>
+                      <td class="text-end fw-bold" :class="parseFloat(cmp.delivery) >= 90 ? 'text-success' : (parseFloat(cmp.delivery) > 0 ? 'text-warning' : 'text-muted')">{{ cmp.delivery }}</td>
                       <td class="text-end fw-semibold">{{ cmp.replies }}</td>
                       <td class="text-end text-primary fw-semibold">{{ cmp.quick_replies }}</td>
                       <td class="text-end text-danger fw-semibold">{{ cmp.opt_outs }}</td>
@@ -389,8 +394,8 @@
                       </td>
                       <td class="text-end">{{ cmp.cost }}</td>
                       <td class="text-end">
-                        <div class="fw-bold text-success">{{ cmp.recoveryPct }}</div>
-                        <div class="text-success" style="font-size: 0.75rem;">({{ cmp.recoveryAmt }})</div>
+                        <div class="fw-semibold text-muted">{{ cmp.recoveryPct }}</div>
+                        <div class="text-muted" style="font-size: 0.75rem;">{{ cmp.recoveryAmt }}</div>
                       </td>
                     </tr>
                   </tbody>
@@ -541,24 +546,32 @@ export default {
         'Campaign ID',
         'Bank / Department',
         'Messages Sent',
+        'Delivery %',
         'Unique Clients Replied',
         'Unique Quick Replies',
         'Unique Opt-Outs',
         'PTP',
         'Debit Order',
         'Payment Option Not Set',
+        'Estimated Meta Cost',
+        'Recovery Rate',
+        'Recovery Amount',
       ];
       const rows = this.tables.campaigns.map((campaign) => [
         campaign.name,
         campaign.id,
         campaign.bank,
         campaign.sent,
+        campaign.delivery,
         campaign.replies,
         campaign.quick_replies,
         campaign.opt_outs,
         campaign.ptp,
         campaign.debit_order,
         campaign.payment_not_set,
+        campaign.cost,
+        campaign.recoveryPct,
+        campaign.recoveryAmt,
       ]);
       const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
       const csv = [headers, ...rows]
