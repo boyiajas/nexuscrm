@@ -878,6 +878,74 @@
           </div>
         </div>
 
+        <div class="card shadow-sm border-warning mb-4" v-if="pendingWhatsappNumbers.length">
+          <div class="card-header bg-warning-subtle d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div>
+              <h6 class="mb-0"><i class="bi bi-hourglass-split me-2"></i>Pending Numbers</h6>
+              <small class="text-muted">{{ pendingWhatsappNumbers.length }} number(s) still require verification, registration, or display-name approval.</small>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-sm btn-outline-primary" :disabled="!wn.selectedPendingIds.length || wn.pendingRequesting" @click="requestSelectedVerification('SMS')">
+                <i class="bi bi-chat-left-text me-1"></i> SMS Selected
+              </button>
+              <button class="btn btn-sm btn-outline-primary" :disabled="!wn.selectedPendingIds.length || wn.pendingRequesting" @click="requestSelectedVerification('VOICE')">
+                <i class="bi bi-telephone me-1"></i> Call Selected
+              </button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead>
+                <tr>
+                  <th class="ps-3" style="width: 42px;">
+                    <input class="form-check-input" type="checkbox" :checked="allPendingNumbersSelected" @change="toggleAllPendingNumbers" aria-label="Select all pending numbers" />
+                  </th>
+                  <th>Number</th>
+                  <th>Display Name</th>
+                  <th>Verification</th>
+                  <th>Name Approval</th>
+                  <th>Cloud API</th>
+                  <th class="text-end pe-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="num in pendingWhatsappNumbers" :key="'pending-' + num.id">
+                  <td class="ps-3">
+                    <input class="form-check-input" type="checkbox" v-model="wn.selectedPendingIds" :value="String(num.id)" :aria-label="'Select ' + (num.display_phone_number || num.id)" />
+                  </td>
+                  <td>
+                    <div class="fw-semibold">{{ num.display_phone_number || '-' }}</div>
+                    <div class="small text-muted font-monospace">{{ num.id }}</div>
+                  </td>
+                  <td>{{ num.verified_name || '-' }}</td>
+                  <td><span class="badge" :class="String(num.code_verification_status).toUpperCase() === 'VERIFIED' ? 'bg-success' : 'bg-warning text-dark'">{{ num.code_verification_status || 'UNVERIFIED' }}</span></td>
+                  <td><span class="badge" :class="String(num.name_status).toUpperCase() === 'APPROVED' ? 'bg-success' : 'bg-warning text-dark'">{{ num.name_status || 'PENDING' }}</span></td>
+                  <td><span class="badge" :class="String(num.platform_type).toUpperCase() === 'CLOUD_API' ? 'bg-success' : 'bg-secondary'">{{ String(num.platform_type).toUpperCase() === 'CLOUD_API' ? 'REGISTERED' : 'NOT REGISTERED' }}</span></td>
+                  <td class="text-end pe-3">
+                    <div class="btn-group btn-group-sm" v-if="String(num.code_verification_status).toUpperCase() !== 'VERIFIED'">
+                      <button class="btn btn-outline-primary" :disabled="wn.pendingRequesting" @click="requestPendingVerification(num, 'SMS', true)" title="Send verification code by SMS">SMS</button>
+                      <button class="btn btn-outline-primary" :disabled="wn.pendingRequesting" @click="requestPendingVerification(num, 'VOICE', true)" title="Receive verification code by voice call">Call</button>
+                      <button class="btn btn-outline-success" @click="openPendingCodeEntry(num)" title="Enter a code already received">Enter Code</button>
+                    </div>
+                    <button v-else-if="String(num.platform_type).toUpperCase() !== 'CLOUD_API'" class="btn btn-sm btn-outline-success" @click="openRegistrationModal(num)">
+                      Register
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary ms-1" @click="openMetaNumberManager(num, 'edit')" title="Edit the display name in Meta WhatsApp Manager">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger ms-1" @click="openMetaNumberManager(num, 'remove')" title="Remove this number in Meta WhatsApp Manager">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer small text-muted">
+            Meta does not allow phone-number deletion or display-name editing through the Graph API. Edit and remove actions open WhatsApp Manager for the selected WABA.
+          </div>
+        </div>
+
         <div class="card shadow-sm border mb-4">
           <div class="card-body p-0">
             <div v-if="wn.loading" class="p-4 text-center text-muted">
@@ -1643,6 +1711,8 @@ export default {
       wn: {
         loading: false,
         saving: false,
+        pendingRequesting: false,
+        selectedPendingIds: [],
         numbers: [],
         addForm: {
           cc: '',
@@ -1801,6 +1871,19 @@ export default {
     },
     canAccessWabaTemplates() {
       return this.hasPermission('settings_waba_templates');
+    },
+    pendingWhatsappNumbers() {
+      return this.wn.numbers.filter((number) => {
+        const verification = String(number.code_verification_status || '').toUpperCase();
+        const nameStatus = String(number.name_status || '').toUpperCase();
+        const platform = String(number.platform_type || '').toUpperCase();
+
+        return verification !== 'VERIFIED' || nameStatus !== 'APPROVED' || platform !== 'CLOUD_API';
+      });
+    },
+    allPendingNumbersSelected() {
+      return this.pendingWhatsappNumbers.length > 0
+        && this.pendingWhatsappNumbers.every((number) => this.wn.selectedPendingIds.includes(String(number.id)));
     },
     hasValidMigrationDestination() {
       if (this.wa.migrateForm.destinationType === 'profile') {
@@ -2715,6 +2798,76 @@ export default {
       } finally {
         this.wn.loading = false;
       }
+    },
+    toggleAllPendingNumbers(event) {
+      this.wn.selectedPendingIds = event.target.checked
+        ? this.pendingWhatsappNumbers.map((number) => String(number.id))
+        : [];
+    },
+    async requestPendingVerification(num, method, openCodeEntry = false) {
+      this.wn.pendingRequesting = true;
+      try {
+        await axios.post('/api/settings/meta/phone-numbers/request-verification', {
+          phone_number_id: num.id,
+          method,
+        });
+        notify.success(`Verification code requested by ${method === 'VOICE' ? 'voice call' : 'SMS'} for ${num.display_phone_number || num.id}.`, 'Settings');
+        if (openCodeEntry) {
+          this.openPendingCodeEntry(num, method);
+        }
+        return true;
+      } catch (err) {
+        notify.error(`Could not request a code for ${num.display_phone_number || num.id}: ${err.response?.data?.message || err.message}`, 'Settings');
+        return false;
+      } finally {
+        this.wn.pendingRequesting = false;
+      }
+    },
+    async requestSelectedVerification(method) {
+      const selected = this.pendingWhatsappNumbers.filter((number) =>
+        this.wn.selectedPendingIds.includes(String(number.id))
+        && String(number.code_verification_status || '').toUpperCase() !== 'VERIFIED'
+      );
+      if (!selected.length) {
+        notify.warning('Select at least one unverified number.', 'Settings');
+        return;
+      }
+
+      let requested = 0;
+      for (const number of selected) {
+        if (await this.requestPendingVerification(number, method, false)) {
+          requested += 1;
+        }
+      }
+      if (requested > 0) {
+        notify.success(`${requested} verification code request(s) submitted. Use Enter Code beside each number to finish verification.`, 'Settings');
+      }
+    },
+    openPendingCodeEntry(num, method = 'SMS') {
+      this.wn.verifyForm = {
+        id: num.id,
+        display_phone_number: num.display_phone_number || num.id,
+        method,
+        code: '',
+        codeSent: true,
+        stage: 'verify',
+        pin: '',
+        pinConfirmation: '',
+      };
+      this.wn.verifyNumberModal?.show();
+    },
+    openMetaNumberManager(num, action) {
+      const wabaId = this.meta.form.meta_whatsapp_business_account_id;
+      const query = new URLSearchParams({
+        asset_id: wabaId || '',
+        business_id: wabaId || '',
+        tab: 'phone-numbers',
+      });
+      window.open(`https://business.facebook.com/latest/whatsapp_manager/phone_numbers/?${query.toString()}`, '_blank', 'noopener,noreferrer');
+      notify.info(
+        `Meta requires ${action === 'remove' ? 'number removal' : 'display-name editing'} to be completed in WhatsApp Manager.`,
+        'Settings'
+      );
     },
     openAddNumberModal() {
       this.wn.addForm = { cc: '', phone_number: '', verified_name: '' };
