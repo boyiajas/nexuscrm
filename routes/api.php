@@ -166,6 +166,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('settings/meta/phone-numbers/request-verification', [SettingsController::class, 'requestMetaPhoneVerification']);
     Route::post('/settings/meta/phone-numbers/verify', [App\Http\Controllers\Api\SettingsController::class, 'verifyMetaPhoneNumber']);
     Route::post('/settings/meta/phone-numbers/register', [App\Http\Controllers\Api\SettingsController::class, 'registerMetaPhoneNumber']);
+    Route::patch('/settings/meta/phone-numbers/{phoneNumberId}/pause', [App\Http\Controllers\Api\SettingsController::class, 'updateMetaPhoneNumberPause']);
 
     Route::apiResource('/settings/whatsapp-accounts', App\Http\Controllers\Api\WhatsappAccountController::class)->except(['show']);
     Route::post('/settings/whatsapp-accounts/{id}/activate', [App\Http\Controllers\Api\WhatsappAccountController::class, 'activate']);

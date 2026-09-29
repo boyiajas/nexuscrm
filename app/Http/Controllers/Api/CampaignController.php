@@ -21,6 +21,7 @@ use App\Services\CampaignWhatsappReportService;
 use App\Services\MetaWhatsAppService;
 use App\Services\WhatsAppBatchService;
 use App\Services\WhatsAppDailyLimitService;
+use App\Services\WhatsAppNumberControlService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,18 +37,21 @@ class CampaignController extends Controller
     protected WhatsAppDailyLimitService $dailyLimitService;
     protected WhatsAppBatchService $batchService;
     protected CampaignWhatsappReportService $campaignReportService;
+    protected WhatsAppNumberControlService $numberControlService;
 
     public function __construct(
         WhatsAppServiceInterface $whatsApp,
         WhatsAppDailyLimitService $dailyLimitService,
         WhatsAppBatchService $batchService,
-        CampaignWhatsappReportService $campaignReportService
+        CampaignWhatsappReportService $campaignReportService,
+        WhatsAppNumberControlService $numberControlService
     )
     {
         $this->whatsApp = $whatsApp;
         $this->dailyLimitService = $dailyLimitService;
         $this->batchService = $batchService;
         $this->campaignReportService = $campaignReportService;
+        $this->numberControlService = $numberControlService;
     }
     /**
      * List campaigns (department + role scoped).
@@ -85,7 +89,29 @@ class CampaignController extends Controller
     {
         $this->authorizeView($campaign);
 
-        return $campaign->load(['departments', 'bank']);
+        $campaign->load(['departments', 'bank']);
+
+        $senderStatus = $this->numberControlService->statusFor(null);
+        $channels = array_map('strtolower', $campaign->channels ?? []);
+        if (in_array('whatsapp', $channels, true)) {
+            try {
+                $senderContext = $this->resolveWhatsappSenderContext($campaign->whatsapp_from);
+            } catch (\Throwable $e) {
+                $senderContext = [
+                    'phone_number_id' => null,
+                    'display_phone_number' => $campaign->whatsapp_from,
+                ];
+            }
+
+            $senderStatus = $this->numberControlService->statusFor(
+                $senderContext['phone_number_id'] ?? null,
+                $senderContext['display_phone_number'] ?? $campaign->whatsapp_from
+            );
+        }
+
+        $campaign->setAttribute('whatsapp_sender_status', $senderStatus);
+
+        return $campaign;
     }
 
       /**
@@ -779,6 +805,7 @@ class CampaignController extends Controller
     public function send(Campaign $campaign)
     {
         $this->authorizeManageCampaign($campaign);
+        $user = Auth::user();
         $draftWhatsappMessages = $campaign->whatsappMessages()
             ->where(function ($query) {
                 $query->whereNull('sent_at')
@@ -788,6 +815,13 @@ class CampaignController extends Controller
 
         if ($draftWhatsappMessages->isNotEmpty()) {
             $this->enforceMetaPermissionHealthForProduction('Campaign WhatsApp send');
+
+            foreach ($draftWhatsappMessages as $message) {
+                $senderContext = $this->resolveWhatsappSenderContext(
+                    $message->provider_display_phone_number ?: $campaign->whatsapp_from
+                );
+                $this->assertWhatsappSenderCanSend($senderContext);
+            }
         }
 
         $queuedBatchCount = 0;
@@ -1347,6 +1381,9 @@ class CampaignController extends Controller
         }
 
         $senderContext = $this->resolveWhatsappSenderContext($campaign->whatsapp_from);
+        if ($sendNow) {
+            $this->assertWhatsappSenderCanSend($senderContext);
+        }
 
         $total = $clients->count();
         $now   = now();
@@ -1529,6 +1566,7 @@ class CampaignController extends Controller
         $senderContext = $this->resolveWhatsappSenderContext(
             $message->provider_display_phone_number ?: $campaign->whatsapp_from
         );
+        $this->assertWhatsappSenderCanSend($senderContext);
 
         if ($recipients->isEmpty()) {
             return response()->json(['message' => 'No recipients found for this batch.'], 422);
@@ -1647,6 +1685,8 @@ class CampaignController extends Controller
             return response()->json(['message' => 'Only paused WhatsApp batches can be resumed.'], 422);
         }
 
+        $this->assertWhatsappMessageSenderCanSend($message, $campaign);
+
         $result = $this->batchService->resumeMessage($message);
 
         return response()->json([
@@ -1664,6 +1704,7 @@ class CampaignController extends Controller
 
         /** @var CampaignWhatsappMessage $message */
         $message = $campaign->whatsappMessages()->where('id', $messageId)->firstOrFail();
+        $this->assertWhatsappMessageSenderCanSend($message, $campaign);
 
         $failedCount = $message->recipients()->whereRaw('LOWER(status) = ?', ['failed'])->count();
         if ($failedCount === 0) {
@@ -2337,6 +2378,9 @@ class CampaignController extends Controller
         }
 
         $senderContext = $this->resolveWhatsappSenderContext($campaign->whatsapp_from);
+        if ($sendNow) {
+            $this->assertWhatsappSenderCanSend($senderContext);
+        }
 
         // Create parent WhatsApp "batch" row via relationship
         $total = $clients->count();
@@ -2537,6 +2581,25 @@ class CampaignController extends Controller
         }
 
         abort(422, 'Please select a bank for this campaign.');
+    }
+
+    protected function assertWhatsappMessageSenderCanSend(
+        CampaignWhatsappMessage $message,
+        Campaign $campaign
+    ): void {
+        $senderContext = $this->resolveWhatsappSenderContext(
+            $message->provider_display_phone_number ?: $campaign->whatsapp_from
+        );
+
+        $this->assertWhatsappSenderCanSend($senderContext);
+    }
+
+    protected function assertWhatsappSenderCanSend(array $senderContext): void
+    {
+        $this->numberControlService->assertCanSend(
+            $senderContext['phone_number_id'] ?? null,
+            $senderContext['display_phone_number'] ?? null
+        );
     }
 
     protected function resolveWhatsappSenderContext(?string $overrideFrom = null): array

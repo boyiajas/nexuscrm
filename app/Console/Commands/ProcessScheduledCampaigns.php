@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Models\CampaignWhatsappMessage;
 use App\Models\CampaignWhatsappRecipient;
 use App\Services\WhatsAppBatchService;
+use App\Services\WhatsAppNumberControlService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
@@ -28,7 +29,7 @@ class ProcessScheduledCampaigns extends Command
     /**
      * Execute the console command.
      */
-    public function handle(WhatsAppBatchService $batchService)
+    public function handle(WhatsAppBatchService $batchService, WhatsAppNumberControlService $numberControlService)
     {
         $now = Carbon::now();
         
@@ -43,7 +44,18 @@ class ProcessScheduledCampaigns extends Command
 
         foreach ($messages as $message) {
             $this->info("Processing scheduled message ID: {$message->id}");
-            
+
+            $senderStatus = $numberControlService->statusFor(
+                $message->provider_phone_number_id,
+                $message->provider_display_phone_number ?: $message->campaign?->whatsapp_from
+            );
+            if ($senderStatus['is_paused']) {
+                $reason = $numberControlService->blockedMessage($senderStatus);
+                $batchService->pauseMessage($message, $reason);
+                $this->warn("Skipped scheduled message ID {$message->id}: {$reason}");
+                continue;
+            }
+
             // Update the parent message status to Queued
             $message->status = 'Queued';
             $message->queued_at = $now;

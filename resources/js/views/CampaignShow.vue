@@ -31,6 +31,22 @@
       </div>
     </div>
 
+    <div v-if="isWhatsappSenderPaused" class="alert alert-warning border-warning-subtle shadow-sm d-flex align-items-start gap-3 mb-3" role="alert">
+      <i class="bi bi-pause-circle-fill fs-4 text-warning-emphasis"></i>
+      <div class="flex-grow-1">
+        <div class="fw-bold">WhatsApp sending is paused by administration</div>
+        <div class="small mt-1">
+          Number <strong>{{ whatsappSenderStatus.display_phone_number || whatsappSenderStatus.phone_number_id }}</strong>
+          is paused to allow it to heal and recover its quality rating.
+          Current quality rating:
+          <span class="badge ms-1" :class="whatsappQualityBadgeClass">{{ whatsappSenderStatus.quality_rating || 'UNKNOWN' }}</span>
+        </div>
+        <div class="small mt-2">
+          You may save a WhatsApp batch using <strong>Save Only</strong>, but Send Now, resume, and retry actions are unavailable until an administrator resumes this number.
+        </div>
+      </div>
+    </div>
+
     <!-- Overview Stat Cards Strip -->
     <div class="row g-3 mb-4">
       <div class="col-md-3">
@@ -2342,6 +2358,24 @@ export default {
       if (this.recipientModal.channel !== 'WhatsApp') return false;
       return String(this.recipientModal.meta?.status || '').toLowerCase() === 'paused';
     },
+    whatsappSenderStatus() {
+      return this.campaign?.whatsapp_sender_status || {};
+    },
+    isWhatsappSenderPaused() {
+      return this.whatsappSenderStatus.is_paused === true;
+    },
+    whatsappQualityBadgeClass() {
+      const rating = String(this.whatsappSenderStatus.quality_rating || '').toUpperCase();
+      if (['GREEN', 'HIGH'].includes(rating)) return 'bg-success text-white';
+      if (['YELLOW', 'MEDIUM'].includes(rating)) return 'bg-warning text-dark border border-dark-subtle';
+      if (['RED', 'LOW'].includes(rating)) return 'bg-danger text-white';
+      return 'bg-secondary text-white';
+    },
+    whatsappSenderPausedMessage() {
+      const number = this.whatsappSenderStatus.display_phone_number || this.whatsappSenderStatus.phone_number_id || 'the selected number';
+      const rating = this.whatsappSenderStatus.quality_rating || 'UNKNOWN';
+      return `WhatsApp sending is paused by administration for ${number} to allow the number to heal and recover its quality rating. Current quality rating: ${rating}. You can save the batch as a draft, but it cannot be sent until the number is resumed.`;
+    },
     previewHeaderText() {
         if (!this.currentWhatsappTemplate || !this.currentWhatsappTemplate.header_text) return '';
         let text = this.currentWhatsappTemplate.header_text;
@@ -3030,6 +3064,10 @@ export default {
     },
     sendNow() {
       if (!this.campaign) return;
+      if (this.isWhatsappSenderPaused) {
+        notify.warning(this.whatsappSenderPausedMessage, 'WhatsApp Sending Paused');
+        return;
+      }
       this.$refs.confirmModal.open({
         title: 'Send Campaign Now',
         message: `Send campaign "${this.campaign.name}" now? This will queue all eligible channel batches.`,
@@ -3143,6 +3181,10 @@ export default {
     },
     async resumeBatch() {
       if (!this.canResumeRecipientBatch || !this.recipientModal.meta?.id) return;
+      if (this.isWhatsappSenderPaused) {
+        notify.warning(this.whatsappSenderPausedMessage, 'WhatsApp Sending Paused');
+        return;
+      }
 
       const id = this.$route.params.id;
       const messageId = this.recipientModal.meta.id;
@@ -3172,6 +3214,10 @@ export default {
       let url = '';
 
       if (this.recipientModal.channel === 'WhatsApp') {
+        if (this.isWhatsappSenderPaused) {
+          notify.warning(this.whatsappSenderPausedMessage, 'WhatsApp Sending Paused');
+          return;
+        }
         url = `/api/campaigns/${id}/whatsapp-messages/${messageId}/send`;
       } else if (this.recipientModal.channel === 'Email') {
         url = `/api/campaigns/${id}/emails/${messageId}/send`;
@@ -3189,6 +3235,10 @@ export default {
     },
     retryFailedBatch() {
       if (!this.recipientModal.meta || !this.recipientModal.meta.id) return;
+      if (this.isWhatsappSenderPaused) {
+        notify.warning(this.whatsappSenderPausedMessage, 'WhatsApp Sending Paused');
+        return;
+      }
       const id = this.$route.params.id;
       const messageId = this.recipientModal.meta.id;
 
@@ -3590,6 +3640,11 @@ export default {
     saveWhatsappTemplate(sendNow = false) {
       if (this.whatsappForm.sending) return;
 
+      if (sendNow && this.isWhatsappSenderPaused) {
+        notify.warning(this.whatsappSenderPausedMessage, 'WhatsApp Sending Paused');
+        return;
+      }
+
       const isTemplate = this.whatsappForm.mode === 'template';
       const isFlow = this.whatsappForm.mode === 'flow';
 
@@ -3768,6 +3823,10 @@ export default {
     },
     sendDraftWhatsapp(message) {
       if (!this.canSendWhatsapp(message)) return;
+      if (this.isWhatsappSenderPaused) {
+        notify.warning(this.whatsappSenderPausedMessage, 'WhatsApp Sending Paused');
+        return;
+      }
       const campaignId = this.$route.params.id;
       axios
         .post(`/api/campaigns/${campaignId}/whatsapp-messages/${message.id}/send`)

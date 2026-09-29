@@ -9,6 +9,7 @@ use App\Models\SystemSetting;
 use App\Models\WhatsappAccount;
 use App\Services\MetaWhatsAppService;
 use App\Services\WhatsAppDailyLimitService;
+use App\Services\WhatsAppNumberControlService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -126,17 +127,24 @@ class SettingsController extends Controller
                 ->filter(fn (WhatsappAccount $profile) => filled($profile->display_phone_number))
                 ->keyBy(fn (WhatsappAccount $profile) => preg_replace('/\D+/', '', (string) $profile->display_phone_number));
 
-            $numbers = $numbers->map(function (array $number) use ($profilesByPhoneId, $profilesByDisplayNumber) {
+            $numberControlService = app(WhatsAppNumberControlService::class);
+            $numbers = $numbers->map(function (array $number) use ($profilesByPhoneId, $profilesByDisplayNumber, $numberControlService) {
                 $profile = $profilesByPhoneId->get((string) ($number['id'] ?? ''));
                 if (!$profile) {
                     $normalizedDisplayNumber = preg_replace('/\D+/', '', (string) ($number['display_phone_number'] ?? ''));
                     $profile = $profilesByDisplayNumber->get($normalizedDisplayNumber);
                 }
 
+                $controlStatus = $numberControlService->statusFor(
+                    isset($number['id']) ? (string) $number['id'] : null,
+                    $number['display_phone_number'] ?? null,
+                    $number['quality_rating'] ?? null
+                );
+
                 return array_merge($number, [
                     'whatsapp_profile_id' => $profile?->id,
                     'whatsapp_profile_name' => $profile?->name,
-                ]);
+                ], $controlStatus);
             });
 
             return response()->json($numbers->values());
@@ -215,6 +223,52 @@ class SettingsController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Failed to register phone number: ' . $e->getMessage()], 422);
         }
+    }
+
+    public function updateMetaPhoneNumberPause(
+        Request $request,
+        string $phoneNumberId,
+        WhatsAppNumberControlService $numberControlService
+    ) {
+        $this->authorizeWabaNumbers();
+
+        $data = $request->validate([
+            'paused' => ['required', 'boolean'],
+            'display_phone_number' => ['nullable', 'string', 'max:50'],
+            'quality_rating' => ['nullable', 'string', 'max:30'],
+            'reason' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $control = $numberControlService->setPaused(
+            $phoneNumberId,
+            $data['display_phone_number'] ?? null,
+            $data['quality_rating'] ?? null,
+            (bool) $data['paused'],
+            Auth::user(),
+            $data['reason'] ?? null
+        );
+
+        $this->audit(
+            action: ($control->is_paused ? 'Paused' : 'Resumed') . ' WhatsApp number',
+            module: 'Settings',
+            meta: [
+                'phone_number_id' => $control->phone_number_id,
+                'display_phone_number' => $control->display_phone_number,
+                'quality_rating' => $control->quality_rating,
+                'is_paused' => $control->is_paused,
+            ]
+        );
+
+        return response()->json([
+            'message' => $control->is_paused
+                ? 'WhatsApp number paused. Campaign batches can still be saved as drafts but cannot be sent.'
+                : 'WhatsApp number resumed and is available for sending.',
+            'number' => $numberControlService->statusFor(
+                $control->phone_number_id,
+                $control->display_phone_number,
+                $control->quality_rating
+            ),
+        ]);
     }
 
     public function update(Request $request)
@@ -504,6 +558,14 @@ class SettingsController extends Controller
         $user = Auth::user();
         if (!$user || !$user->canAccessAnySettings()) {
             abort(403, 'Unauthorized access to settings.');
+        }
+    }
+
+    private function authorizeWabaNumbers(): void
+    {
+        $user = Auth::user();
+        if (!$user || !$user->canAccessWabaNumbersSettings()) {
+            abort(403, 'You are not allowed to manage WABA phone numbers.');
         }
     }
 }

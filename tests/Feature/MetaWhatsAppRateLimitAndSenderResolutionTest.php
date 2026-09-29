@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Campaign;
 use App\Models\Role;
 use App\Models\SystemSetting;
 use App\Models\User;
@@ -139,6 +140,69 @@ class MetaWhatsAppRateLimitAndSenderResolutionTest extends TestCase
         $this->getJson('/api/settings/meta/phone-numbers')
             ->assertOk()
             ->assertJsonPath('0.whatsapp_profile_name', 'Strauss Daly Collections');
+    }
+
+    public function test_admin_can_pause_a_number_and_campaign_sending_is_blocked_with_its_quality_rating(): void
+    {
+        Http::fake([
+            'https://graph.facebook.com/v25.0/1455412218881488/phone_numbers*' => Http::response([
+                'data' => [[
+                    'id' => '1247262038476724',
+                    'display_phone_number' => '+27 61 477 6401',
+                    'verified_name' => 'Strauss Daly',
+                    'quality_rating' => 'RED',
+                ]],
+            ], 200),
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $this->patchJson('/api/settings/meta/phone-numbers/1247262038476724/pause', [
+            'paused' => true,
+            'display_phone_number' => '+27 61 477 6401',
+            'quality_rating' => 'RED',
+        ])->assertOk()
+            ->assertJsonPath('number.is_paused', true)
+            ->assertJsonPath('number.quality_rating', 'RED');
+
+        $this->assertDatabaseHas('whatsapp_number_controls', [
+            'phone_number_id' => '1247262038476724',
+            'quality_rating' => 'RED',
+            'is_paused' => true,
+        ]);
+
+        $this->getJson('/api/settings/meta/phone-numbers')
+            ->assertOk()
+            ->assertJsonPath('0.is_paused', true)
+            ->assertJsonPath('0.quality_rating', 'RED');
+
+        $campaign = Campaign::query()->create([
+            'name' => 'Paused Number Campaign',
+            'channels' => ['WhatsApp'],
+            'status' => 'Draft',
+            'whatsapp_from' => '+27 61 477 6401',
+        ]);
+        $message = $campaign->whatsappMessages()->create([
+            'template_sid' => 'payment_reminder',
+            'template_name' => 'Payment Reminder',
+            'provider_phone_number_id' => '1247262038476724',
+            'provider_display_phone_number' => '+27 61 477 6401',
+            'status' => 'Draft',
+        ]);
+
+        $this->getJson("/api/campaigns/{$campaign->id}")
+            ->assertOk()
+            ->assertJsonPath('whatsapp_sender_status.is_paused', true)
+            ->assertJsonPath('whatsapp_sender_status.quality_rating', 'RED');
+
+        $this->postJson("/api/campaigns/{$campaign->id}/send")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.whatsapp_sender.0', fn ($value) =>
+                str_contains($value, 'Current quality rating: RED')
+                && str_contains($value, 'save the batch as a draft')
+            );
+
+        $this->assertSame('Draft', $message->fresh()->status);
     }
 
     public function test_resolve_sender_context_guards_against_waba_id_as_phone_number_id(): void

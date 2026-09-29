@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Jobs\ProcessCampaignWhatsappRecipientJob;
 use App\Models\CampaignWhatsappMessage;
 use App\Services\WhatsAppBatchService;
+use App\Services\WhatsAppNumberControlService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Log;
@@ -28,7 +29,7 @@ class DispatchCampaignWhatsappMessages extends Command
     /**
      * Execute the console command.
      */
-    public function handle(WhatsAppBatchService $batchService)
+    public function handle(WhatsAppBatchService $batchService, WhatsAppNumberControlService $numberControlService)
     {
         // 1. Check Queue Depth
         $queueSize = Queue::size('whatsapp');
@@ -62,6 +63,15 @@ class DispatchCampaignWhatsappMessages extends Command
         foreach ($activeMessages as $message) {
             if ($totalDispatched >= $maxDispatchTotal) {
                 break;
+            }
+
+            $senderStatus = $numberControlService->statusFor(
+                $message->provider_phone_number_id,
+                $message->provider_display_phone_number ?: $message->campaign?->whatsapp_from
+            );
+            if ($senderStatus['is_paused']) {
+                $batchService->pauseMessage($message, $numberControlService->blockedMessage($senderStatus));
+                continue;
             }
 
             $recipients = $message->recipients()

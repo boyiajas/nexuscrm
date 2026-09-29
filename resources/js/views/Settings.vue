@@ -913,9 +913,21 @@
                   </td>
                   <td>{{ num.messaging_limit_tier || '-' }}</td>
                   <td class="text-end pe-4">
+                    <button
+                      type="button"
+                      class="btn btn-light border-0 p-1 px-2"
+                      :class="num.is_paused ? 'text-success' : 'text-warning'"
+                      :title="num.is_paused ? 'Resume this WhatsApp number' : 'Pause this WhatsApp number'"
+                      :aria-label="num.is_paused ? 'Resume WhatsApp number' : 'Pause WhatsApp number'"
+                      @click="toggleWhatsappNumberPause(num)"
+                      :disabled="num.pauseSaving"
+                    >
+                      <span v-if="num.pauseSaving" class="spinner-border spinner-border-sm"></span>
+                      <i v-else :class="num.is_paused ? 'bi bi-play-circle-fill' : 'bi bi-pause-circle-fill'"></i>
+                    </button>
                     <button 
                       v-if="num.code_verification_status === 'UNVERIFIED'"
-                      class="btn btn-light text-warning border-0 p-1 px-2" 
+                      class="btn btn-light text-warning border-0 p-1 px-2 ms-2"
                       @click="openVerifyNumberModal(num)">
                       Verify
                     </button>
@@ -2750,6 +2762,39 @@ export default {
       } finally {
         num.registering = false;
       }
+    },
+    toggleWhatsappNumberPause(num) {
+      const shouldPause = !num.is_paused;
+      const rating = String(num.quality_rating || 'UNKNOWN').toUpperCase();
+      const number = num.display_phone_number || num.id;
+
+      this.$refs.confirmModal.open({
+        title: shouldPause ? 'Pause WhatsApp Number' : 'Resume WhatsApp Number',
+        message: shouldPause
+          ? `Pause ${number}? Its current quality rating is ${rating}. Users will still be able to save campaign batches as drafts, but no templates can be sent from this number.`
+          : `Resume ${number}? Users will be allowed to send WhatsApp templates from this number again. Current quality rating: ${rating}.`,
+        confirmLabel: shouldPause ? 'Pause Number' : 'Resume Number',
+        confirmVariant: shouldPause ? 'warning' : 'success',
+        onConfirm: async () => {
+          num.pauseSaving = true;
+          try {
+            const { data } = await axios.patch(
+              `/api/settings/meta/phone-numbers/${encodeURIComponent(num.id)}/pause`,
+              {
+                paused: shouldPause,
+                display_phone_number: num.display_phone_number,
+                quality_rating: num.quality_rating,
+              }
+            );
+            Object.assign(num, data.number || {}, { pauseSaving: false });
+            notify.success(data.message, 'Settings');
+          } catch (err) {
+            num.pauseSaving = false;
+            notify.error('Failed to update WhatsApp number: ' + (err.response?.data?.message || err.message), 'Settings');
+            throw err;
+          }
+        },
+      });
     },
     qualityRatingBadge(rating) {
       const r = String(rating || '').trim().toUpperCase();

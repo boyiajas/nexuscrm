@@ -7,6 +7,7 @@ use App\Models\CampaignClient;
 use App\Models\CampaignWhatsappRecipient;
 use App\Services\WhatsAppBatchService;
 use App\Services\WhatsAppDailyLimitService;
+use App\Services\WhatsAppNumberControlService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -53,8 +54,11 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
     public function handle(
         WhatsAppServiceInterface $whatsApp,
         WhatsAppDailyLimitService $dailyLimitService,
-        WhatsAppBatchService $batchService
+        WhatsAppBatchService $batchService,
+        ?WhatsAppNumberControlService $numberControlService = null
     ): void {
+        $numberControlService ??= app(WhatsAppNumberControlService::class);
+
         $recipient = CampaignWhatsappRecipient::with(['message.campaign.bank', 'message.createdBy', 'client'])
             ->find($this->recipientId);
 
@@ -128,6 +132,20 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                     'phone_number_id' => $message->provider_phone_number_id,
                     'display_phone_number' => null,
                 ];
+        }
+
+        $senderStatus = $numberControlService->statusFor(
+            $senderContext['phone_number_id'] ?? $message->provider_phone_number_id,
+            $senderContext['display_phone_number'] ?? $explicitSenderNumber
+        );
+        if ($senderStatus['is_paused']) {
+            $reason = $numberControlService->blockedMessage($senderStatus);
+            $recipient->update([
+                'status' => 'Paused',
+                'error_message' => $reason,
+            ]);
+            $batchService->pauseMessage($message, $reason);
+            return;
         }
 
         $now = now();
