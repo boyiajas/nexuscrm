@@ -874,7 +874,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ];
     }
 
-    public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en_US', string $category = 'UTILITY', array $mediaUrls = []): array
+    public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en_US', string $category = 'UTILITY', array $mediaUrls = [], array $bodyExamples = []): array
     {
         if (!empty($mediaUrls)) {
             throw new \RuntimeException('Creating media-header templates from the CRM is not implemented yet. Create text templates here, or use Meta WhatsApp Manager for media templates.');
@@ -893,16 +893,19 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         $normalizedLanguage = trim($language) !== '' ? trim($language) : 'en_US';
         $normalizedCategory = strtoupper(trim($category) !== '' ? trim($category) : 'UTILITY');
 
+        $bodyComponent = [
+            'type' => 'BODY',
+            'text' => $body,
+        ];
+        if ($bodyExamples !== []) {
+            $bodyComponent['example'] = ['body_text' => [array_values($bodyExamples)]];
+        }
+
         $response = $this->post("{$this->businessAccountId}/message_templates", [
             'name' => $templateName,
             'language' => $normalizedLanguage,
             'category' => $normalizedCategory,
-            'components' => [
-                [
-                    'type' => 'BODY',
-                    'text' => $body,
-                ],
-            ],
+            'components' => [$bodyComponent],
         ]);
 
         return [
@@ -927,12 +930,27 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function updateWhatsAppTemplate(string $templateId, array $data): array
     {
-        throw new \RuntimeException('Updating Meta templates from the app is not implemented yet. Manage templates in Meta WhatsApp Manager.');
+        $bodyComponent = [
+            'type' => 'BODY',
+            'text' => (string) ($data['body'] ?? ''),
+        ];
+        if (! empty($data['body_examples'])) {
+            $bodyComponent['example'] = ['body_text' => [array_values($data['body_examples'])]];
+        }
+
+        return $this->post($templateId, [
+            'name' => $data['friendly_name'],
+            'language' => $data['language'],
+            'category' => strtoupper((string) $data['category']),
+            'components' => [$bodyComponent],
+        ]);
     }
 
     public function deleteWhatsAppTemplate(string $templateId): bool
     {
-        throw new \RuntimeException('Deleting Meta templates from the app is not implemented yet. Manage templates in Meta WhatsApp Manager.');
+        $response = $this->delete("{$this->businessAccountId}/message_templates", ['name' => $templateId]);
+
+        return (bool) ($response['success'] ?? false);
     }
 
     public function submitTemplateForApproval(string $templateId, string $category = 'UTILITY'): array
@@ -1081,6 +1099,21 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         }
 
         $response = $request->post("{$this->baseUrl}/{$path}", $payload);
+        return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
+    }
+
+    protected function delete(string $path, array $query = []): array
+    {
+        $url = "{$this->baseUrl}/{$path}";
+        if ($query !== []) {
+            $url .= '?' . http_build_query($query);
+        }
+
+        $response = Http::withToken($this->accessToken)
+            ->retry(3, 500, $this->httpRetryWhen(), throw: false)
+            ->timeout(15)
+            ->delete($url);
+
         return $this->decodeResponse($response->status(), $response->json() ?? [], $path);
     }
 

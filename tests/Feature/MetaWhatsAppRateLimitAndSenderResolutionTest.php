@@ -449,4 +449,101 @@ class MetaWhatsAppRateLimitAndSenderResolutionTest extends TestCase
             && $request['components'][0]['text'] === 'Your payment is due tomorrow.'
         );
     }
+
+    public function test_template_variables_require_examples_and_are_sent_to_meta(): void
+    {
+        Http::fake([
+            'https://graph.facebook.com/v25.0/1455412218881488/message_templates' => Http::response([
+                'id' => '112233445566',
+                'status' => 'PENDING',
+                'category' => 'MARKETING',
+            ], 200),
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $payload = [
+            'friendly_name' => 'past_due_notice',
+            'body' => 'Good day, {{1}} {{2}}. Your payment of {{3}} is due on {{4}}.',
+            'language' => 'en_US',
+            'category' => 'marketing',
+            'media_urls' => [],
+        ];
+
+        $this->postJson('/api/whatsapp-templates', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['body_examples']);
+
+        $this->postJson('/api/whatsapp-templates', array_merge($payload, [
+            'body_examples' => ['Thandi', 'Nkosi', 'R500', '30 September 2026'],
+        ]))->assertCreated()
+            ->assertJsonPath('status', 'PENDING');
+
+        Http::assertSent(fn ($request) =>
+            str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/1455412218881488/message_templates')
+            && $request['components'][0]['example']['body_text'][0] === [
+                'Thandi',
+                'Nkosi',
+                'R500',
+                '30 September 2026',
+            ]
+        );
+    }
+
+    public function test_admin_can_edit_and_delete_a_template_on_meta(): void
+    {
+        \App\Models\WhatsappTemplateCache::query()->create([
+            'meta_id' => '7788990011',
+            'sid' => 'past_due_notice',
+            'friendly_name' => 'past_due_notice',
+            'language' => 'en_US',
+            'category' => 'marketing',
+            'status' => 'REJECTED',
+            'body_preview' => 'Hello {{1}}',
+            'variables' => ['body_1' => 'Body Variable 1'],
+            'media_urls' => [],
+            'buttons' => [],
+            'raw_whatsapp' => [],
+        ]);
+
+        Http::fake(function ($request) {
+            if ($request->method() === 'POST' && str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/7788990011')) {
+                return Http::response(['success' => true, 'status' => 'PENDING'], 200);
+            }
+
+            if ($request->method() === 'DELETE' && str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/1455412218881488/message_templates')) {
+                return Http::response(['success' => true], 200);
+            }
+
+            return Http::response(['error' => ['message' => 'Unexpected request']], 404);
+        });
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $this->putJson('/api/whatsapp-templates/past_due_notice', [
+            'friendly_name' => 'past_due_notice',
+            'body' => 'Good day {{1}}, please contact us.',
+            'language' => 'en_US',
+            'category' => 'marketing',
+            'media_urls' => [],
+            'body_examples' => ['Thandi'],
+        ])->assertOk()
+            ->assertJsonPath('status', 'PENDING')
+            ->assertJsonPath('body_preview', 'Good day {{1}}, please contact us.');
+
+        Http::assertSent(fn ($request) =>
+            $request->method() === 'POST'
+            && str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/7788990011')
+            && $request['components'][0]['example']['body_text'][0] === ['Thandi']
+        );
+
+        $this->deleteJson('/api/whatsapp-templates/past_due_notice')->assertNoContent();
+
+        Http::assertSent(fn ($request) =>
+            $request->method() === 'DELETE'
+            && str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/1455412218881488/message_templates')
+            && str_contains($request->url(), 'name=past_due_notice')
+        );
+        $this->assertDatabaseMissing('whatsapp_templates_cache', ['sid' => 'past_due_notice']);
+    }
 }

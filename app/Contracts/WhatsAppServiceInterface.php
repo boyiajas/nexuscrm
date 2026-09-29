@@ -25,7 +25,7 @@ interface WhatsAppServiceInterface
 
     public function getTemplateApprovalStatus(string $templateId): array;
 
-    public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en_US', string $category = 'UTILITY', array $mediaUrls = []): array;
+    public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en_US', string $category = 'UTILITY', array $mediaUrls = [], array $bodyExamples = []): array;
 
     public function updateWhatsAppTemplate(string $templateId, array $data): array;
 

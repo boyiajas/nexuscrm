@@ -1185,7 +1185,7 @@
                 <tr v-for="t in filteredWhatsappTemplates" :key="t.sid">
                   <td class="ps-4 py-1">
                     <div class="form-check m-0">
-                      <input class="form-check-input" type="checkbox" :value="t.meta_id || t.sid" v-model="wa.selected" />
+                      <input class="form-check-input" type="checkbox" :value="t.sid" v-model="wa.selected" />
                     </div>
                   </td>
                   <td class="fw-semibold">{{ t.name }}</td>
@@ -1213,6 +1213,12 @@
                       >
                         <span v-if="wa.viewingSid === t.sid" class="spinner-border spinner-border-sm"></span>
                         <i v-else class="bi bi-eye"></i>
+                      </button>
+                      <button type="button" class="btn btn-light text-warning border-0 p-1 px-2" title="Edit and resubmit template" @click="editTemplate(t)">
+                        <i class="bi bi-pencil-square"></i>
+                      </button>
+                      <button type="button" class="btn btn-light text-danger border-0 p-1 px-2" title="Delete template from Meta" @click="deleteTemplate(t)">
+                        <i class="bi bi-trash"></i>
                       </button>
                     </div>
                   </td>
@@ -1252,7 +1258,7 @@
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label">Friendly Name</label>
-                    <input v-model.trim="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" maxlength="512" pattern="[a-z0-9_]+" :readonly="wa.viewOnly" />
+                    <input v-model.trim="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" maxlength="512" pattern="[a-z0-9_]+" :readonly="wa.viewOnly || !!wa.form.sid" />
                     <small v-if="!wa.viewOnly" class="text-muted">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
                   </div>
                   <div class="col-md-3">
@@ -1271,9 +1277,19 @@
                     <label class="form-label">Body</label>
                     <textarea v-model="wa.form.body" class="form-control" rows="6" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
                   </div>
-                  <div class="col-12">
+                  <div v-if="!wa.viewOnly && templateBodyVariableIndexes.length" class="col-12">
+                    <label class="form-label">Variable Examples <span class="text-danger">*</span></label>
+                    <div class="alert alert-warning py-2 small">Meta requires one realistic sample value for every body variable before it can review the template.</div>
+                    <div class="row g-2">
+                      <div v-for="index in templateBodyVariableIndexes" :key="index" class="col-md-6">
+                        <label class="form-label small">Example for {{ templateVariablePlaceholder(index) }}</label>
+                        <input v-model.trim="wa.form.body_examples[index]" type="text" class="form-control" :placeholder="'Sample value for ' + templateVariablePlaceholder(index)" maxlength="255" />
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="wa.viewOnly && wa.form.media_urls" class="col-12">
                     <label class="form-label">Media URLs</label>
-                    <input v-model="wa.form.media_urls" type="text" class="form-control" placeholder="https://example.com/image.jpg" :readonly="wa.viewOnly" />
+                    <input v-model="wa.form.media_urls" type="text" class="form-control" readonly />
                   </div>
                   <div class="col-md-4" v-if="wa.form.header_format">
                     <label class="form-label">Header Format</label>
@@ -1822,6 +1838,7 @@ export default {
           footer_text: '',
           buttons: [],
           variables: {},
+          body_examples: {},
         },
       },
       templateModal: null,
@@ -1954,6 +1971,12 @@ export default {
     },
     isStaffRole() {
       return this.form.role === 'STAFF';
+    },
+    templateBodyVariableIndexes() {
+      const matches = [...String(this.wa.form.body || '').matchAll(/{{(\d+)}}/g)];
+      return [...new Set(matches.map((match) => Number(match[1])))]
+        .filter((index) => Number.isInteger(index) && index > 0)
+        .sort((a, b) => a - b);
     },
     firstMediaUrl() {
       const urls = (this.wa.form.media_urls || '')
@@ -2533,7 +2556,7 @@ export default {
     },
     toggleSelectAllTemplates(event) {
       if (event.target.checked) {
-        this.wa.selected = this.filteredWhatsappTemplates.map(t => t.meta_id || t.sid);
+        this.wa.selected = this.filteredWhatsappTemplates.map(t => t.sid);
       } else {
         this.wa.selected = [];
       }
@@ -2749,10 +2772,23 @@ export default {
         header_text: t.header_text || '',
         footer_text: t.footer_text || '',
         buttons: Array.isArray(t.buttons) ? t.buttons : [],
+        variables: t.variables || {},
+        body_examples: this.extractTemplateBodyExamples(t),
       };
       if (this.templateModal) {
         this.templateModal.show();
       }
+    },
+    templateVariablePlaceholder(index) {
+      return '{{' + index + '}}';
+    },
+    extractTemplateBodyExamples(template) {
+      const bodyComponent = (template.components || []).find((component) => String(component.type || '').toUpperCase() === 'BODY');
+      const values = bodyComponent?.example?.body_text?.[0] || [];
+      return values.reduce((examples, value, index) => {
+        examples[index + 1] = String(value);
+        return examples;
+      }, {});
     },
     resetForm() {
       this.wa.form = {
@@ -2766,6 +2802,7 @@ export default {
         header_text: '',
         footer_text: '',
         buttons: [],
+        body_examples: {},
       };
     },
     saveTemplate() {
@@ -2774,14 +2811,19 @@ export default {
         return;
       }
 
+      const bodyExamples = this.templateBodyVariableIndexes.map((index) => this.wa.form.body_examples[index] || '');
+      if (bodyExamples.some((example) => !example.trim())) {
+        notify.warning('Provide a realistic example value for every template variable.', 'Settings');
+        return;
+      }
+
       const payload = {
         friendly_name: this.wa.form.friendly_name,
         body: this.wa.form.body,
         language: this.wa.form.language,
         category: this.wa.form.category,
-        media_urls: this.wa.form.media_urls
-          ? this.wa.form.media_urls.split(',').map((m) => m.trim()).filter(Boolean)
-          : [],
+        media_urls: [],
+        body_examples: bodyExamples,
       };
 
       this.wa.saving = true;

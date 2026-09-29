@@ -159,7 +159,7 @@ class WhatsAppTemplateController extends Controller
                     'variables'     => $t['variables'] ?? [],
                     'media_urls'    => $t['media'] ?? [],
                     'buttons'       => $t['buttons'] ?? [],
-                    'raw_whatsapp'  => $whatsapp,
+                    'raw_whatsapp'  => array_merge($whatsapp, ['components' => $t['components'] ?? []]),
                     'synced_at'     => $now,
                 ]
             );
@@ -197,19 +197,24 @@ class WhatsAppTemplateController extends Controller
 
         $data = $request->validate([
             'friendly_name' => ['required', 'string', 'max:255'],
-            'body'          => ['required', 'string'],
-            'language'      => ['required', 'string', 'max:10'],
-            'category'      => ['required', 'string', 'max:50'],
-            'media_urls'    => ['array'],
-            'media_urls.*'  => ['string'],
+            'body' => ['required', 'string'],
+            'language' => ['required', 'string', 'max:10'],
+            'category' => ['required', 'string', 'max:50'],
+            'media_urls' => ['array'],
+            'media_urls.*' => ['string'],
+            'body_examples' => ['sometimes', 'array'],
+            'body_examples.*' => ['required', 'string', 'max:255'],
         ]);
+
+        $this->validateBodyExamples($data['body'], $data['body_examples'] ?? []);
 
         $created = $this->whatsApp->createWhatsAppTemplate(
             $data['friendly_name'],
             $data['body'],
             $data['language'],
             $data['category'],
-            $data['media_urls'] ?? []
+            $data['media_urls'] ?? [],
+            $data['body_examples'] ?? []
         );
 
         $whatsapp = $created['whatsapp'] ?? [];
@@ -239,24 +244,42 @@ class WhatsAppTemplateController extends Controller
 
         $data = $request->validate([
             'friendly_name' => ['sometimes', 'string', 'max:255'],
-            'body'          => ['sometimes', 'string'],
-            'language'      => ['sometimes', 'string', 'max:10'],
-            'category'      => ['sometimes', 'string', 'max:50'],
-            'media_urls'    => ['array'],
-            'media_urls.*'  => ['string'],
+            'body' => ['sometimes', 'string'],
+            'language' => ['sometimes', 'string', 'max:10'],
+            'category' => ['sometimes', 'string', 'max:50'],
+            'media_urls' => ['array'],
+            'media_urls.*' => ['string'],
+            'body_examples' => ['sometimes', 'array'],
+            'body_examples.*' => ['required', 'string', 'max:255'],
         ]);
 
+        $record = WhatsappTemplateCache::where('sid', $id)->orWhere('meta_id', $id)->firstOrFail();
+        $body = $data['body'] ?? $record->body_preview ?? '';
+        $this->validateBodyExamples($body, $data['body_examples'] ?? []);
+
         $payload = [
-            'friendly_name' => $data['friendly_name'] ?? null,
-            'language'      => $data['language'] ?? null,
-            'body'          => $data['body'] ?? null,
-            'category'      => $data['category'] ?? null,
-            'media'         => $data['media_urls'] ?? null,
+            'friendly_name' => $data['friendly_name'] ?? $record->friendly_name,
+            'language' => $data['language'] ?? $record->language,
+            'body' => $body,
+            'category' => $data['category'] ?? $record->category,
+            'body_examples' => $data['body_examples'] ?? [],
         ];
 
-        $updated = $this->whatsApp->updateWhatsAppTemplate($id, $payload);
+        $updated = $this->whatsApp->updateWhatsAppTemplate(
+            (string) ($record->meta_id ?: $id),
+            $payload
+        );
 
-        return response()->json($updated);
+        $record->forceFill([
+            'friendly_name' => $payload['friendly_name'],
+            'language' => $payload['language'],
+            'body_preview' => $payload['body'],
+            'category' => strtolower((string) $payload['category']),
+            'status' => $updated['status'] ?? 'PENDING',
+            'synced_at' => now(),
+        ])->save();
+
+        return response()->json($record->fresh()->toApiArray());
     }
 
     public function destroy(string $id): JsonResponse
@@ -337,6 +360,24 @@ class WhatsAppTemplateController extends Controller
             'message' => 'Templates migrated successfully.',
             'result'  => $result,
         ]);
+    }
+
+    private function validateBodyExamples(string $body, array $examples): void
+    {
+        preg_match_all('/{{(\d+)}}/', $body, $matches);
+        $indexes = array_values(array_unique(array_map('intval', $matches[1] ?? [])));
+        sort($indexes);
+
+        if ($indexes === []) {
+            return;
+        }
+
+        $expected = range(1, max($indexes));
+        if ($indexes !== $expected || count($examples) !== count($expected)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'body_examples' => 'Provide one example value for every sequential body variable, starting at {{1}}.',
+            ]);
+        }
     }
 
     private function authorizeAdmin(): void
