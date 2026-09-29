@@ -406,4 +406,47 @@ class MetaWhatsAppRateLimitAndSenderResolutionTest extends TestCase
 
         Http::assertNothingSent();
     }
+
+    public function test_new_template_is_submitted_to_meta_and_cached_as_pending(): void
+    {
+        Http::fake([
+            'https://graph.facebook.com/v25.0/1455412218881488/message_templates' => Http::response([
+                'id' => '998877665544',
+                'status' => 'PENDING',
+                'category' => 'UTILITY',
+            ], 200),
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $this->postJson('/api/whatsapp-templates', [
+            'friendly_name' => 'Payment Reminder',
+            'body' => 'Your payment is due tomorrow.',
+            'language' => 'en_US',
+            'category' => 'utility',
+            'media_urls' => [],
+        ])->assertCreated()
+            ->assertJsonPath('meta_id', '998877665544')
+            ->assertJsonPath('sid', 'payment_reminder')
+            ->assertJsonPath('status', 'PENDING');
+
+        $this->assertDatabaseHas('whatsapp_templates_cache', [
+            'meta_id' => '998877665544',
+            'sid' => 'payment_reminder',
+            'friendly_name' => 'payment_reminder',
+            'language' => 'en_US',
+            'category' => 'utility',
+            'status' => 'PENDING',
+            'body_preview' => 'Your payment is due tomorrow.',
+        ]);
+
+        Http::assertSent(fn ($request) =>
+            str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/1455412218881488/message_templates')
+            && $request['name'] === 'payment_reminder'
+            && $request['language'] === 'en_US'
+            && $request['category'] === 'UTILITY'
+            && $request['components'][0]['type'] === 'BODY'
+            && $request['components'][0]['text'] === 'Your payment is due tomorrow.'
+        );
+    }
 }

@@ -906,6 +906,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ]);
 
         return [
+            'meta_id' => $response['id'] ?? null,
             'sid' => $templateName,
             'friendly_name' => $templateName,
             'language' => $normalizedLanguage,

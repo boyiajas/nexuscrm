@@ -1052,6 +1052,54 @@
           </div>
         </div>
 
+        <div class="row g-3 mb-3">
+          <div class="col-6 col-lg">
+            <button type="button" class="card shadow-sm border-0 w-100 text-start template-status-card" :class="{ 'ring-active': wa.approvalView === 'all' }" @click="setTemplateApprovalView('all')">
+              <div class="card-body py-3">
+                <div class="small text-muted">All Templates</div>
+                <div class="fs-4 fw-bold">{{ templateStatusCounts.all }}</div>
+              </div>
+            </button>
+          </div>
+          <div class="col-6 col-lg">
+            <button type="button" class="card shadow-sm border-warning w-100 text-start template-status-card" :class="{ 'ring-active': wa.approvalView === 'pending' }" @click="setTemplateApprovalView('pending')">
+              <div class="card-body py-3">
+                <div class="small text-warning-emphasis">Awaiting Approval</div>
+                <div class="fs-4 fw-bold text-warning-emphasis">{{ templateStatusCounts.pending }}</div>
+              </div>
+            </button>
+          </div>
+          <div class="col-6 col-lg">
+            <button type="button" class="card shadow-sm border-success w-100 text-start template-status-card" :class="{ 'ring-active': wa.approvalView === 'approved' }" @click="setTemplateApprovalView('approved')">
+              <div class="card-body py-3">
+                <div class="small text-success">Approved</div>
+                <div class="fs-4 fw-bold text-success">{{ templateStatusCounts.approved }}</div>
+              </div>
+            </button>
+          </div>
+          <div class="col-6 col-lg">
+            <button type="button" class="card shadow-sm border-danger w-100 text-start template-status-card" :class="{ 'ring-active': wa.approvalView === 'rejected' }" @click="setTemplateApprovalView('rejected')">
+              <div class="card-body py-3">
+                <div class="small text-danger">Rejected</div>
+                <div class="fs-4 fw-bold text-danger">{{ templateStatusCounts.rejected }}</div>
+              </div>
+            </button>
+          </div>
+          <div class="col-6 col-lg">
+            <button type="button" class="card shadow-sm border-secondary w-100 text-start template-status-card" :class="{ 'ring-active': wa.approvalView === 'attention' }" @click="setTemplateApprovalView('attention')">
+              <div class="card-body py-3">
+                <div class="small text-muted">Needs Attention</div>
+                <div class="fs-4 fw-bold text-secondary">{{ templateStatusCounts.attention }}</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="wa.approvalView === 'pending' && templateStatusCounts.pending" class="alert alert-warning py-2 small">
+          <i class="bi bi-clock-history me-1"></i>
+          These templates were submitted to Meta and are awaiting a review decision. Use Refresh to retrieve the latest status.
+        </div>
+
         <div class="card shadow-sm mb-3">
           <div class="card-body border-bottom">
             <div class="row g-2">
@@ -1147,6 +1195,7 @@
                     <span class="badge" :class="statusBadge(t.status)">
                       {{ t.status || 'Unknown' }}
                     </span>
+                    <div v-if="t.synced_at" class="small text-muted mt-1" :title="t.synced_at">Checked {{ formatTemplateCheckedAt(t.synced_at) }}</div>
                   </td>
                   <td>
                     <small class="text-muted text-truncate d-inline-block" style="max-width: 220px;">
@@ -1197,10 +1246,13 @@
             <div class="row">
               <div class="col-lg-7 col-md-6 border-end pe-4">
                 <!-- FORM INPUTS -->
+                <div v-if="!wa.viewOnly && !wa.form.sid" class="alert alert-info small">
+                  Creating this template submits it directly to Meta for review. It will appear under Awaiting Approval until Meta approves or rejects it. This form currently supports text-body templates.
+                </div>
                 <div class="row g-3">
                   <div class="col-md-6">
                     <label class="form-label">Friendly Name</label>
-                    <input v-model="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" :readonly="wa.viewOnly" />
+                    <input v-model.trim="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" maxlength="512" pattern="[a-z0-9_]+" :readonly="wa.viewOnly" />
                     <small v-if="!wa.viewOnly" class="text-muted">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
                   </div>
                   <div class="col-md-3">
@@ -1362,7 +1414,7 @@
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wa.saving">Close</button>
             <button v-if="!wa.viewOnly" class="btn btn-primary" @click="saveTemplate" :disabled="wa.saving">
               <span v-if="wa.saving" class="spinner-border spinner-border-sm me-1"></span>
-              {{ wa.form.sid ? 'Update Template' : 'Create & Submit To Meta' }}
+              {{ wa.form.sid ? 'Update Template' : 'Submit to Meta for Approval' }}
             </button>
           </div>
         </div>
@@ -1748,6 +1800,7 @@ export default {
         },
         viewOnly: false,
         viewingSid: null,
+        approvalView: 'all',
         filters: {
           search: '',
           status: '',
@@ -2027,6 +2080,17 @@ export default {
       const value = this.whatsappDailyLimitSummary?.effective_limit;
       return value === null || value === undefined ? 'Unlimited' : Number(value).toLocaleString();
     },
+    templateStatusCounts() {
+      const counts = { all: this.wa.templates.length, pending: 0, approved: 0, rejected: 0, attention: 0 };
+      this.wa.templates.forEach((template) => {
+        const status = String(template.status || '').toLowerCase();
+        if (['pending', 'in_review', 'in_appeal'].includes(status)) counts.pending += 1;
+        else if (status === 'approved') counts.approved += 1;
+        else if (status === 'rejected') counts.rejected += 1;
+        else counts.attention += 1;
+      });
+      return counts;
+    },
     filteredWhatsappTemplates() {
       const search = (this.wa.filters.search || '').trim().toLowerCase();
       return this.wa.templates.filter((template) => {
@@ -2040,11 +2104,17 @@ export default {
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(search));
 
-        const matchesStatus = !this.wa.filters.status || (template.status || '').toLowerCase() === this.wa.filters.status.toLowerCase();
+        const status = String(template.status || '').toLowerCase();
+        const matchesApprovalView = this.wa.approvalView === 'all'
+          || (this.wa.approvalView === 'pending' && ['pending', 'in_review', 'in_appeal'].includes(status))
+          || (this.wa.approvalView === 'approved' && status === 'approved')
+          || (this.wa.approvalView === 'rejected' && status === 'rejected')
+          || (this.wa.approvalView === 'attention' && !['pending', 'in_review', 'in_appeal', 'approved', 'rejected'].includes(status));
+        const matchesStatus = !this.wa.filters.status || status === this.wa.filters.status.toLowerCase();
         const matchesCategory = !this.wa.filters.category || (template.category || '').toLowerCase() === this.wa.filters.category.toLowerCase();
         const matchesLanguage = !this.wa.filters.language || (template.language || '').toLowerCase() === this.wa.filters.language.toLowerCase();
 
-        return matchesSearch && matchesStatus && matchesCategory && matchesLanguage;
+        return matchesSearch && matchesApprovalView && matchesStatus && matchesCategory && matchesLanguage;
       });
     },
   },
@@ -2365,6 +2435,11 @@ export default {
         });
     },
 
+    setTemplateApprovalView(view) {
+      this.wa.approvalView = view;
+      this.wa.filters.status = '';
+      this.wa.selected = [];
+    },
     // WhatsApp templates — load from local DB cache (fast, no Meta API call)
     loadWhatsappTemplates() {
       this.wa.loading = true;
@@ -2501,31 +2576,8 @@ export default {
         category: '',
         language: '',
       };
-      this.wa.waModal = null;
-
-      // WhatsApp Numbers
-      this.wn = {
-        loading: false,
-        saving: false,
-        numbers: [],
-        addForm: {
-          cc: '',
-          phone_number: '',
-          verified_name: '',
-        },
-        verifyForm: {
-          id: '',
-          display_phone_number: '',
-          method: 'SMS',
-          code: '',
-          codeSent: false,
-          stage: 'verify',
-          pin: '',
-          pinConfirmation: '',
-        }
-      };
-      this.wn.addNumberModal = null;
-      this.wn.verifyNumberModal = null;
+      this.wa.approvalView = 'all';
+      this.wa.selected = [];
     },
 
     // WhatsApp Profiles Methods
@@ -3019,11 +3071,17 @@ export default {
       if (['RED', 'LOW'].includes(r)) return 'bg-danger text-white';
       return 'bg-secondary';
     },
+    formatTemplateCheckedAt(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString();
+    },
     statusBadge(status) {
       const s = (status || '').toLowerCase();
       if (s === 'approved') return 'badge bg-success';
-      if (s === 'pending' || s === 'in_review') return 'badge bg-warning text-dark';
+      if (['pending', 'in_review', 'in_appeal'].includes(s)) return 'badge bg-warning text-dark';
       if (s === 'rejected') return 'badge bg-danger';
+      if (['paused', 'disabled', 'flagged', 'pending_deletion'].includes(s)) return 'badge bg-secondary';
       return 'badge bg-secondary';
     },
     saveMeta() {
@@ -3094,6 +3152,18 @@ export default {
 </script>
 
 <style scoped>
+.template-status-card {
+  appearance: none;
+  background: var(--bs-body-bg);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.template-status-card:hover {
+  transform: translateY(-1px);
+}
+.template-status-card.ring-active {
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.3) !important;
+}
+
 .account-layout {
   width: 100%;
   max-width: 100%;

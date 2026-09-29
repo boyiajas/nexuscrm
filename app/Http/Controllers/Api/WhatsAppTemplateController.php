@@ -212,7 +212,25 @@ class WhatsAppTemplateController extends Controller
             $data['media_urls'] ?? []
         );
 
-        return response()->json($created, 201);
+        $whatsapp = $created['whatsapp'] ?? [];
+        $record = WhatsappTemplateCache::updateOrCreate(
+            ['sid' => $created['sid']],
+            [
+                'meta_id' => $created['meta_id'] ?? null,
+                'friendly_name' => $created['friendly_name'] ?? $created['sid'],
+                'language' => $created['language'] ?? $data['language'],
+                'category' => $whatsapp['category'] ?? strtolower($data['category']),
+                'status' => $whatsapp['status'] ?? 'PENDING',
+                'body_preview' => $created['preview'] ?? $data['body'],
+                'variables' => $created['variables'] ?? [],
+                'media_urls' => $created['media'] ?? [],
+                'buttons' => $created['buttons'] ?? [],
+                'raw_whatsapp' => array_merge($whatsapp, ['raw' => $created['raw'] ?? []]),
+                'synced_at' => now(),
+            ]
+        );
+
+        return response()->json($record->toApiArray(), 201);
     }
 
     public function update(Request $request, string $id): JsonResponse

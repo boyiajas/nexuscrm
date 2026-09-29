@@ -56,6 +56,7 @@ class WhatsappTemplateCache extends Model
             'footer_text'   => $this->footer_text,
             'buttons'       => $this->buttons ?? [],
             'components'    => $this->raw_whatsapp['components'] ?? [],
+            'synced_at'    => optional($this->synced_at)->toDateTimeString(),
         ];
     }
 }
