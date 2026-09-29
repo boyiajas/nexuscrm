@@ -6,6 +6,7 @@ use App\Concerns\HasAuditLogging;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\SystemSetting;
+use App\Models\WhatsappAccount;
 use App\Services\MetaWhatsAppService;
 use App\Services\WhatsAppDailyLimitService;
 use Illuminate\Http\Request;
@@ -115,7 +116,30 @@ class SettingsController extends Controller
 
         try {
             $service = app(MetaWhatsAppService::class);
-            return response()->json($service->getPhoneNumbers());
+            $numbers = collect($service->getPhoneNumbers())->values();
+            $profiles = WhatsappAccount::query()
+                ->get(['id', 'name', 'phone_number_id', 'display_phone_number']);
+            $profilesByPhoneId = $profiles
+                ->filter(fn (WhatsappAccount $profile) => filled($profile->phone_number_id))
+                ->keyBy(fn (WhatsappAccount $profile) => (string) $profile->phone_number_id);
+            $profilesByDisplayNumber = $profiles
+                ->filter(fn (WhatsappAccount $profile) => filled($profile->display_phone_number))
+                ->keyBy(fn (WhatsappAccount $profile) => preg_replace('/\D+/', '', (string) $profile->display_phone_number));
+
+            $numbers = $numbers->map(function (array $number) use ($profilesByPhoneId, $profilesByDisplayNumber) {
+                $profile = $profilesByPhoneId->get((string) ($number['id'] ?? ''));
+                if (!$profile) {
+                    $normalizedDisplayNumber = preg_replace('/\D+/', '', (string) ($number['display_phone_number'] ?? ''));
+                    $profile = $profilesByDisplayNumber->get($normalizedDisplayNumber);
+                }
+
+                return array_merge($number, [
+                    'whatsapp_profile_id' => $profile?->id,
+                    'whatsapp_profile_name' => $profile?->name,
+                ]);
+            });
+
+            return response()->json($numbers->values());
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Failed to fetch phone numbers from Meta: ' . $e->getMessage()], 422);
         }

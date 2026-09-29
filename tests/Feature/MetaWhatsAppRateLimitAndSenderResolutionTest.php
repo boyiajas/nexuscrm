@@ -110,6 +110,37 @@ class MetaWhatsAppRateLimitAndSenderResolutionTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_waba_numbers_include_the_linked_whatsapp_profile_name(): void
+    {
+        WhatsappAccount::query()->create([
+            'name' => 'Strauss Daly Collections',
+            'app_id' => '123456789012345',
+            'app_secret' => 'test-app-secret',
+            'access_token' => 'test-access-token',
+            'waba_id' => '1455412218881488',
+            'phone_number_id' => '1247262038476724',
+            'display_phone_number' => '+27 61 477 6401',
+            'webhook_verify_token' => 'test-verify-token',
+        ]);
+
+        Http::fake([
+            'https://graph.facebook.com/v25.0/1455412218881488/phone_numbers*' => Http::response([
+                'data' => [[
+                    'id' => '1247262038476724',
+                    'display_phone_number' => '+27 61 477 6401',
+                    'verified_name' => 'Strauss Daly',
+                    'quality_rating' => 'GREEN',
+                ]],
+            ], 200),
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $this->getJson('/api/settings/meta/phone-numbers')
+            ->assertOk()
+            ->assertJsonPath('0.whatsapp_profile_name', 'Strauss Daly Collections');
+    }
+
     public function test_resolve_sender_context_guards_against_waba_id_as_phone_number_id(): void
     {
         $service = app(MetaWhatsAppService::class);

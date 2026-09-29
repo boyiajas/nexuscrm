@@ -886,6 +886,7 @@
                   <th class="ps-4">Display Number</th>
                   <th>Phone Number ID</th>
                   <th>Verified Name</th>
+                  <th>WhatsApp Profile</th>
                   <th>Quality Rating</th>
                   <th>Status</th>
                   <th>Messaging Tier</th>
@@ -897,6 +898,10 @@
                   <td class="ps-4 py-3 fw-semibold">{{ num.display_phone_number }}</td>
                   <td class="text-muted small font-monospace">{{ num.id }}</td>
                   <td>{{ num.verified_name || '-' }}</td>
+                  <td>
+                    <span v-if="num.whatsapp_profile_name" class="fw-semibold">{{ num.whatsapp_profile_name }}</span>
+                    <span v-else class="text-muted small">Not linked</span>
+                  </td>
                   <td>
                     <span class="badge" :class="qualityRatingBadge(num.quality_rating)">
                       {{ num.quality_rating || 'UNKNOWN' }}
