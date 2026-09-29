@@ -155,11 +155,11 @@ class SettingsController extends Controller
 
     public function submitMetaPhoneNumber(Request $request)
     {
-        $this->authorizeAdmin();
+        $this->authorizeWabaNumbers();
         $data = $request->validate([
-            'cc' => 'required|string',
-            'phone_number' => 'required|string',
-            'verified_name' => 'nullable|string',
+            'cc' => ['required', 'string', 'regex:/^\d{1,4}$/'],
+            'phone_number' => ['required', 'string', 'regex:/^\d{4,15}$/'],
+            'verified_name' => ['nullable', 'string', 'max:255'],
         ]);
 
         try {
@@ -174,7 +174,7 @@ class SettingsController extends Controller
 
     public function requestMetaPhoneVerification(Request $request)
     {
-        $this->authorizeAdmin();
+        $this->authorizeWabaNumbers();
         $data = $request->validate([
             'phone_number_id' => 'required|string',
             'method' => 'required|string|in:SMS,VOICE',
@@ -191,10 +191,10 @@ class SettingsController extends Controller
 
     public function verifyMetaPhoneNumber(Request $request)
     {
-        $this->authorizeAdmin();
+        $this->authorizeWabaNumbers();
         $data = $request->validate([
             'phone_number_id' => 'required|string',
-            'code' => 'required|string',
+            'code' => ['required', 'string', 'regex:/^\d{6}$/'],
         ]);
 
         try {
@@ -209,10 +209,10 @@ class SettingsController extends Controller
 
     public function registerMetaPhoneNumber(Request $request)
     {
-        $this->authorizeAdmin();
+        $this->authorizeWabaNumbers();
         $data = $request->validate([
             'phone_number_id' => 'required|string',
-            'pin' => 'required|string|size:6',
+            'pin' => ['required', 'string', 'regex:/^\d{6}$/'],
         ]);
 
         try {

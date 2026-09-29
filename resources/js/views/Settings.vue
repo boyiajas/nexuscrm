@@ -857,7 +857,7 @@
         <div class="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h5 class="mb-1">WhatsApp Phone Numbers</h5>
-            <small class="text-muted">Manage phone numbers associated with your WhatsApp Business Account (WABA).</small>
+            <small class="text-muted">Submit, verify, register, and manage numbers associated with your WhatsApp Business Account (WABA).</small>
           </div>
           <div class="d-flex gap-2">
             <button class="btn btn-outline-primary btn-sm" @click="fetchWhatsappNumbers" :disabled="wn.loading">
@@ -865,8 +865,16 @@
               Refresh
             </button>
             <button class="btn btn-primary btn-sm" @click="openAddNumberModal">
-              <i class="bi bi-plus-circle me-1"></i> Add Number
+              <i class="bi bi-plus-circle me-1"></i> Onboard New Number
             </button>
+          </div>
+        </div>
+
+        <div class="alert alert-primary d-flex align-items-start gap-3 mb-3">
+          <i class="bi bi-info-circle-fill mt-1"></i>
+          <div>
+            <div class="fw-semibold">Number onboarding</div>
+            <div class="small">1. Submit the number and display name to Meta. 2. Verify ownership by SMS or voice call. 3. Register it on Cloud API with your six-digit two-step verification PIN. Meta reviews the display name separately; refresh this list to see its latest approval status.</div>
           </div>
         </div>
 
@@ -934,11 +942,10 @@
                     <button
                       v-if="num.code_verification_status === 'VERIFIED' && num.platform_type === 'NOT_APPLICABLE'"
                       class="btn btn-light text-success border-0 p-1 px-2 ms-2"
-                      @click="registerNumberOnMeta(num)"
-                      :disabled="num.registering"
+                      @click="openRegistrationModal(num)"
+                      :disabled="wn.saving"
                     >
-                      <span v-if="num.registering" class="spinner-border spinner-border-sm me-1"></span>
-                      Complete Registration
+                      <i class="bi bi-cloud-check me-1"></i> Complete Registration
                     </button>
                   </td>
                 </tr>
@@ -1301,12 +1308,12 @@
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Add WhatsApp Number</h5>
+            <h5 class="modal-title">Onboard a WhatsApp Number</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
             <div class="alert alert-info small">
-              This adds a phone number to your Meta WhatsApp Business Account. It must be a valid number capable of receiving an SMS or Voice call for verification.
+              Submit a number to your Meta WhatsApp Business Account. The number must not already be registered with WhatsApp and must be able to receive an SMS or voice call.
             </div>
             <div class="mb-3">
               <label class="form-label">Country Code (e.g. 1 for US, 27 for SA)</label>
@@ -1317,59 +1324,76 @@
               <input v-model="wn.addForm.phone_number" type="text" class="form-control" placeholder="5551234567" />
             </div>
             <div class="mb-3">
-              <label class="form-label">Verified Name (Optional)</label>
-              <input v-model="wn.addForm.verified_name" type="text" class="form-control" placeholder="My Business Name" />
+              <label class="form-label">Business Display Name</label>
+              <input v-model.trim="wn.addForm.verified_name" type="text" class="form-control" maxlength="255" placeholder="My Business Name" />
+              <div class="form-text">Meta reviews this name. Approval can remain pending after the phone number has been submitted.</div>
             </div>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wn.saving">Cancel</button>
             <button type="button" class="btn btn-primary" @click="submitAddNumber" :disabled="wn.saving || !wn.addForm.cc || !wn.addForm.phone_number">
               <span v-if="wn.saving" class="spinner-border spinner-border-sm me-1"></span>
-              Add Number
+              Submit to Meta
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- VERIFY NUMBER MODAL -->
+    <!-- VERIFY & REGISTER NUMBER MODAL -->
     <div class="modal fade" tabindex="-1" ref="verifyNumberModalRef">
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Verify WhatsApp Number</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <h5 class="modal-title">{{ wn.verifyForm.stage === 'register' ? 'Complete WhatsApp Registration' : 'Verify WhatsApp Number' }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" :disabled="wn.saving"></button>
           </div>
           <div class="modal-body">
-            <p>Verifying: <strong>{{ wn.verifyForm.display_phone_number }}</strong></p>
-            
-            <div v-if="!wn.verifyForm.codeSent">
-              <div class="mb-3">
-                <label class="form-label">Verification Method</label>
-                <select v-model="wn.verifyForm.method" class="form-select">
-                  <option value="SMS">SMS</option>
-                  <option value="VOICE">Voice Call</option>
-                </select>
+            <p class="mb-3">Number: <strong>{{ wn.verifyForm.display_phone_number }}</strong></p>
+            <template v-if="wn.verifyForm.stage === 'verify'">
+              <div v-if="!wn.verifyForm.codeSent">
+                <div class="mb-3">
+                  <label class="form-label">Verification Method</label>
+                  <select v-model="wn.verifyForm.method" class="form-select">
+                    <option value="SMS">SMS</option>
+                    <option value="VOICE">Voice Call</option>
+                  </select>
+                </div>
+                <button class="btn btn-outline-primary" @click="requestVerificationCode" :disabled="wn.saving">
+                  <span v-if="wn.saving" class="spinner-border spinner-border-sm me-1"></span>
+                  Send Verification Code
+                </button>
               </div>
-              <button class="btn btn-outline-primary" @click="requestVerificationCode" :disabled="wn.saving">
-                <span v-if="wn.saving" class="spinner-border spinner-border-sm me-1"></span>
-                Send Verification Code
-              </button>
-            </div>
-            
-            <div v-else class="mt-3">
-              <div class="alert alert-success small">Code sent via {{ wn.verifyForm.method }}. Please enter the 6-digit code below.</div>
-              <div class="mb-3">
-                <label class="form-label">6-Digit Code</label>
-                <input v-model="wn.verifyForm.code" type="text" class="form-control" placeholder="123456" maxlength="6" />
+              <div v-else>
+                <div class="alert alert-success small">Code sent via {{ wn.verifyForm.method }}. Enter the six-digit code received by the number.</div>
+                <div class="mb-3">
+                  <label class="form-label">6-Digit Verification Code</label>
+                  <input v-model.trim="wn.verifyForm.code" inputmode="numeric" autocomplete="one-time-code" type="text" class="form-control" placeholder="123456" maxlength="6" />
+                </div>
               </div>
-            </div>
+            </template>
+            <template v-else>
+              <div class="alert alert-warning small">Choose a six-digit two-step verification PIN. Store it securely; Meta may require it when this number is registered again.</div>
+              <div class="mb-3">
+                <label class="form-label">6-Digit PIN</label>
+                <input v-model.trim="wn.verifyForm.pin" inputmode="numeric" autocomplete="new-password" type="password" class="form-control" maxlength="6" placeholder="Enter PIN" />
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Confirm PIN</label>
+                <input v-model.trim="wn.verifyForm.pinConfirmation" inputmode="numeric" autocomplete="new-password" type="password" class="form-control" maxlength="6" placeholder="Confirm PIN" />
+                <div v-if="wn.verifyForm.pinConfirmation && wn.verifyForm.pin !== wn.verifyForm.pinConfirmation" class="text-danger small mt-1">The PINs do not match.</div>
+              </div>
+            </template>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wn.saving">Cancel</button>
-            <button v-if="wn.verifyForm.codeSent" type="button" class="btn btn-success" @click="submitVerificationCode" :disabled="wn.saving || wn.verifyForm.code.length < 6">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wn.saving">Close</button>
+            <button v-if="wn.verifyForm.stage === 'verify' && wn.verifyForm.codeSent" type="button" class="btn btn-success" @click="submitVerificationCode" :disabled="wn.saving || !/^\d{6}$/.test(wn.verifyForm.code)">
               <span v-if="wn.saving" class="spinner-border spinner-border-sm me-1"></span>
-              Verify Number
+              Verify & Continue
+            </button>
+            <button v-if="wn.verifyForm.stage === 'register'" type="button" class="btn btn-success" @click="submitNumberRegistration" :disabled="wn.saving || !/^\d{6}$/.test(wn.verifyForm.pin) || wn.verifyForm.pin !== wn.verifyForm.pinConfirmation">
+              <span v-if="wn.saving" class="spinner-border spinner-border-sm me-1"></span>
+              Register on Cloud API
             </button>
           </div>
         </div>
@@ -1631,6 +1655,9 @@ export default {
           method: 'SMS',
           code: '',
           codeSent: false,
+          stage: 'verify',
+          pin: '',
+          pinConfirmation: '',
         },
         addNumberModal: null,
         verifyNumberModal: null,
@@ -2409,6 +2436,9 @@ export default {
           method: 'SMS',
           code: '',
           codeSent: false,
+          stage: 'verify',
+          pin: '',
+          pinConfirmation: '',
         }
       };
       this.wn.addNumberModal = null;
@@ -2693,12 +2723,25 @@ export default {
     async submitAddNumber() {
       this.wn.saving = true;
       try {
-        await axios.post('/api/settings/meta/phone-numbers', this.wn.addForm);
-        notify.success('Phone number successfully added to WABA.', 'Settings');
+        const { data } = await axios.post('/api/settings/meta/phone-numbers', {
+          cc: String(this.wn.addForm.cc || '').replace(/\D/g, ''),
+          phone_number: String(this.wn.addForm.phone_number || '').replace(/\D/g, ''),
+          verified_name: this.wn.addForm.verified_name || null,
+        });
+        notify.success('Number submitted to Meta. Verify ownership to continue onboarding.', 'Settings');
         this.wn.addNumberModal?.hide();
-        this.fetchWhatsappNumbers();
+        await this.fetchWhatsappNumbers();
+
+        const createdId = data?.data?.id || data?.data?.phone_number_id;
+        if (createdId) {
+          const addedNumber = this.wn.numbers.find((number) => String(number.id) === String(createdId));
+          window.setTimeout(() => this.openVerifyNumberModal(addedNumber || {
+            id: createdId,
+            display_phone_number: `+${this.wn.addForm.cc}${this.wn.addForm.phone_number}`,
+          }), 250);
+        }
       } catch (err) {
-        notify.error('Failed to add phone number: ' + (err.response?.data?.message || err.message), 'Settings');
+        notify.error('Failed to submit phone number: ' + (err.response?.data?.message || err.message), 'Settings');
       } finally {
         this.wn.saving = false;
       }
@@ -2706,10 +2749,26 @@ export default {
     openVerifyNumberModal(num) {
       this.wn.verifyForm = {
         id: num.id,
-        display_phone_number: num.display_phone_number,
+        display_phone_number: num.display_phone_number || num.id,
         method: 'SMS',
         code: '',
         codeSent: false,
+        stage: 'verify',
+        pin: '',
+        pinConfirmation: '',
+      };
+      this.wn.verifyNumberModal?.show();
+    },
+    openRegistrationModal(num) {
+      this.wn.verifyForm = {
+        id: num.id,
+        display_phone_number: num.display_phone_number || num.id,
+        method: 'SMS',
+        code: '',
+        codeSent: false,
+        stage: 'register',
+        pin: '',
+        pinConfirmation: '',
       };
       this.wn.verifyNumberModal?.show();
     },
@@ -2735,32 +2794,36 @@ export default {
           phone_number_id: this.wn.verifyForm.id,
           code: this.wn.verifyForm.code,
         });
-        notify.success('Phone number verified successfully!', 'Settings');
-        this.wn.verifyNumberModal?.hide();
-        this.fetchWhatsappNumbers();
+        notify.success('Number verified. Set its registration PIN to complete onboarding.', 'Settings');
+        this.wn.verifyForm.stage = 'register';
+        this.wn.verifyForm.pin = '';
+        this.wn.verifyForm.pinConfirmation = '';
+        await this.fetchWhatsappNumbers();
       } catch (err) {
         notify.error('Failed to verify phone number: ' + (err.response?.data?.message || err.message), 'Settings');
       } finally {
         this.wn.saving = false;
       }
     },
-    async registerNumberOnMeta(num) {
-      if (this.$set) {
-        this.$set(num, 'registering', true);
-      } else {
-        num.registering = true;
+    async submitNumberRegistration() {
+      if (!/^\d{6}$/.test(this.wn.verifyForm.pin) || this.wn.verifyForm.pin !== this.wn.verifyForm.pinConfirmation) {
+        notify.warning('Enter matching six-digit registration PINs.', 'Settings');
+        return;
       }
+
+      this.wn.saving = true;
       try {
         await axios.post('/api/settings/meta/phone-numbers/register', {
-          phone_number_id: num.id,
-          pin: '123456'
+          phone_number_id: this.wn.verifyForm.id,
+          pin: this.wn.verifyForm.pin,
         });
-        notify.success('Number successfully registered on Cloud API!', 'Settings');
-        this.fetchWhatsappNumbers();
+        notify.success('Number registered on WhatsApp Cloud API. Meta display-name approval may still be pending.', 'Settings');
+        this.wn.verifyNumberModal?.hide();
+        await this.fetchWhatsappNumbers();
       } catch (err) {
         notify.error('Failed to register number: ' + (err.response?.data?.message || err.message), 'Settings');
       } finally {
-        num.registering = false;
+        this.wn.saving = false;
       }
     },
     toggleWhatsappNumberPause(num) {

@@ -319,4 +319,91 @@ class MetaWhatsAppRateLimitAndSenderResolutionTest extends TestCase
         $this->assertNotEmpty($senders);
         $this->assertEquals('1247262038476724', $senders[0]['phone_number_id']);
     }
+
+    public function test_admin_can_submit_verify_and_register_a_new_whatsapp_number(): void
+    {
+        Http::fake(function ($request) {
+            $path = parse_url($request->url(), PHP_URL_PATH);
+
+            return match (true) {
+                str_ends_with($path, '/1455412218881488/phone_numbers') => Http::response([
+                    'id' => '155512345678901',
+                ], 200),
+                str_ends_with($path, '/155512345678901/request_code') => Http::response(['success' => true], 200),
+                str_ends_with($path, '/155512345678901/verify_code') => Http::response(['success' => true], 200),
+                str_ends_with($path, '/155512345678901/register') => Http::response(['success' => true], 200),
+                default => Http::response(['error' => ['message' => 'Unexpected request']], 404),
+            };
+        });
+
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $this->postJson('/api/settings/meta/phone-numbers', [
+            'cc' => '27',
+            'phone_number' => '821234567',
+            'verified_name' => 'Example Collections',
+        ])->assertOk()
+            ->assertJsonPath('data.id', '155512345678901');
+
+        $this->postJson('/api/settings/meta/phone-numbers/request-verification', [
+            'phone_number_id' => '155512345678901',
+            'method' => 'SMS',
+        ])->assertOk();
+
+        $this->postJson('/api/settings/meta/phone-numbers/verify', [
+            'phone_number_id' => '155512345678901',
+            'code' => '654321',
+        ])->assertOk();
+
+        $this->postJson('/api/settings/meta/phone-numbers/register', [
+            'phone_number_id' => '155512345678901',
+            'pin' => '482619',
+        ])->assertOk();
+
+        Http::assertSent(fn ($request) =>
+            str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/1455412218881488/phone_numbers')
+            && $request['cc'] === '27'
+            && $request['phone_number'] === '821234567'
+            && $request['verified_name'] === 'Example Collections'
+        );
+        Http::assertSent(fn ($request) =>
+            str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/155512345678901/request_code')
+            && $request['code_method'] === 'SMS'
+        );
+        Http::assertSent(fn ($request) =>
+            str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/155512345678901/verify_code')
+            && $request['code'] === '654321'
+        );
+        Http::assertSent(fn ($request) =>
+            str_ends_with(parse_url($request->url(), PHP_URL_PATH), '/155512345678901/register')
+            && $request['messaging_product'] === 'whatsapp'
+            && $request['pin'] === '482619'
+        );
+    }
+
+    public function test_whatsapp_number_onboarding_rejects_invalid_codes_before_calling_meta(): void
+    {
+        Http::fake();
+        \Laravel\Sanctum\Sanctum::actingAs($this->adminUser);
+
+        $this->postJson('/api/settings/meta/phone-numbers', [
+            'cc' => '+27',
+            'phone_number' => 'invalid phone',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['cc', 'phone_number']);
+
+        $this->postJson('/api/settings/meta/phone-numbers/verify', [
+            'phone_number_id' => '155512345678901',
+            'code' => '12345x',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['code']);
+
+        $this->postJson('/api/settings/meta/phone-numbers/register', [
+            'phone_number_id' => '155512345678901',
+            'pin' => '12345x',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['pin']);
+
+        Http::assertNothingSent();
+    }
 }
