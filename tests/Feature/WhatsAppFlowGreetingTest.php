@@ -51,11 +51,14 @@ class WhatsAppFlowGreetingTest extends TestCase
         ]);
     }
 
-    public function test_store_name_resolves_as_a_whatsapp_template_variable(): void
+    public function test_client_fields_resolve_as_whatsapp_template_variables(): void
     {
         $client = Client::query()->create([
             'name' => 'Jane Doe',
             'store_name' => 'Ackermans Cape Town',
+            'activation_amount' => 250.50,
+            'ptp_due_date' => '2026-10-31',
+            'ptp_amount' => 500.75,
             'bank_id' => $this->bank->id,
         ]);
         $campaign = Campaign::query()->create([
@@ -67,9 +70,15 @@ class WhatsAppFlowGreetingTest extends TestCase
 
         $values = app(WhatsAppBatchService::class)->resolveTemplateVariableValues([
             'body_1' => ['source' => 'client.store_name', 'custom_value' => ''],
+            'body_2' => ['source' => 'client.activation_amount', 'custom_value' => ''],
+            'body_3' => ['source' => 'client.ptp_due_date', 'custom_value' => ''],
+            'body_4' => ['source' => 'client.ptp_amount', 'custom_value' => ''],
         ], $client, $campaign);
 
         $this->assertSame('Ackermans Cape Town', $values['body_1']);
+        $this->assertSame('250.50', $values['body_2']);
+        $this->assertSame('2026-10-31', $values['body_3']);
+        $this->assertSame('500.75', $values['body_4']);
     }
 
     public function test_first_client_reply_triggers_automated_greeting_and_sets_flow_step(): void

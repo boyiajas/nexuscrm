@@ -118,6 +118,7 @@ trait HasImportHelpers
             'acc_code',
             'account_number',
             'account_type',
+            'activation_amount',
             'arrears_amount',
             'bank_name',
             'branch_code',
@@ -143,6 +144,8 @@ trait HasImportHelpers
             'patient_email_personal',
             'patient_email_work',
             'phone',
+            'ptp_amount',
+            'ptp_due_date',
             'settlement_amount',
             'store_name',
             'store_number',
@@ -251,6 +254,16 @@ trait HasImportHelpers
             'branch_no' => 'branch_code',
 
             // Financial amounts
+            'activationamount' => 'activation_amount',
+            'activation_amount' => 'activation_amount',
+            'activation' => 'activation_amount',
+            'ptpamount' => 'ptp_amount',
+            'ptp_amount' => 'ptp_amount',
+            'promise_to_pay_amount' => 'ptp_amount',
+            'ptpduedate' => 'ptp_due_date',
+            'ptp_due_date' => 'ptp_due_date',
+            'promise_to_pay_date' => 'ptp_due_date',
+            'promise_to_pay_due_date' => 'ptp_due_date',
             'outstandingbalance' => 'outstanding_balance',
             'outstanding_balance' => 'outstanding_balance',
             'balance' => 'outstanding_balance',
@@ -322,6 +335,9 @@ trait HasImportHelpers
             'store_number' => 'Store Number',
             'store_name' => 'Store Name',
             'outstanding_balance' => 'Outstanding Balance',
+            'activation_amount' => 'Activation Amount',
+            'ptp_due_date' => 'PTP Due Date',
+            'ptp_amount' => 'PTP Amount',
             'arrears_amount' => 'Arrears Amount',
             'installment_amount' => 'Installment Amount',
             'settlement_amount' => 'Settlement Amount',
@@ -675,6 +691,18 @@ trait HasImportHelpers
         }
 
         return number_format((float) $normalized, 2, '.', '');
+    }
+
+    protected function parseImportDate($value): ?string
+    {
+        $text = $this->cleanImportString($value);
+        if ($text === null) { return null; }
+        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'm/d/Y'] as $format) {
+            $date = \DateTimeImmutable::createFromFormat('!' . $format, $text);
+            $errors = \DateTimeImmutable::getLastErrors();
+            if ($date && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) { return $date->format('Y-m-d'); }
+        }
+        return null;
     }
 
     protected function extendImportExecutionLimits(): void

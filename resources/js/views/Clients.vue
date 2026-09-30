@@ -551,6 +551,18 @@
                   <label class="form-label">Installment Amount</label>
                   <input v-model="form.installment_amount" type="number" step="0.01" class="form-control" />
                 </div>
+                <div class="col-md-4">
+                  <label class="form-label">Activation Amount</label>
+                  <input v-model="form.activation_amount" type="number" min="0" step="0.01" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">PTP Due Date</label>
+                  <input v-model="form.ptp_due_date" type="date" class="form-control" />
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">PTP Amount</label>
+                  <input v-model="form.ptp_amount" type="number" min="0" step="0.01" class="form-control" />
+                </div>
                 <div class="col-md-6">
                   <label class="form-label">Last Payment Amount</label>
                   <input v-model="form.last_payment_amount" type="number" step="0.01" class="form-control" />
@@ -801,6 +813,9 @@
                   <div class="col-md-6 mb-2"><strong>Settlement Amount:</strong> {{ viewClient.settlement_amount ? 'R' + Number(viewClient.settlement_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.settlement_amount || '-') }}</div>
                   <div class="col-md-6 mb-2"><strong>3 Months Amount:</strong> {{ viewClient.three_months_amount ? 'R' + Number(viewClient.three_months_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.three_months_amount || '-') }}</div>
                   <div class="col-md-6 mb-2"><strong>Installment Amount:</strong> {{ viewClient.installment_amount ? 'R' + Number(viewClient.installment_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.installment_amount || '-') }}</div>
+                  <div class="col-md-6 mb-2"><strong>Activation Amount:</strong> {{ viewClient.activation_amount ? 'R' + Number(viewClient.activation_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.activation_amount || '-') }}</div>
+                  <div class="col-md-6 mb-2"><strong>PTP Due Date:</strong> {{ viewClient.ptp_due_date || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>PTP Amount:</strong> {{ viewClient.ptp_amount ? 'R' + Number(viewClient.ptp_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.ptp_amount || '-') }}</div>
                   <div class="col-md-6 mb-2"><strong>Last Payment Amount:</strong> {{ viewClient.last_payment_amount || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Total Payment Amount:</strong> {{ viewClient.total_payment_amount || '-' }}</div>
                 </div>
@@ -930,6 +945,9 @@ export default {
         bank_id: '',
         bank_name: '',
         store_name: '',
+        activation_amount: '',
+        ptp_due_date: '',
+        ptp_amount: '',
         account_type: '',
         type: '',
         assigned_to_id: '',
@@ -1277,6 +1295,9 @@ export default {
         settlement_amount: '',
         three_months_amount: '',
         installment_amount: '',
+        activation_amount: '',
+        ptp_due_date: '',
+        ptp_amount: '',
         last_payment_amount: '',
         total_payment_amount: '',
         assigned_to_id: this.canChooseAssignee ? '' : (this.currentUser?.id || ''),
@@ -1327,6 +1348,9 @@ export default {
           settlement_amount: fullClient.settlement_amount || '',
           three_months_amount: fullClient.three_months_amount || '',
           installment_amount: fullClient.installment_amount || '',
+          activation_amount: fullClient.activation_amount || '',
+          ptp_due_date: fullClient.ptp_due_date || '',
+          ptp_amount: fullClient.ptp_amount || '',
           last_payment_amount: fullClient.last_payment_amount || '',
           total_payment_amount: fullClient.total_payment_amount || '',
           assigned_to_id: fullClient.assigned_to_id || '',
@@ -1725,7 +1749,7 @@ export default {
               'phone': 'Phone', 'account_number': 'Account Number', 'acc_no': 'Account Number', 'acc_code': 'Account Code',
               'id_number': 'ID Number', 'id_no': 'ID Number', 'id': 'ID Number', 'identity_number': 'ID Number',
               'email': 'Email', 'email_personal': 'Email', 'outstanding_balance': 'Outstanding Balance', 'balance': 'Outstanding Balance',
-              'arrears_amount': 'Arrears Amount', 'installment_amount': 'Installment Amount', 'settlement_amount': 'Settlement Amount',
+              'arrears_amount': 'Arrears Amount', 'installment_amount': 'Installment Amount', 'activation_amount': 'Activation Amount', 'ptp_due_date': 'PTP Due Date', 'ptp_amount': 'PTP Amount', 'settlement_amount': 'Settlement Amount',
               'easy_pay_number': 'EasyPay Number', 'store_number': 'Store Number', 'store_name': 'Store Name', 'storename': 'Store Name', 'client_store_name': 'Store Name', 'surname': 'Surname', 'first_name': 'First Name',
               'name': 'Client Name', 'full_name': 'Client Name', 'client_name': 'Client Name', 'debtor_name': 'Client Name',
             };

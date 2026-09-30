@@ -142,9 +142,9 @@ class ClientImportHeaderDiagnosticsTest extends TestCase
         $user = User::factory()->create(['role' => 'SUPER_ADMIN', 'bank_id' => $bank->id]);
 
         // Simulating Capfin / FinChoice export where some rows have First Name empty but Surname, Title, Initials present
-        $csvContent = "Acc Code,Account Number,Title,Initials,Known As,Name,Surname,ID Number,Cell,Outstanding balance,Store Name\n" .
-                      "4964194,36889408,MS,N,,,NDLANGAMANDLA,0009301143088,0649355738,125.32,Ackermans Cape Town\n" .
-                      "4964195,36889409,MR,T,,TERENCE,GERTZE,8101195041080,0837309861,2417.56,Refinery Bellville\n";
+        $csvContent = "Acc Code,Account Number,Title,Initials,Known As,Name,Surname,ID Number,Cell,Outstanding balance,Store Name,Activation Amount,PTP Due Date,PTP Amount\n" .
+                      "4964194,36889408,MS,N,,,NDLANGAMANDLA,0009301143088,0649355738,125.32,Ackermans Cape Town,250.50,31/10/2026,500.75\n" .
+                      "4964195,36889409,MR,T,,TERENCE,GERTZE,8101195041080,0837309861,2417.56,Refinery Bellville,300.00,2026-11-15,600.00\n";
 
         $tempPath = tempnam(sys_get_temp_dir(), 'cap_') . '.csv';
         file_put_contents($tempPath, $csvContent);
@@ -180,11 +180,17 @@ class ClientImportHeaderDiagnosticsTest extends TestCase
         $this->assertNotNull($client1);
         $this->assertStringContainsString('NDLANGAMANDLA', $client1->name);
         $this->assertSame('Ackermans Cape Town', $client1->store_name);
+        $this->assertSame('250.50', $client1->activation_amount);
+        $this->assertSame('2026-10-31', $client1->ptp_due_date?->format('Y-m-d'));
+        $this->assertSame('500.75', $client1->ptp_amount);
 
         $client2 = Client::where('account_number', '36889409')->first();
         $this->assertNotNull($client2);
         $this->assertStringContainsString('TERENCE GERTZE', $client2->name);
         $this->assertSame('Refinery Bellville', $client2->store_name);
+        $this->assertSame('300.00', $client2->activation_amount);
+        $this->assertSame('2026-11-15', $client2->ptp_due_date?->format('Y-m-d'));
+        $this->assertSame('600.00', $client2->ptp_amount);
 
         @unlink($tempPath);
     }

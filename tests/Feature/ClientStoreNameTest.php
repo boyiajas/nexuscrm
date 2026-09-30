@@ -45,20 +45,35 @@ class ClientStoreNameTest extends TestCase
             'bank_id' => $bank->id,
             'department_ids' => [$department->id],
             'store_name' => 'Ackermans Cape Town',
+            'activation_amount' => 250.50,
+            'ptp_due_date' => '2026-10-31',
+            'ptp_amount' => 500.75,
         ])
             ->assertCreated()
             ->assertJsonPath('store_name', 'Ackermans Cape Town')
+            ->assertJsonPath('activation_amount', '250.50')
+            ->assertJsonPath('ptp_due_date', '2026-10-31')
+            ->assertJsonPath('ptp_amount', '500.75')
             ->json('id');
 
         $this->putJson("/api/clients/{$clientId}", [
             'store_name' => 'Ackermans Bellville',
+            'activation_amount' => 300,
+            'ptp_due_date' => '2026-11-15',
+            'ptp_amount' => 600,
         ])
             ->assertOk()
-            ->assertJsonPath('store_name', 'Ackermans Bellville');
+            ->assertJsonPath('store_name', 'Ackermans Bellville')
+            ->assertJsonPath('activation_amount', '300.00')
+            ->assertJsonPath('ptp_due_date', '2026-11-15')
+            ->assertJsonPath('ptp_amount', '600.00');
 
         $this->assertDatabaseHas('clients', [
             'id' => $clientId,
             'store_name' => 'Ackermans Bellville',
+            'activation_amount' => 300,
+            'ptp_due_date' => '2026-11-15',
+            'ptp_amount' => 600,
         ]);
     }
 }

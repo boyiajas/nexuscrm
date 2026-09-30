@@ -456,6 +456,27 @@ export default {
           example: '500.00',
         },
         {
+          id: 'activation_amount',
+          name: 'Activation Amount',
+          required: false,
+          aliases: ['Activation Amount', 'Activation'],
+          example: '250.00',
+        },
+        {
+          id: 'ptp_due_date',
+          name: 'PTP Due Date',
+          required: false,
+          aliases: ['PTP Due Date', 'PTP Date', 'Promise To Pay Date'],
+          example: '2026-10-31',
+        },
+        {
+          id: 'ptp_amount',
+          name: 'PTP Amount',
+          required: false,
+          aliases: ['PTP Amount', 'Promise To Pay Amount'],
+          example: '500.00',
+        },
+        {
           id: 'settlement_amount',
           name: 'Settlement Amount',
           required: false,

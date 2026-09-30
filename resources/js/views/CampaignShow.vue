@@ -1760,6 +1760,9 @@
                                 <option value="client.settlement_amount">Client Settlement Amount</option>
                                 <option value="client.three_months_amount">Client 3 Months Amount</option>
                                 <option value="client.installment_amount">Client Installment Amount</option>
+                                <option value="client.activation_amount">Client Activation Amount</option>
+                                <option value="client.ptp_due_date">Client PTP Due Date</option>
+                                <option value="client.ptp_amount">Client PTP Amount</option>
                                 <option value="campaign.name">Campaign Name</option>
                                 <option value="campaign.status">Campaign Status</option>
                                 <option value="custom">Custom Value...</option>

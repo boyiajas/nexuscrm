@@ -52,6 +52,9 @@
                 <div class="col-md-6 mb-2"><strong>Settlement Amount:</strong> {{ client.settlement_amount ? 'R' + Number(client.settlement_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (client.settlement_amount || '-') }}</div>
                 <div class="col-md-6 mb-2"><strong>3 Months Amount:</strong> {{ client.three_months_amount ? 'R' + Number(client.three_months_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (client.three_months_amount || '-') }}</div>
                 <div class="col-md-6 mb-2"><strong>Installment Amount:</strong> {{ client.installment_amount ? 'R' + Number(client.installment_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (client.installment_amount || '-') }}</div>
+                <div class="col-md-6 mb-2"><strong>Activation Amount:</strong> {{ client.activation_amount ? 'R' + Number(client.activation_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (client.activation_amount || '-') }}</div>
+                <div class="col-md-6 mb-2"><strong>PTP Due Date:</strong> {{ client.ptp_due_date || '-' }}</div>
+                <div class="col-md-6 mb-2"><strong>PTP Amount:</strong> {{ client.ptp_amount ? 'R' + Number(client.ptp_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (client.ptp_amount || '-') }}</div>
                 <div class="col-md-6 mb-2"><strong>Last Payment Amount:</strong> {{ client.last_payment_amount || '-' }}</div>
                 <div class="col-md-6 mb-2"><strong>Total Payment Amount:</strong> {{ client.total_payment_amount || '-' }}</div>
               </div>
