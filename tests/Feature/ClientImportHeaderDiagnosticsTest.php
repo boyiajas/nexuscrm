@@ -194,4 +194,59 @@ class ClientImportHeaderDiagnosticsTest extends TestCase
 
         @unlink($tempPath);
     }
+
+    public function test_import_job_extracts_ptp_due_date_and_ptp_amount_with_various_formats(): void
+    {
+        $bank = Bank::create(['name' => 'FinChoice Test 2', 'code' => 'FINCHOICE_TEST_2']);
+        $dept = Department::create(['name' => 'Collections', 'bank_id' => $bank->id]);
+        $user = User::factory()->create(['role' => 'SUPER_ADMIN', 'bank_id' => $bank->id]);
+
+        $csvContent = "Account Number,Name,Cell,PTP Date Capture,PTP Due Date,PTP Amount,Activation Amount\n" .
+                      "ACC101,XOLISWA PLAATJIE,0821234567,2026/09/24,2026/09/25,22.40,150.00\n" .
+                      "ACC102,JOHN DOE,0827654321,2026/09/20,2026/09/30 00:00:00,500.50,\n";
+
+        $tempPath = tempnam(sys_get_temp_dir(), 'fin_') . '.csv';
+        file_put_contents($tempPath, $csvContent);
+
+        $upload = ImportUpload::create([
+            'bank_id' => $bank->id,
+            'user_id' => $user->id,
+            'dataset' => 'clients',
+            'original_filename' => 'FINCHOICE_TEST.csv',
+            'import_batch_number' => 'IMP-TEST-FINCHOICE',
+            'stored_path' => $tempPath,
+            'import_status' => 'uploaded',
+        ]);
+
+        $job = new ImportClientsJob(
+            $upload->id,
+            $user->id,
+            $bank->id,
+            [$dept->id],
+            $tempPath,
+            'FINCHOICE_TEST.csv',
+            'IMP-TEST-FINCHOICE',
+            ['status' => 'skipped']
+        );
+        $job->handle();
+
+        $upload->refresh();
+        $this->assertSame('imported', $upload->import_status);
+        $this->assertSame(2, $upload->import_summary['imported']);
+
+        $client1 = Client::where('account_number', 'ACC101')->first();
+        $this->assertNotNull($client1);
+        $this->assertSame('XOLISWA PLAATJIE', $client1->name);
+        $this->assertSame('2026-09-25', $client1->ptp_due_date?->format('Y-m-d'));
+        $this->assertSame('22.40', $client1->ptp_amount);
+        $this->assertSame('150.00', $client1->activation_amount);
+
+        $client2 = Client::where('account_number', 'ACC102')->first();
+        $this->assertNotNull($client2);
+        $this->assertSame('JOHN DOE', $client2->name);
+        $this->assertSame('2026-09-30', $client2->ptp_due_date?->format('Y-m-d'));
+        $this->assertSame('500.50', $client2->ptp_amount);
+
+        @unlink($tempPath);
+    }
 }

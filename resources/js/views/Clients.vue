@@ -1749,7 +1749,11 @@ export default {
               'phone': 'Phone', 'account_number': 'Account Number', 'acc_no': 'Account Number', 'acc_code': 'Account Code',
               'id_number': 'ID Number', 'id_no': 'ID Number', 'id': 'ID Number', 'identity_number': 'ID Number',
               'email': 'Email', 'email_personal': 'Email', 'outstanding_balance': 'Outstanding Balance', 'balance': 'Outstanding Balance',
-              'arrears_amount': 'Arrears Amount', 'installment_amount': 'Installment Amount', 'activation_amount': 'Activation Amount', 'ptp_due_date': 'PTP Due Date', 'ptp_amount': 'PTP Amount', 'settlement_amount': 'Settlement Amount',
+              'arrears_amount': 'Arrears Amount', 'installment_amount': 'Installment Amount',
+              'activation_amount': 'Activation Amount', 'activationamount': 'Activation Amount', 'activation_amt': 'Activation Amount', 'activation': 'Activation Amount',
+              'ptp_due_date': 'PTP Due Date', 'ptpduedate': 'PTP Due Date', 'ptp_due': 'PTP Due Date', 'ptpdue': 'PTP Due Date', 'ptp_date': 'PTP Due Date', 'ptpdate': 'PTP Due Date', 'promise_to_pay_date': 'PTP Due Date', 'promise_to_pay_due_date': 'PTP Due Date',
+              'ptp_amount': 'PTP Amount', 'ptpamount': 'PTP Amount', 'ptp_amt': 'PTP Amount', 'ptpamt': 'PTP Amount', 'ptp_value': 'PTP Amount', 'ptpvalue': 'PTP Amount', 'promise_to_pay_amount': 'PTP Amount',
+              'settlement_amount': 'Settlement Amount',
               'easy_pay_number': 'EasyPay Number', 'store_number': 'Store Number', 'store_name': 'Store Name', 'storename': 'Store Name', 'client_store_name': 'Store Name', 'surname': 'Surname', 'first_name': 'First Name',
               'name': 'Client Name', 'full_name': 'Client Name', 'client_name': 'Client Name', 'debtor_name': 'Client Name',
             };

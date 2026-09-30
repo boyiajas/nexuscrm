@@ -466,14 +466,14 @@ export default {
           id: 'ptp_due_date',
           name: 'PTP Due Date',
           required: false,
-          aliases: ['PTP Due Date', 'PTP Date', 'Promise To Pay Date'],
+          aliases: ['PTP Due Date', 'PTP Date', 'PTP Due', 'Promise To Pay Date', 'Promise To Pay Due Date'],
           example: '2026-10-31',
         },
         {
           id: 'ptp_amount',
           name: 'PTP Amount',
           required: false,
-          aliases: ['PTP Amount', 'Promise To Pay Amount'],
+          aliases: ['PTP Amount', 'PTP Amt', 'PTP Value', 'Promise To Pay Amount'],
           example: '500.00',
         },
         {

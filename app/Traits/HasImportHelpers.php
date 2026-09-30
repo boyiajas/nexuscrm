@@ -256,14 +256,37 @@ trait HasImportHelpers
             // Financial amounts
             'activationamount' => 'activation_amount',
             'activation_amount' => 'activation_amount',
+            'activation_amt' => 'activation_amount',
+            'activationamt' => 'activation_amount',
             'activation' => 'activation_amount',
+            'activation_fee' => 'activation_amount',
             'ptpamount' => 'ptp_amount',
             'ptp_amount' => 'ptp_amount',
+            'ptp_amt' => 'ptp_amount',
+            'ptpamt' => 'ptp_amount',
+            'ptp_value' => 'ptp_amount',
+            'ptpvalue' => 'ptp_amount',
+            'ptp_val' => 'ptp_amount',
+            'ptpval' => 'ptp_amount',
+            'ptp_installment' => 'ptp_amount',
+            'ptpinstallment' => 'ptp_amount',
+            'ptp_payment_amount' => 'ptp_amount',
+            'ptppaymentamount' => 'ptp_amount',
             'promise_to_pay_amount' => 'ptp_amount',
+            'promise_to_pay_amt' => 'ptp_amount',
+            'promise_to_pay_value' => 'ptp_amount',
             'ptpduedate' => 'ptp_due_date',
             'ptp_due_date' => 'ptp_due_date',
+            'ptp_due' => 'ptp_due_date',
+            'ptpdue' => 'ptp_due_date',
+            'ptp_date' => 'ptp_due_date',
+            'ptpdate' => 'ptp_due_date',
+            'ptp_promise_date' => 'ptp_due_date',
             'promise_to_pay_date' => 'ptp_due_date',
             'promise_to_pay_due_date' => 'ptp_due_date',
+            'promise_to_pay_due' => 'ptp_due_date',
+            'ptp_expiry_date' => 'ptp_due_date',
+            'ptp_exp_date' => 'ptp_due_date',
             'outstandingbalance' => 'outstanding_balance',
             'outstanding_balance' => 'outstanding_balance',
             'balance' => 'outstanding_balance',
@@ -696,12 +719,38 @@ trait HasImportHelpers
     protected function parseImportDate($value): ?string
     {
         $text = $this->cleanImportString($value);
-        if ($text === null) { return null; }
-        foreach (['Y-m-d', 'Y/m/d', 'd/m/Y', 'd-m-Y', 'm/d/Y'] as $format) {
+        if ($text === null) {
+            return null;
+        }
+
+        // Strip time portion if attached (e.g. "2026/09/25 00:00:00", "2026-09-25T14:30:00")
+        $dateOnly = preg_replace('/[\sT].*$/', '', $text);
+
+        foreach (['Y-m-d', 'Y/m/d', 'd/m/Y', 'd-m-Y', 'm/d/Y', 'Ymd'] as $format) {
+            $date = \DateTimeImmutable::createFromFormat('!' . $format, $dateOnly);
+            $errors = \DateTimeImmutable::getLastErrors();
+            if ($date && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        foreach (['Y-m-d H:i:s', 'Y/m/d H:i:s', 'd/m/Y H:i:s', 'd-m-Y H:i:s', 'Y-m-d H:i', 'Y/m/d H:i'] as $format) {
             $date = \DateTimeImmutable::createFromFormat('!' . $format, $text);
             $errors = \DateTimeImmutable::getLastErrors();
-            if ($date && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) { return $date->format('Y-m-d'); }
+            if ($date && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) {
+                return $date->format('Y-m-d');
+            }
         }
+
+        try {
+            $carbon = \Carbon\Carbon::parse($text);
+            if ($carbon->year >= 1900 && $carbon->year <= 2100) {
+                return $carbon->format('Y-m-d');
+            }
+        } catch (\Throwable) {
+            // Ignore unparseable date strings
+        }
+
         return null;
     }
 
