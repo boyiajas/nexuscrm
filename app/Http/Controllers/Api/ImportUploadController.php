@@ -60,6 +60,53 @@ class ImportUploadController extends Controller
         return $query->paginate((int) $request->get('per_page', 15));
     }
 
+    public function reprocess(Request $request, ImportUpload $importUpload)
+    {
+        $user = Auth::user();
+        abort_unless($user && $user->canImportClients(), 403, 'You do not have permission to reprocess imports.');
+
+        $filePath = $importUpload->stored_path;
+        $candidates = [
+            $filePath,
+            \Illuminate\Support\Facades\Storage::disk('local')->path((string) $filePath),
+            storage_path('app/' . ltrim((string) $filePath, '/')),
+            storage_path('app/private/' . ltrim((string) $filePath, '/')),
+            base_path('docs/' . $importUpload->original_filename),
+        ];
+
+        $resolvedPath = null;
+        foreach ($candidates as $candidate) {
+            if ($candidate && file_exists($candidate)) {
+                $resolvedPath = $candidate;
+                break;
+            }
+        }
+
+        if (!$resolvedPath) {
+            return response()->json([
+                'message' => 'The original import file could not be found on disk.',
+            ], 404);
+        }
+
+        $importUpload->update(['import_status' => 'importing']);
+
+        \App\Jobs\ImportClientsJob::dispatch(
+            $importUpload->id,
+            $user->id,
+            $importUpload->bank_id,
+            $importUpload->department_ids ?? [],
+            $resolvedPath,
+            $importUpload->original_filename,
+            $importUpload->import_batch_number,
+            ['status' => 'skipped']
+        )->onQueue('imports');
+
+        return response()->json([
+            'message' => "Reprocessing queued for batch {$importUpload->import_batch_number}.",
+            'import_batch_number' => $importUpload->import_batch_number,
+        ]);
+    }
+
     protected function authorizeView(?User $user): void
     {
         abort_unless($user && $user->canViewImportUploads(), 403, 'You are not allowed to access import upload records.');

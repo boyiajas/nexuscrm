@@ -104,6 +104,19 @@
                     <i class="bi bi-info-circle me-1"></i> More Info / Missing Columns
                   </button>
                 </div>
+                <div class="mt-1" v-if="upload.dataset === 'clients' && ['imported', 'import_failed'].includes(upload.import_status)">
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm py-0 px-2 mt-1 d-inline-flex align-items-center"
+                    style="font-size: 0.75rem;"
+                    :disabled="reprocessingId === upload.id"
+                    @click="reprocessUpload(upload)"
+                    title="Reprocess this file to update clients with PTP fields and latest mappings"
+                  >
+                    <i class="bi bi-arrow-clockwise me-1" :class="{ 'spin-icon': reprocessingId === upload.id }"></i>
+                    {{ reprocessingId === upload.id ? 'Reprocessing...' : 'Reprocess File' }}
+                  </button>
+                </div>
               </td>
               <td class="small">
                 <template v-if="['uploaded', 'scanning', 'scan_passed', 'importing', 'deleting'].includes(upload.import_status)">
@@ -198,6 +211,7 @@ export default {
       scanStatuses: ['skipped', 'clean', 'infected', 'error'],
       perPage: 25,
       pollInterval: null,
+      reprocessingId: null,
       pagination: {
         from: 0,
         to: 0,
@@ -329,6 +343,21 @@ export default {
         deleting: 'bg-warning text-dark',
         deleted: 'bg-secondary',
       }[status] || 'bg-secondary';
+    },
+    async reprocessUpload(upload) {
+      if (!confirm(`Are you sure you want to reprocess batch ${upload.import_batch_number}? This will re-read the uploaded file and update all clients with PTP Due Date, PTP Amount, and other missing fields.`)) {
+        return;
+      }
+      this.reprocessingId = upload.id;
+      try {
+        const { data } = await axios.post(`/api/import-uploads/${upload.id}/reprocess`);
+        alert(data.message || 'Reprocessing queued successfully.');
+        this.fetchUploads(this.pagination.currentPage || 1);
+      } catch (err) {
+        alert(err.response?.data?.message || 'Failed to reprocess import upload.');
+      } finally {
+        this.reprocessingId = null;
+      }
     },
     openDiagnosticsModal(upload) {
       this.$refs.diagnosticsModal?.open({

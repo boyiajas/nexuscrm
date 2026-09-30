@@ -54,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('clients/bulk-status', [ClientController::class, 'bulkUpdateStatus']);
     Route::delete('clients/bulk-delete', [ClientController::class, 'bulkDestroy']);
     Route::get('import-uploads', [ImportUploadController::class, 'index']);
+    Route::post('import-uploads/{importUpload}/reprocess', [ImportUploadController::class, 'reprocess']);
     Route::get('clients/export', [ClientController::class, 'export']);
     Route::post('clients/{client}/opt-in', [ClientController::class, 'updateOptIn']);
     Route::apiResource('clients', ClientController::class);
