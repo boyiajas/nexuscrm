@@ -1269,99 +1269,100 @@
   </div>
 
     <!-- WhatsApp Template Modal -->
-    <div class="modal fade" tabindex="-1" ref="templateModalRef">
+    <div class="modal fade whatsapp-template-modal" tabindex="-1" ref="templateModalRef">
       <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">
+          <div class="modal-header py-2 px-3">
+            <h5 class="modal-title fs-6 fw-bold mb-0">
               {{ wa.viewOnly ? 'WhatsApp Template Details' : (wa.form.sid ? 'Edit WhatsApp Template' : 'Create WhatsApp Template') }}
             </h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
-          <div class="modal-body">
-            <div class="row g-4">
-              <div class="col-lg-6 col-md-6 border-end pe-lg-4">
+          <div class="modal-body p-3">
+            <div class="row g-3">
+              <div class="col-lg-6 col-md-6 border-end pe-lg-3">
                 <!-- FORM INPUTS -->
-                <div v-if="!wa.viewOnly && !wa.form.sid" class="alert alert-info small">
+                <div v-if="!wa.viewOnly && !wa.form.sid" class="alert alert-info py-1.5 px-2.5 mb-2 small" style="font-size: 0.8rem; line-height: 1.35;">
                   Creating this template submits it directly to Meta for review. It will appear under Awaiting Approval until Meta approves or rejects it. This form currently supports text-body templates.
                 </div>
-                <div class="row g-3">
+                <div class="row g-2">
                   <div class="col-md-6">
-                    <label class="form-label">Friendly Name</label>
-                    <input v-model.trim="wa.form.friendly_name" type="text" class="form-control" placeholder="appointment_reminder" maxlength="512" pattern="[a-z0-9_]+" :readonly="wa.viewOnly || !!wa.form.sid" />
-                    <small v-if="!wa.viewOnly && !duplicateTemplateWarning" class="text-muted">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
-                    <div v-if="duplicateTemplateWarning" class="text-danger small mt-1">
+                    <label class="form-label small fw-semibold mb-1">Friendly Name</label>
+                    <input v-model.trim="wa.form.friendly_name" type="text" class="form-control form-control-sm" placeholder="appointment_reminder" maxlength="512" pattern="[a-z0-9_]+" :readonly="wa.viewOnly || !!wa.form.sid" />
+                    <small v-if="!wa.viewOnly && !duplicateTemplateWarning" class="text-muted d-block" style="font-size: 0.72rem; line-height: 1.25;">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
+                    <div v-if="duplicateTemplateWarning" class="text-danger small mt-0.5" style="font-size: 0.75rem;">
                       <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ duplicateTemplateWarning }}
                     </div>
                   </div>
                   <div class="col-md-3">
-                    <label class="form-label">Language</label>
-                    <input v-model="wa.form.language" type="text" class="form-control" placeholder="en_US" :readonly="wa.viewOnly" />
+                    <label class="form-label small fw-semibold mb-1">Language</label>
+                    <input v-model="wa.form.language" type="text" class="form-control form-control-sm" placeholder="en_US" :readonly="wa.viewOnly" />
                   </div>
                   <div class="col-md-3">
-                    <label class="form-label">Category</label>
-                    <select v-model="wa.form.category" class="form-select" :disabled="wa.viewOnly">
+                    <label class="form-label small fw-semibold mb-1">Category</label>
+                    <select v-model="wa.form.category" class="form-select form-select-sm" :disabled="wa.viewOnly">
                       <option value="utility">Utility</option>
                       <option value="marketing">Marketing</option>
                       <option value="authentication">Authentication</option>
                     </select>
                   </div>
                   <div class="col-12">
-                    <label class="form-label">Body</label>
-                    <textarea v-model="wa.form.body" class="form-control" rows="6" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
+                    <label class="form-label small fw-semibold mb-1">Body</label>
+                    <textarea v-model="wa.form.body" class="form-control form-control-sm" rows="3" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
                   </div>
                   <div v-if="!wa.viewOnly && templateBodyVariableIndexes.length" class="col-12">
-                    <label class="form-label">Variable Examples <span class="text-danger">*</span></label>
-                    <div class="alert alert-warning py-2 small">Meta requires one realistic sample value for every body variable before it can review the template.</div>
-                    <div class="row g-2">
-                      <div v-for="index in templateBodyVariableIndexes" :key="index" class="col-md-6">
-                        <label class="form-label small">Example for {{ templateVariablePlaceholder(index) }}</label>
-                        <input v-model.trim="wa.form.body_examples[index]" type="text" class="form-control" :placeholder="'Sample value for ' + templateVariablePlaceholder(index)" maxlength="255" />
+                    <label class="form-label small fw-semibold mb-1">Variable Examples <span class="text-danger">*</span></label>
+                    <div class="alert alert-warning py-1 px-2 mb-1.5 small" style="font-size: 0.75rem; line-height: 1.3;">Meta requires one realistic sample value for every body variable before it can review the template.</div>
+                    <div class="row g-1.5">
+                      <div v-for="index in templateBodyVariableIndexes" :key="index" class="col-md-6 mb-1">
+                        <label class="form-label small mb-0.5 text-muted" style="font-size: 0.74rem;">Example for {{ templateVariablePlaceholder(index) }}</label>
+                        <input v-model.trim="wa.form.body_examples[index]" type="text" class="form-control form-control-sm" :placeholder="'Sample value for ' + templateVariablePlaceholder(index)" maxlength="255" />
                       </div>
                     </div>
                   </div>
                   <div v-if="wa.viewOnly && wa.form.media_urls" class="col-12">
-                    <label class="form-label">Media URLs</label>
-                    <input v-model="wa.form.media_urls" type="text" class="form-control" readonly />
+                    <label class="form-label small fw-semibold mb-1">Media URLs</label>
+                    <input v-model="wa.form.media_urls" type="text" class="form-control form-control-sm" readonly />
                   </div>
                   <div class="col-md-4" v-if="wa.form.header_format">
-                    <label class="form-label">Header Format</label>
-                    <input :value="wa.form.header_format" type="text" class="form-control" readonly />
+                    <label class="form-label small fw-semibold mb-1">Header Format</label>
+                    <input :value="wa.form.header_format" type="text" class="form-control form-control-sm" readonly />
                   </div>
                   <div class="col-12" v-if="wa.form.header_text">
-                    <label class="form-label">Header Text</label>
-                    <input :value="wa.form.header_text" type="text" class="form-control" readonly />
+                    <label class="form-label small fw-semibold mb-1">Header Text</label>
+                    <input :value="wa.form.header_text" type="text" class="form-control form-control-sm" readonly />
                   </div>
                   <div class="col-12" v-if="wa.form.footer_text">
-                    <label class="form-label">Footer Text</label>
-                    <input :value="wa.form.footer_text" type="text" class="form-control" readonly />
+                    <label class="form-label small fw-semibold mb-1">Footer Text</label>
+                    <input :value="wa.form.footer_text" type="text" class="form-control form-control-sm" readonly />
                   </div>
                   <div class="col-12" v-if="wa.form.variables && Object.keys(wa.form.variables).length > 0">
-                    <label class="form-label d-flex align-items-center">
+                    <label class="form-label small fw-semibold mb-1 d-flex align-items-center">
                       Template Variables
-                      <span class="badge bg-secondary ms-2">{{ Object.keys(wa.form.variables).length }} Variable(s)</span>
+                      <span class="badge bg-secondary ms-2" style="font-size: 0.7rem;">{{ Object.keys(wa.form.variables).length }} Variable(s)</span>
                     </label>
-                    <div class="d-flex flex-wrap gap-2">
-                      <span v-for="(val, key) in wa.form.variables" :key="key" class="badge bg-light text-dark border shadow-sm">
+                    <div class="d-flex flex-wrap gap-1">
+                      <span v-for="(val, key) in wa.form.variables" :key="key" class="badge bg-light text-dark border shadow-xs" style="font-size: 0.74rem; font-family: monospace;">
                         {{ '{' + '{' + key + '}' + '}' }}
                       </span>
                     </div>
                   </div>
                   <!-- CUSTOM BUTTONS SECTION -->
                   <div class="col-12">
-                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-                      <label class="form-label mb-0 fw-semibold d-flex align-items-center">
+                    <div class="d-flex justify-content-between align-items-center mb-1.5 flex-wrap gap-1">
+                      <label class="form-label mb-0 small fw-semibold d-flex align-items-center">
                         <i class="bi bi-menu-button-wide text-primary me-1"></i>
                         Buttons
-                        <span v-if="wa.form.buttons.length" class="badge bg-primary bg-opacity-10 text-primary ms-2">
+                        <span v-if="wa.form.buttons.length" class="badge bg-primary bg-opacity-10 text-primary ms-1.5" style="font-size: 0.7rem;">
                           {{ wa.form.buttons.length }}
                         </span>
-                        <span v-else class="text-muted small fw-normal ms-2">(Optional)</span>
+                        <span v-else class="text-muted small fw-normal ms-1.5" style="font-size: 0.75rem;">(Optional)</span>
                       </label>
                       <div v-if="!wa.viewOnly" class="d-flex align-items-center gap-1">
                         <button
                           type="button"
-                          class="btn btn-outline-primary btn-sm py-1 px-2"
+                          class="btn btn-outline-primary btn-sm py-0.5 px-2"
+                          style="font-size: 0.75rem;"
                           @click="addTemplateButton('QUICK_REPLY')"
                           :disabled="wa.form.buttons.length >= 10"
                           title="Add a quick reply button"
@@ -1370,7 +1371,8 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-outline-success btn-sm py-1 px-2"
+                          class="btn btn-outline-success btn-sm py-0.5 px-2"
+                          style="font-size: 0.75rem;"
                           @click="addTemplateButton('URL')"
                           :disabled="wa.form.buttons.length >= 10"
                           title="Add a website URL button"
@@ -1379,7 +1381,8 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-outline-secondary btn-sm py-1 px-2"
+                          class="btn btn-outline-secondary btn-sm py-0.5 px-2"
+                          style="font-size: 0.75rem;"
                           @click="addTemplateButton('PHONE_NUMBER')"
                           :disabled="wa.form.buttons.length >= 10"
                           title="Add a phone call button"
@@ -1391,11 +1394,12 @@
 
                     <!-- Readonly View for Existing Template Details -->
                     <div v-if="wa.viewOnly">
-                      <div v-if="wa.form.buttons && wa.form.buttons.length" class="d-flex flex-wrap gap-2">
+                      <div v-if="wa.form.buttons && wa.form.buttons.length" class="d-flex flex-wrap gap-1.5">
                         <div
                           v-for="(btn, idx) in wa.form.buttons"
                           :key="idx"
-                          class="badge bg-light text-dark border p-2 d-flex align-items-center gap-2 shadow-xs"
+                          class="badge bg-light text-dark border py-1 px-2 d-flex align-items-center gap-1.5 shadow-xs"
+                          style="font-size: 0.76rem;"
                         >
                           <i v-if="String(btn.type || '').toUpperCase() === 'QUICK_REPLY'" class="bi bi-reply-fill text-success"></i>
                           <i v-else-if="String(btn.type || '').toUpperCase() === 'PHONE_NUMBER'" class="bi bi-telephone-fill text-success"></i>
@@ -1405,7 +1409,7 @@
                           <span class="text-muted small" v-else-if="btn.phone_number">({{ btn.phone_number }})</span>
                         </div>
                       </div>
-                      <div v-else class="text-muted small py-2 px-3 bg-light rounded border">
+                      <div v-else class="text-muted small py-1.5 px-2.5 bg-light rounded border" style="font-size: 0.75rem;">
                         No interactive buttons configured for this template.
                       </div>
                     </div>
@@ -1413,35 +1417,39 @@
                     <!-- Interactive Button Builder for Create & Edit -->
                     <div v-else>
                       <!-- Quick presets if no buttons added yet -->
-                      <div v-if="!wa.form.buttons.length" class="p-3 bg-light rounded border border-dashed text-center">
-                        <p class="text-muted small mb-2">
+                      <div v-if="!wa.form.buttons.length" class="py-2 px-2.5 bg-light rounded border border-dashed text-center">
+                        <p class="text-muted small mb-1.5" style="font-size: 0.75rem; line-height: 1.3;">
                           Add buttons for clients to tap directly in WhatsApp (Quick Replies, Website Link, or Call phone number).
                         </p>
-                        <div class="d-flex justify-content-center gap-2 flex-wrap">
+                        <div class="d-flex justify-content-center gap-1.5 flex-wrap">
                           <button
                             type="button"
-                            class="btn btn-white btn-sm border shadow-xs"
+                            class="btn btn-white btn-sm border shadow-xs py-0.5 px-2"
+                            style="font-size: 0.75rem;"
                             @click="addTemplatePresetButton('Quick Reply', 'QUICK_REPLY')"
                           >
                             <i class="bi bi-reply-fill text-success me-1"></i>+ "Quick Reply"
                           </button>
                           <button
                             type="button"
-                            class="btn btn-white btn-sm border shadow-xs"
+                            class="btn btn-white btn-sm border shadow-xs py-0.5 px-2"
+                            style="font-size: 0.75rem;"
                             @click="addTemplatePresetButton('Opt Out', 'QUICK_REPLY')"
                           >
                             <i class="bi bi-slash-circle text-danger me-1"></i>+ "Opt Out"
                           </button>
                           <button
                             type="button"
-                            class="btn btn-white btn-sm border shadow-xs"
+                            class="btn btn-white btn-sm border shadow-xs py-0.5 px-2"
+                            style="font-size: 0.75rem;"
                             @click="addTemplatePresetButton('Visit Website', 'URL', 'https://')"
                           >
                             <i class="bi bi-box-arrow-up-right text-primary me-1"></i>+ "Visit Website"
                           </button>
                           <button
                             type="button"
-                            class="btn btn-white btn-sm border shadow-xs"
+                            class="btn btn-white btn-sm border shadow-xs py-0.5 px-2"
+                            style="font-size: 0.75rem;"
                             @click="addTemplatePresetButton('Call Us', 'PHONE_NUMBER', '+27')"
                           >
                             <i class="bi bi-telephone-fill text-success me-1"></i>+ "Call Us"
@@ -1450,16 +1458,16 @@
                       </div>
 
                       <!-- Buttons List Form -->
-                      <div v-else class="d-flex flex-column gap-2">
+                      <div v-else class="d-flex flex-column gap-1.5">
                         <div
                           v-for="(btn, index) in wa.form.buttons"
                           :key="index"
-                          class="p-2 bg-light rounded border shadow-xs"
+                          class="p-1.5 bg-light rounded border shadow-xs"
                         >
-                          <div class="row g-2 align-items-center">
+                          <div class="row g-1.5 align-items-center">
                             <!-- Type selector -->
                             <div class="col-md-3">
-                              <select v-model="btn.type" class="form-select form-select-sm">
+                              <select v-model="btn.type" class="form-select form-select-sm py-0.5">
                                 <option value="QUICK_REPLY">Quick Reply</option>
                                 <option value="URL">Website URL</option>
                                 <option value="PHONE_NUMBER">Phone Number</option>
@@ -1469,7 +1477,7 @@
                             <!-- Button text -->
                             <div :class="btn.type === 'QUICK_REPLY' ? 'col-md-8' : 'col-md-4'">
                               <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-white">
+                                <span class="input-group-text bg-white px-2 py-0.5">
                                   <i v-if="btn.type === 'QUICK_REPLY'" class="bi bi-reply-fill text-success"></i>
                                   <i v-else-if="btn.type === 'PHONE_NUMBER'" class="bi bi-telephone-fill text-success"></i>
                                   <i v-else class="bi bi-box-arrow-up-right text-primary"></i>
@@ -1477,7 +1485,7 @@
                                 <input
                                   v-model="btn.text"
                                   type="text"
-                                  class="form-control form-control-sm"
+                                  class="form-control form-control-sm py-0.5"
                                   placeholder="Button Label"
                                   maxlength="25"
                                 />
@@ -1489,7 +1497,7 @@
                               <input
                                 v-model="btn.url"
                                 type="url"
-                                class="form-control form-control-sm"
+                                class="form-control form-control-sm py-0.5"
                                 placeholder="https://example.com"
                               />
                             </div>
@@ -1499,7 +1507,7 @@
                               <input
                                 v-model="btn.phone_number"
                                 type="tel"
-                                class="form-control form-control-sm"
+                                class="form-control form-control-sm py-0.5"
                                 placeholder="+27821234567"
                               />
                             </div>
@@ -1518,14 +1526,15 @@
                           </div>
                         </div>
 
-                        <div class="d-flex justify-content-between align-items-center mt-1">
-                          <small class="text-muted">
-                            Meta allows up to 25 characters per button. Buttons preview live on the phone.
+                        <div class="d-flex justify-content-between align-items-center mt-0.5">
+                          <small class="text-muted" style="font-size: 0.72rem;">
+                            Meta allows up to 25 chars per button. Live preview on phone.
                           </small>
                           <button
                             v-if="wa.form.buttons.length < 10"
                             type="button"
                             class="btn btn-link btn-sm p-0 text-decoration-none"
+                            style="font-size: 0.74rem;"
                             @click="addTemplateButton('QUICK_REPLY')"
                           >
                             <i class="bi bi-plus-circle me-1"></i>Add another button
@@ -1538,23 +1547,23 @@
               </div>
               
               <!-- PREVIEW PANE -->
-              <div class="col-lg-6 col-md-6 ps-lg-4">
-                <div class="d-flex justify-content-between align-items-start mb-3">
-                  <div>
-                    <h6 class="fw-bold mb-1 text-truncate" style="max-width: 320px;">
+              <div class="col-lg-6 col-md-6 ps-lg-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <div class="min-w-0 me-2">
+                    <h6 class="fw-bold mb-0 text-truncate" style="max-width: 280px; font-size: 0.9rem;">
                       {{ wa.form.friendly_name || 'Template Preview' }}
                     </h6>
-                    <small class="text-muted">Preview of the message the client will receive</small>
+                    <small class="text-muted d-block" style="font-size: 0.72rem;">Preview of the message the client will receive</small>
                   </div>
-                  <span :class="statusBadge(wa.form.status || 'APPROVED')">
+                  <span :class="statusBadge(wa.form.status || 'APPROVED')" style="font-size: 0.72rem; padding: 0.25rem 0.5rem;">
                     {{ formatStatusText(wa.form.status || 'APPROVED') }}
                   </span>
                 </div>
 
                 <!-- WhatsApp Mobile Phone Preview (Matching Screenshot 2) -->
-                <div class="whatsapp-phone-preview mb-4 shadow">
+                <div class="whatsapp-phone-preview mb-2.5 shadow-sm">
                   <!-- Phone Status Bar -->
-                  <div class="whatsapp-phone-statusbar d-flex align-items-center justify-content-between px-3">
+                  <div class="whatsapp-phone-statusbar d-flex align-items-center justify-content-between px-2.5">
                     <span class="fw-semibold">{{ templatePreviewTime }}</span>
                     <span class="d-flex align-items-center gap-1">
                       <i class="bi bi-reception-4"></i>
@@ -1564,21 +1573,21 @@
                   </div>
 
                   <!-- WhatsApp Header Bar -->
-                  <div class="whatsapp-phone-header d-flex align-items-center px-2 py-2">
-                    <i class="bi bi-arrow-left text-white fs-5 me-2"></i>
+                  <div class="whatsapp-phone-header d-flex align-items-center px-2 py-1.5">
+                    <i class="bi bi-arrow-left text-white fs-6 me-1.5"></i>
                     <div class="whatsapp-contact-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
-                      <i class="bi bi-building text-white"></i>
+                      <i class="bi bi-building text-white" style="font-size: 0.85rem;"></i>
                     </div>
-                    <div class="min-w-0 ms-2 flex-grow-1">
+                    <div class="min-w-0 ms-1.5 flex-grow-1">
                       <div class="text-white fw-semibold text-truncate whatsapp-contact-name">
                         {{ templatePreviewBusinessName }}
-                        <i class="bi bi-patch-check-fill ms-1 whatsapp-verified-icon" title="Official business account"></i>
+                        <i class="bi bi-patch-check-fill ms-0.5 whatsapp-verified-icon" title="Official business account"></i>
                       </div>
                       <div class="text-white-50 text-truncate whatsapp-contact-number">
                         {{ templatePreviewBusinessNumber }}
                       </div>
                     </div>
-                    <div class="d-flex align-items-center gap-3 text-white ms-2 fs-5">
+                    <div class="d-flex align-items-center gap-2 text-white ms-1.5 fs-6">
                       <i class="bi bi-camera-video"></i>
                       <i class="bi bi-telephone"></i>
                       <i class="bi bi-three-dots-vertical"></i>
@@ -1586,11 +1595,11 @@
                   </div>
 
                   <!-- Wallpaper with Doodle & Encrypted Note -->
-                  <div class="whatsapp-chat-wallpaper position-relative p-3">
-                    <div class="whatsapp-encryption-note mx-auto mb-3 px-3 py-2 text-center">
+                  <div class="whatsapp-chat-wallpaper position-relative p-2">
+                    <div class="whatsapp-encryption-note mx-auto mb-2 px-2 py-1 text-center">
                       <i class="bi bi-lock-fill me-1"></i>Messages are end-to-end encrypted.
                     </div>
-                    <div class="whatsapp-date-chip mx-auto mb-3 px-3 py-1 text-center">
+                    <div class="whatsapp-date-chip mx-auto mb-2 px-2 py-0.5 text-center">
                       TODAY
                     </div>
 
@@ -1604,28 +1613,28 @@
                       <img
                         v-if="wa.form.header_format === 'IMAGE' && firstMediaUrl"
                         :src="firstMediaUrl"
-                        class="w-100 rounded mb-2 template-header-image"
+                        class="w-100 rounded mb-1.5 template-header-image"
                         alt="Template header"
                       />
                       <video
                         v-else-if="wa.form.header_format === 'VIDEO' && firstMediaUrl"
                         :src="firstMediaUrl"
-                        class="w-100 rounded mb-2 template-header-image"
+                        class="w-100 rounded mb-1.5 template-header-image"
                         controls
                         preload="metadata"
                       ></video>
-                      <div v-else-if="wa.form.header_format === 'IMAGE'" class="whatsapp-document-preview rounded p-3 mb-2 text-center">
-                        <i class="bi bi-image fs-2 d-block text-secondary"></i>
-                        <small class="text-muted">Image header</small>
+                      <div v-else-if="wa.form.header_format === 'IMAGE'" class="whatsapp-document-preview rounded p-2 mb-1.5 text-center">
+                        <i class="bi bi-image fs-4 d-block text-secondary"></i>
+                        <small class="text-muted" style="font-size: 0.72rem;">Image header</small>
                       </div>
-                      <div v-else-if="wa.form.header_format === 'DOCUMENT'" class="whatsapp-document-preview rounded p-3 mb-2 d-flex align-items-center gap-2">
-                        <i class="bi bi-file-earmark-text-fill fs-2 text-secondary"></i>
+                      <div v-else-if="wa.form.header_format === 'DOCUMENT'" class="whatsapp-document-preview rounded p-2 mb-1.5 d-flex align-items-center gap-1.5">
+                        <i class="bi bi-file-earmark-text-fill fs-4 text-secondary"></i>
                         <div class="min-w-0">
-                          <div class="fw-semibold text-truncate">Template document</div>
-                          <small class="text-muted">Document attachment</small>
+                          <div class="fw-semibold text-truncate" style="font-size: 0.78rem;">Template document</div>
+                          <small class="text-muted" style="font-size: 0.7rem;">Document attachment</small>
                         </div>
                       </div>
-                      <div v-else-if="wa.form.header_format && !['TEXT', 'IMAGE', 'DOCUMENT'].includes(wa.form.header_format)" class="whatsapp-document-preview rounded p-2 mb-2 small text-muted">
+                      <div v-else-if="wa.form.header_format && !['TEXT', 'IMAGE', 'DOCUMENT'].includes(wa.form.header_format)" class="whatsapp-document-preview rounded p-1.5 mb-1.5 small text-muted" style="font-size: 0.72rem;">
                         <i class="bi bi-paperclip me-1"></i>{{ wa.form.header_format }} header
                       </div>
 
@@ -1643,8 +1652,8 @@
                       </div>
 
                       <!-- Interactive Action Buttons -->
-                      <div v-if="wa.form.buttons?.length" class="whatsapp-template-buttons mt-2">
-                        <div v-for="(button, index) in wa.form.buttons" :key="index" class="whatsapp-template-button text-center py-2">
+                      <div v-if="wa.form.buttons?.length" class="whatsapp-template-buttons mt-1.5">
+                        <div v-for="(button, index) in wa.form.buttons" :key="index" class="whatsapp-template-button text-center py-1.5">
                           <i v-if="String(button.type || '').toUpperCase() === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
                           <i v-else-if="String(button.type || '').toUpperCase() === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
                           <i v-else class="bi bi-box-arrow-up-right me-1"></i>
@@ -1656,17 +1665,18 @@
                 </div>
 
                 <!-- Template Values Card (Below Phone Preview, Matching Screenshot 2) -->
-                <div class="card border-0 shadow-sm mb-3">
-                  <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+                <div class="card border rounded shadow-xs mb-1">
+                  <div class="card-body p-2.5">
+                    <div class="d-flex justify-content-between align-items-start mb-1.5 flex-wrap gap-1.5">
                       <div>
-                        <h6 class="fw-bold mb-1">Template values</h6>
-                        <p class="text-muted small mb-0">Enter the values required for this client. The preview updates as you type.</p>
+                        <h6 class="fw-bold mb-0" style="font-size: 0.85rem;">Template values</h6>
+                        <p class="text-muted small mb-0" style="font-size: 0.72rem;">Enter the values required for this client. The preview updates as you type.</p>
                       </div>
                       <div class="d-flex align-items-center gap-1 flex-wrap">
                         <button
                           type="button"
-                          class="btn btn-outline-primary btn-sm py-1 px-2"
+                          class="btn btn-outline-primary btn-sm py-0.5 px-1.5"
+                          style="font-size: 0.72rem;"
                           @click="fillSampleValues"
                           title="Auto-fill realistic sample values"
                         >
@@ -1674,7 +1684,8 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-primary btn-sm py-1 px-2"
+                          class="btn btn-primary btn-sm py-0.5 px-1.5"
+                          style="font-size: 0.72rem;"
                           @click="updatePreview"
                           title="Apply and preview variables"
                         >
@@ -1683,7 +1694,8 @@
                         <button
                           v-if="hasPreviewVariablesSet"
                           type="button"
-                          class="btn btn-outline-secondary btn-sm py-1 px-2"
+                          class="btn btn-outline-secondary btn-sm py-0.5 px-1.5"
+                          style="font-size: 0.72rem;"
                           @click="clearPreviewVariables"
                           title="Clear all preview values"
                         >
@@ -1691,7 +1703,8 @@
                         </button>
                         <button
                           type="button"
-                          class="btn btn-outline-success btn-sm py-1 px-2"
+                          class="btn btn-outline-success btn-sm py-0.5 px-1.5"
+                          style="font-size: 0.72rem;"
                           @click="toggleAddVariableInput"
                           title="Add a temporary preview variable"
                         >
@@ -1701,27 +1714,27 @@
                     </div>
 
                     <!-- Inline Add Variable Form -->
-                    <div v-if="wa.showAddVariable" class="card border-success border-opacity-50 bg-light my-3 p-3 shadow-sm">
-                      <div class="small fw-bold text-success mb-2">
+                    <div v-if="wa.showAddVariable" class="card border-success border-opacity-50 bg-light my-2 p-2 shadow-xs">
+                      <div class="small fw-bold text-success mb-1" style="font-size: 0.75rem;">
                         <i class="bi bi-plus-circle me-1"></i>Add Temporary Preview Variable
                       </div>
-                      <div class="row g-2">
+                      <div class="row g-1.5">
                         <div class="col-sm-5">
-                          <label class="form-label small text-muted mb-1">Variable Name</label>
+                          <label class="form-label small text-muted mb-0.5" style="font-size: 0.72rem;">Variable Name</label>
                           <input
                             v-model.trim="wa.newVariableKey"
                             type="text"
-                            class="form-control form-control-sm"
+                            class="form-control form-control-sm py-0.5"
                             placeholder="e.g. 1, 2, or custom_var"
                             @keydown.enter.prevent="addCustomVariable"
                           />
                         </div>
                         <div class="col-sm-5">
-                          <label class="form-label small text-muted mb-1">Sample Value</label>
+                          <label class="form-label small text-muted mb-0.5" style="font-size: 0.72rem;">Sample Value</label>
                           <input
                             v-model="wa.newVariableValue"
                             type="text"
-                            class="form-control form-control-sm"
+                            class="form-control form-control-sm py-0.5"
                             placeholder="e.g. John Doe"
                             @keydown.enter.prevent="addCustomVariable"
                           />
@@ -1729,14 +1742,16 @@
                         <div class="col-sm-2 d-flex align-items-end gap-1">
                           <button
                             type="button"
-                            class="btn btn-success btn-sm flex-grow-1"
+                            class="btn btn-success btn-sm py-0.5 flex-grow-1"
+                            style="font-size: 0.75rem;"
                             @click="addCustomVariable"
                           >
                             Add
                           </button>
                           <button
                             type="button"
-                            class="btn btn-outline-secondary btn-sm"
+                            class="btn btn-outline-secondary btn-sm py-0.5 px-2"
+                            style="font-size: 0.75rem;"
                             @click="toggleAddVariableInput"
                           >
                             ✕
@@ -1746,17 +1761,18 @@
                     </div>
 
                     <!-- List of Template Variable Inputs -->
-                    <div v-if="templateVariablesList.length" class="mt-3">
-                      <div v-for="entryKey in templateVariablesList" :key="entryKey" class="mb-3 last-variable-field">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                          <label class="form-label small fw-semibold mb-0">
+                    <div v-if="templateVariablesList.length" class="mt-2">
+                      <div v-for="entryKey in templateVariablesList" :key="entryKey" class="mb-1.5 last-variable-field">
+                        <div class="d-flex justify-content-between align-items-center mb-0.5">
+                          <label class="form-label small fw-semibold mb-0" style="font-size: 0.75rem;">
                             {{ variableLabel(entryKey) }} <span class="text-danger">*</span>
-                            <code class="text-muted small ms-1">&#123;&#123;{{ entryKey }}&#125;&#125;</code>
+                            <code class="text-muted small ms-1" style="font-size: 0.72rem;">&#123;&#123;{{ entryKey }}&#125;&#125;</code>
                           </label>
                           <button
                             v-if="wa.customVariables.includes(entryKey)"
                             type="button"
                             class="btn btn-link btn-sm text-danger p-0 text-decoration-none"
+                            style="font-size: 0.72rem;"
                             @click="removeCustomVariable(entryKey)"
                             title="Remove temporary variable"
                           >
@@ -1766,14 +1782,14 @@
                         <input
                           v-model="wa.previewVariables[entryKey]"
                           type="text"
-                          class="form-control form-control-sm"
+                          class="form-control form-control-sm py-0.5"
                           :placeholder="samplePlaceholder(entryKey)"
                           maxlength="1024"
                         />
                       </div>
                     </div>
 
-                    <div v-else class="text-muted small py-3 text-center border rounded bg-light mt-2">
+                    <div v-else class="text-muted small py-2 px-2 text-center border rounded bg-light mt-1.5" style="font-size: 0.74rem;">
                       <i class="bi bi-info-circle me-1"></i>No variables found in this template. Click <strong>+ Add Variable</strong> above to test variables.
                     </div>
                   </div>
@@ -1783,9 +1799,9 @@
 
             </div>
           </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" :disabled="wa.saving">Close</button>
-            <button v-if="!wa.viewOnly" class="btn btn-primary" @click="saveTemplate" :disabled="wa.saving || (!wa.form.sid && !!duplicateTemplateWarning)">
+          <div class="modal-footer py-2 px-3">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" :disabled="wa.saving">Close</button>
+            <button v-if="!wa.viewOnly" class="btn btn-sm btn-primary" @click="saveTemplate" :disabled="wa.saving || (!wa.form.sid && !!duplicateTemplateWarning)">
               <span v-if="wa.saving" class="spinner-border spinner-border-sm me-1"></span>
               {{ wa.form.sid ? 'Update Template' : 'Submit to Meta for Approval' }}
             </button>
@@ -4400,76 +4416,78 @@ export default {
 
 /* WhatsApp Mobile Phone Device Preview */
 .whatsapp-phone-preview {
-  max-width: 430px;
+  max-width: 350px;
   margin: 0 auto;
   overflow: hidden;
-  border: 6px solid #263238;
-  border-radius: 22px;
+  border: 4px solid #263238;
+  border-radius: 18px;
   background: #efeae2;
 }
 
 .whatsapp-phone-statusbar {
-  height: 26px;
+  height: 22px;
   color: #ffffff;
   background: #075e54;
-  font-size: 0.68rem;
+  font-size: 0.64rem;
 }
 
 .whatsapp-phone-header {
-  min-height: 58px;
+  min-height: 46px;
   background: #008069;
 }
 
 .whatsapp-contact-avatar {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   background: #607d8b;
 }
 
 .whatsapp-contact-name {
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   line-height: 1.15;
 }
 
 .whatsapp-contact-number {
-  margin-top: 3px;
-  font-size: 0.69rem;
+  margin-top: 1px;
+  font-size: 0.65rem;
 }
 
 .whatsapp-verified-icon {
   color: #8edfd2;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
 }
 
 .whatsapp-chat-wallpaper {
-  min-height: 350px;
+  min-height: 160px;
+  max-height: 320px;
+  overflow-y: auto;
   background-color: #efeae2;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%238b9b93' stroke-opacity='.11' stroke-width='1.3'%3E%3Cpath d='M14 18c7-5 15 4 10 11s-15 3-14-5m71-13 8 8-8 8-8-8zm-40 39c4-7 15-5 16 3s-10 13-15 7m45 13c8-2 13 8 7 14s-15 0-12-8M9 88c8-6 18 3 12 11S5 102 6 94m50-3 9 9m-9 0 9-9m37 2c4-7 14-3 12 5s-13 8-14 0'/%3E%3Cpath d='M36 7c3 7 11 8 16 3m-20 63c8 0 12 7 8 13m34-48c5 6 13 5 17-1m13 39c-7 2-9 10-4 15'/%3E%3C/g%3E%3C/svg%3E");
 }
 
 .whatsapp-encryption-note {
   width: fit-content;
-  max-width: 88%;
-  border-radius: 7px;
+  max-width: 90%;
+  border-radius: 6px;
   color: #6b6252;
   background: #ffeecd;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
-  font-size: 0.64rem;
+  font-size: 0.6rem;
 }
 
 .whatsapp-date-chip {
   width: fit-content;
-  border-radius: 7px;
+  border-radius: 6px;
   color: #54656f;
   background: #ffffffd9;
   box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
-  font-size: 0.64rem;
+  font-size: 0.6rem;
 }
 
 .whatsapp-template-message {
-  width: 88%;
-  padding: 8px 8px 5px;
-  margin-left: 7px;
+  width: 90%;
+  padding: 6px 8px 4px;
+  margin-left: 6px;
   border-radius: 0 8px 8px 8px;
   color: #111b21;
   background: #ffffff;
@@ -4484,22 +4502,23 @@ export default {
 }
 
 .whatsapp-message-header {
-  font-size: 0.9rem;
-  line-height: 1.3;
+  font-size: 0.84rem;
+  line-height: 1.25;
 }
 
 .whatsapp-message-body {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   word-break: break-word;
+  line-height: 1.35;
 }
 
 .whatsapp-message-footer {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
 }
 
 .whatsapp-message-time {
-  font-size: 0.62rem;
+  font-size: 0.58rem;
 }
 
 .whatsapp-document-preview {
@@ -4510,13 +4529,13 @@ export default {
 .whatsapp-template-buttons {
   margin-right: -8px;
   margin-left: -8px;
-  margin-bottom: -5px;
+  margin-bottom: -4px;
 }
 
 .whatsapp-template-button {
   color: #00a884;
   border-top: 1px solid #e9edef;
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 600;
   cursor: pointer;
   background: #ffffff;
@@ -4527,7 +4546,20 @@ export default {
 }
 
 .template-header-image {
-  max-height: 180px;
+  max-height: 140px;
   object-fit: cover;
+}
+
+/* Modal Compact Overrides for Template Editor */
+.whatsapp-template-modal .modal-content {
+  border-radius: 12px;
+}
+.whatsapp-template-modal .form-label {
+  margin-bottom: 0.25rem;
+  font-size: 0.8rem;
+}
+.whatsapp-template-modal .form-control,
+.whatsapp-template-modal .form-select {
+  font-size: 0.82rem;
 }
 </style>
