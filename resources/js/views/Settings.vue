@@ -493,8 +493,8 @@
           </div>
         </div>
         <div class="row g-3 mt-1">
-          <div class="col-12">
-            <div class="card shadow-sm border-danger">
+          <div class="col-12 col-lg-6">
+            <div class="card shadow-sm border-danger h-100">
               <div class="card-header bg-danger text-white">
                 <h6 class="mb-0"><i class="bi bi-shield-lock-fill me-2"></i>Live Chat Emergency Lock</h6>
               </div>
@@ -508,6 +508,25 @@
                   <label class="form-label" :class="{'text-danger': system.form.live_chat_locked}">Disabled Message</label>
                   <input v-model="system.form.live_chat_locked_message" type="text" class="form-control" :class="{'border-danger': system.form.live_chat_locked}" placeholder="Live chat is temporarily disabled." :disabled="!system.form.live_chat_locked" />
                   <small class="text-muted">This message will be displayed in the chat input area for all agents.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="card shadow-sm border-warning h-100">
+              <div class="card-header bg-warning text-dark">
+                <h6 class="mb-0"><i class="bi bi-person-x-fill me-2"></i>Live Chat Opt-Out Policy</h6>
+              </div>
+              <div class="card-body">
+                <div class="form-check form-switch mb-3">
+                  <input class="form-check-input" type="checkbox" role="switch" id="disableChatForOptedOut" v-model="system.form.disable_chat_for_opted_out_clients" />
+                  <label class="form-check-label text-dark fw-bold" for="disableChatForOptedOut">Disable Chat Input for Opted-Out Clients</label>
+                  <div class="form-text">When enabled, agents cannot send messages or templates to clients who have opted out. The input field will be disabled.</div>
+                </div>
+                <div>
+                  <label class="form-label" :class="{'text-warning-emphasis': system.form.disable_chat_for_opted_out_clients}">Opt-Out Notice Message</label>
+                  <input v-model="system.form.opted_out_chat_message" type="text" class="form-control" :class="{'border-warning': system.form.disable_chat_for_opted_out_clients}" placeholder="This client has opted out of WhatsApp communication. Messaging is disabled." :disabled="!system.form.disable_chat_for_opted_out_clients" />
+                  <small class="text-muted">This notice is displayed in the chat composer placeholder and banner when an opted-out client is selected.</small>
                 </div>
               </div>
             </div>
@@ -1939,6 +1958,8 @@ export default {
           app_logo_url: '',
           live_chat_locked: false,
           live_chat_locked_message: 'Live chat is temporarily disabled.',
+          disable_chat_for_opted_out_clients: true,
+          opted_out_chat_message: 'This client has opted out of WhatsApp communication. Messaging is disabled.',
         },
       },
       meta: {
@@ -2597,6 +2618,8 @@ export default {
         company_name: settings.company_name || '',
         live_chat_locked: settings.live_chat_locked || false,
         live_chat_locked_message: settings.live_chat_locked_message || 'Live chat is temporarily disabled.',
+        disable_chat_for_opted_out_clients: settings.disable_chat_for_opted_out_clients !== undefined ? !!settings.disable_chat_for_opted_out_clients : true,
+        opted_out_chat_message: settings.opted_out_chat_message || 'This client has opted out of WhatsApp communication. Messaging is disabled.',
         support_email: settings.support_email || '',
         support_phone: settings.support_phone || '',
         admin_ip_allowlist: settings.admin_ip_allowlist || '',
@@ -2670,6 +2693,8 @@ export default {
       payload.append('support_phone', this.system.form.support_phone || '');
       payload.append('live_chat_locked', this.system.form.live_chat_locked ? '1' : '0');
       payload.append('live_chat_locked_message', this.system.form.live_chat_locked_message || '');
+      payload.append('disable_chat_for_opted_out_clients', this.system.form.disable_chat_for_opted_out_clients ? '1' : '0');
+      payload.append('opted_out_chat_message', this.system.form.opted_out_chat_message || '');
       payload.append('admin_ip_allowlist', this.system.form.admin_ip_allowlist || '');
       payload.append('password_max_age_days', this.system.form.password_max_age_days ?? '');
       payload.append('enable_import_malware_scanning', this.system.form.enable_import_malware_scanning ? '1' : '0');

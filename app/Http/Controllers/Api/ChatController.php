@@ -348,8 +348,10 @@ class ChatController extends Controller
         $settings = \App\Models\SystemSetting::first();
         $liveChatLocked = $settings ? (bool) $settings->live_chat_locked : false;
         $liveChatLockedMessage = $settings ? $settings->live_chat_locked_message : 'Live chat is temporarily disabled.';
+        $disableChatForOptedOutClients = $settings && $settings->disable_chat_for_opted_out_clients !== null ? (bool) $settings->disable_chat_for_opted_out_clients : true;
+        $optedOutChatMessage = ($settings && $settings->opted_out_chat_message) ? $settings->opted_out_chat_message : 'This client has opted out of WhatsApp communication. Messaging is disabled.';
 
-        return response()->json(compact('banks', 'departments', 'wabas', 'liveChatLocked', 'liveChatLockedMessage'));
+        return response()->json(compact('banks', 'departments', 'wabas', 'liveChatLocked', 'liveChatLockedMessage', 'disableChatForOptedOutClients', 'optedOutChatMessage'));
     }
 
     public function show(Request $request, ChatSession $session)
@@ -405,6 +407,16 @@ class ChatController extends Controller
         if ($settings && $settings->live_chat_locked) {
             return response()->json([
                 'message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.'
+            ], 403);
+        }
+
+        $disableChatForOptedOutClients = $settings && $settings->disable_chat_for_opted_out_clients !== null ? (bool) $settings->disable_chat_for_opted_out_clients : true;
+        if ($disableChatForOptedOutClients && $this->isSessionClientOptedOut($session)) {
+            $optedOutChatMessage = ($settings && $settings->opted_out_chat_message)
+                ? $settings->opted_out_chat_message
+                : 'This client has opted out of WhatsApp communication. Messaging is disabled.';
+            return response()->json([
+                'message' => $optedOutChatMessage,
             ], 403);
         }
 
@@ -520,6 +532,16 @@ class ChatController extends Controller
         if ($settings && $settings->live_chat_locked) {
             return response()->json([
                 'message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.'
+            ], 403);
+        }
+
+        $disableChatForOptedOutClients = $settings && $settings->disable_chat_for_opted_out_clients !== null ? (bool) $settings->disable_chat_for_opted_out_clients : true;
+        if ($disableChatForOptedOutClients && $this->isSessionClientOptedOut($session)) {
+            $optedOutChatMessage = ($settings && $settings->opted_out_chat_message)
+                ? $settings->opted_out_chat_message
+                : 'This client has opted out of WhatsApp communication. Messaging is disabled.';
+            return response()->json([
+                'message' => $optedOutChatMessage,
             ], 403);
         }
 
@@ -980,6 +1002,7 @@ class ChatController extends Controller
             'message' => 'Opt-in status updated successfully',
             'opt_in' => $client?->opt_in ?: $data['opt_in'],
             'opt_in_updated_at' => optional($client?->opt_in_updated_at)->toDateTimeString(),
+            'whatsapp_opted_out_at' => optional($client?->whatsapp_opted_out_at)->toDateTimeString(),
         ]);
     }
 
@@ -1014,5 +1037,19 @@ class ChatController extends Controller
             'payment_option' => $client->payment_option,
             'payment_option_updated_at' => optional($client->payment_option_updated_at)->toDateTimeString(),
         ]);
+    }
+
+    protected function isSessionClientOptedOut(ChatSession $session): bool
+    {
+        $client = $session->client;
+        if (!$client && !empty($session->phone)) {
+            $client = Client::where('phone', $session->phone)->orWhere('cell_phone', $session->phone)->first();
+        }
+
+        if (!$client) {
+            return false;
+        }
+
+        return $client->opt_in === 'no' || $client->isWhatsappSuppressed();
     }
 }

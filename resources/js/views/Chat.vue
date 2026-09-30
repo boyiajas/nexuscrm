@@ -253,9 +253,9 @@
                 <li v-if="canManageChat && activeSession.platform?.toLowerCase() === 'whatsapp'">
                   <a
                     class="dropdown-item py-2"
-                    :class="{ disabled: liveChatLocked }"
+                    :class="{ disabled: liveChatLocked || isOptedOutAndBlocked }"
                     href="#"
-                    :aria-disabled="liveChatLocked"
+                    :aria-disabled="liveChatLocked || isOptedOutAndBlocked"
                     @click.prevent="openTemplateModal(activeSession)"
                   >
                     <i class="bi bi-file-earmark-text me-2 text-success"></i>Send Template
@@ -410,6 +410,15 @@
           </template>
         </div>
 
+        <!-- Opt-Out Notice Banner -->
+        <div v-if="isOptedOutAndBlocked && !liveChatLocked" class="px-3 py-2 bg-danger bg-opacity-10 border-top border-bottom d-flex align-items-center justify-content-between text-danger small">
+          <span class="d-flex align-items-center gap-2">
+            <i class="bi bi-person-x-fill fs-6"></i>
+            <span>{{ optedOutChatMessage }}</span>
+          </span>
+          <span class="badge bg-danger text-white">Opt-In: No</span>
+        </div>
+
         <!-- Attachment Preview Banner -->
         <div v-if="selectedFile" class="px-3 py-2 bg-light border-top border-bottom d-flex align-items-center justify-content-between text-muted small">
           <span class="text-truncate me-2">
@@ -423,22 +432,22 @@
         <div class="chat-composer p-3 border-top">
           <form @submit.prevent="sendMessage" class="d-flex align-items-center">
             <input type="file" ref="fileInput" class="d-none" @change="onFileSelected" />
-            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none" @click="triggerFileInput" title="Attach file" :disabled="!activeSession || loadingMessages || !canManageChat || liveChatLocked">
+            <button type="button" class="btn btn-link text-muted fs-4 p-0 me-3 shadow-none" @click="triggerFileInput" title="Attach file" :disabled="!activeSession || loadingMessages || !canManageChat || liveChatLocked || isOptedOutAndBlocked">
               <i class="bi bi-paperclip" :class="{'text-primary': selectedFile}"></i>
             </button>
             <textarea
               v-model="newMessage"
               class="form-control rounded-4 border-0 shadow-none py-2 px-3 flex-grow-1 me-3"
-              :class="{'locked-input': liveChatLocked}"
+              :class="{'locked-input': liveChatLocked || isOptedOutAndBlocked}"
               style="background-color: #ffffff; resize: none; overflow-y: auto; line-height: 1.5;"
               rows="1"
-              :placeholder="liveChatLocked ? liveChatLockedMessage : 'Type a message (Shift+Enter for new line)'"
-              :disabled="!activeSession || loadingMessages || !canManageChat || uploadingFile || liveChatLocked"
+              :placeholder="composerPlaceholder"
+              :disabled="!activeSession || loadingMessages || !canManageChat || uploadingFile || liveChatLocked || isOptedOutAndBlocked"
               @keydown.enter.exact.prevent="sendMessage"
               @input="adjustTextareaHeight"
               ref="messageInput"
             ></textarea>
-            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || loadingMessages || (!newMessage.trim() && !selectedFile) || !canManageChat || uploadingFile || liveChatLocked">
+            <button type="submit" class="btn text-muted fs-4 p-0 shadow-none" :disabled="!activeSession || loadingMessages || (!newMessage.trim() && !selectedFile) || !canManageChat || uploadingFile || liveChatLocked || isOptedOutAndBlocked">
               <span v-if="uploadingFile" class="spinner-border spinner-border-sm text-primary" role="status"></span>
               <i v-else class="bi bi-send-fill" :class="{'text-primary': newMessage.trim() || selectedFile}"></i>
             </button>
@@ -907,6 +916,8 @@ export default {
       availableWabas: [],
       liveChatLocked: false,
       liveChatLockedMessage: '',
+      disableChatForOptedOutClients: true,
+      optedOutChatMessage: 'This client has opted out of WhatsApp communication. Messaging is disabled.',
       addClientModalInstance: null,
       isSubmittingClient: false,
       sourceChatSessionId: null,
@@ -1003,8 +1014,21 @@ export default {
       return this.renderTemplatePart(this.selectedTemplate?.body_preview, 'body');
     },
     canSendSelectedTemplate() {
-      if (!this.selectedTemplate || this.sendingTemplate || this.liveChatLocked) return false;
+      if (!this.selectedTemplate || this.sendingTemplate || this.liveChatLocked || this.isOptedOutAndBlocked) return false;
       return this.templateVariableEntries.every(({ key }) => String(this.templateVariableValues[key] || '').trim() !== '');
+    },
+    isOptedOutAndBlocked() {
+      if (!this.disableChatForOptedOutClients || !this.activeSession) return false;
+      return this.isClientOptedOut(this.activeSession);
+    },
+    composerPlaceholder() {
+      if (this.liveChatLocked) {
+        return this.liveChatLockedMessage || 'Live chat is temporarily disabled.';
+      }
+      if (this.isOptedOutAndBlocked) {
+        return this.optedOutChatMessage || 'This client has opted out of WhatsApp communication. Messaging is disabled.';
+      }
+      return 'Type a message (Shift+Enter for new line)';
     }
   },
   mounted() {
@@ -1313,6 +1337,7 @@ export default {
       el.style.height = Math.min(el.scrollHeight, 120) + 'px';
     },
     triggerFileInput() {
+      if (this.liveChatLocked || this.isOptedOutAndBlocked) return;
       if (this.$refs.fileInput) {
         this.$refs.fileInput.click();
       }
@@ -1341,8 +1366,13 @@ export default {
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     },
+    isClientOptedOut(session) {
+      if (!session) return false;
+      const optIn = session.client?.opt_in || session.opt_in;
+      return optIn === 'no' || !!session.client?.whatsapp_opted_out_at;
+    },
     sendMessage() {
-      if (!this.canManageChat || !this.activeSession || this.uploadingFile) return;
+      if (!this.canManageChat || !this.activeSession || this.uploadingFile || this.liveChatLocked || this.isOptedOutAndBlocked) return;
 
       const content = this.newMessage.trim();
       if (!content && !this.selectedFile) return;
@@ -1472,6 +1502,7 @@ export default {
         if (session.client) {
           session.client.opt_in = res.data.opt_in;
           session.client.opt_in_updated_at = res.data.opt_in_updated_at;
+          session.client.whatsapp_opted_out_at = res.data.whatsapp_opted_out_at;
         } else {
           session.opt_in = res.data.opt_in;
         }
@@ -1479,6 +1510,7 @@ export default {
           if (this.activeSession.client) {
             this.activeSession.client.opt_in = res.data.opt_in;
             this.activeSession.client.opt_in_updated_at = res.data.opt_in_updated_at;
+            this.activeSession.client.whatsapp_opted_out_at = res.data.whatsapp_opted_out_at;
           } else {
             this.activeSession.opt_in = res.data.opt_in;
           }
@@ -1512,6 +1544,10 @@ export default {
     },
     openTemplateModal(session) {
       if (!this.canManageChat || !session || this.liveChatLocked) return;
+      if (this.disableChatForOptedOutClients && this.isClientOptedOut(session)) {
+        notify.warning(this.optedOutChatMessage || 'This client has opted out of WhatsApp communication. Messaging is disabled.', 'Opted Out');
+        return;
+      }
       if (String(session.platform || '').toLowerCase() !== 'whatsapp') {
         notify.error('Templates can only be sent to WhatsApp chats.', 'Chat');
         return;
@@ -1604,6 +1640,8 @@ export default {
         this.availableWabas = res.data.wabas || [];
         this.liveChatLocked = res.data.liveChatLocked || false;
         this.liveChatLockedMessage = res.data.liveChatLockedMessage || 'Live chat is temporarily disabled.';
+        this.disableChatForOptedOutClients = res.data.disableChatForOptedOutClients !== undefined ? !!res.data.disableChatForOptedOutClients : true;
+        this.optedOutChatMessage = res.data.optedOutChatMessage || 'This client has opted out of WhatsApp communication. Messaging is disabled.';
       }).catch((err) => {
         console.error('Failed to load chat filters', err);
       });
@@ -1749,6 +1787,11 @@ export default {
 .locked-input::placeholder {
   color: #dc3545 !important;
   opacity: 1 !important;
+}
+
+.locked-input:disabled {
+  background-color: #f8f9fa !important;
+  cursor: not-allowed;
 }
 
 .delivery-error-message {

@@ -13,6 +13,8 @@ class SystemSetting extends Model
         'app_name',
         'live_chat_locked',
         'live_chat_locked_message',
+        'disable_chat_for_opted_out_clients',
+        'opted_out_chat_message',
         'app_short_name',
         'app_tagline',
         'company_name',
@@ -78,6 +80,7 @@ class SystemSetting extends Model
         'meta_permissions_last_checked_at' => 'datetime',
         'meta_permissions_snapshot' => 'array',
         'live_chat_locked' => 'boolean',
+        'disable_chat_for_opted_out_clients' => 'boolean',
     ];
 
     public function adminIpAllowlistEntries(): array
