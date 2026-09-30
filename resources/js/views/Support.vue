@@ -363,7 +363,7 @@
                 </span>
                 <router-link
                   v-if="feature.route"
-                  :to="{ name: feature.route }"
+                  :to="feature.query ? { name: feature.route, query: feature.query } : { name: feature.route }"
                   class="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1 fw-semibold"
                 >
                   <span>{{ feature.actionText }}</span>
@@ -658,6 +658,80 @@ export default {
         'Analytics & Data',
       ],
       features: [
+        {
+          title: 'Direct WhatsApp Number Onboarding, OTP Verification & Meta Registration',
+          category: 'WhatsApp & Meta',
+          badgeClass: 'bg-success text-white',
+          icon: 'bi-telephone-plus-fill',
+          releaseDate: 'September 2026',
+          highlight: true,
+          description:
+            'You can now onboard, verify, and register new WhatsApp phone numbers directly to Meta from the system. Add your phone number and verified display name, request verification codes via SMS or automated Voice call, enter the received 6-digit OTP code along with your secure 2-step verification PIN, and register the number for immediate production messaging.',
+          howToUse:
+            'Head to Settings -> WhatsApp Numbers and click "+ Add Phone Number". Enter the country code, number, and business display name. Click "Request Code", choose SMS or Voice call, enter the verification OTP with a 6-digit PIN, and your number is ready for live messaging.',
+          actionText: 'Manage WhatsApp Numbers',
+          route: 'settings',
+          query: { tab: 'whatsapp-numbers' },
+        },
+        {
+          title: 'Direct WhatsApp Template Creation & Meta Approval Submission',
+          category: 'WhatsApp & Meta',
+          badgeClass: 'bg-success text-white',
+          icon: 'bi-file-earmark-plus-fill',
+          releaseDate: 'September 2026',
+          highlight: true,
+          description:
+            'Author new WhatsApp message templates directly inside the CRM and submit them straight to Meta Cloud API for official approval. Features sequential variable placeholder validation ({{1}}, {{2}}), realistic variable example prompts required by Meta, instant duplicate template name warnings, category assignment (Utility, Marketing, Authentication), and live submission status tracking.',
+          howToUse:
+            'In Settings -> WhatsApp Templates, click "+ Create Template". Enter your template name, category, language, and body text with sequential placeholders like {{1}}. Fill in the required realistic example values for Meta, and click "Submit to Meta for Approval" to submit your template directly for review.',
+          actionText: 'Create WhatsApp Template',
+          route: 'settings',
+          query: { tab: 'whatsapp-templates' },
+        },
+        {
+          title: 'WhatsApp Mobile Phone Previewer & Temporary Variable Tester',
+          category: 'WhatsApp & Meta',
+          badgeClass: 'bg-success text-white',
+          icon: 'bi-phone',
+          releaseDate: 'September 2026',
+          highlight: true,
+          description:
+            'Test and simulate WhatsApp message templates inside an authentic smartphone interface matching the WhatsApp mobile app. View real-time status bars, verified business header badges, chat doodle wallpaper, and end-to-end encryption notices. Dynamically test variable substitutions with instant updates, auto-fill realistic sample values with one click, and temporarily add custom preview variables on the fly.',
+          howToUse:
+            'Open Settings -> WhatsApp Templates and click the View (eye) icon on any template. Use "Sample Values" to immediately fill realistic test data, "+ Add Variable" to add custom temporary variables, and see the interactive preview update live as you type.',
+          actionText: 'Preview Templates',
+          route: 'settings',
+          query: { tab: 'whatsapp-templates' },
+        },
+        {
+          title: 'WhatsApp Template Review Insights & Delay Diagnostics',
+          category: 'WhatsApp & Meta',
+          badgeClass: 'bg-success text-white',
+          icon: 'bi-info-circle-fill',
+          releaseDate: 'September 2026',
+          highlight: true,
+          description:
+            'Understand Meta template review timelines and diagnose approval delays directly from the template management console. Templates in Pending, In Review, or In Appeal states now display a dedicated Info icon detailing typical review turnaround times (usually within 24 hours), common causes for delay (new WABA accounts, complex variable syntax, holiday volumes), and appeal guidelines.',
+          howToUse:
+            'In Settings -> WhatsApp Templates, click the info icon next to any pending template status badge to inspect review guidelines, delay explanations, and trigger a live status check with Meta.',
+          actionText: 'View Template Statuses',
+          route: 'settings',
+          query: { tab: 'whatsapp-templates' },
+        },
+        {
+          title: 'Client Opt-Out Protection & Automated Chat Input Lock',
+          category: 'Live Chat',
+          badgeClass: 'bg-primary text-white',
+          icon: 'bi-slash-circle-fill',
+          releaseDate: 'September 2026',
+          highlight: true,
+          description:
+            'Protect compliance and prevent accidental messaging to clients who have opted out of WhatsApp communication (e.g. sent "STOP"). The Live Chat message input and send button automatically disable when viewing an opted-out contact, showing an informative compliance banner. Administrators can enable or customize this safety lock from System Settings.',
+          howToUse:
+            'When an agent opens a conversation with an opted-out client in Live Chat, message composition is automatically blocked. Administrators can toggle or adjust this policy in Settings -> System Settings -> Live Chat Settings.',
+          actionText: 'Open Live Chat',
+          route: 'chat',
+        },
         {
           title: 'Automated Flow Greeting & Template Reply Auto-Responder',
           category: 'WhatsApp & Meta',

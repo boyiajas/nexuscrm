@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Contracts\WhatsAppServiceInterface;
 use App\Http\Controllers\Controller;
+use App\Jobs\SyncWhatsappTemplatesJob;
 use App\Models\WhatsappTemplateCache;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -33,14 +35,10 @@ class WhatsAppTemplateController extends Controller
 
         $data = $query->get()->map(fn ($t) => $t->toApiArray())->values();
 
-        // If the cache is empty, do a one-time auto-sync so the first visit works
-        if ($data->isEmpty()) {
-            try {
-                $synced = $this->syncFromMeta(false);
-                $data = collect($synced)->values();
-            } catch (\Throwable $e) {
-                Log::warning('WhatsApp template auto-sync failed.', ['error' => $e->getMessage()]);
-            }
+        // Never block the listing request on Meta. Queue a first sync when the cache is empty.
+        if ($data->isEmpty() && !SyncWhatsappTemplatesJob::isActive()) {
+            SyncWhatsappTemplatesJob::markQueued(Auth::id());
+            SyncWhatsappTemplatesJob::dispatch(Auth::id());
         }
 
         return response()->json($data);
@@ -121,17 +119,22 @@ class WhatsAppTemplateController extends Controller
     {
         $this->authorizeAdmin();
 
-        try {
-            $results = $this->syncFromMeta(false);
-            return response()->json([
-                'message' => 'Templates synced successfully.',
-                'count'   => count($results),
-                'synced_at' => now()->toDateTimeString(),
-            ]);
-        } catch (\Throwable $e) {
-            Log::error('WhatsApp template sync failed.', ['error' => $e->getMessage()]);
-            return response()->json(['message' => 'Sync failed: ' . $e->getMessage()], 500);
+        if (!SyncWhatsappTemplatesJob::isActive()) {
+            SyncWhatsappTemplatesJob::markQueued(Auth::id());
+            SyncWhatsappTemplatesJob::dispatch(Auth::id());
         }
+
+        return response()->json([
+            'message' => 'Template sync has started in the background.',
+            'status' => SyncWhatsappTemplatesJob::status(),
+        ], 202);
+    }
+
+    public function syncStatus(): JsonResponse
+    {
+        $this->authorizeAdmin();
+
+        return response()->json(SyncWhatsappTemplatesJob::status());
     }
 
     /**
@@ -139,7 +142,7 @@ class WhatsAppTemplateController extends Controller
      */
     private function syncFromMeta(bool $onlyApproved = false): array
     {
-        $templates = $this->whatsApp->getWhatsAppTemplates($onlyApproved);
+        $templates = $this->whatsApp->getWhatsAppTemplates($onlyApproved, 100);
         $now       = now();
         $results   = [];
 
@@ -205,9 +208,50 @@ class WhatsAppTemplateController extends Controller
             'media_urls.*' => ['string'],
             'body_examples' => ['sometimes', 'array'],
             'body_examples.*' => ['required', 'string', 'max:255'],
+            'buttons' => ['sometimes', 'array', 'max:10'],
+            'buttons.*.type' => ['required', 'string'],
+            'buttons.*.text' => ['required', 'string', 'max:25'],
+            'buttons.*.url' => ['nullable', 'string', 'max:2000'],
+            'buttons.*.phone_number' => ['nullable', 'string', 'max:50'],
         ]);
 
         $this->validateBodyExamples($data['body'], $data['body_examples'] ?? []);
+
+        $buttons = [];
+        if (!empty($data['buttons']) && is_array($data['buttons'])) {
+            foreach ($data['buttons'] as $btn) {
+                $text = trim((string) ($btn['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                $type = strtoupper((string) ($btn['type'] ?? 'QUICK_REPLY'));
+                if (!in_array($type, ['QUICK_REPLY', 'URL', 'PHONE_NUMBER'], true)) {
+                    $type = 'QUICK_REPLY';
+                }
+                $btnItem = [
+                    'type' => $type,
+                    'text' => mb_substr($text, 0, 25),
+                ];
+                if ($type === 'URL') {
+                    $url = trim((string) ($btn['url'] ?? ''));
+                    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'buttons' => "The URL button '{$text}' must contain a valid web address starting with https:// or http://.",
+                        ]);
+                    }
+                    $btnItem['url'] = $url;
+                } elseif ($type === 'PHONE_NUMBER') {
+                    $phone = trim((string) ($btn['phone_number'] ?? ''));
+                    if ($phone === '') {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'buttons' => "The phone button '{$text}' must have a phone number with country code.",
+                        ]);
+                    }
+                    $btnItem['phone_number'] = $phone;
+                }
+                $buttons[] = $btnItem;
+            }
+        }
 
         $normalizedName = Str::of($data['friendly_name'])
             ->lower()
@@ -238,7 +282,8 @@ class WhatsAppTemplateController extends Controller
                 $data['language'],
                 $data['category'],
                 $data['media_urls'] ?? [],
-                $data['body_examples'] ?? []
+                $data['body_examples'] ?? [],
+                $buttons
             );
         } catch (\Throwable $e) {
             if ($this->isAlreadyExistsError($e->getMessage())) {
@@ -272,7 +317,7 @@ class WhatsAppTemplateController extends Controller
                 'body_preview' => $created['preview'] ?? $data['body'],
                 'variables' => $created['variables'] ?? [],
                 'media_urls' => $created['media'] ?? [],
-                'buttons' => $created['buttons'] ?? [],
+                'buttons' => $created['buttons'] ?? $buttons,
                 'raw_whatsapp' => array_merge($whatsapp, ['raw' => $created['raw'] ?? []]),
                 'synced_at' => now(),
             ]
@@ -294,11 +339,54 @@ class WhatsAppTemplateController extends Controller
             'media_urls.*' => ['string'],
             'body_examples' => ['sometimes', 'array'],
             'body_examples.*' => ['required', 'string', 'max:255'],
+            'buttons' => ['sometimes', 'array', 'max:10'],
+            'buttons.*.type' => ['required', 'string'],
+            'buttons.*.text' => ['required', 'string', 'max:25'],
+            'buttons.*.url' => ['nullable', 'string', 'max:2000'],
+            'buttons.*.phone_number' => ['nullable', 'string', 'max:50'],
         ]);
 
         $record = WhatsappTemplateCache::where('sid', $id)->orWhere('meta_id', $id)->firstOrFail();
         $body = $data['body'] ?? $record->body_preview ?? '';
         $this->validateBodyExamples($body, $data['body_examples'] ?? []);
+
+        $buttons = [];
+        if (isset($data['buttons']) && is_array($data['buttons'])) {
+            foreach ($data['buttons'] as $btn) {
+                $text = trim((string) ($btn['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                $type = strtoupper((string) ($btn['type'] ?? 'QUICK_REPLY'));
+                if (!in_array($type, ['QUICK_REPLY', 'URL', 'PHONE_NUMBER'], true)) {
+                    $type = 'QUICK_REPLY';
+                }
+                $btnItem = [
+                    'type' => $type,
+                    'text' => mb_substr($text, 0, 25),
+                ];
+                if ($type === 'URL') {
+                    $url = trim((string) ($btn['url'] ?? ''));
+                    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'buttons' => "The URL button '{$text}' must contain a valid web address starting with https:// or http://.",
+                        ]);
+                    }
+                    $btnItem['url'] = $url;
+                } elseif ($type === 'PHONE_NUMBER') {
+                    $phone = trim((string) ($btn['phone_number'] ?? ''));
+                    if ($phone === '') {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'buttons' => "The phone button '{$text}' must have a phone number with country code.",
+                        ]);
+                    }
+                    $btnItem['phone_number'] = $phone;
+                }
+                $buttons[] = $btnItem;
+            }
+        } else {
+            $buttons = $record->buttons ?? [];
+        }
 
         $payload = [
             'friendly_name' => $data['friendly_name'] ?? $record->friendly_name,
@@ -306,6 +394,7 @@ class WhatsAppTemplateController extends Controller
             'body' => $body,
             'category' => $data['category'] ?? $record->category,
             'body_examples' => $data['body_examples'] ?? [],
+            'buttons' => $buttons,
         ];
 
         $targetId = (string) ($record->meta_id ?: '');
@@ -333,6 +422,7 @@ class WhatsAppTemplateController extends Controller
             'body_preview' => $payload['body'],
             'category' => strtolower((string) $payload['category']),
             'status' => $updated['status'] ?? 'PENDING',
+            'buttons' => $buttons,
             'synced_at' => now(),
         ])->save();
 

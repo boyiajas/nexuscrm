@@ -1279,8 +1279,8 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <div class="row">
-              <div class="col-lg-7 col-md-6 border-end pe-4">
+            <div class="row g-4">
+              <div class="col-lg-6 col-md-6 border-end pe-lg-4">
                 <!-- FORM INPUTS -->
                 <div v-if="!wa.viewOnly && !wa.form.sid" class="alert alert-info small">
                   Creating this template submits it directly to Meta for review. It will appear under Awaiting Approval until Meta approves or rejects it. This form currently supports text-body templates.
@@ -1347,114 +1347,438 @@
                       </span>
                     </div>
                   </div>
-                  <div class="col-12" v-if="wa.form.buttons.length">
-                    <label class="form-label">Buttons</label>
-                    <div class="d-flex gap-2 flex-wrap">
-                      <span v-for="(button, idx) in wa.form.buttons" :key="idx" class="badge bg-light text-dark border">
-                        {{ button.text || button.type || 'Button' }}
-                      </span>
+                  <!-- CUSTOM BUTTONS SECTION -->
+                  <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                      <label class="form-label mb-0 fw-semibold d-flex align-items-center">
+                        <i class="bi bi-menu-button-wide text-primary me-1"></i>
+                        Buttons
+                        <span v-if="wa.form.buttons.length" class="badge bg-primary bg-opacity-10 text-primary ms-2">
+                          {{ wa.form.buttons.length }}
+                        </span>
+                        <span v-else class="text-muted small fw-normal ms-2">(Optional)</span>
+                      </label>
+                      <div v-if="!wa.viewOnly" class="d-flex align-items-center gap-1">
+                        <button
+                          type="button"
+                          class="btn btn-outline-primary btn-sm py-1 px-2"
+                          @click="addTemplateButton('QUICK_REPLY')"
+                          :disabled="wa.form.buttons.length >= 10"
+                          title="Add a quick reply button"
+                        >
+                          <i class="bi bi-plus-lg me-1"></i>Quick Reply
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-outline-success btn-sm py-1 px-2"
+                          @click="addTemplateButton('URL')"
+                          :disabled="wa.form.buttons.length >= 10"
+                          title="Add a website URL button"
+                        >
+                          <i class="bi bi-box-arrow-up-right me-1"></i>URL
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-outline-secondary btn-sm py-1 px-2"
+                          @click="addTemplateButton('PHONE_NUMBER')"
+                          :disabled="wa.form.buttons.length >= 10"
+                          title="Add a phone call button"
+                        >
+                          <i class="bi bi-telephone me-1"></i>Call
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Readonly View for Existing Template Details -->
+                    <div v-if="wa.viewOnly">
+                      <div v-if="wa.form.buttons && wa.form.buttons.length" class="d-flex flex-wrap gap-2">
+                        <div
+                          v-for="(btn, idx) in wa.form.buttons"
+                          :key="idx"
+                          class="badge bg-light text-dark border p-2 d-flex align-items-center gap-2 shadow-xs"
+                        >
+                          <i v-if="String(btn.type || '').toUpperCase() === 'QUICK_REPLY'" class="bi bi-reply-fill text-success"></i>
+                          <i v-else-if="String(btn.type || '').toUpperCase() === 'PHONE_NUMBER'" class="bi bi-telephone-fill text-success"></i>
+                          <i v-else class="bi bi-box-arrow-up-right text-success"></i>
+                          <span class="fw-semibold">{{ btn.text || 'Button ' + (idx + 1) }}</span>
+                          <span class="text-muted small" v-if="btn.url">({{ btn.url }})</span>
+                          <span class="text-muted small" v-else-if="btn.phone_number">({{ btn.phone_number }})</span>
+                        </div>
+                      </div>
+                      <div v-else class="text-muted small py-2 px-3 bg-light rounded border">
+                        No interactive buttons configured for this template.
+                      </div>
+                    </div>
+
+                    <!-- Interactive Button Builder for Create & Edit -->
+                    <div v-else>
+                      <!-- Quick presets if no buttons added yet -->
+                      <div v-if="!wa.form.buttons.length" class="p-3 bg-light rounded border border-dashed text-center">
+                        <p class="text-muted small mb-2">
+                          Add buttons for clients to tap directly in WhatsApp (Quick Replies, Website Link, or Call phone number).
+                        </p>
+                        <div class="d-flex justify-content-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            class="btn btn-white btn-sm border shadow-xs"
+                            @click="addTemplatePresetButton('Quick Reply', 'QUICK_REPLY')"
+                          >
+                            <i class="bi bi-reply-fill text-success me-1"></i>+ "Quick Reply"
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-white btn-sm border shadow-xs"
+                            @click="addTemplatePresetButton('Opt Out', 'QUICK_REPLY')"
+                          >
+                            <i class="bi bi-slash-circle text-danger me-1"></i>+ "Opt Out"
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-white btn-sm border shadow-xs"
+                            @click="addTemplatePresetButton('Visit Website', 'URL', 'https://')"
+                          >
+                            <i class="bi bi-box-arrow-up-right text-primary me-1"></i>+ "Visit Website"
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-white btn-sm border shadow-xs"
+                            @click="addTemplatePresetButton('Call Us', 'PHONE_NUMBER', '+27')"
+                          >
+                            <i class="bi bi-telephone-fill text-success me-1"></i>+ "Call Us"
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Buttons List Form -->
+                      <div v-else class="d-flex flex-column gap-2">
+                        <div
+                          v-for="(btn, index) in wa.form.buttons"
+                          :key="index"
+                          class="p-2 bg-light rounded border shadow-xs"
+                        >
+                          <div class="row g-2 align-items-center">
+                            <!-- Type selector -->
+                            <div class="col-md-3">
+                              <select v-model="btn.type" class="form-select form-select-sm">
+                                <option value="QUICK_REPLY">Quick Reply</option>
+                                <option value="URL">Website URL</option>
+                                <option value="PHONE_NUMBER">Phone Number</option>
+                              </select>
+                            </div>
+
+                            <!-- Button text -->
+                            <div :class="btn.type === 'QUICK_REPLY' ? 'col-md-8' : 'col-md-4'">
+                              <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white">
+                                  <i v-if="btn.type === 'QUICK_REPLY'" class="bi bi-reply-fill text-success"></i>
+                                  <i v-else-if="btn.type === 'PHONE_NUMBER'" class="bi bi-telephone-fill text-success"></i>
+                                  <i v-else class="bi bi-box-arrow-up-right text-primary"></i>
+                                </span>
+                                <input
+                                  v-model="btn.text"
+                                  type="text"
+                                  class="form-control form-control-sm"
+                                  placeholder="Button Label"
+                                  maxlength="25"
+                                />
+                              </div>
+                            </div>
+
+                            <!-- URL Input if type is URL -->
+                            <div v-if="btn.type === 'URL'" class="col-md-4">
+                              <input
+                                v-model="btn.url"
+                                type="url"
+                                class="form-control form-control-sm"
+                                placeholder="https://example.com"
+                              />
+                            </div>
+
+                            <!-- Phone Input if type is PHONE_NUMBER -->
+                            <div v-if="btn.type === 'PHONE_NUMBER'" class="col-md-4">
+                              <input
+                                v-model="btn.phone_number"
+                                type="tel"
+                                class="form-control form-control-sm"
+                                placeholder="+27821234567"
+                              />
+                            </div>
+
+                            <!-- Delete button -->
+                            <div class="col-md-1 text-end">
+                              <button
+                                type="button"
+                                class="btn btn-link btn-sm text-danger p-0 text-decoration-none"
+                                @click="removeTemplateButton(index)"
+                                title="Remove button"
+                              >
+                                <i class="bi bi-trash fs-6"></i>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-1">
+                          <small class="text-muted">
+                            Meta allows up to 25 characters per button. Buttons preview live on the phone.
+                          </small>
+                          <button
+                            v-if="wa.form.buttons.length < 10"
+                            type="button"
+                            class="btn btn-link btn-sm p-0 text-decoration-none"
+                            @click="addTemplateButton('QUICK_REPLY')"
+                          >
+                            <i class="bi bi-plus-circle me-1"></i>Add another button
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
               
               <!-- PREVIEW PANE -->
-              <div class="col-lg-5 col-md-6 ps-4">
-                <div class="mb-3">
-                  <div class="card border-success shadow-sm">
-                    <div class="card-header py-2 d-flex justify-content-between align-items-center bg-white border-bottom-0">
-                      <strong>Template Preview</strong>
+              <div class="col-lg-6 col-md-6 ps-lg-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                  <div>
+                    <h6 class="fw-bold mb-1 text-truncate" style="max-width: 320px;">
+                      {{ wa.form.friendly_name || 'Template Preview' }}
+                    </h6>
+                    <small class="text-muted">Preview of the message the client will receive</small>
+                  </div>
+                  <span :class="statusBadge(wa.form.status || 'APPROVED')">
+                    {{ formatStatusText(wa.form.status || 'APPROVED') }}
+                  </span>
+                </div>
+
+                <!-- WhatsApp Mobile Phone Preview (Matching Screenshot 2) -->
+                <div class="whatsapp-phone-preview mb-4 shadow">
+                  <!-- Phone Status Bar -->
+                  <div class="whatsapp-phone-statusbar d-flex align-items-center justify-content-between px-3">
+                    <span class="fw-semibold">{{ templatePreviewTime }}</span>
+                    <span class="d-flex align-items-center gap-1">
+                      <i class="bi bi-reception-4"></i>
+                      <i class="bi bi-wifi"></i>
+                      <i class="bi bi-battery-full"></i>
+                    </span>
+                  </div>
+
+                  <!-- WhatsApp Header Bar -->
+                  <div class="whatsapp-phone-header d-flex align-items-center px-2 py-2">
+                    <i class="bi bi-arrow-left text-white fs-5 me-2"></i>
+                    <div class="whatsapp-contact-avatar rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
+                      <i class="bi bi-building text-white"></i>
                     </div>
-                    <div class="card-body p-0 d-flex flex-column" style="background-color: #e5ddd5; position: relative;">
-                      <!-- WhatsApp Header -->
-                      <div class="bg-white d-flex align-items-center px-3 py-2 shadow-sm position-relative" style="z-index: 2;">
-                        <i class="bi bi-arrow-left me-3 text-secondary"></i>
-                        <div class="bg-secondary bg-opacity-10 rounded-circle me-3 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                          <i class="bi bi-person-fill text-secondary fs-4"></i>
-                        </div>
-                        <div class="lh-1">
-                          <div class="fw-bold text-dark d-flex align-items-center gap-1 mb-1" style="font-size: 0.95rem;">
-                            {{ system.form.app_name || 'Strauss Recovery Solutions' }}
-                            <i class="bi bi-patch-check-fill text-success" style="font-size: 0.85rem;" title="Official business account"></i>
-                          </div>
-                          <div class="text-muted" style="font-size: 0.75rem;">{{ meta.form.meta_whatsapp_display_phone_number || '+27 82 123 4567' }}</div>
+                    <div class="min-w-0 ms-2 flex-grow-1">
+                      <div class="text-white fw-semibold text-truncate whatsapp-contact-name">
+                        {{ templatePreviewBusinessName }}
+                        <i class="bi bi-patch-check-fill ms-1 whatsapp-verified-icon" title="Official business account"></i>
+                      </div>
+                      <div class="text-white-50 text-truncate whatsapp-contact-number">
+                        {{ templatePreviewBusinessNumber }}
+                      </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 text-white ms-2 fs-5">
+                      <i class="bi bi-camera-video"></i>
+                      <i class="bi bi-telephone"></i>
+                      <i class="bi bi-three-dots-vertical"></i>
+                    </div>
+                  </div>
+
+                  <!-- Wallpaper with Doodle & Encrypted Note -->
+                  <div class="whatsapp-chat-wallpaper position-relative p-3">
+                    <div class="whatsapp-encryption-note mx-auto mb-3 px-3 py-2 text-center">
+                      <i class="bi bi-lock-fill me-1"></i>Messages are end-to-end encrypted.
+                    </div>
+                    <div class="whatsapp-date-chip mx-auto mb-3 px-3 py-1 text-center">
+                      TODAY
+                    </div>
+
+                    <!-- Message Bubble with Tail -->
+                    <div class="whatsapp-template-message position-relative">
+                      <svg viewBox="0 0 8 13" width="8" height="13" class="whatsapp-bubble-tail" aria-hidden="true">
+                        <path fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"></path>
+                      </svg>
+
+                      <!-- Media Header Preview -->
+                      <img
+                        v-if="wa.form.header_format === 'IMAGE' && firstMediaUrl"
+                        :src="firstMediaUrl"
+                        class="w-100 rounded mb-2 template-header-image"
+                        alt="Template header"
+                      />
+                      <video
+                        v-else-if="wa.form.header_format === 'VIDEO' && firstMediaUrl"
+                        :src="firstMediaUrl"
+                        class="w-100 rounded mb-2 template-header-image"
+                        controls
+                        preload="metadata"
+                      ></video>
+                      <div v-else-if="wa.form.header_format === 'IMAGE'" class="whatsapp-document-preview rounded p-3 mb-2 text-center">
+                        <i class="bi bi-image fs-2 d-block text-secondary"></i>
+                        <small class="text-muted">Image header</small>
+                      </div>
+                      <div v-else-if="wa.form.header_format === 'DOCUMENT'" class="whatsapp-document-preview rounded p-3 mb-2 d-flex align-items-center gap-2">
+                        <i class="bi bi-file-earmark-text-fill fs-2 text-secondary"></i>
+                        <div class="min-w-0">
+                          <div class="fw-semibold text-truncate">Template document</div>
+                          <small class="text-muted">Document attachment</small>
                         </div>
                       </div>
+                      <div v-else-if="wa.form.header_format && !['TEXT', 'IMAGE', 'DOCUMENT'].includes(wa.form.header_format)" class="whatsapp-document-preview rounded p-2 mb-2 small text-muted">
+                        <i class="bi bi-paperclip me-1"></i>{{ wa.form.header_format }} header
+                      </div>
 
-                      <div class="p-4 flex-grow-1 position-relative">
-                        <div style="opacity: 0.05; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iNDAwIj48cGF0aCBkPSJNMCAwaDQwMHY0MDBIMHoiIGZpbGw9Im5vbmUiLz48Y2lyY2xlIGN4PSIyMDAiIGN5PSIyMDAiIHI9IjM1IiBmaWxsPSIjMDAwIi8+PC9zdmc+'); background-size: 200px; pointer-events: none;"></div>
-                        
-                        <div class="bg-white rounded position-relative shadow-sm" style="max-width: 85%; border-top-left-radius: 0 !important; padding: 0.5rem; margin-left: 10px; z-index: 1;">
-                          <svg viewBox="0 0 8 13" width="8" height="13" style="position: absolute; top: 0; left: -8px; color: white;">
-                            <path opacity="1" fill="currentColor" d="M1.533 3.568 8 12.193V1H2.812C1.042 1 .474 2.156 1.533 3.568z"></path>
-                          </svg>
+                      <!-- Header Text -->
+                      <div v-if="renderedTemplateHeader" class="fw-bold mb-1 template-message-text whatsapp-message-header" v-html="renderedTemplateHeader"></div>
 
-                          <!-- Media Preview -->
-                          <div
-                            v-if="firstMediaUrl"
-                            class="mb-2"
-                          >
-                            <img
-                              v-if="wa.form.header_format === 'IMAGE' || !wa.form.header_format"
-                              :src="firstMediaUrl"
-                              alt="WhatsApp media preview"
-                              class="img-fluid rounded"
-                              style="width: 100%; object-fit: cover;"
-                            />
-                            <video
-                              v-else-if="wa.form.header_format === 'VIDEO'"
-                              :src="firstMediaUrl"
-                              class="img-fluid rounded"
-                              style="width: 100%; object-fit: cover;"
-                              controls
-                              preload="metadata"
-                            ></video>
-                            <div
-                              v-else-if="wa.form.header_format === 'DOCUMENT'"
-                              class="border rounded p-3 bg-light text-center"
-                            >
-                              <i class="bi bi-file-earmark-arrow-down fs-3 d-block text-secondary"></i>
-                            </div>
-                          </div>
+                      <!-- Body Text (Formats WhatsApp markdown and replaces variables) -->
+                      <div class="template-message-text whatsapp-message-body" style="white-space: pre-wrap;" v-html="renderedTemplateBody || 'No message preview is available.'"></div>
 
-                          <div v-if="wa.form.header_text" class="fw-bold text-dark mb-1" style="font-size: 0.95rem; line-height: 1.3;">
-                            {{ wa.form.header_text }}
-                          </div>
+                      <!-- Footer & Time -->
+                      <div class="d-flex align-items-end justify-content-between gap-2 mt-1">
+                        <div v-if="wa.form.footer_text" class="text-muted whatsapp-message-footer">{{ wa.form.footer_text }}</div>
+                        <span v-else></span>
+                        <div class="text-muted whatsapp-message-time text-nowrap">{{ templatePreviewTime }}</div>
+                      </div>
 
-                          <div class="text-dark" style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">{{ wa.form.body || 'Template message body will appear here.' }}<span class="d-inline-block" style="width: 40px;"></span></div>
-                          
-                          <div class="d-flex justify-content-between align-items-end mt-1">
-                              <div class="text-muted" style="font-size: 0.75rem;">
-                                  {{ wa.form.footer_text || '' }}
-                              </div>
-                              <div class="text-muted text-end" style="font-size: 0.65rem; margin-top: -15px; margin-right: 4px;">
-                                  09:31
-                              </div>
-                          </div>
-                        </div>
-                        
-                        <!-- Buttons Preview -->
-                        <div
-                          v-if="wa.form.buttons && wa.form.buttons.length"
-                          class="mt-1 d-flex flex-column gap-1"
-                          style="max-width: 85%; margin-left: 10px; z-index: 1; position: relative;"
-                        >
-                          <div
-                            v-for="(button, idx) in wa.form.buttons"
-                            :key="idx"
-                            class="bg-white rounded shadow-sm text-center py-2 fw-semibold cursor-pointer hover-shadow transition"
-                            style="color: #00a884; font-size: 0.9rem; border: 1px solid rgba(0,0,0,0.05);"
-                          >
-                            <i v-if="button.type === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
-                            <i v-if="button.type === 'URL'" class="bi bi-box-arrow-up-right me-1"></i>
-                            <i v-if="button.type === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
-                            {{ button.text || 'Button' }}
-                          </div>
+                      <!-- Interactive Action Buttons -->
+                      <div v-if="wa.form.buttons?.length" class="whatsapp-template-buttons mt-2">
+                        <div v-for="(button, index) in wa.form.buttons" :key="index" class="whatsapp-template-button text-center py-2">
+                          <i v-if="String(button.type || '').toUpperCase() === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
+                          <i v-else-if="String(button.type || '').toUpperCase() === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
+                          <i v-else class="bi bi-box-arrow-up-right me-1"></i>
+                          {{ button.text || button.type || 'Action' }}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                <!-- Template Values Card (Below Phone Preview, Matching Screenshot 2) -->
+                <div class="card border-0 shadow-sm mb-3">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+                      <div>
+                        <h6 class="fw-bold mb-1">Template values</h6>
+                        <p class="text-muted small mb-0">Enter the values required for this client. The preview updates as you type.</p>
+                      </div>
+                      <div class="d-flex align-items-center gap-1 flex-wrap">
+                        <button
+                          type="button"
+                          class="btn btn-outline-primary btn-sm py-1 px-2"
+                          @click="fillSampleValues"
+                          title="Auto-fill realistic sample values"
+                        >
+                          <i class="bi bi-magic me-1"></i>Sample Values
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-primary btn-sm py-1 px-2"
+                          @click="updatePreview"
+                          title="Apply and preview variables"
+                        >
+                          <i class="bi bi-eye-fill me-1"></i>Preview
+                        </button>
+                        <button
+                          v-if="hasPreviewVariablesSet"
+                          type="button"
+                          class="btn btn-outline-secondary btn-sm py-1 px-2"
+                          @click="clearPreviewVariables"
+                          title="Clear all preview values"
+                        >
+                          <i class="bi bi-eraser me-1"></i>Clear
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-outline-success btn-sm py-1 px-2"
+                          @click="toggleAddVariableInput"
+                          title="Add a temporary preview variable"
+                        >
+                          <i class="bi bi-plus-lg me-1"></i>Add Variable
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Inline Add Variable Form -->
+                    <div v-if="wa.showAddVariable" class="card border-success border-opacity-50 bg-light my-3 p-3 shadow-sm">
+                      <div class="small fw-bold text-success mb-2">
+                        <i class="bi bi-plus-circle me-1"></i>Add Temporary Preview Variable
+                      </div>
+                      <div class="row g-2">
+                        <div class="col-sm-5">
+                          <label class="form-label small text-muted mb-1">Variable Name</label>
+                          <input
+                            v-model.trim="wa.newVariableKey"
+                            type="text"
+                            class="form-control form-control-sm"
+                            placeholder="e.g. 1, 2, or custom_var"
+                            @keydown.enter.prevent="addCustomVariable"
+                          />
+                        </div>
+                        <div class="col-sm-5">
+                          <label class="form-label small text-muted mb-1">Sample Value</label>
+                          <input
+                            v-model="wa.newVariableValue"
+                            type="text"
+                            class="form-control form-control-sm"
+                            placeholder="e.g. John Doe"
+                            @keydown.enter.prevent="addCustomVariable"
+                          />
+                        </div>
+                        <div class="col-sm-2 d-flex align-items-end gap-1">
+                          <button
+                            type="button"
+                            class="btn btn-success btn-sm flex-grow-1"
+                            @click="addCustomVariable"
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-outline-secondary btn-sm"
+                            @click="toggleAddVariableInput"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- List of Template Variable Inputs -->
+                    <div v-if="templateVariablesList.length" class="mt-3">
+                      <div v-for="entryKey in templateVariablesList" :key="entryKey" class="mb-3 last-variable-field">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                          <label class="form-label small fw-semibold mb-0">
+                            {{ variableLabel(entryKey) }} <span class="text-danger">*</span>
+                            <code class="text-muted small ms-1">&#123;&#123;{{ entryKey }}&#125;&#125;</code>
+                          </label>
+                          <button
+                            v-if="wa.customVariables.includes(entryKey)"
+                            type="button"
+                            class="btn btn-link btn-sm text-danger p-0 text-decoration-none"
+                            @click="removeCustomVariable(entryKey)"
+                            title="Remove temporary variable"
+                          >
+                            <i class="bi bi-x-circle me-1"></i>Remove
+                          </button>
+                        </div>
+                        <input
+                          v-model="wa.previewVariables[entryKey]"
+                          type="text"
+                          class="form-control form-control-sm"
+                          :placeholder="samplePlaceholder(entryKey)"
+                          maxlength="1024"
+                        />
+                      </div>
+                    </div>
+
+                    <div v-else class="text-muted small py-3 text-center border rounded bg-light mt-2">
+                      <i class="bi bi-info-circle me-1"></i>No variables found in this template. Click <strong>+ Add Variable</strong> above to test variables.
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
             </div>
@@ -2034,6 +2358,7 @@ export default {
         templates: [],
         selected: [],
         loading: false,
+        syncPollTimer: null,
         exporting: false,
         saving: false,
         bulkActionLoading: false,
@@ -2056,12 +2381,18 @@ export default {
         availableStatuses: [],
         availableCategories: [],
         availableLanguages: [],
+        previewVariables: {},
+        customVariables: [],
+        showAddVariable: false,
+        newVariableKey: '',
+        newVariableValue: '',
         form: {
           sid: null,
           friendly_name: '',
           body: '',
           language: 'en_US',
           category: 'utility',
+          status: 'APPROVED',
           media_urls: '',
           header_format: '',
           header_text: '',
@@ -2134,6 +2465,9 @@ export default {
     disposeManagedModal(this.wn.verifyNumberModal);
     disposeManagedModal(this.wp.modal);
     disposeManagedModal(this.wa.migrateModal);
+    if (this.wa.syncPollTimer) {
+      window.clearTimeout(this.wa.syncPollTimer);
+    }
   },
   watch: {
     selectedDepartments: {
@@ -2143,6 +2477,11 @@ export default {
           : [];
       },
       deep: true,
+    },
+    '$route.query.tab': {
+      handler() {
+        this.checkActiveTab();
+      },
     },
   },
   computed: {
@@ -2239,6 +2578,104 @@ export default {
         .map((u) => u.trim())
         .filter(Boolean);
       return urls.length ? urls[0] : null;
+    },
+    templateVariablesList() {
+      const rawList = [];
+
+      // 1. From body text placeholders: {{1}}, {{body_1}}, etc.
+      const bodyMatches = String(this.wa.form.body || '').match(/{{([^}]+)}}/g) || [];
+      bodyMatches.forEach((m) => {
+        const key = m.replace(/^{{\s*|\s*}}$/g, '').trim();
+        if (key && !rawList.includes(key)) rawList.push(key);
+      });
+
+      // 2. From header text placeholders
+      const headerMatches = String(this.wa.form.header_text || '').match(/{{([^}]+)}}/g) || [];
+      headerMatches.forEach((m) => {
+        const key = m.replace(/^{{\s*|\s*}}$/g, '').trim();
+        if (key && !rawList.includes(key)) rawList.push(key);
+      });
+
+      // 3. From wa.form.variables (if defined in template)
+      if (this.wa.form.variables) {
+        if (Array.isArray(this.wa.form.variables)) {
+          this.wa.form.variables.forEach((k) => {
+            const str = String(k || '').trim();
+            if (str && !rawList.includes(str)) rawList.push(str);
+          });
+        } else if (typeof this.wa.form.variables === 'object') {
+          Object.keys(this.wa.form.variables).forEach((k) => {
+            const str = String(k || '').trim();
+            if (str && !rawList.includes(str)) rawList.push(str);
+          });
+        }
+      }
+
+      // 4. From custom added variables
+      if (Array.isArray(this.wa.customVariables)) {
+        this.wa.customVariables.forEach((k) => {
+          const str = String(k || '').trim();
+          if (str && !rawList.includes(str)) rawList.push(str);
+        });
+      }
+
+      // Deduplicate aliases: if both '1' and 'body_1' exist, prefer '1'
+      const canonical = [];
+      rawList.forEach((key) => {
+        const bodyMatch = key.match(/^body_(\d+)$/i);
+        if (bodyMatch) {
+          const num = bodyMatch[1];
+          if (canonical.includes(num) || rawList.includes(num)) {
+            return;
+          }
+        }
+        const headerMatch = key.match(/^header_(\d+)$/i);
+        if (headerMatch) {
+          const num = headerMatch[1];
+          if (canonical.includes(num) || rawList.includes(num)) {
+            return;
+          }
+        }
+        if (!canonical.includes(key)) {
+          canonical.push(key);
+        }
+      });
+
+      return canonical.sort((a, b) => {
+        const numA = parseInt(String(a).replace(/\D/g, ''), 10);
+        const numB = parseInt(String(b).replace(/\D/g, ''), 10);
+        if (!isNaN(numA) && !isNaN(numB) && numA !== numB) {
+          return numA - numB;
+        }
+        return String(a).localeCompare(String(b));
+      });
+    },
+    renderedTemplateHeader() {
+      const text = this.wa.form.header_text;
+      if (!text) return '';
+      return this.formatWhatsappMessage(text);
+    },
+    renderedTemplateBody() {
+      const text = this.wa.form.body || 'Template message body will appear here.';
+      return this.formatWhatsappMessage(text);
+    },
+    templatePreviewBusinessName() {
+      return this.meta?.phone_profile?.verified_name
+        || this.meta?.form?.meta_whatsapp_display_name
+        || this.system?.form?.company_name
+        || this.system?.form?.app_name
+        || 'Capfin StraussDaly Real';
+    },
+    templatePreviewBusinessNumber() {
+      return this.meta?.phone_profile?.display_phone_number
+        || this.meta?.form?.meta_whatsapp_display_phone_number
+        || '+27 76 022 8742';
+    },
+    templatePreviewTime() {
+      return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    },
+    hasPreviewVariablesSet() {
+      return Object.values(this.wa.previewVariables || {}).some((v) => String(v).trim() !== '');
     },
     systemLogoPreview() {
       if (this.system.removeLogo) return null;
@@ -2417,6 +2854,32 @@ export default {
       }
     },
     checkActiveTab() {
+      const queryTab = this.$route?.query?.tab;
+      if (queryTab === 'whatsapp-templates' && this.canAccessWabaTemplates) {
+        this.activeMainTab = 'whatsapp-templates';
+        return;
+      }
+      if (queryTab === 'whatsapp-numbers' && this.canAccessWabaNumbers) {
+        this.activeMainTab = 'whatsapp-numbers';
+        return;
+      }
+      if (queryTab === 'whatsapp-profiles' && this.canAccessWabaProfiles) {
+        this.activeMainTab = 'whatsapp-profiles';
+        return;
+      }
+      if (queryTab === 'meta' && this.canAccessMetaWhatsapp) {
+        this.activeMainTab = 'meta';
+        return;
+      }
+      if (queryTab === 'system' && this.canAccessSystem) {
+        this.activeMainTab = 'system';
+        return;
+      }
+      if (queryTab === 'account' && this.canAccessUserAccount) {
+        this.activeMainTab = 'account';
+        return;
+      }
+
       if (this.canAccessUserAccount) {
         this.activeMainTab = 'account';
       } else if (this.canAccessSystem) {
@@ -2750,14 +3213,49 @@ export default {
     // Refresh: pull latest templates from Meta API and save to DB
     syncWhatsappTemplates() {
       this.wa.loading = true;
+      if (this.wa.syncPollTimer) {
+        window.clearTimeout(this.wa.syncPollTimer);
+        this.wa.syncPollTimer = null;
+      }
       axios
         .post('/api/whatsapp-templates/sync')
-        .then((res) => {
-          notify.success(`Synced ${res.data.count || 0} templates from Meta.`, 'WhatsApp Templates');
-          this.loadWhatsappTemplates();
+        .then(() => {
+          notify.info('Template sync started in the background.', 'WhatsApp Templates');
+          this.pollWhatsappTemplateSync(0);
         })
         .catch((err) => {
-          notify.error(err.response?.data?.message || 'Failed to sync templates from Meta.', 'WhatsApp Templates');
+          notify.error(err.response?.data?.message || 'Failed to start the Meta template sync.', 'WhatsApp Templates');
+          this.wa.loading = false;
+        });
+    },
+    pollWhatsappTemplateSync(attempt = 0) {
+      axios
+        .get('/api/whatsapp-templates/sync-status')
+        .then((res) => {
+          const status = res.data || {};
+          if (status.state === 'completed') {
+            notify.success('Synced ' + (status.count || 0) + ' templates from Meta.', 'WhatsApp Templates');
+            this.wa.syncPollTimer = null;
+            this.loadWhatsappTemplates();
+            return;
+          }
+          if (status.state === 'failed') {
+            notify.error(status.message || 'Failed to sync templates from Meta.', 'WhatsApp Templates');
+            this.wa.syncPollTimer = null;
+            this.wa.loading = false;
+            return;
+          }
+          if (attempt >= 90) {
+            notify.info('The template sync is still running. You can leave this page and check again shortly.', 'WhatsApp Templates');
+            this.wa.syncPollTimer = null;
+            this.wa.loading = false;
+            return;
+          }
+          this.wa.syncPollTimer = window.setTimeout(() => this.pollWhatsappTemplateSync(attempt + 1), 2000);
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || 'Unable to check template sync status.', 'WhatsApp Templates');
+          this.wa.syncPollTimer = null;
           this.wa.loading = false;
         });
     },
@@ -2981,6 +3479,11 @@ export default {
     startCreate() {
       this.resetForm();
       this.wa.viewOnly = false;
+      this.wa.previewVariables = {};
+      this.wa.customVariables = [];
+      this.wa.showAddVariable = false;
+      this.wa.newVariableKey = '';
+      this.wa.newVariableValue = '';
       if (this.templateModal) {
         this.templateModal.show();
       }
@@ -2988,17 +3491,27 @@ export default {
     viewTemplate(t) {
       this.wa.viewOnly = true;
       this.wa.viewingSid = t.sid;
+      this.wa.previewVariables = {};
+      this.wa.customVariables = [];
+      this.wa.showAddVariable = false;
+      this.wa.newVariableKey = '';
+      this.wa.newVariableValue = '';
       this.wa.saving = true;
       axios
         .get(`/api/whatsapp-templates/${encodeURIComponent(t.sid)}`)
         .then((res) => {
           const template = res.data?.template || {};
+          const bodyExamples = this.extractTemplateBodyExamples(template)
+            || this.extractTemplateBodyExamples(t)
+            || {};
+
           this.wa.form = {
             sid: template.id || t.sid,
             friendly_name: template.name || t.name,
-            body: template.preview || t.body_preview || '',
+            body: template.preview || template.body_preview || t.body_preview || '',
             language: template.language || t.language || 'en',
             category: (template.category || t.category || 'utility').toLowerCase(),
+            status: template.status || t.status || 'APPROVED',
             media_urls: Array.isArray(template.media_urls)
               ? template.media_urls.join(',')
               : Array.isArray(t.media_urls)
@@ -3011,7 +3524,13 @@ export default {
               ? template.buttons
               : (Array.isArray(t.buttons) ? t.buttons : []),
             variables: template.variables || t.variables || {},
+            body_examples: bodyExamples,
           };
+
+          if (bodyExamples && Object.keys(bodyExamples).length > 0) {
+            this.wa.previewVariables = { ...bodyExamples };
+          }
+
           this.templateModal?.show();
         })
         .catch((err) => {
@@ -3024,20 +3543,30 @@ export default {
     },
     editTemplate(t) {
       this.wa.viewOnly = false;
+      this.wa.previewVariables = {};
+      this.wa.customVariables = [];
+      this.wa.showAddVariable = false;
+      this.wa.newVariableKey = '';
+      this.wa.newVariableValue = '';
+      const bodyExamples = this.extractTemplateBodyExamples(t) || {};
       this.wa.form = {
         sid: t.sid,
         friendly_name: t.name,
         body: t.body_preview || '',
         language: t.language || 'en',
         category: (t.category || 'utility').toLowerCase(),
+        status: t.status || 'APPROVED',
         media_urls: (t.media_urls || []).join(','),
         header_format: t.header_format || '',
         header_text: t.header_text || '',
         footer_text: t.footer_text || '',
         buttons: Array.isArray(t.buttons) ? t.buttons : [],
         variables: t.variables || {},
-        body_examples: this.extractTemplateBodyExamples(t),
+        body_examples: bodyExamples,
       };
+      if (bodyExamples && Object.keys(bodyExamples).length > 0) {
+        this.wa.previewVariables = { ...bodyExamples };
+      }
       if (this.templateModal) {
         this.templateModal.show();
       }
@@ -3046,7 +3575,9 @@ export default {
       return '{{' + index + '}}';
     },
     extractTemplateBodyExamples(template) {
-      const bodyComponent = (template.components || []).find((component) => String(component.type || '').toUpperCase() === 'BODY');
+      if (!template) return {};
+      const components = template.components || template.raw_whatsapp?.components || [];
+      const bodyComponent = components.find((component) => String(component.type || '').toUpperCase() === 'BODY');
       const values = bodyComponent?.example?.body_text?.[0] || [];
       return values.reduce((examples, value, index) => {
         examples[index + 1] = String(value);
@@ -3054,19 +3585,209 @@ export default {
       }, {});
     },
     resetForm() {
+      this.wa.previewVariables = {};
+      this.wa.customVariables = [];
+      this.wa.showAddVariable = false;
+      this.wa.newVariableKey = '';
+      this.wa.newVariableValue = '';
       this.wa.form = {
         sid: null,
         friendly_name: '',
         body: '',
         language: 'en_US',
         category: 'utility',
+        status: 'APPROVED',
         media_urls: '',
         header_format: '',
         header_text: '',
         footer_text: '',
         buttons: [],
+        variables: {},
         body_examples: {},
       };
+    },
+    formatStatusText(status) {
+      if (!status) return 'Approved';
+      const s = String(status).toLowerCase();
+      if (s === 'approved') return 'Approved';
+      if (s === 'in_review') return 'In Review';
+      if (s === 'in_appeal') return 'In Appeal';
+      if (s === 'pending') return 'Pending';
+      if (s === 'rejected') return 'Rejected';
+      return status.charAt(0).toUpperCase() + status.slice(1);
+    },
+    variableLabel(key) {
+      const bodyMatch = String(key).match(/^(?:body_)?(\d+)$/i);
+      if (bodyMatch) {
+        return `Body Variable ${bodyMatch[1]}`;
+      }
+      const headerMatch = String(key).match(/^header_(\d+)$/i);
+      if (headerMatch) {
+        return `Header Variable ${headerMatch[1]}`;
+      }
+      return `Variable {{${key}}}`;
+    },
+    resolveVariableValue(key) {
+      const strKey = String(key).trim();
+      if (this.wa.previewVariables[strKey] !== undefined && String(this.wa.previewVariables[strKey]).trim() !== '') {
+        return this.wa.previewVariables[strKey];
+      }
+      if (/^\d+$/.test(strKey)) {
+        if (this.wa.previewVariables[`body_${strKey}`] !== undefined && String(this.wa.previewVariables[`body_${strKey}`]).trim() !== '') {
+          return this.wa.previewVariables[`body_${strKey}`];
+        }
+        if (this.wa.previewVariables[`header_${strKey}`] !== undefined && String(this.wa.previewVariables[`header_${strKey}`]).trim() !== '') {
+          return this.wa.previewVariables[`header_${strKey}`];
+        }
+      }
+      const match = strKey.match(/^(?:body|header)_(\d+)$/i);
+      if (match && this.wa.previewVariables[match[1]] !== undefined && String(this.wa.previewVariables[match[1]]).trim() !== '') {
+        return this.wa.previewVariables[match[1]];
+      }
+      return null;
+    },
+    samplePlaceholder(key) {
+      const lower = String(key).toLowerCase();
+      if (lower.includes('name') || lower === '1' || lower === 'body_1') return 'e.g. John Doe';
+      if (lower.includes('amount') || lower.includes('balance') || lower === '2' || lower === 'body_2') return 'e.g. 1,500.00';
+      if (lower.includes('date') || lower === '3' || lower === 'body_3') return 'e.g. 30 September 2026';
+      if (lower.includes('account') || lower.includes('bank') || lower === '4' || lower === 'body_4') return 'e.g. FINCHOICE';
+      return `Value for {{${key}}}`;
+    },
+    fillSampleValues() {
+      const updated = { ...this.wa.previewVariables };
+      this.templateVariablesList.forEach((key, idx) => {
+        if (this.wa.form.body_examples && this.wa.form.body_examples[key]) {
+          updated[key] = this.wa.form.body_examples[key];
+          return;
+        }
+        const numMatch = String(key).match(/\d+/);
+        const index = numMatch ? parseInt(numMatch[0], 10) : idx + 1;
+        if (index === 1) updated[key] = 'John Doe';
+        else if (index === 2) updated[key] = '1,500.00';
+        else if (index === 3) updated[key] = '30 September 2026';
+        else if (index === 4) updated[key] = 'FINCHOICE';
+        else if (index === 5) updated[key] = '4107204509';
+        else updated[key] = `Sample ${index}`;
+      });
+      this.wa.previewVariables = updated;
+      notify.success('Sample values loaded for template preview.', 'Template Preview');
+    },
+    clearPreviewVariables() {
+      const cleared = {};
+      this.templateVariablesList.forEach((key) => {
+        cleared[key] = '';
+      });
+      this.wa.previewVariables = cleared;
+      notify.info('Template preview values cleared.', 'Template Preview');
+    },
+    toggleAddVariableInput() {
+      this.wa.showAddVariable = !this.wa.showAddVariable;
+      if (this.wa.showAddVariable) {
+        this.wa.newVariableKey = '';
+        this.wa.newVariableValue = '';
+      }
+    },
+    addCustomVariable() {
+      const key = String(this.wa.newVariableKey || '').trim().replace(/[{}]/g, '');
+      if (!key) {
+        notify.warning('Please enter a variable name.', 'Template Preview');
+        return;
+      }
+      if (!this.wa.customVariables.includes(key)) {
+        this.wa.customVariables.push(key);
+      }
+      if (this.wa.newVariableValue) {
+        this.wa.previewVariables[key] = this.wa.newVariableValue;
+      } else if (this.wa.previewVariables[key] === undefined) {
+        this.wa.previewVariables[key] = '';
+      }
+      this.wa.newVariableKey = '';
+      this.wa.newVariableValue = '';
+      this.wa.showAddVariable = false;
+      notify.success(`Variable {{${key}}} added to preview.`, 'Template Preview');
+    },
+    removeCustomVariable(key) {
+      this.wa.customVariables = this.wa.customVariables.filter((k) => k !== key);
+      const updated = { ...this.wa.previewVariables };
+      delete updated[key];
+      this.wa.previewVariables = updated;
+      notify.info(`Variable {{${key}}} removed from preview.`, 'Template Preview');
+    },
+    updatePreview() {
+      notify.info('Template preview updated with current variable values.', 'Template Preview');
+    },
+    formatWhatsappMessage(text) {
+      if (!text) return '';
+      let formatted = this.escapeHtml(text);
+
+      formatted = formatted.replace(/{{([^}]+)}}/g, (match, rawKey) => {
+        const key = rawKey.trim();
+        const value = this.resolveVariableValue(key);
+        if (value !== null && value !== undefined && String(value).trim() !== '') {
+          return this.escapeHtml(value);
+        }
+        return `{{${key}}}`;
+      });
+
+      formatted = formatted.replace(/\*([^*\n\r]+)\*/g, '<strong>$1</strong>');
+      formatted = formatted.replace(/_([^_\n\r]+)_/g, '<em>$1</em>');
+      formatted = formatted.replace(/~([^~\n\r]+)~/g, '<del>$1</del>');
+      formatted = formatted.replace(/```([^`]+)```/g, '<code>$1</code>');
+
+      return formatted;
+    },
+    escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    },
+    addTemplateButton(type = 'QUICK_REPLY') {
+      if (!Array.isArray(this.wa.form.buttons)) {
+        this.wa.form.buttons = [];
+      }
+      if (this.wa.form.buttons.length >= 10) {
+        notify.warning('Meta allows a maximum of 10 buttons.', 'Settings');
+        return;
+      }
+      let defaultText = 'Quick Reply';
+      let url = '';
+      let phoneNumber = '';
+      if (type === 'URL') {
+        defaultText = 'Visit Website';
+        url = 'https://';
+      } else if (type === 'PHONE_NUMBER') {
+        defaultText = 'Call Us';
+        phoneNumber = '+27';
+      }
+      this.wa.form.buttons.push({
+        type,
+        text: defaultText,
+        url,
+        phone_number: phoneNumber,
+      });
+    },
+    addTemplatePresetButton(text, type, value = '') {
+      if (!Array.isArray(this.wa.form.buttons)) {
+        this.wa.form.buttons = [];
+      }
+      if (this.wa.form.buttons.length >= 10) {
+        notify.warning('Meta allows a maximum of 10 buttons.', 'Settings');
+        return;
+      }
+      this.wa.form.buttons.push({
+        type,
+        text,
+        url: type === 'URL' ? value : '',
+        phone_number: type === 'PHONE_NUMBER' ? value : '',
+      });
+    },
+    removeTemplateButton(index) {
+      if (Array.isArray(this.wa.form.buttons)) {
+        this.wa.form.buttons.splice(index, 1);
+      }
     },
     saveTemplate() {
       if (!this.wa.form.friendly_name || !this.wa.form.body) {
@@ -3110,6 +3831,39 @@ export default {
         return;
       }
 
+      const buttons = [];
+      if (Array.isArray(this.wa.form.buttons)) {
+        for (const btn of this.wa.form.buttons) {
+          const text = String(btn.text || '').trim();
+          if (!text) continue;
+          if (text.length > 25) {
+            notify.warning(`Button text "${text}" exceeds Meta maximum limit of 25 characters.`, 'Settings');
+            return;
+          }
+          const type = String(btn.type || 'QUICK_REPLY').toUpperCase();
+          const item = {
+            type,
+            text,
+          };
+          if (type === 'URL') {
+            const url = String(btn.url || '').trim();
+            if (!url || !/^https?:\/\//i.test(url)) {
+              notify.warning(`Please provide a valid website address (starting with https:// or http://) for button "${text}".`, 'Settings');
+              return;
+            }
+            item.url = url;
+          } else if (type === 'PHONE_NUMBER') {
+            const phone = String(btn.phone_number || '').trim();
+            if (!phone) {
+              notify.warning(`Please enter a phone number with country code for button "${text}".`, 'Settings');
+              return;
+            }
+            item.phone_number = phone;
+          }
+          buttons.push(item);
+        }
+      }
+
       const payload = {
         friendly_name: normalizedName,
         body: this.wa.form.body,
@@ -3117,6 +3871,7 @@ export default {
         category: this.wa.form.category,
         media_urls: [],
         body_examples: bodyExamples,
+        buttons: buttons,
       };
 
       this.wa.saving = true;
@@ -3640,6 +4395,139 @@ export default {
 .brand-preview-logo {
   width: 100%;
   height: 100%;
+  object-fit: cover;
+}
+
+/* WhatsApp Mobile Phone Device Preview */
+.whatsapp-phone-preview {
+  max-width: 430px;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 6px solid #263238;
+  border-radius: 22px;
+  background: #efeae2;
+}
+
+.whatsapp-phone-statusbar {
+  height: 26px;
+  color: #ffffff;
+  background: #075e54;
+  font-size: 0.68rem;
+}
+
+.whatsapp-phone-header {
+  min-height: 58px;
+  background: #008069;
+}
+
+.whatsapp-contact-avatar {
+  width: 40px;
+  height: 40px;
+  background: #607d8b;
+}
+
+.whatsapp-contact-name {
+  font-size: 0.9rem;
+  line-height: 1.15;
+}
+
+.whatsapp-contact-number {
+  margin-top: 3px;
+  font-size: 0.69rem;
+}
+
+.whatsapp-verified-icon {
+  color: #8edfd2;
+  font-size: 0.78rem;
+}
+
+.whatsapp-chat-wallpaper {
+  min-height: 350px;
+  background-color: #efeae2;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%238b9b93' stroke-opacity='.11' stroke-width='1.3'%3E%3Cpath d='M14 18c7-5 15 4 10 11s-15 3-14-5m71-13 8 8-8 8-8-8zm-40 39c4-7 15-5 16 3s-10 13-15 7m45 13c8-2 13 8 7 14s-15 0-12-8M9 88c8-6 18 3 12 11S5 102 6 94m50-3 9 9m-9 0 9-9m37 2c4-7 14-3 12 5s-13 8-14 0'/%3E%3Cpath d='M36 7c3 7 11 8 16 3m-20 63c8 0 12 7 8 13m34-48c5 6 13 5 17-1m13 39c-7 2-9 10-4 15'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.whatsapp-encryption-note {
+  width: fit-content;
+  max-width: 88%;
+  border-radius: 7px;
+  color: #6b6252;
+  background: #ffeecd;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+  font-size: 0.64rem;
+}
+
+.whatsapp-date-chip {
+  width: fit-content;
+  border-radius: 7px;
+  color: #54656f;
+  background: #ffffffd9;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+  font-size: 0.64rem;
+}
+
+.whatsapp-template-message {
+  width: 88%;
+  padding: 8px 8px 5px;
+  margin-left: 7px;
+  border-radius: 0 8px 8px 8px;
+  color: #111b21;
+  background: #ffffff;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.14);
+}
+
+.whatsapp-bubble-tail {
+  position: absolute;
+  top: 0;
+  left: -8px;
+  color: #ffffff;
+}
+
+.whatsapp-message-header {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.whatsapp-message-body {
+  font-size: 0.82rem;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  word-break: break-word;
+}
+
+.whatsapp-message-footer {
+  font-size: 0.68rem;
+}
+
+.whatsapp-message-time {
+  font-size: 0.62rem;
+}
+
+.whatsapp-document-preview {
+  background: #f0f2f5;
+  border: 1px solid #e1e5e7;
+}
+
+.whatsapp-template-buttons {
+  margin-right: -8px;
+  margin-left: -8px;
+  margin-bottom: -5px;
+}
+
+.whatsapp-template-button {
+  color: #00a884;
+  border-top: 1px solid #e9edef;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #ffffff;
+}
+
+.whatsapp-template-button:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.template-header-image {
+  max-height: 180px;
   object-fit: cover;
 }
 </style>

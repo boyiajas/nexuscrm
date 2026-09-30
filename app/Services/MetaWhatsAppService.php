@@ -788,7 +788,18 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'fields' => 'id,name,status,language,category,components,rejected_reason,quality_score',
         ];
 
+        $seenPages = [];
+        $pageCount = 0;
+
         while ($nextPath) {
+            if (isset($seenPages[$nextPath])) {
+                throw new \RuntimeException('Meta returned a repeated WhatsApp template page. Sync stopped to prevent an endless request.');
+            }
+            if (++$pageCount > 100) {
+                throw new \RuntimeException('WhatsApp template sync exceeded the 100-page safety limit.');
+            }
+
+            $seenPages[$nextPath] = true;
             $response = $this->get($nextPath, $query);
             $query = [];
 
@@ -874,7 +885,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ];
     }
 
-    public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en_US', string $category = 'UTILITY', array $mediaUrls = [], array $bodyExamples = []): array
+    public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en_US', string $category = 'UTILITY', array $mediaUrls = [], array $bodyExamples = [], array $buttons = []): array
     {
         if (!empty($mediaUrls)) {
             throw new \RuntimeException('Creating media-header templates from the CRM is not implemented yet. Create text templates here, or use Meta WhatsApp Manager for media templates.');
@@ -901,11 +912,55 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             $bodyComponent['example'] = ['body_text' => [array_values($bodyExamples)]];
         }
 
+        $components = [$bodyComponent];
+
+        $formattedButtons = [];
+        if (!empty($buttons)) {
+            foreach ($buttons as $btn) {
+                $type = strtoupper((string) ($btn['type'] ?? 'QUICK_REPLY'));
+                $text = trim((string) ($btn['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                $text = mb_substr($text, 0, 25);
+                if ($type === 'URL') {
+                    $url = trim((string) ($btn['url'] ?? ''));
+                    if ($url !== '') {
+                        $formattedButtons[] = [
+                            'type' => 'URL',
+                            'text' => $text,
+                            'url' => $url,
+                        ];
+                    }
+                } elseif ($type === 'PHONE_NUMBER') {
+                    $phone = trim((string) ($btn['phone_number'] ?? ''));
+                    if ($phone !== '') {
+                        $formattedButtons[] = [
+                            'type' => 'PHONE_NUMBER',
+                            'text' => $text,
+                            'phone_number' => $phone,
+                        ];
+                    }
+                } else {
+                    $formattedButtons[] = [
+                        'type' => 'QUICK_REPLY',
+                        'text' => $text,
+                    ];
+                }
+            }
+            if (!empty($formattedButtons)) {
+                $components[] = [
+                    'type' => 'BUTTONS',
+                    'buttons' => $formattedButtons,
+                ];
+            }
+        }
+
         $response = $this->post("{$this->businessAccountId}/message_templates", [
             'name' => $templateName,
             'language' => $normalizedLanguage,
             'category' => $normalizedCategory,
-            'components' => [$bodyComponent],
+            'components' => $components,
         ]);
 
         return [
@@ -923,7 +978,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'header_format' => null,
             'header_text' => null,
             'footer_text' => null,
-            'buttons' => [],
+            'buttons' => $formattedButtons,
             'raw' => $response,
         ];
     }
@@ -938,11 +993,55 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             $bodyComponent['example'] = ['body_text' => [array_values($data['body_examples'])]];
         }
 
+        $components = [$bodyComponent];
+
+        if (!empty($data['buttons']) && is_array($data['buttons'])) {
+            $formattedButtons = [];
+            foreach ($data['buttons'] as $btn) {
+                $type = strtoupper((string) ($btn['type'] ?? 'QUICK_REPLY'));
+                $text = trim((string) ($btn['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                $text = mb_substr($text, 0, 25);
+                if ($type === 'URL') {
+                    $url = trim((string) ($btn['url'] ?? ''));
+                    if ($url !== '') {
+                        $formattedButtons[] = [
+                            'type' => 'URL',
+                            'text' => $text,
+                            'url' => $url,
+                        ];
+                    }
+                } elseif ($type === 'PHONE_NUMBER') {
+                    $phone = trim((string) ($btn['phone_number'] ?? ''));
+                    if ($phone !== '') {
+                        $formattedButtons[] = [
+                            'type' => 'PHONE_NUMBER',
+                            'text' => $text,
+                            'phone_number' => $phone,
+                        ];
+                    }
+                } else {
+                    $formattedButtons[] = [
+                        'type' => 'QUICK_REPLY',
+                        'text' => $text,
+                    ];
+                }
+            }
+            if (!empty($formattedButtons)) {
+                $components[] = [
+                    'type' => 'BUTTONS',
+                    'buttons' => $formattedButtons,
+                ];
+            }
+        }
+
         return $this->post($templateId, [
             'name' => $data['friendly_name'],
             'language' => $data['language'],
             'category' => strtoupper((string) $data['category']),
-            'components' => [$bodyComponent],
+            'components' => $components,
         ]);
     }
 
