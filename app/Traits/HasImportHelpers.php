@@ -697,7 +697,7 @@ trait HasImportHelpers
     {
         $text = $this->cleanImportString($value);
         if ($text === null) { return null; }
-        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y', 'm/d/Y'] as $format) {
+        foreach (['Y-m-d', 'Y/m/d', 'd/m/Y', 'd-m-Y', 'm/d/Y'] as $format) {
             $date = \DateTimeImmutable::createFromFormat('!' . $format, $text);
             $errors = \DateTimeImmutable::getLastErrors();
             if ($date && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0))) { return $date->format('Y-m-d'); }

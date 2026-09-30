@@ -143,7 +143,7 @@ class ClientImportHeaderDiagnosticsTest extends TestCase
 
         // Simulating Capfin / FinChoice export where some rows have First Name empty but Surname, Title, Initials present
         $csvContent = "Acc Code,Account Number,Title,Initials,Known As,Name,Surname,ID Number,Cell,Outstanding balance,Store Name,Activation Amount,PTP Due Date,PTP Amount\n" .
-                      "4964194,36889408,MS,N,,,NDLANGAMANDLA,0009301143088,0649355738,125.32,Ackermans Cape Town,250.50,31/10/2026,500.75\n" .
+                      "4964194,36889408,MS,N,,,NDLANGAMANDLA,0009301143088,0649355738,125.32,Ackermans Cape Town,250.50,2026/10/31,500.75\n" .
                       "4964195,36889409,MR,T,,TERENCE,GERTZE,8101195041080,0837309861,2417.56,Refinery Bellville,300.00,2026-11-15,600.00\n";
 
         $tempPath = tempnam(sys_get_temp_dir(), 'cap_') . '.csv';
