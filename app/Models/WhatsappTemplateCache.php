@@ -39,24 +39,32 @@ class WhatsappTemplateCache extends Model
      */
     public function toApiArray(): array
     {
+        $raw = $this->raw_whatsapp ?? [];
+        $rejectedReason = $raw['rejected_reason'] ?? null;
+        if (is_string($rejectedReason) && strtoupper($rejectedReason) === 'NONE') {
+            $rejectedReason = null;
+        }
+
         return [
-            'id'            => $this->sid,
-            'meta_id'       => $this->meta_id,
-            'sid'           => $this->sid,
-            'name'          => $this->friendly_name,
-            'language'      => $this->language,
-            'category'      => $this->category,
-            'status'        => $this->status,
-            'body_preview'  => $this->body_preview,
-            'variables'     => $this->variables ?? [],
-            'whatsapp'      => $this->raw_whatsapp ?? [],
-            'media_urls'    => $this->media_urls ?? [],
-            'header_format' => $this->header_format,
-            'header_text'   => $this->header_text,
-            'footer_text'   => $this->footer_text,
-            'buttons'       => $this->buttons ?? [],
-            'components'    => $this->raw_whatsapp['components'] ?? [],
-            'synced_at'    => optional($this->synced_at)->toDateTimeString(),
+            'id'              => $this->sid,
+            'meta_id'         => $this->meta_id,
+            'sid'             => $this->sid,
+            'name'            => $this->friendly_name,
+            'language'        => $this->language,
+            'category'        => $this->category,
+            'status'          => $this->status,
+            'body_preview'    => $this->body_preview,
+            'variables'       => $this->variables ?? [],
+            'whatsapp'        => $raw,
+            'rejected_reason' => $rejectedReason,
+            'quality_score'   => $raw['quality_score'] ?? null,
+            'media_urls'      => $this->media_urls ?? [],
+            'header_format'   => $this->header_format,
+            'header_text'     => $this->header_text,
+            'footer_text'     => $this->footer_text,
+            'buttons'         => $this->buttons ?? [],
+            'components'      => $raw['components'] ?? [],
+            'synced_at'       => optional($this->synced_at)->toDateTimeString(),
         ];
     }
 }

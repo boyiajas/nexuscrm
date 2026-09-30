@@ -33,5 +33,7 @@ interface WhatsAppServiceInterface
 
     public function submitTemplateForApproval(string $templateId, string $category = 'UTILITY'): array;
 
+    public function fetchLiveTemplateFromMeta(string $templateId): ?array;
+
     public function migrateTemplates(string $destinationWabaId, array $templateIds): array;
 }

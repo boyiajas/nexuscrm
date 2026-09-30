@@ -72,6 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'update']);
     Route::delete('/whatsapp-templates/{id}', [WhatsAppTemplateController::class, 'destroy']);
     Route::post('/whatsapp-templates/{id}/submit', [WhatsAppTemplateController::class, 'submitForApproval']);
+    Route::post('/whatsapp-templates/{id}/check-status', [WhatsAppTemplateController::class, 'checkStatus']);
 
     Route::apiResource('campaigns', CampaignController::class)->only(['index','store','update','destroy','show']);
 

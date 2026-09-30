@@ -1192,9 +1192,20 @@
                   <td>{{ t.language || '-' }}</td>
                   <td>{{ t.category || '-' }}</td>
                   <td>
-                    <span class="badge" :class="statusBadge(t.status)">
-                      {{ t.status || 'Unknown' }}
-                    </span>
+                    <div class="d-flex align-items-center gap-1">
+                      <span class="badge" :class="statusBadge(t.status)">
+                        {{ t.status || 'Unknown' }}
+                      </span>
+                      <button
+                        type="button"
+                        class="btn btn-sm btn-link p-0 ms-1 text-decoration-none"
+                        :class="isPendingStatus(t.status) ? 'text-warning' : 'text-primary'"
+                        :title="'View review status and delay insights for ' + t.name"
+                        @click="openStatusInfoModal(t)"
+                      >
+                        <i class="bi bi-info-circle-fill"></i>
+                      </button>
+                    </div>
                     <div v-if="t.synced_at" class="small text-muted mt-1" :title="t.synced_at">Checked {{ formatTemplateCheckedAt(t.synced_at) }}</div>
                   </td>
                   <td>
@@ -1224,7 +1235,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredWhatsappTemplates.length === 0">
-                  <td colspan="6" class="text-center text-muted py-5">
+                  <td colspan="7" class="text-center text-muted py-5">
                     No templates match the current filters.
                   </td>
                 </tr>
@@ -1650,6 +1661,201 @@
       </div>
     </div>
 
+    <!-- WhatsApp Template Review & Delay Info Modal -->
+    <div class="modal fade" id="templateStatusInfoModal" tabindex="-1" ref="statusInfoModalRef">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content" v-if="statusModal.template">
+          <div class="modal-header border-bottom">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-info-circle-fill fs-5 text-primary"></i>
+              <h5 class="modal-title mb-0">Template Review & Delay Status</h5>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4">
+            <!-- Top Status Card -->
+            <div class="card border-0 bg-light shadow-sm mb-3">
+              <div class="card-body">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                  <div>
+                    <div class="text-muted small fw-semibold text-uppercase">Template Name</div>
+                    <h6 class="mb-1 font-monospace fw-bold">{{ statusModal.template.name }}</h6>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                      <span class="badge" :class="statusBadge(statusModal.template.status)">
+                        <i v-if="isPendingStatus(statusModal.template.status)" class="bi bi-clock-history me-1"></i>
+                        <i v-else-if="String(statusModal.template.status).toLowerCase() === 'approved'" class="bi bi-check-circle-fill me-1"></i>
+                        <i v-else-if="String(statusModal.template.status).toLowerCase() === 'rejected'" class="bi bi-x-circle-fill me-1"></i>
+                        Status: {{ statusModal.template.status || 'Unknown' }}
+                      </span>
+                      <span class="badge bg-secondary">Category: {{ (statusModal.template.category || 'N/A').toUpperCase() }}</span>
+                      <span class="badge bg-secondary">Language: {{ statusModal.template.language || 'N/A' }}</span>
+                      <span v-if="statusModal.template.quality_score" class="badge" :class="qualityRatingBadge(statusModal.template.quality_score)">
+                        Quality: {{ statusModal.template.quality_score }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="d-flex flex-column align-items-end gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-primary"
+                      @click="checkSingleTemplateLiveStatus"
+                      :disabled="statusModal.checkingLive"
+                    >
+                      <span v-if="statusModal.checkingLive" class="spinner-border spinner-border-sm me-1"></span>
+                      <i v-else class="bi bi-arrow-repeat me-1"></i>
+                      Check Live Status with Meta
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-sm btn-outline-secondary"
+                      @click="openMetaManagerForTemplate(statusModal.template)"
+                      title="Open Meta WhatsApp Manager"
+                    >
+                      <i class="bi bi-box-arrow-up-right me-1"></i> Open in WhatsApp Manager
+                    </button>
+                  </div>
+                </div>
+
+                <div v-if="statusModal.liveMessage" class="alert alert-success py-2 px-3 small mt-3 mb-0">
+                  <i class="bi bi-check-circle me-1"></i> {{ statusModal.liveMessage }}
+                </div>
+                <div v-if="statusModal.liveError" class="alert alert-danger py-2 px-3 small mt-3 mb-0">
+                  <i class="bi bi-exclamation-triangle me-1"></i> {{ statusModal.liveError }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Review Delay SLA & Queue Information -->
+            <div v-if="isPendingStatus(statusModal.template.status)" class="card border-warning mb-3">
+              <div class="card-header bg-warning bg-opacity-10 text-warning-emphasis d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">
+                  <i class="bi bi-hourglass-split me-1"></i> Review SLA & Delay Analysis
+                </span>
+                <span v-if="statusModal.template.synced_at" class="badge bg-warning text-dark">
+                  Submitted / Checked {{ formatElapsedHours(statusModal.template.synced_at) }}
+                </span>
+              </div>
+              <div class="card-body">
+                <h6 class="fw-bold mb-2">Why is this template still showing PENDING?</h6>
+                <p class="small text-muted mb-3">
+                  Meta employs a two-tier review system for WhatsApp Business templates. While simple notification and OTP templates are processed in <strong>1 to 5 minutes</strong> by automated AI screening, templates containing specific content triggers are routed into Meta's <strong>Manual Human Compliance Queue</strong>.
+                </p>
+
+                <div class="row g-2 mb-3">
+                  <div class="col-md-6">
+                    <div class="p-3 border rounded bg-light h-100">
+                      <div class="fw-semibold text-primary mb-1">
+                        <i class="bi bi-robot me-1"></i> Automated Screening
+                      </div>
+                      <div class="small text-muted">
+                        Takes <strong>1 – 5 minutes</strong>. Handles basic transactional alerts, OTP codes, and pre-approved standard utility notices.
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="p-3 border border-warning rounded bg-warning bg-opacity-10 h-100">
+                      <div class="fw-semibold text-warning-emphasis mb-1">
+                        <i class="bi bi-person-badge me-1"></i> Manual Human Review
+                      </div>
+                      <div class="small text-muted">
+                        Takes <strong>24 – 48 business hours</strong>. Triggered when debt collection, legal actions, financial demands, or formatting patterns are detected. Excludes weekends and California PST holidays.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Dynamic Keyword / Content Risk Scan -->
+                <div v-if="detectedRisks.count > 0" class="alert alert-warning border-warning p-3 mb-3">
+                  <div class="fw-semibold text-warning-emphasis mb-1">
+                    <i class="bi bi-shield-exclamation me-1"></i> Detected Content Delay Triggers in this Template:
+                  </div>
+                  <div class="small text-muted mb-2">
+                    The following keywords or formatting patterns in this template commonly trigger Meta's mandatory manual human review queue:
+                  </div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <span v-for="(trigger, idx) in detectedRisks.triggers" :key="idx" class="badge bg-white text-danger border border-danger-subtle font-monospace py-1 px-2">
+                      "{{ trigger.phrase }}" <small class="text-muted">({{ trigger.category }})</small>
+                    </span>
+                  </div>
+                  <div class="small text-muted mt-2">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Meta flags phrases like legal action, debt collection, and consecutive variables to ensure full compliance with WhatsApp's Business Messaging Policies before approving delivery.
+                  </div>
+                </div>
+                <div v-else class="alert alert-info border-info p-3 mb-3 small">
+                  <i class="bi bi-info-circle me-1"></i>
+                  No high-risk keywords detected. Meta also conducts randomized human quality audits on newly submitted templates or new business profiles, which take up to 24–48 business hours.
+                </div>
+
+                <!-- Recommendations -->
+                <div class="border rounded p-3 bg-light small">
+                  <div class="fw-semibold mb-1">What you can do:</div>
+                  <ul class="mb-0 ps-3 text-muted">
+                    <li><strong>Wait for the 48 business hours window:</strong> If submitted less than 48 hours ago (or over a weekend), Meta's human review team is likely still processing the queue.</li>
+                    <li><strong>Click "Check Live Status with Meta":</strong> The button above polls Meta's server directly to catch decisions the moment Meta finishes review.</li>
+                    <li><strong>If urgently needed:</strong> You can create and submit a variation with softer phrasing (e.g., removing words like "legal action" or "halt the process") for faster automated approval.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Approved State Info -->
+            <div v-else-if="String(statusModal.template.status).toLowerCase() === 'approved'" class="alert alert-success d-flex align-items-start gap-3 mb-3">
+              <i class="bi bi-check-circle-fill fs-3 text-success"></i>
+              <div>
+                <h6 class="fw-bold mb-1">Template Approved & Active on WhatsApp</h6>
+                <div class="small text-muted">
+                  Meta has approved this template. It is fully certified for outbound WhatsApp broadcast campaigns and live agent chat messaging.
+                </div>
+              </div>
+            </div>
+
+            <!-- Rejected State Info -->
+            <div v-else-if="String(statusModal.template.status).toLowerCase() === 'rejected'" class="alert alert-danger mb-3">
+              <div class="d-flex align-items-start gap-3">
+                <i class="bi bi-x-circle-fill fs-3 text-danger"></i>
+                <div class="w-100">
+                  <h6 class="fw-bold mb-1">Template Rejected by Meta</h6>
+                  <div class="small mb-2">
+                    Meta's reviewers rejected this template. Common reasons include non-compliant promotional content in utility templates, aggressive collection language, or formatting issues.
+                  </div>
+                  <div v-if="statusModal.template.rejected_reason" class="p-2 bg-white rounded border border-danger-subtle font-monospace small mb-2">
+                    <strong>Rejection Code:</strong> {{ statusModal.template.rejected_reason }}
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-danger" @click="handleEditFromStatusModal(statusModal.template)">
+                    <i class="bi bi-pencil-square me-1"></i> Edit & Resubmit Template
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Template Content Preview -->
+            <div class="card border-0 bg-light">
+              <div class="card-header bg-white border-bottom fw-semibold small text-muted">
+                <i class="bi bi-chat-left-text me-1"></i> Submitted Message Body Preview
+              </div>
+              <div class="card-body">
+                <div class="p-3 bg-white rounded border font-monospace small" style="white-space: pre-wrap;">{{ statusModal.template.body_preview || 'No preview available' }}</div>
+              </div>
+            </div>
+
+          </div>
+          <div class="modal-footer border-top">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              @click="checkSingleTemplateLiveStatus"
+              :disabled="statusModal.checkingLive"
+            >
+              <span v-if="statusModal.checkingLive" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-arrow-repeat me-1"></i> Check Live Status Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <ConfirmationModal ref="confirmModal" />
 </template>
 
@@ -1845,6 +2051,13 @@ export default {
         },
       },
       templateModal: null,
+      statusModal: {
+        template: null,
+        checkingLive: false,
+        liveMessage: null,
+        liveError: null,
+      },
+      statusInfoModal: null,
       activeMainTab: 'account',
       currentUserData: null,
     };
@@ -1869,6 +2082,7 @@ export default {
       this.loadMFA();
       this.loadSessions();
       this.templateModal = createManagedModal(this.$refs.templateModalRef);
+      this.statusInfoModal = createManagedModal(this.$refs.statusInfoModalRef);
       this.wn.addNumberModal = createManagedModal(this.$refs.addNumberModalRef);
       this.wn.verifyNumberModal = createManagedModal(this.$refs.verifyNumberModalRef);
       this.wp.modal = createManagedModal(this.$refs.profileModalRef);
@@ -1894,6 +2108,7 @@ export default {
   beforeUnmount() {
     window.removeEventListener('auth-user-updated', this.handleAuthUserUpdated);
     disposeManagedModal(this.templateModal);
+    disposeManagedModal(this.statusInfoModal);
     disposeManagedModal(this.wn.addNumberModal);
     disposeManagedModal(this.wn.verifyNumberModal);
     disposeManagedModal(this.wp.modal);
@@ -2158,6 +2373,10 @@ export default {
 
         return matchesSearch && matchesApprovalView && matchesStatus && matchesCategory && matchesLanguage;
       });
+    },
+    detectedRisks() {
+      const body = this.statusModal.template?.body_preview || '';
+      return this.scanTemplateContentRisks(body);
     },
   },
   methods: {
@@ -3179,6 +3398,105 @@ export default {
       if (s === 'rejected') return 'badge bg-danger';
       if (['paused', 'disabled', 'flagged', 'pending_deletion'].includes(s)) return 'badge bg-secondary';
       return 'badge bg-secondary';
+    },
+    isPendingStatus(status) {
+      const s = String(status || '').toLowerCase();
+      return ['pending', 'in_review', 'in_appeal'].includes(s);
+    },
+    openStatusInfoModal(template) {
+      this.statusModal.template = template;
+      this.statusModal.liveMessage = null;
+      this.statusModal.liveError = null;
+      this.statusModal.checkingLive = false;
+      this.statusInfoModal?.show();
+    },
+    async checkSingleTemplateLiveStatus() {
+      if (!this.statusModal.template) return;
+      const t = this.statusModal.template;
+      const lookupKey = t.sid || t.name;
+      this.statusModal.checkingLive = true;
+      this.statusModal.liveMessage = null;
+      this.statusModal.liveError = null;
+
+      try {
+        const { data } = await axios.post(`/api/whatsapp-templates/${encodeURIComponent(lookupKey)}/check-status`);
+        const updated = data.template || {};
+
+        const idx = this.wa.templates.findIndex((item) => item.sid === t.sid || item.id === t.id);
+        if (idx !== -1) {
+          this.wa.templates[idx] = Object.assign({}, this.wa.templates[idx], updated);
+        }
+        this.statusModal.template = Object.assign({}, t, updated);
+
+        this.statusModal.liveMessage = `Live status from Meta: ${data.live_status || updated.status || 'Updated'}. ${data.message || ''}`;
+        notify.success(`Template status from Meta: ${data.live_status || updated.status || 'Checked'}`, 'Meta Review Status');
+      } catch (err) {
+        const errorMsg = err.response?.data?.message || err.message;
+        this.statusModal.liveError = errorMsg;
+        notify.error('Failed to check live status: ' + errorMsg, 'Meta Review Status');
+      } finally {
+        this.statusModal.checkingLive = false;
+      }
+    },
+    scanTemplateContentRisks(body) {
+      if (!body) return { triggers: [], count: 0 };
+      const text = String(body).toLowerCase();
+      const detected = [];
+
+      const debtTriggers = [
+        'past due', 'overdue', 'halt the process', 'legal action', 'attorney',
+        'summons', 'court', 'proceedings', 'lawyer', 'arrears', 'settlement',
+        'outstanding balance', 'default', 'debt', 'debtor', 'ptp', 'final notice',
+        'demand for payment', 'section 129'
+      ];
+
+      for (const phrase of debtTriggers) {
+        if (text.includes(phrase)) {
+          detected.push({ phrase, category: 'Debt Collection / Legal Enforcement Language' });
+        }
+      }
+
+      if (/{{(\d+)}}\s*{{(\d+)}}/.test(body) || /\*{{(\d+)}}\s*{{(\d+)}}\*/.test(body)) {
+        detected.push({
+          phrase: 'Consecutive parameters (e.g. {{1}} {{2}})',
+          category: 'Parameter Formatting (Meta requires text between variables)',
+        });
+      }
+
+      return {
+        triggers: detected,
+        count: detected.length,
+      };
+    },
+    openMetaManagerForTemplate(template) {
+      const wabaId = this.meta.form.meta_whatsapp_business_account_id;
+      const query = new URLSearchParams({
+        asset_id: wabaId || '',
+        business_id: wabaId || '',
+        tab: 'message-templates',
+      });
+      window.open(`https://business.facebook.com/latest/whatsapp_manager/message_templates/?${query.toString()}`, '_blank', 'noopener,noreferrer');
+    },
+    formatElapsedHours(syncedAt) {
+      if (!syncedAt) return null;
+      const date = new Date(syncedAt);
+      if (Number.isNaN(date.getTime())) return null;
+      const diffMs = Date.now() - date.getTime();
+      const hours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+      if (hours < 1) {
+        const mins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
+        return `${mins} minute(s) ago`;
+      }
+      if (hours < 24) {
+        return `${hours} hour(s) ago`;
+      }
+      const days = Math.floor(hours / 24);
+      const remHours = hours % 24;
+      return `${days} day(s)${remHours > 0 ? ` ${remHours} hr(s)` : ''} ago (${hours} hrs total)`;
+    },
+    handleEditFromStatusModal(template) {
+      this.statusInfoModal?.hide();
+      this.editTemplate(template);
     },
     saveMeta() {
       if (!this.meta.form.meta_access_token || !this.meta.form.meta_whatsapp_phone_number_id || !this.meta.form.meta_whatsapp_business_account_id) {

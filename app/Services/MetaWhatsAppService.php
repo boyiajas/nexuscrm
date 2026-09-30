@@ -785,7 +785,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         $nextPath = "{$this->businessAccountId}/message_templates";
         $query = [
             'limit' => min(max($pageSize, 1), 100),
-            'fields' => 'id,name,status,language,category,components',
+            'fields' => 'id,name,status,language,category,components,rejected_reason,quality_score',
         ];
 
         while ($nextPath) {
@@ -967,6 +967,57 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ];
     }
 
+    public function fetchLiveTemplateFromMeta(string $templateId): ?array
+    {
+        $templateId = trim($templateId);
+        if ($templateId === '') {
+            return null;
+        }
+
+        $fields = 'id,name,status,language,category,components,rejected_reason,quality_score';
+
+        // 1. If numeric Meta ID, query directly
+        if (ctype_digit($templateId)) {
+            try {
+                $response = $this->get($templateId, ['fields' => $fields]);
+                if (!empty($response['name'])) {
+                    return $this->mapTemplate($response);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Meta WhatsApp direct template ID lookup failed, falling back to name lookup', [
+                    'template_id' => $templateId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // 2. Query by name under WABA
+        try {
+            $response = $this->get("{$this->businessAccountId}/message_templates", [
+                'name' => $templateId,
+                'fields' => $fields,
+                'limit' => 10,
+            ]);
+
+            $matched = collect($response['data'] ?? [])
+                ->first(function ($t) use ($templateId) {
+                    return ($t['name'] ?? '') === $templateId || ($t['id'] ?? '') === $templateId;
+                });
+
+            if ($matched) {
+                return $this->mapTemplate($matched);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Meta WhatsApp template status check failed', [
+                'template_id' => $templateId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
+        }
+
+        return null;
+    }
+
     public function migrateTemplates(string $destinationWabaId, array $templateIds): array
     {
         $sourceWabaId = $this->businessAccountId;
@@ -1058,6 +1109,18 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             $mediaUrls = array_values(array_filter($header['example']['header_handle'], 'is_string'));
         }
 
+        $qualityScore = null;
+        if (isset($template['quality_score'])) {
+            $qualityScore = is_array($template['quality_score'])
+                ? ($template['quality_score']['score'] ?? null)
+                : $template['quality_score'];
+        }
+
+        $rejectedReason = $template['rejected_reason'] ?? null;
+        if (is_string($rejectedReason) && strtoupper($rejectedReason) === 'NONE') {
+            $rejectedReason = null;
+        }
+
         return [
             'meta_id' => $template['id'] ?? null,
             'sid' => $template['name'],
@@ -1068,7 +1131,11 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'whatsapp' => [
                 'status' => $template['status'] ?? null,
                 'category' => strtolower((string) ($template['category'] ?? '')),
+                'rejected_reason' => $rejectedReason,
+                'quality_score' => $qualityScore,
             ],
+            'rejected_reason' => $rejectedReason,
+            'quality_score' => $qualityScore,
             'media' => $mediaUrls,
             'header_format' => $headerFormat ?: null,
             'header_text' => $header['text'] ?? null,

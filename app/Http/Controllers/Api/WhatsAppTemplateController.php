@@ -390,6 +390,78 @@ class WhatsAppTemplateController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * Check live status of a single template directly with Meta API,
+     * update local DB cache, and return fresh template data.
+     */
+    public function checkStatus(string $id): JsonResponse
+    {
+        $this->authorizeAdmin();
+
+        $cached = WhatsappTemplateCache::where('sid', $id)
+            ->orWhere('friendly_name', $id)
+            ->orWhere('meta_id', $id)
+            ->first();
+
+        $lookupKey = $cached?->meta_id ?: ($cached?->sid ?: $id);
+
+        try {
+            $live = $this->whatsApp->fetchLiveTemplateFromMeta($lookupKey);
+
+            if (!$live && $cached && $cached->sid !== $lookupKey) {
+                $live = $this->whatsApp->fetchLiveTemplateFromMeta($cached->sid);
+            }
+
+            if (!$live) {
+                return response()->json([
+                    'message' => "Template '{$id}' was not found on Meta.",
+                    'template' => $cached?->toApiArray(),
+                ], 404);
+            }
+
+            $whatsapp = $live['whatsapp'] ?? [];
+            $now = now();
+
+            $record = WhatsappTemplateCache::updateOrCreate(
+                ['sid' => $live['sid']],
+                [
+                    'meta_id'       => $live['meta_id'] ?? null,
+                    'friendly_name' => $live['friendly_name'] ?? $live['sid'],
+                    'language'      => $live['language'] ?? null,
+                    'category'      => $whatsapp['category'] ?? null,
+                    'status'        => $whatsapp['status'] ?? null,
+                    'body_preview'  => $live['preview'] ?? null,
+                    'header_format' => $live['header_format'] ?? null,
+                    'header_text'   => $live['header_text'] ?? null,
+                    'footer_text'   => $live['footer_text'] ?? null,
+                    'variables'     => $live['variables'] ?? [],
+                    'media_urls'    => $live['media'] ?? [],
+                    'buttons'       => $live['buttons'] ?? [],
+                    'raw_whatsapp'  => array_merge($whatsapp, ['components' => $live['components'] ?? []]),
+                    'synced_at'     => $now,
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Template status updated from Meta.',
+                'template' => $record->toApiArray(),
+                'live_status' => $whatsapp['status'] ?? null,
+                'rejected_reason' => $whatsapp['rejected_reason'] ?? null,
+                'quality_score' => $whatsapp['quality_score'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Failed to check live WhatsApp template status', [
+                'id' => $id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Failed to check status with Meta: ' . $e->getMessage(),
+                'template' => $cached?->toApiArray(),
+            ], 500);
+        }
+    }
+
     public function migrate(Request $request): JsonResponse
     {
         $this->authorizeAdmin();
