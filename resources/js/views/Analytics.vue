@@ -13,18 +13,21 @@
       <div class="d-flex flex-wrap align-items-center gap-2">
         <div class="input-group input-group-sm bg-white shadow-sm border rounded">
           <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-calendar3"></i></span>
-          <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;" v-model="dateRange" @change="fetchData">
-            <option value="year_to_date">Year to Date</option>
-            <option value="all_time">All Time (All Campaigns)</option>
+          <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;" v-model="dateRange" @change="onDateFilterChange">
             <option value="last_30_days">Last 30 Days</option>
             <option value="this_month">This Month</option>
-            <option value="last_90_days">Last 90 Days</option>
+            <option value="3_months">3 Months</option>
+            <option value="6_months">6 Months</option>
+            <option value="1_year">1 Year</option>
+            <option value="2_years">2 Years</option>
+            <option value="year_to_date">Year to Date</option>
+            <option value="all_time">All Time (All Campaigns)</option>
           </select>
         </div>
         
         <div class="input-group input-group-sm bg-white shadow-sm border rounded">
           <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-briefcase"></i></span>
-          <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;" v-model="selectedBankId" @change="fetchData">
+          <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;" v-model="selectedBankId" @change="onBankFilterChange">
             <option value="all">All Institutions ({{ banks.length }})</option>
             <option v-for="b in banks" :key="b.id" :value="b.id">{{ b.name }}</option>
           </select>
@@ -374,16 +377,15 @@
                       <th class="text-end">PTP</th>
                       <th class="text-end">DEBIT ORDER</th>
                       <th class="text-end">EST. META COST</th>
-                      <th class="text-end">RECOVERY RATE</th>
                     </tr>
                   </thead>
                   <tbody class="border-top-0">
                     <tr v-if="filteredCampaigns.length === 0">
-                      <td colspan="15" class="text-center py-4 text-muted">
+                      <td colspan="14" class="text-center py-4 text-muted">
                         No campaigns found matching the current criteria.
                       </td>
                     </tr>
-                    <tr v-for="(cmp, idx) in filteredCampaigns" :key="cmp.id || idx">
+                    <tr v-for="(cmp, idx) in paginatedCampaigns" :key="cmp.id || idx">
                       <td>
                         <div class="d-flex align-items-center gap-2">
                           <i
@@ -433,14 +435,52 @@
                           {{ cmp.rate }} ({{ cmp.template_category }})
                         </div>
                       </td>
-                      <td class="text-end">
-                        <div class="fw-semibold text-muted">{{ cmp.recoveryPct }}</div>
-                        <div class="text-muted" style="font-size: 0.75rem;">{{ cmp.recoveryAmt }}</div>
-                      </td>
                     </tr>
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            <!-- Pagination Footer -->
+            <div class="card-footer bg-white border-top py-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+              <div class="d-flex align-items-center gap-3 text-muted small">
+                <span>
+                  Showing <strong class="text-dark">{{ paginationStartIndex }}</strong> to <strong class="text-dark">{{ paginationEndIndex }}</strong> of <strong class="text-dark">{{ filteredCampaigns.length }}</strong> campaigns
+                </span>
+                <div class="d-flex align-items-center gap-1">
+                  <span>Show</span>
+                  <select class="form-select form-select-sm shadow-none" style="width: auto; font-size: 0.8rem;" v-model="perPage">
+                    <option v-for="opt in perPageOptions" :key="opt" :value="opt">{{ opt }}</option>
+                  </select>
+                  <span>per page</span>
+                </div>
+              </div>
+
+              <nav v-if="totalPages > 1" aria-label="Campaign pagination">
+                <ul class="pagination pagination-sm mb-0">
+                  <li class="page-item" :class="{ disabled: currentPage === 1 }">
+                    <button class="page-link shadow-none" type="button" @click="setPage(currentPage - 1)" :disabled="currentPage === 1">
+                      <i class="bi bi-chevron-left"></i>
+                    </button>
+                  </li>
+                  <li
+                    v-for="(page, pIdx) in displayedPages"
+                    :key="pIdx"
+                    class="page-item"
+                    :class="{ active: page === currentPage, disabled: page === '...' }"
+                  >
+                    <button v-if="page !== '...'" class="page-link shadow-none" type="button" @click="setPage(page)">
+                      {{ page }}
+                    </button>
+                    <span v-else class="page-link shadow-none border-0 bg-transparent text-muted">...</span>
+                  </li>
+                  <li class="page-item" :class="{ disabled: currentPage === totalPages }">
+                    <button class="page-link shadow-none" type="button" @click="setPage(currentPage + 1)" :disabled="currentPage === totalPages">
+                      <i class="bi bi-chevron-right"></i>
+                    </button>
+                  </li>
+                </ul>
+              </nav>
             </div>
           </div>
         </div>
@@ -515,10 +555,13 @@ export default {
     return {
       loading: true,
       timeframe: 'daily',
-      dateRange: 'year_to_date',
+      dateRange: 'last_30_days',
       selectedBankId: 'all',
       banks: [],
       campaignSearch: '',
+      perPage: 25,
+      currentPage: 1,
+      perPageOptions: [25, 50, 100, 250, 500, 1000, 'All'],
       summary: {
         dispatched: '0',
         delivered: '0',
@@ -569,6 +612,61 @@ export default {
         );
       }
       return list;
+    },
+    totalPages() {
+      if (this.perPage === 'All' || this.perPage === 'all' || !this.perPage) {
+        return 1;
+      }
+      const count = this.filteredCampaigns.length;
+      return Math.max(1, Math.ceil(count / Number(this.perPage)));
+    },
+    paginatedCampaigns() {
+      if (this.perPage === 'All' || this.perPage === 'all') {
+        return this.filteredCampaigns;
+      }
+      const pageSize = Number(this.perPage);
+      const start = (this.currentPage - 1) * pageSize;
+      return this.filteredCampaigns.slice(start, start + pageSize);
+    },
+    paginationStartIndex() {
+      if (this.filteredCampaigns.length === 0) return 0;
+      if (this.perPage === 'All' || this.perPage === 'all') return 1;
+      return (this.currentPage - 1) * Number(this.perPage) + 1;
+    },
+    paginationEndIndex() {
+      if (this.filteredCampaigns.length === 0) return 0;
+      if (this.perPage === 'All' || this.perPage === 'all') return this.filteredCampaigns.length;
+      return Math.min(this.currentPage * Number(this.perPage), this.filteredCampaigns.length);
+    },
+    displayedPages() {
+      const total = this.totalPages;
+      const current = this.currentPage;
+      if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+      }
+      const pages = [];
+      pages.push(1);
+      if (current > 3) {
+        pages.push('...');
+      }
+      const start = Math.max(2, current - 1);
+      const end = Math.min(total - 1, current + 1);
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      if (current < total - 2) {
+        pages.push('...');
+      }
+      pages.push(total);
+      return pages;
+    }
+  },
+  watch: {
+    campaignSearch() {
+      this.currentPage = 1;
+    },
+    perPage() {
+      this.currentPage = 1;
     }
   },
   mounted() {
@@ -585,6 +683,38 @@ export default {
         console.error('Failed to load banks for analytics filter', e);
       }
     },
+    onDateFilterChange() {
+      this.currentPage = 1;
+      this.fetchData();
+    },
+    onBankFilterChange() {
+      this.currentPage = 1;
+      this.fetchData();
+    },
+    setPage(p) {
+      if (p === '...' || p < 1 || p > this.totalPages) return;
+      this.currentPage = p;
+    },
+    getDateRangeLabel(key) {
+      const map = {
+        last_30_days: 'Last 30 Days',
+        this_month: 'This Month',
+        '3_months': '3 Months',
+        '6_months': '6 Months',
+        '1_year': '1 Year',
+        '2_years': '2 Years',
+        year_to_date: 'Year to Date',
+        all_time: 'All Time (All Campaigns)',
+      };
+      return map[key] || key;
+    },
+    getSelectedBankLabel() {
+      if (this.selectedBankId === 'all' || !this.selectedBankId) {
+        return `All Institutions (${this.banks.length})`;
+      }
+      const bank = this.banks.find(b => String(b.id) === String(this.selectedBankId));
+      return bank ? bank.name : `Institution ID: ${this.selectedBankId}`;
+    },
     setTimeframe(tf) {
       if (this.timeframe === tf) return;
       this.timeframe = tf;
@@ -598,6 +728,7 @@ export default {
             timeframe: this.timeframe,
             date_range: this.dateRange,
             bank_id: this.selectedBankId,
+            campaign_date_scope: 'filter',
           }
         });
         const data = response.data;
@@ -618,58 +749,150 @@ export default {
     },
     exportCampaignReport() {
       const exportList = this.filteredCampaigns.length > 0 ? this.filteredCampaigns : (this.tables.campaigns || []);
-      const headers = [
-        'Campaign',
+      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+
+      const now = new Date();
+      const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+      const dateRangeLabel = this.getDateRangeLabel(this.dateRange);
+      const bankLabel = this.getSelectedBankLabel();
+
+      const cleanInt = (v) => parseInt(String(v ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+      const cleanFloat = (v) => parseFloat(String(v ?? '0').replace(/[^0-9.]/g, '')) || 0;
+
+      // Executive KPI Aggregations
+      const totalSent = exportList.reduce((acc, c) => acc + cleanInt(c.sent), 0);
+      const totalDeliveredRead = exportList.reduce((acc, c) => acc + cleanInt(c.delivered_read), 0);
+      const totalDeliveredUnread = exportList.reduce((acc, c) => acc + cleanInt(c.delivered_unread), 0);
+      const totalDeliveredCombined = exportList.reduce((acc, c) => acc + cleanInt(c.delivered), 0);
+      const totalFailed = exportList.reduce((acc, c) => acc + cleanInt(c.failed), 0);
+      const totalReplies = exportList.reduce((acc, c) => acc + cleanInt(c.replies), 0);
+      const totalQuickReplies = exportList.reduce((acc, c) => acc + cleanInt(c.quick_replies), 0);
+      const totalOptOuts = exportList.reduce((acc, c) => acc + cleanInt(c.opt_outs), 0);
+      const totalPtp = exportList.reduce((acc, c) => acc + cleanInt(c.ptp), 0);
+      const totalDebitOrder = exportList.reduce((acc, c) => acc + cleanInt(c.debit_order), 0);
+      const totalPaymentNotSet = exportList.reduce((acc, c) => acc + cleanInt(c.payment_not_set), 0);
+      const totalCost = exportList.reduce((acc, c) => acc + cleanFloat(c.cost), 0);
+      const overallDeliveryRate = totalSent > 0 ? ((totalDeliveredCombined / totalSent) * 100).toFixed(1) + '%' : '0.0%';
+
+      const fileRows = [];
+
+      // SECTION 1: HEADER & METADATA
+      fileRows.push(['NEXUS CRM - CAMPAIGN PERFORMANCE & FINANCIAL REPORT']);
+      fileRows.push(['Report Generated At', generatedAt]);
+      fileRows.push(['Filter Period', dateRangeLabel]);
+      fileRows.push(['Institution / Department', bankLabel]);
+      if (this.campaignSearch && this.campaignSearch.trim()) {
+        fileRows.push(['Search Filter Applied', this.campaignSearch.trim()]);
+      }
+      fileRows.push([]); // Blank line
+
+      // SECTION 2: EXECUTIVE SUMMARY & TOTALS
+      fileRows.push(['EXECUTIVE SUMMARY & TOTALS']);
+      fileRows.push(['Total Campaigns Analyzed', exportList.length]);
+      fileRows.push(['Total Messages Sent (Dispatched)', totalSent]);
+      fileRows.push(['Delivered (Read / Seen)', totalDeliveredRead]);
+      fileRows.push(['Delivered (Unread / Received)', totalDeliveredUnread]);
+      fileRows.push(['Combined Total Delivered', totalDeliveredCombined]);
+      fileRows.push(['Delivery Success Rate', overallDeliveryRate]);
+      fileRows.push(['Failed / Undeliverable Messages', totalFailed]);
+      fileRows.push(['Unique Inbound Replies', totalReplies]);
+      fileRows.push(['Quick Button Replies', totalQuickReplies]);
+      fileRows.push(['Opt-Outs / Stop Requests', totalOptOuts]);
+      fileRows.push(['Promises to Pay (PTP)', totalPtp]);
+      fileRows.push(['Debit Orders Captured', totalDebitOrder]);
+      fileRows.push(['Payment Options Not Set', totalPaymentNotSet]);
+      fileRows.push(['Total Estimated Meta Cost', '$' + totalCost.toFixed(2)]);
+      fileRows.push([]); // Blank line
+
+      // SECTION 3: CAMPAIGN BREAKDOWN MATRIX
+      fileRows.push(['CAMPAIGN PERFORMANCE MATRIX BREAKDOWN']);
+      const matrixHeaders = [
+        'Campaign Name',
         'Campaign ID',
         'Bank / Department',
+        'Batch Reference',
+        'Status',
+        'Created Date',
         'Messages Sent',
         'Delivered (Read)',
         'Delivered (Unread)',
-        'Failed',
         'Total Delivered',
+        'Failed',
         'Delivery %',
-        'Unique Clients Replied',
-        'Unique Quick Replies',
-        'Unique Opt-Outs',
+        'Unique Replies',
+        'Quick Replies',
+        'Opt-Outs',
         'PTP',
         'Debit Order',
-        'Payment Option Not Set',
-        'Estimated Meta Cost',
+        'Payment Not Set',
         'Template Category',
-        'Rate',
-        'Recovery Rate',
-        'Recovery Amount',
+        'Rate / Msg',
+        'Estimated Meta Cost',
       ];
-      const rows = exportList.map((campaign) => [
-        campaign.name,
-        campaign.id,
-        campaign.bank,
-        campaign.sent,
-        campaign.delivered_read || '0',
-        campaign.delivered_unread || '0',
-        campaign.failed || '0',
-        campaign.delivered || '0',
-        campaign.delivery,
-        campaign.replies,
-        campaign.quick_replies,
-        campaign.opt_outs,
-        campaign.ptp,
-        campaign.debit_order,
-        campaign.payment_not_set,
-        campaign.cost,
-        campaign.template_category || 'N/A',
-        campaign.rate || '$0.0076',
-        campaign.recoveryPct,
-        campaign.recoveryAmt,
+      fileRows.push(matrixHeaders);
+
+      exportList.forEach((c) => {
+        fileRows.push([
+          c.name,
+          c.id,
+          c.bank,
+          c.batch,
+          c.status,
+          c.created_at || 'N/A',
+          c.sent,
+          c.delivered_read || '0',
+          c.delivered_unread || '0',
+          c.delivered || '0',
+          c.failed || '0',
+          c.delivery,
+          c.replies,
+          c.quick_replies,
+          c.opt_outs,
+          c.ptp,
+          c.debit_order,
+          c.payment_not_set,
+          c.template_category || 'N/A',
+          c.rate || 'N/A',
+          c.cost,
+        ]);
+      });
+
+      // SECTION 4: GRAND TOTAL ROW
+      fileRows.push([
+        'GRAND TOTAL',
+        '',
+        '',
+        '',
+        '',
+        '',
+        totalSent,
+        totalDeliveredRead,
+        totalDeliveredUnread,
+        totalDeliveredCombined,
+        totalFailed,
+        overallDeliveryRate,
+        totalReplies,
+        totalQuickReplies,
+        totalOptOuts,
+        totalPtp,
+        totalDebitOrder,
+        totalPaymentNotSet,
+        '',
+        '',
+        '$' + totalCost.toFixed(2),
       ]);
-      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-      const csv = [headers, ...rows]
+
+      const csvContent = '\uFEFF' + fileRows
         .map((row) => row.map(escapeCsv).join(','))
         .join('\r\n');
-      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `campaign-whatsapp-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      const fileDate = now.toISOString().slice(0, 10);
+      link.download = `NexusCRM_Campaign_Performance_Report_${this.dateRange}_${fileDate}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -811,9 +1034,10 @@ export default {
   font-size: 0.65rem;
   letter-spacing: 0.05em;
   border-bottom-width: 1px;
+  padding: 0.5rem 0.5rem;
 }
 .custom-table td {
-  padding: 1rem 0.5rem;
+  padding: 0.38rem 0.5rem;
   vertical-align: middle;
 }
 

@@ -47,12 +47,18 @@ class AnalyticsController extends Controller
         } elseif ($dateRange === 'all_time' || $dateRange === 'all') {
             $startDate = null;
             $endDate = null;
-        } elseif ($dateRange === 'last_30_days') {
+        } elseif ($dateRange === 'last_30_days' || $dateRange === '30_days') {
             $startDate = Carbon::now()->subDays(29)->startOfDay();
         } elseif ($dateRange === 'this_month') {
             $startDate = Carbon::now()->startOfMonth();
-        } elseif ($dateRange === 'last_90_days') {
-            $startDate = Carbon::now()->subDays(89)->startOfDay();
+        } elseif ($dateRange === 'last_90_days' || $dateRange === '3_months' || $dateRange === '3_month') {
+            $startDate = Carbon::now()->subMonths(3)->startOfDay();
+        } elseif ($dateRange === '6_months' || $dateRange === '6_month') {
+            $startDate = Carbon::now()->subMonths(6)->startOfDay();
+        } elseif ($dateRange === '1_year' || $dateRange === '1_years' || $dateRange === '12_months') {
+            $startDate = Carbon::now()->subYear()->startOfDay();
+        } elseif ($dateRange === '2_years' || $dateRange === '2_year' || $dateRange === '24_months') {
+            $startDate = Carbon::now()->subYears(2)->startOfDay();
         } elseif ($dateRange) {
             $startDate = Carbon::now()->startOfYear();
         } else {
@@ -321,13 +327,29 @@ class AnalyticsController extends Controller
             $campaignsQuery->where('campaigns.bank_id', $selectedBankId);
         }
 
-        $campaignDateScope = $request->query('campaign_date_scope', 'all');
-        if ($campaignDateScope === 'range' || $campaignDateScope === 'filter') {
-            if ($startDate) {
-                $campaignsQuery->where('campaigns.created_at', '>=', $startDate);
-            }
-            if ($endDate) {
-                $campaignsQuery->where('campaigns.created_at', '<=', $endDate);
+        $campaignDateScope = $request->query('campaign_date_scope', 'filter');
+        if ($campaignDateScope !== 'all') {
+            if ($startDate && $endDate) {
+                $campaignsQuery->where(function ($q) use ($startDate, $endDate) {
+                    $q->whereBetween('campaigns.created_at', [$startDate, $endDate])
+                      ->orWhereHas('whatsappMessages', function ($mq) use ($startDate, $endDate) {
+                          $mq->whereBetween('created_at', [$startDate, $endDate]);
+                      });
+                });
+            } elseif ($startDate) {
+                $campaignsQuery->where(function ($q) use ($startDate) {
+                    $q->where('campaigns.created_at', '>=', $startDate)
+                      ->orWhereHas('whatsappMessages', function ($mq) use ($startDate) {
+                          $mq->where('created_at', '>=', $startDate);
+                      });
+                });
+            } elseif ($endDate) {
+                $campaignsQuery->where(function ($q) use ($endDate) {
+                    $q->where('campaigns.created_at', '<=', $endDate)
+                      ->orWhereHas('whatsappMessages', function ($mq) use ($endDate) {
+                          $mq->where('created_at', '<=', $endDate);
+                      });
+                });
             }
         }
 

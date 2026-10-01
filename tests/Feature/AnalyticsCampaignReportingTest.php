@@ -94,6 +94,77 @@ class AnalyticsCampaignReportingTest extends TestCase
         $this->assertSame('1', $allTime->json('summary.delivered'));
     }
 
+    public function test_analytics_extended_date_ranges_filter_campaigns_and_summary(): void
+    {
+        [$user, $bank] = $this->createSuperAdminAndBank();
+        Sanctum::actingAs($user);
+
+        $c1 = Campaign::query()->create([
+            'name' => 'Recent Campaign (15d)',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        \Illuminate\Support\Facades\DB::table('campaigns')->where('id', $c1->id)->update(['created_at' => Carbon::now()->subDays(15)]);
+
+        $c2 = Campaign::query()->create([
+            'name' => 'Quarterly Campaign (60d)',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        \Illuminate\Support\Facades\DB::table('campaigns')->where('id', $c2->id)->update(['created_at' => Carbon::now()->subDays(60)]);
+
+        $c3 = Campaign::query()->create([
+            'name' => 'Mid-Year Campaign (150d)',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        \Illuminate\Support\Facades\DB::table('campaigns')->where('id', $c3->id)->update(['created_at' => Carbon::now()->subDays(150)]);
+
+        $c4 = Campaign::query()->create([
+            'name' => 'Annual Campaign (300d)',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        \Illuminate\Support\Facades\DB::table('campaigns')->where('id', $c4->id)->update(['created_at' => Carbon::now()->subDays(300)]);
+
+        $c5 = Campaign::query()->create([
+            'name' => 'Biennial Campaign (500d)',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        \Illuminate\Support\Facades\DB::table('campaigns')->where('id', $c5->id)->update(['created_at' => Carbon::now()->subDays(500)]);
+
+        // 1. Last 30 days
+        $res30 = $this->getJson('/api/analytics?date_range=last_30_days')->assertOk();
+        $this->assertCount(1, $res30->json('tables.campaigns'));
+        $this->assertSame('Recent Campaign (15d)', $res30->json('tables.campaigns.0.name'));
+
+        // 2. 3 months
+        $res3m = $this->getJson('/api/analytics?date_range=3_months')->assertOk();
+        $this->assertCount(2, $res3m->json('tables.campaigns'));
+
+        // 3. 6 months
+        $res6m = $this->getJson('/api/analytics?date_range=6_months')->assertOk();
+        $this->assertCount(3, $res6m->json('tables.campaigns'));
+
+        // 4. 1 year
+        $res1y = $this->getJson('/api/analytics?date_range=1_year')->assertOk();
+        $this->assertCount(4, $res1y->json('tables.campaigns'));
+
+        // 5. 2 years
+        $res2y = $this->getJson('/api/analytics?date_range=2_years')->assertOk();
+        $this->assertCount(5, $res2y->json('tables.campaigns'));
+
+        // 6. All time
+        $resAll = $this->getJson('/api/analytics?date_range=all_time')->assertOk();
+        $this->assertCount(5, $resAll->json('tables.campaigns'));
+    }
+
     public function test_analytics_filters_by_bank_id(): void
     {
         [$user, $bankA] = $this->createSuperAdminAndBank();
