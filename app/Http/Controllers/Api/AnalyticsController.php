@@ -28,20 +28,49 @@ class AnalyticsController extends Controller
         $user = auth()->user();
         
         $timeframe = $request->query('timeframe', 'daily');
-        
-        if ($timeframe === 'monthly') {
-            $monthsBack = 12;
-            $startDate = Carbon::now()->subMonths($monthsBack - 1)->startOfMonth();
-        } elseif ($timeframe === 'weekly' || $timeframe === '3month') {
-            $weeksBack = $timeframe === '3month' ? 12 : 8;
-            $startDate = Carbon::now()->subWeeks($weeksBack - 1)->startOfWeek();
+        $dateRange = $request->query('date_range');
+        $bankId = $request->query('bank_id');
+
+        $selectedBankId = ($bankId && $bankId !== 'all') ? (int) $bankId : null;
+        if ($selectedBankId && $user && !$user->canAccessAllBanks() && !$user->isSuperAdmin()) {
+            $accessibleBankIds = $user->accessibleBankIds() ?? [];
+            if (!in_array($selectedBankId, $accessibleBankIds, true)) {
+                $selectedBankId = -1; // Force empty result if unauthorized
+            }
+        }
+
+        $startDate = null;
+        $endDate = Carbon::now()->endOfDay();
+
+        if ($dateRange === 'year_to_date' || $dateRange === 'ytd') {
+            $startDate = Carbon::now()->startOfYear();
+        } elseif ($dateRange === 'all_time' || $dateRange === 'all') {
+            $startDate = null;
+            $endDate = null;
+        } elseif ($dateRange === 'last_30_days') {
+            $startDate = Carbon::now()->subDays(29)->startOfDay();
+        } elseif ($dateRange === 'this_month') {
+            $startDate = Carbon::now()->startOfMonth();
+        } elseif ($dateRange === 'last_90_days') {
+            $startDate = Carbon::now()->subDays(89)->startOfDay();
+        } elseif ($dateRange) {
+            $startDate = Carbon::now()->startOfYear();
         } else {
-            $daysBack = 30;
-            $startDate = Carbon::now()->subDays($daysBack - 1)->startOfDay();
+            // Default when date_range is omitted (backwards compatibility)
+            if ($timeframe === 'monthly') {
+                $monthsBack = 12;
+                $startDate = Carbon::now()->subMonths($monthsBack - 1)->startOfMonth();
+            } elseif ($timeframe === 'weekly' || $timeframe === '3month') {
+                $weeksBack = $timeframe === '3month' ? 12 : 8;
+                $startDate = Carbon::now()->subWeeks($weeksBack - 1)->startOfWeek();
+            } else {
+                $daysBack = 30;
+                $startDate = Carbon::now()->subDays($daysBack - 1)->startOfDay();
+            }
         }
 
         // OVERALL STATISTICS
-        $stats = DB::table('campaign_whatsapp_recipients')
+        $statsQuery = DB::table('campaign_whatsapp_recipients')
             ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
             ->selectRaw('
                 COUNT(*) as total_dispatched,
@@ -49,7 +78,6 @@ class AnalyticsController extends Controller
                 SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as total_read,
                 SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL OR campaign_whatsapp_recipients.reply_type IS NOT NULL THEN 1 ELSE 0 END) as total_replied
             ')
-            ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
             ->whereIn(DB::raw('LOWER(campaign_whatsapp_recipients.status)'), [
                 'sent',
                 'accepted',
@@ -57,7 +85,19 @@ class AnalyticsController extends Controller
                 'read',
                 'delivered (ecosystem warning)',
                 'failed',
-            ])
+            ]);
+
+        if ($startDate) {
+            $statsQuery->where('campaign_whatsapp_recipients.created_at', '>=', $startDate);
+        }
+        if ($endDate) {
+            $statsQuery->where('campaign_whatsapp_recipients.created_at', '<=', $endDate);
+        }
+        if ($selectedBankId) {
+            $statsQuery->where('clients.bank_id', $selectedBankId);
+        }
+
+        $stats = $statsQuery
             ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
             ->first();
 
@@ -67,8 +107,16 @@ class AnalyticsController extends Controller
         
         // Combine with ChatSessions for inbound engaged
         $chatInboundQuery = ChatSession::where('platform', 'whatsapp')
-            ->where('unread_count', '>', 0)
-            ->where('created_at', '>=', $startDate);
+            ->where('unread_count', '>', 0);
+        if ($startDate) {
+            $chatInboundQuery->where('created_at', '>=', $startDate);
+        }
+        if ($endDate) {
+            $chatInboundQuery->where('created_at', '<=', $endDate);
+        }
+        if ($selectedBankId) {
+            $chatInboundQuery->where('bank_id', $selectedBankId);
+        }
         $this->scopeChatSessionQueryToUser($chatInboundQuery, $user);
         $chatInbound = $chatInboundQuery->count();
         $inbound = max((int) ($stats->total_replied ?? 0), $chatInbound);
@@ -79,9 +127,9 @@ class AnalyticsController extends Controller
 
         // SPEND & COST
         // Meta pricing based on South Africa rates (USD)
-        $marketingCost = 0.0175; // Estimated SA rate for Marketing since it wasn't in the screenshot
-        $utilityCost = 0.0076;   // From screenshot (South Africa, List rate)
-        $authCost = 0.0076;      // From screenshot (South Africa, List rate)
+        $marketingCost = 0.0175; // Estimated SA rate for Marketing
+        $utilityCost = 0.0076;   // From South Africa List rate
+        $authCost = 0.0076;      // From South Africa List rate
 
         // Estimate based on templates (if actual billing isn't stored)
         $totalMarketingMsgs = round($dispatched * 0.58);
@@ -97,6 +145,9 @@ class AnalyticsController extends Controller
 
         // ASSETS
         $activeCampaignsQuery = Campaign::where('status', 'Active');
+        if ($selectedBankId) {
+            $activeCampaignsQuery->where('bank_id', $selectedBankId);
+        }
         $this->scopeCampaignQueryToUser($activeCampaignsQuery, $user);
         $activeCampaigns = $activeCampaignsQuery->count();
         $approvedTemplates = WhatsappTemplateCache::where('status', 'APPROVED')->count();
@@ -109,7 +160,7 @@ class AnalyticsController extends Controller
 
         if ($timeframe === 'monthly') {
             $monthsBack = 12;
-            $stats = DB::table('campaign_whatsapp_recipients')
+            $chartQuery = DB::table('campaign_whatsapp_recipients')
                 ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
                 ->selectRaw('
                     DATE_FORMAT(campaign_whatsapp_recipients.created_at, "%Y-%m") as period,
@@ -118,15 +169,21 @@ class AnalyticsController extends Controller
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
                     SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL OR campaign_whatsapp_recipients.reply_type IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
-                ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->where('campaign_whatsapp_recipients.created_at', '>=', Carbon::now()->subMonths($monthsBack - 1)->startOfMonth())
                 ->whereIn(DB::raw('LOWER(campaign_whatsapp_recipients.status)'), [
-                'sent',
-                'accepted',
-                'delivered',
-                'read',
-                'delivered (ecosystem warning)',
-                'failed',
-            ])
+                    'sent',
+                    'accepted',
+                    'delivered',
+                    'read',
+                    'delivered (ecosystem warning)',
+                    'failed',
+                ]);
+
+            if ($selectedBankId) {
+                $chartQuery->where('clients.bank_id', $selectedBankId);
+            }
+
+            $statsMonthly = $chartQuery
                 ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -137,7 +194,7 @@ class AnalyticsController extends Controller
                 $periodStr = $date->format('Y-m');
                 $chartLabels[] = $date->format('M Y');
                 
-                $data = $stats->firstWhere('period', $periodStr);
+                $data = $statsMonthly->firstWhere('period', $periodStr);
                 $chartDispatched[] = $data ? (int) $data->dispatched : 0;
                 $chartDelivered[] = $data ? (int) $data->delivered : 0;
                 $chartRead[] = $data ? (int) $data->read_count : 0;
@@ -146,7 +203,7 @@ class AnalyticsController extends Controller
         } elseif ($timeframe === 'weekly' || $timeframe === '3month') {
             $weeksBack = $timeframe === '3month' ? 12 : 8;
             
-            $stats = DB::table('campaign_whatsapp_recipients')
+            $chartQuery = DB::table('campaign_whatsapp_recipients')
                 ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
                 ->selectRaw('
                     YEARWEEK(campaign_whatsapp_recipients.created_at, 1) as period,
@@ -155,15 +212,21 @@ class AnalyticsController extends Controller
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
                     SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL OR campaign_whatsapp_recipients.reply_type IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
-                ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->where('campaign_whatsapp_recipients.created_at', '>=', Carbon::now()->subWeeks($weeksBack - 1)->startOfWeek())
                 ->whereIn(DB::raw('LOWER(campaign_whatsapp_recipients.status)'), [
-                'sent',
-                'accepted',
-                'delivered',
-                'read',
-                'delivered (ecosystem warning)',
-                'failed',
-            ])
+                    'sent',
+                    'accepted',
+                    'delivered',
+                    'read',
+                    'delivered (ecosystem warning)',
+                    'failed',
+                ]);
+
+            if ($selectedBankId) {
+                $chartQuery->where('clients.bank_id', $selectedBankId);
+            }
+
+            $statsWeekly = $chartQuery
                 ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -174,7 +237,7 @@ class AnalyticsController extends Controller
                 $periodStr = $date->format('oW'); // ISO year and week number
                 $chartLabels[] = 'Week of ' . $date->startOfWeek()->format('M d');
                 
-                $data = $stats->firstWhere('period', $periodStr);
+                $data = $statsWeekly->firstWhere('period', $periodStr);
                 $chartDispatched[] = $data ? (int) $data->dispatched : 0;
                 $chartDelivered[] = $data ? (int) $data->delivered : 0;
                 $chartRead[] = $data ? (int) $data->read_count : 0;
@@ -184,7 +247,7 @@ class AnalyticsController extends Controller
             // Daily (default, 30 days)
             $daysBack = 30;
             
-            $stats = DB::table('campaign_whatsapp_recipients')
+            $chartQuery = DB::table('campaign_whatsapp_recipients')
                 ->join('clients', 'campaign_whatsapp_recipients.client_id', '=', 'clients.id')
                 ->selectRaw('
                     DATE(campaign_whatsapp_recipients.created_at) as period,
@@ -193,15 +256,21 @@ class AnalyticsController extends Controller
                     SUM(CASE WHEN LOWER(campaign_whatsapp_recipients.status) = "read" THEN 1 ELSE 0 END) as read_count,
                     SUM(CASE WHEN campaign_whatsapp_recipients.last_response IS NOT NULL OR campaign_whatsapp_recipients.reply_type IS NOT NULL THEN 1 ELSE 0 END) as replied
                 ')
-                ->where('campaign_whatsapp_recipients.created_at', '>=', $startDate)
+                ->where('campaign_whatsapp_recipients.created_at', '>=', Carbon::now()->subDays($daysBack - 1)->startOfDay())
                 ->whereIn(DB::raw('LOWER(campaign_whatsapp_recipients.status)'), [
-                'sent',
-                'accepted',
-                'delivered',
-                'read',
-                'delivered (ecosystem warning)',
-                'failed',
-            ])
+                    'sent',
+                    'accepted',
+                    'delivered',
+                    'read',
+                    'delivered (ecosystem warning)',
+                    'failed',
+                ]);
+
+            if ($selectedBankId) {
+                $chartQuery->where('clients.bank_id', $selectedBankId);
+            }
+
+            $statsDaily = $chartQuery
                 ->tap(fn ($query) => $this->scopeWhatsappRecipientStatsQuery($query, $user))
                 ->groupBy('period')
                 ->orderBy('period')
@@ -212,7 +281,7 @@ class AnalyticsController extends Controller
                 $periodStr = $date->format('Y-m-d');
                 $chartLabels[] = $date->format('M d');
                 
-                $data = $stats->firstWhere('period', $periodStr);
+                $data = $statsDaily->firstWhere('period', $periodStr);
                 $chartDispatched[] = $data ? (int) $data->dispatched : 0;
                 $chartDelivered[] = $data ? (int) $data->delivered : 0;
                 $chartRead[] = $data ? (int) $data->read_count : 0;
@@ -221,7 +290,7 @@ class AnalyticsController extends Controller
         }
 
         // TEMPLATES DATA
-        $templatesData = WhatsappTemplateCache::limit(10)->get()->map(function ($tpl) {
+        $templatesData = WhatsappTemplateCache::get()->map(function ($tpl) {
             $sent = rand(1000, 20000); // Mock data for now since we don't track by template_id easily without joining message table
             $cat = $tpl->category;
             $rate = $cat === 'MARKETING' ? 0.0175 : 0.0076;
@@ -244,8 +313,27 @@ class AnalyticsController extends Controller
 
         // CAMPAIGNS DATA
         $campaignsQuery = Campaign::with(['bank', 'whatsappMessages.createdBy:id,name'])
-            ->orderBy('created_at', 'desc')
-            ->limit(15);
+            ->orderBy('created_at', 'desc');
+
+        if ($selectedBankId) {
+            $campaignsQuery->where('campaigns.bank_id', $selectedBankId);
+        }
+
+        $campaignDateScope = $request->query('campaign_date_scope', 'all');
+        if ($campaignDateScope === 'range' || $campaignDateScope === 'filter') {
+            if ($startDate) {
+                $campaignsQuery->where('campaigns.created_at', '>=', $startDate);
+            }
+            if ($endDate) {
+                $campaignsQuery->where('campaigns.created_at', '<=', $endDate);
+            }
+        }
+
+        $limit = $request->query('limit');
+        if ($limit && is_numeric($limit) && (int) $limit > 0) {
+            $campaignsQuery->limit((int) $limit);
+        }
+
         $this->scopeCampaignQueryToUser($campaignsQuery, $user);
         $campaignsData = $campaignsQuery->get()->map(function ($cmp) use ($user) {
             $report = $this->campaignReportService->build(
@@ -281,6 +369,7 @@ class AnalyticsController extends Controller
                 'batch' => 'ID-' . $cmp->id,
                 'bank' => $cmp->bank ? $cmp->bank->name : 'N/A',
                 'status' => $cmp->status,
+                'created_at' => $cmp->created_at ? $cmp->created_at->format('Y-m-d') : null,
                 'agents' => $agents,
                 'sent' => number_format($sent),
                 'delivery' => number_format($report['delivery_rate'], 1) . '%',

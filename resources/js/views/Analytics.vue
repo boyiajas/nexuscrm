@@ -13,26 +13,27 @@
       <div class="d-flex flex-wrap align-items-center gap-2">
         <div class="input-group input-group-sm bg-white shadow-sm border rounded">
           <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-calendar3"></i></span>
-          <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;">
-            <option>Last 30 Days</option>
-            <option>This Month</option>
-            <option>Year to Date</option>
+          <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;" v-model="dateRange" @change="fetchData">
+            <option value="year_to_date">Year to Date</option>
+            <option value="all_time">All Time (All Campaigns)</option>
+            <option value="last_30_days">Last 30 Days</option>
+            <option value="this_month">This Month</option>
+            <option value="last_90_days">Last 90 Days</option>
           </select>
         </div>
         
         <div class="input-group input-group-sm bg-white shadow-sm border rounded">
           <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-briefcase"></i></span>
-          <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;">
-            <option>All Institutions (12)</option>
-            <option>Standard Bank</option>
-            <option>FNB</option>
+          <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;" v-model="selectedBankId" @change="fetchData">
+            <option value="all">All Institutions ({{ banks.length }})</option>
+            <option v-for="b in banks" :key="b.id" :value="b.id">{{ b.name }}</option>
           </select>
         </div>
 
         <button class="btn btn-sm btn-light border shadow-sm fw-semibold d-flex align-items-center gap-1" @click="fetchData">
           <i class="bi bi-arrow-clockwise"></i> Refresh
         </button>
-        <button class="btn btn-sm btn-dark shadow-sm fw-semibold d-flex align-items-center gap-1">
+        <button class="btn btn-sm btn-dark shadow-sm fw-semibold d-flex align-items-center gap-1" @click="exportCampaignReport">
           <i class="bi bi-cloud-download"></i> Export Report
         </button>
       </div>
@@ -327,11 +328,28 @@
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
               <div>
-                <h5 class="fw-bold mb-1">Campaign Performance Matrix <span class="badge bg-success-subtle text-success ms-2">{{ tables.campaigns.length }} Campaigns</span></h5>
+                <h5 class="fw-bold mb-1">
+                  Campaign Performance Matrix 
+                  <span class="badge bg-success-subtle text-success ms-2">{{ filteredCampaigns.length }} Campaigns</span>
+                  <span v-if="filteredCampaigns.length !== tables.campaigns.length" class="badge bg-light text-muted border ms-1">
+                    Filtered of {{ tables.campaigns.length }}
+                  </span>
+                </h5>
                 <p class="text-muted small mb-0">Unique WhatsApp client responses and payment options per campaign</p>
               </div>
-              <div class="d-flex gap-2">
-                <button class="btn btn-sm btn-light border"><i class="bi bi-layout-three-columns me-1"></i> Columns</button>
+              <div class="d-flex align-items-center gap-2">
+                <div class="input-group input-group-sm" style="width: 220px;">
+                  <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                  <input
+                    type="text"
+                    class="form-control border-start-0 shadow-none"
+                    placeholder="Search campaigns..."
+                    v-model="campaignSearch"
+                  >
+                  <button v-if="campaignSearch" class="btn btn-outline-secondary border-start-0" type="button" @click="campaignSearch = ''">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
                 <button class="btn btn-sm btn-light border" @click="exportCampaignReport">
                   <i class="bi bi-cloud-download me-1"></i> Export
                 </button>
@@ -357,7 +375,12 @@
                     </tr>
                   </thead>
                   <tbody class="border-top-0">
-                    <tr v-for="(cmp, idx) in tables.campaigns" :key="idx">
+                    <tr v-if="filteredCampaigns.length === 0">
+                      <td colspan="12" class="text-center py-4 text-muted">
+                        No campaigns found matching the current criteria.
+                      </td>
+                    </tr>
+                    <tr v-for="(cmp, idx) in filteredCampaigns" :key="cmp.id || idx">
                       <td>
                         <div class="d-flex align-items-center gap-2">
                           <i
@@ -367,7 +390,10 @@
                           ></i>
                           <div>
                             <div class="fw-bold text-dark">{{ cmp.name }}</div>
-                            <div class="text-muted" style="font-size: 0.75rem;">Batch: {{ cmp.batch }} · {{ cmp.status }}</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">
+                              Batch: {{ cmp.batch }} · {{ cmp.status }}
+                              <span v-if="cmp.created_at"> · {{ cmp.created_at }}</span>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -475,6 +501,10 @@ export default {
     return {
       loading: true,
       timeframe: 'daily',
+      dateRange: 'year_to_date',
+      selectedBankId: 'all',
+      banks: [],
+      campaignSearch: '',
       summary: {
         dispatched: '0',
         delivered: '0',
@@ -510,11 +540,35 @@ export default {
       }
     };
   },
+  computed: {
+    filteredCampaigns() {
+      let list = this.tables.campaigns || [];
+      if (this.campaignSearch && this.campaignSearch.trim()) {
+        const q = this.campaignSearch.trim().toLowerCase();
+        list = list.filter(c => 
+          (c.name && c.name.toLowerCase().includes(q)) ||
+          (c.batch && c.batch.toLowerCase().includes(q)) ||
+          (c.bank && c.bank.toLowerCase().includes(q)) ||
+          (c.status && c.status.toLowerCase().includes(q))
+        );
+      }
+      return list;
+    }
+  },
   mounted() {
     this.chartInstance = null; // Store non-reactively
+    this.fetchBanks();
     this.fetchData();
   },
   methods: {
+    async fetchBanks() {
+      try {
+        const res = await axios.get('/api/banks', { params: { per_page: 200 } });
+        this.banks = res.data.data || res.data || [];
+      } catch (e) {
+        console.error('Failed to load banks for analytics filter', e);
+      }
+    },
     setTimeframe(tf) {
       if (this.timeframe === tf) return;
       this.timeframe = tf;
@@ -523,7 +577,13 @@ export default {
     async fetchData() {
       this.loading = true;
       try {
-        const response = await axios.get('/api/analytics', { params: { timeframe: this.timeframe } });
+        const response = await axios.get('/api/analytics', {
+          params: {
+            timeframe: this.timeframe,
+            date_range: this.dateRange,
+            bank_id: this.selectedBankId,
+          }
+        });
         const data = response.data;
         
         this.summary = data.summary;
@@ -541,6 +601,7 @@ export default {
       }
     },
     exportCampaignReport() {
+      const exportList = this.filteredCampaigns.length > 0 ? this.filteredCampaigns : (this.tables.campaigns || []);
       const headers = [
         'Campaign',
         'Campaign ID',
@@ -557,7 +618,7 @@ export default {
         'Recovery Rate',
         'Recovery Amount',
       ];
-      const rows = this.tables.campaigns.map((campaign) => [
+      const rows = exportList.map((campaign) => [
         campaign.name,
         campaign.id,
         campaign.bank,
