@@ -136,6 +136,82 @@ class AnalyticsCampaignReportingTest extends TestCase
         $this->assertSame('Campaign For Bank B', $campaignsB[0]['name']);
     }
 
+    public function test_analytics_reconciles_delivered_read_unread_failed_and_marketing_cost(): void
+    {
+        [$user, $bank] = $this->createSuperAdminAndBank();
+        Sanctum::actingAs($user);
+
+        $campaign = Campaign::query()->create([
+            'name' => 'FINCHOICE WHATSAPP SETTLEMENTS 19-09-26',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+
+        $message = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'template_name' => 'fin_choice_special_discount_offer_11_09_2026',
+            'total' => 5,
+            'delivered' => 3,
+            'pending' => 1,
+            'failed' => 1,
+            'sent_at' => now(),
+        ]);
+
+        $clients = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $clients[] = Client::query()->create([
+                'name' => "Client {$i}",
+                'phone' => "+278200000{$i}0",
+                'bank_id' => $bank->id,
+            ]);
+        }
+
+        // 3 delivered read
+        for ($i = 0; $i < 3; $i++) {
+            CampaignWhatsappRecipient::query()->create([
+                'whatsapp_message_id' => $message->id,
+                'client_id' => $clients[$i]->id,
+                'status' => 'Delivered',
+            ]);
+        }
+
+        // 1 delivered unread (sent)
+        CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $message->id,
+            'client_id' => $clients[3]->id,
+            'status' => 'Sent',
+        ]);
+
+        // 1 failed
+        CampaignWhatsappRecipient::query()->create([
+            'whatsapp_message_id' => $message->id,
+            'client_id' => $clients[4]->id,
+            'status' => 'Failed',
+            'error_code' => '131026',
+            'error_message' => 'Message undeliverable',
+        ]);
+
+        $response = $this->getJson('/api/analytics?timeframe=daily&date_range=all_time')->assertOk();
+        $campaigns = $response->json('tables.campaigns');
+
+        $target = collect($campaigns)->firstWhere('name', 'FINCHOICE WHATSAPP SETTLEMENTS 19-09-26');
+        $this->assertNotNull($target);
+
+        $this->assertSame('5', $target['sent']);
+        $this->assertSame('3', $target['delivered_read']);
+        $this->assertSame('1', $target['delivered_unread']);
+        $this->assertSame('1', $target['failed']);
+        $this->assertSame('4', $target['delivered']);
+        // 4 delivered out of 5 sent = 80.0%
+        $this->assertSame('80.0%', $target['delivery']);
+        // Marketing category & rate
+        $this->assertSame('Marketing', $target['template_category']);
+        $this->assertSame('$0.0175', $target['rate']);
+        // 4 accepted * 0.0175 = $0.07
+        $this->assertSame('$0.07', $target['cost']);
+    }
+
     private function createSuperAdminAndBank(): array
     {
         $bank = Bank::query()->create([

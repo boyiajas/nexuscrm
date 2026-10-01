@@ -312,6 +312,8 @@ class AnalyticsController extends Controller
         });
 
         // CAMPAIGNS DATA
+        $templateCaches = WhatsappTemplateCache::all();
+
         $campaignsQuery = Campaign::with(['bank', 'whatsappMessages.createdBy:id,name'])
             ->orderBy('created_at', 'desc');
 
@@ -335,7 +337,7 @@ class AnalyticsController extends Controller
         }
 
         $this->scopeCampaignQueryToUser($campaignsQuery, $user);
-        $campaignsData = $campaignsQuery->get()->map(function ($cmp) use ($user) {
+        $campaignsData = $campaignsQuery->get()->map(function ($cmp) use ($user, $templateCaches) {
             $report = $this->campaignReportService->build(
                 $cmp,
                 !$user?->isSuperAdmin()
@@ -347,7 +349,8 @@ class AnalyticsController extends Controller
                     : null
             );
             $sent = $report['messages_sent'];
-            $cost = $report['messages_accepted'] * 0.0076;
+            [$rate, $templateCategory, $templateName] = $this->resolveCampaignTemplateRate($cmp, $templateCaches);
+            $cost = $report['messages_accepted'] * $rate;
             $agents = $cmp->whatsappMessages
                 ->pluck('createdBy')
                 ->filter()
@@ -372,6 +375,10 @@ class AnalyticsController extends Controller
                 'created_at' => $cmp->created_at ? $cmp->created_at->format('Y-m-d') : null,
                 'agents' => $agents,
                 'sent' => number_format($sent),
+                'delivered' => number_format($report['messages_delivered']),
+                'delivered_read' => number_format($report['messages_delivered_read']),
+                'delivered_unread' => number_format($report['messages_delivered_unread']),
+                'failed' => number_format($report['messages_failed']),
                 'delivery' => number_format($report['delivery_rate'], 1) . '%',
                 'replies' => $report['clients_replied'],
                 'quick_replies' => $report['quick_reply_clients'],
@@ -380,6 +387,9 @@ class AnalyticsController extends Controller
                 'debit_order' => $report['payment_options']['debit_order'],
                 'payment_not_set' => $report['payment_options']['not_set'],
                 'cost' => '$' . number_format($cost, 2),
+                'rate' => '$' . number_format($rate, 4),
+                'template_category' => $templateCategory,
+                'template_name' => $templateName,
                 'recoveryPct' => 'N/A',
                 'recoveryAmt' => 'Not tracked',
             ];
@@ -518,5 +528,73 @@ class AnalyticsController extends Controller
         if ($user->isPortfolioScoped()) {
             $query->where('clients.assigned_to_id', $user->id);
         }
+    }
+
+    protected function resolveCampaignTemplateRate(Campaign $campaign, $templateCaches): array
+    {
+        $messages = $campaign->whatsappMessages;
+        if ($messages->isEmpty()) {
+            return [0.0076, 'Utility', 'N/A'];
+        }
+
+        $rates = [];
+        $categories = [];
+        $names = [];
+
+        foreach ($messages as $msg) {
+            $tplName = trim((string) $msg->template_name);
+            $tplSid = trim((string) $msg->template_sid);
+            if ($tplName !== '') {
+                $names[] = $tplName;
+            }
+
+            // Find in cache
+            $cached = $templateCaches->first(function ($t) use ($tplName, $tplSid) {
+                if ($tplSid !== '' && ($t->sid === $tplSid || $t->meta_id === $tplSid)) {
+                    return true;
+                }
+                if ($tplName !== '' && (strcasecmp($t->friendly_name, $tplName) === 0 || strcasecmp($t->name, $tplName) === 0)) {
+                    return true;
+                }
+                return false;
+            });
+
+            if ($cached && !empty($cached->category)) {
+                $cat = strtoupper(trim((string) $cached->category));
+                if ($cat === 'MARKETING') {
+                    $rates[] = 0.0175;
+                    $categories[] = 'Marketing';
+                } elseif ($cat === 'AUTHENTICATION' || $cat === 'AUTH') {
+                    $rates[] = 0.0076;
+                    $categories[] = 'Authentication';
+                } elseif ($cat === 'SERVICE') {
+                    $rates[] = 0.0040;
+                    $categories[] = 'Service';
+                } else {
+                    $rates[] = 0.0076;
+                    $categories[] = 'Utility';
+                }
+            } else {
+                // Infer from template name
+                $lower = strtolower($tplName);
+                if (preg_match('/(discount|offer|settlement|promo|special|marketing|campaign)/', $lower)) {
+                    $rates[] = 0.0175;
+                    $categories[] = 'Marketing';
+                } elseif (preg_match('/(reminder|instruction|arrears|breakdown|notice|alert|statement|utility|payment)/', $lower)) {
+                    $rates[] = 0.0076;
+                    $categories[] = 'Utility';
+                } else {
+                    $rates[] = 0.0076;
+                    $categories[] = 'Utility';
+                }
+            }
+        }
+
+        $avgRate = count($rates) > 0 ? (array_sum($rates) / count($rates)) : 0.0076;
+        $uniqueCategories = array_values(array_unique($categories));
+        $categoryLabel = count($uniqueCategories) === 1 ? $uniqueCategories[0] : (count($uniqueCategories) > 1 ? 'Mixed' : 'Utility');
+        $primaryName = count($names) > 0 ? $names[0] : 'N/A';
+
+        return [$avgRate, $categoryLabel, $primaryName];
     }
 }

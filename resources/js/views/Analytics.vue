@@ -357,13 +357,16 @@
             </div>
             <div class="card-body">
               <div class="table-responsive">
-                <table class="table table-hover align-middle custom-table">
+                 <table class="table table-hover align-middle custom-table">
                   <thead class="text-muted small">
                     <tr>
                       <th>CAMPAIGN NAME</th>
                       <th>BANK / DEPARTMENT</th>
                       <th>ASSIGNED AGENTS</th>
                       <th class="text-end">MESSAGES SENT</th>
+                      <th class="text-end">DELIVERED(READ)</th>
+                      <th class="text-end">DELIVERED(UNREAD)</th>
+                      <th class="text-end">FAILED</th>
                       <th class="text-end">DELIVERY %</th>
                       <th class="text-end">UNIQUE REPLIES</th>
                       <th class="text-end">QUICK REPLIES</th>
@@ -376,7 +379,7 @@
                   </thead>
                   <tbody class="border-top-0">
                     <tr v-if="filteredCampaigns.length === 0">
-                      <td colspan="12" class="text-center py-4 text-muted">
+                      <td colspan="15" class="text-center py-4 text-muted">
                         No campaigns found matching the current criteria.
                       </td>
                     </tr>
@@ -409,7 +412,13 @@
                         <span v-else class="text-muted">—</span>
                       </td>
                       <td class="text-end fw-semibold">{{ cmp.sent }}</td>
-                      <td class="text-end fw-bold" :class="parseFloat(cmp.delivery) >= 90 ? 'text-success' : (parseFloat(cmp.delivery) > 0 ? 'text-warning' : 'text-muted')">{{ cmp.delivery }}</td>
+                      <td class="text-end text-success fw-semibold">{{ cmp.delivered_read || '0' }}</td>
+                      <td class="text-end text-primary fw-semibold">{{ cmp.delivered_unread || '0' }}</td>
+                      <td class="text-end text-danger fw-semibold">{{ cmp.failed || '0' }}</td>
+                      <td class="text-end fw-bold" :class="parseFloat(cmp.delivery) >= 90 ? 'text-success' : (parseFloat(cmp.delivery) > 0 ? 'text-warning' : 'text-muted')">
+                        <div>{{ cmp.delivery }}</div>
+                        <div class="text-muted fw-normal" style="font-size: 0.7rem;">{{ cmp.delivered || '0' }} total</div>
+                      </td>
                       <td class="text-end fw-semibold">{{ cmp.replies }}</td>
                       <td class="text-end text-primary fw-semibold">{{ cmp.quick_replies }}</td>
                       <td class="text-end text-danger fw-semibold">{{ cmp.opt_outs }}</td>
@@ -418,7 +427,12 @@
                         <div class="text-success fw-semibold">{{ cmp.debit_order }}</div>
                         <div class="text-muted" style="font-size: 0.7rem;">Not set: {{ cmp.payment_not_set }}</div>
                       </td>
-                      <td class="text-end">{{ cmp.cost }}</td>
+                      <td class="text-end">
+                        <div class="fw-semibold text-dark">{{ cmp.cost }}</div>
+                        <div class="text-muted" style="font-size: 0.7rem;" v-if="cmp.rate && cmp.template_category">
+                          {{ cmp.rate }} ({{ cmp.template_category }})
+                        </div>
+                      </td>
                       <td class="text-end">
                         <div class="fw-semibold text-muted">{{ cmp.recoveryPct }}</div>
                         <div class="text-muted" style="font-size: 0.75rem;">{{ cmp.recoveryAmt }}</div>
@@ -549,7 +563,9 @@ export default {
           (c.name && c.name.toLowerCase().includes(q)) ||
           (c.batch && c.batch.toLowerCase().includes(q)) ||
           (c.bank && c.bank.toLowerCase().includes(q)) ||
-          (c.status && c.status.toLowerCase().includes(q))
+          (c.status && c.status.toLowerCase().includes(q)) ||
+          (c.template_name && c.template_name.toLowerCase().includes(q)) ||
+          (c.template_category && c.template_category.toLowerCase().includes(q))
         );
       }
       return list;
@@ -607,6 +623,10 @@ export default {
         'Campaign ID',
         'Bank / Department',
         'Messages Sent',
+        'Delivered (Read)',
+        'Delivered (Unread)',
+        'Failed',
+        'Total Delivered',
         'Delivery %',
         'Unique Clients Replied',
         'Unique Quick Replies',
@@ -615,6 +635,8 @@ export default {
         'Debit Order',
         'Payment Option Not Set',
         'Estimated Meta Cost',
+        'Template Category',
+        'Rate',
         'Recovery Rate',
         'Recovery Amount',
       ];
@@ -623,6 +645,10 @@ export default {
         campaign.id,
         campaign.bank,
         campaign.sent,
+        campaign.delivered_read || '0',
+        campaign.delivered_unread || '0',
+        campaign.failed || '0',
+        campaign.delivered || '0',
         campaign.delivery,
         campaign.replies,
         campaign.quick_replies,
@@ -631,6 +657,8 @@ export default {
         campaign.debit_order,
         campaign.payment_not_set,
         campaign.cost,
+        campaign.template_category || 'N/A',
+        campaign.rate || '$0.0076',
         campaign.recoveryPct,
         campaign.recoveryAmt,
       ]);

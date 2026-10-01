@@ -27,7 +27,9 @@ class CampaignWhatsappReportService
         $sentClientIds = [];
         $messagesSent = 0;
         $messagesAccepted = 0;
-        $messagesDelivered = 0;
+        $messagesDeliveredRead = 0;
+        $messagesDeliveredUnread = 0;
+        $messagesFailed = 0;
 
         $recipientQuery->select([
             'id',
@@ -42,7 +44,7 @@ class CampaignWhatsappReportService
             'error_message',
             'status_payload',
             'provider_status_payload',
-        ])->chunkById(500, function ($recipients) use (&$repliedClientIds, &$quickReplyClientIds, &$optOutClientIds, &$sentClientIds, &$messagesSent, &$messagesAccepted, &$messagesDelivered) {
+        ])->chunkById(500, function ($recipients) use (&$repliedClientIds, &$quickReplyClientIds, &$optOutClientIds, &$sentClientIds, &$messagesSent, &$messagesAccepted, &$messagesDeliveredRead, &$messagesDeliveredUnread, &$messagesFailed) {
             foreach ($recipients as $recipient) {
                 $clientId = (int) $recipient->client_id;
                 if ($clientId <= 0) {
@@ -56,8 +58,13 @@ class CampaignWhatsappReportService
                     $sentClientIds[$clientId] = true;
                     $messagesAccepted++;
                 }
-                if ($this->wasDelivered($recipient)) {
-                    $messagesDelivered++;
+                if ($this->wasDeliveredRead($recipient)) {
+                    $messagesDeliveredRead++;
+                } elseif ($this->wasDeliveredUnread($recipient)) {
+                    $messagesDeliveredUnread++;
+                }
+                if ($this->wasFailed($recipient)) {
+                    $messagesFailed++;
                 }
 
                 $replyMeta = $this->replyMeta($recipient);
@@ -92,11 +99,17 @@ class CampaignWhatsappReportService
         $paymentOptions['total_selected'] = $paymentOptions['ptp'] + $paymentOptions['debit_order'];
         $paymentOptions['not_set'] = max($sentClients->count() - $paymentOptions['total_selected'], 0);
 
+        $messagesDelivered = $messagesDeliveredRead + $messagesDeliveredUnread;
+
         return [
             'messages_sent' => $messagesSent,
             'messages_accepted' => $messagesAccepted,
             'messages_delivered' => $messagesDelivered,
+            'messages_delivered_read' => $messagesDeliveredRead,
+            'messages_delivered_unread' => $messagesDeliveredUnread,
+            'messages_failed' => $messagesFailed,
             'delivery_rate' => $messagesSent > 0 ? round(($messagesDelivered / $messagesSent) * 100, 1) : 0.0,
+            'delivery_read_rate' => $messagesSent > 0 ? round(($messagesDeliveredRead / $messagesSent) * 100, 1) : 0.0,
             'clients_replied' => count($repliedClientIds),
             'quick_reply_clients' => count($quickReplyClientIds),
             'opt_out_clients' => count($optOutClientIds),
@@ -104,23 +117,23 @@ class CampaignWhatsappReportService
         ];
     }
 
-    private function wasAttempted(CampaignWhatsappRecipient $recipient): bool
+    public function wasAttempted(CampaignWhatsappRecipient $recipient): bool
     {
         $status = strtolower(trim((string) $recipient->status));
 
-        return in_array($status, ['sent', 'accepted', 'delivered', 'read', 'delivered (ecosystem warning)', 'failed'], true)
+        return in_array($status, ['sent', 'accepted', 'delivered', 'read', 'delivered (ecosystem warning)', 'failed', 'pending', 'queued', 'processing', 'scheduled'], true)
             || $this->isEcosystemDelivery($recipient);
     }
 
-    private function wasSent(CampaignWhatsappRecipient $recipient): bool
+    public function wasSent(CampaignWhatsappRecipient $recipient): bool
     {
         $status = strtolower(trim((string) $recipient->status));
 
-        return in_array($status, ['sent', 'accepted', 'delivered', 'read', 'delivered (ecosystem warning)'], true)
+        return in_array($status, ['sent', 'accepted', 'delivered', 'read', 'delivered (ecosystem warning)', 'pending', 'queued', 'processing', 'scheduled'], true)
             || $this->isEcosystemDelivery($recipient);
     }
 
-    private function wasDelivered(CampaignWhatsappRecipient $recipient): bool
+    public function wasDeliveredRead(CampaignWhatsappRecipient $recipient): bool
     {
         $status = strtolower(trim((string) $recipient->status));
 
@@ -128,7 +141,27 @@ class CampaignWhatsappReportService
             || $this->isEcosystemDelivery($recipient);
     }
 
-    private function isEcosystemDelivery(CampaignWhatsappRecipient $recipient): bool
+    public function wasDeliveredUnread(CampaignWhatsappRecipient $recipient): bool
+    {
+        $status = strtolower(trim((string) $recipient->status));
+
+        return in_array($status, ['sent', 'accepted', 'pending', 'queued', 'processing', 'scheduled'], true)
+            && !$this->wasDeliveredRead($recipient);
+    }
+
+    public function wasDelivered(CampaignWhatsappRecipient $recipient): bool
+    {
+        return $this->wasDeliveredRead($recipient) || $this->wasDeliveredUnread($recipient);
+    }
+
+    public function wasFailed(CampaignWhatsappRecipient $recipient): bool
+    {
+        $status = strtolower(trim((string) $recipient->status));
+
+        return $status === 'failed' && !$this->isEcosystemDelivery($recipient);
+    }
+
+    public function isEcosystemDelivery(CampaignWhatsappRecipient $recipient): bool
     {
         return (string) $recipient->error_code === '131049'
             || str_contains(strtolower((string) $recipient->error_message), 'maintain healthy ecosystem engagement');
