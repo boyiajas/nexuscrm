@@ -263,7 +263,7 @@
                     </div>
                     <h3 class="fw-black mb-1">{{ spend.recovery_multiplier }} <span class="fs-6 text-white-50 fw-normal">recovered / $1.00 spent</span></h3>
                     <p class="text-white-50 mb-0 mt-3" style="font-size: 0.75rem; line-height: 1.5;">
-                      Yielding $206,733 in total debt settlement initiated through direct WhatsApp automated CTA links.
+                      Yielding {{ spend.recovery_amount || '$0.00' }} in total debt settlement initiated through direct WhatsApp automated CTA links.
                     </p>
                   </div>
                 </div>
@@ -277,12 +277,31 @@
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
               <div>
-                <h5 class="fw-bold mb-1">WhatsApp Template Performance & Cost Breakdown <span class="badge bg-light text-dark border ms-2">{{ tables.templates.length }} Templates</span></h5>
+                <h5 class="fw-bold mb-1">
+                  WhatsApp Template Performance & Cost Breakdown 
+                  <span class="badge bg-light text-dark border ms-2">{{ filteredTemplates.length }} Templates</span>
+                  <span v-if="filteredTemplates.length !== tables.templates.length" class="badge bg-light text-muted border ms-1">
+                    Filtered of {{ tables.templates.length }}
+                  </span>
+                </h5>
                 <p class="text-muted small mb-0">Granular analytics per pre-approved Meta Business template</p>
               </div>
-              <div class="d-flex gap-2">
-                <input type="text" class="form-control form-control-sm" placeholder="Filter template..." style="width: 200px;" />
-                <button class="btn btn-sm btn-light border"><i class="bi bi-file-earmark-excel me-1"></i> CSV</button>
+              <div class="d-flex align-items-center gap-2">
+                <div class="input-group input-group-sm" style="width: 220px;">
+                  <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                  <input
+                    type="text"
+                    class="form-control border-start-0 shadow-none"
+                    placeholder="Filter template..."
+                    v-model="templateSearch"
+                  >
+                  <button v-if="templateSearch" class="btn btn-outline-secondary border-start-0" type="button" @click="templateSearch = ''">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
+                <button class="btn btn-sm btn-light border" @click="exportTemplateReport">
+                  <i class="bi bi-cloud-download me-1"></i> Export
+                </button>
               </div>
             </div>
             <div class="card-body">
@@ -302,7 +321,12 @@
                     </tr>
                   </thead>
                   <tbody class="border-top-0">
-                    <tr v-for="(tpl, idx) in tables.templates" :key="idx">
+                    <tr v-if="filteredTemplates.length === 0">
+                      <td colspan="9" class="text-center py-4 text-muted">
+                        No templates found matching the current criteria.
+                      </td>
+                    </tr>
+                    <tr v-for="(tpl, idx) in filteredTemplates" :key="tpl.id || idx">
                       <td>
                         <div class="fw-bold text-dark">{{ tpl.name }}</div>
                         <div class="text-muted" style="font-size: 0.75rem;">{{ tpl.id }}</div>
@@ -317,7 +341,11 @@
                       <td class="text-end">{{ tpl.reply }}</td>
                       <td class="text-end text-muted">{{ tpl.rate }}</td>
                       <td class="text-end fw-bold">{{ tpl.cost }}</td>
-                      <td class="text-center"><span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle-fill me-1"></i> {{ tpl.status }}</span></td>
+                      <td class="text-center">
+                        <span class="badge bg-success-subtle text-success">
+                          <i class="bi bi-check-circle-fill me-1"></i> {{ tpl.status }}
+                        </span>
+                      </td>
                     </tr>
                   </tbody>
                 </table>
@@ -490,10 +518,32 @@
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
               <div>
-                <h5 class="fw-bold mb-1">Agent & User Statistics <span class="badge bg-light text-dark border ms-2">{{ tables.agents.length }} Active Specialists</span></h5>
+                <h5 class="fw-bold mb-1">
+                  Agent & User Statistics 
+                  <span class="badge bg-light text-dark border ms-2">{{ filteredAgents.length }} Active Specialists</span>
+                  <span v-if="filteredAgents.length !== tables.agents.length" class="badge bg-light text-muted border ms-1">
+                    Filtered of {{ tables.agents.length }}
+                  </span>
+                </h5>
                 <p class="text-muted small mb-0">Productivity indicators, SLA adherence, and outbound-to-inbound conversion speed</p>
               </div>
-              <button class="btn btn-sm btn-light border"><i class="bi bi-journal-text me-1"></i> Audit Logs</button>
+              <div class="d-flex align-items-center gap-2">
+                <div class="input-group input-group-sm" style="width: 220px;">
+                  <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                  <input
+                    type="text"
+                    class="form-control border-start-0 shadow-none"
+                    placeholder="Filter specialist..."
+                    v-model="agentSearch"
+                  >
+                  <button v-if="agentSearch" class="btn btn-outline-secondary border-start-0" type="button" @click="agentSearch = ''">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
+                <button class="btn btn-sm btn-light border" @click="exportAgentReport">
+                  <i class="bi bi-cloud-download me-1"></i> Export
+                </button>
+              </div>
             </div>
             <div class="card-body">
               <div class="table-responsive">
@@ -510,7 +560,12 @@
                     </tr>
                   </thead>
                   <tbody class="border-top-0">
-                    <tr v-for="(agent, idx) in tables.agents" :key="idx">
+                    <tr v-if="filteredAgents.length === 0">
+                      <td colspan="7" class="text-center py-4 text-muted">
+                        No agent or user statistics found matching the current criteria.
+                      </td>
+                    </tr>
+                    <tr v-for="(agent, idx) in filteredAgents" :key="idx">
                       <td>
                         <div class="d-flex align-items-center gap-3">
                           <div class="avatar-sm rounded-circle d-flex align-items-center justify-content-center bg-dark text-white fw-bold shadow-sm" style="width: 36px; height: 36px; font-size: 0.8rem;">
@@ -524,7 +579,7 @@
                       </td>
                       <td><span class="badge bg-light text-dark border fw-normal text-capitalize">{{ agent.role }}</span></td>
                       <td class="text-center fw-semibold">{{ agent.campaigns }}</td>
-                      <td class="text-end">{{ agent.dispatched }}</td>
+                      <td class="text-end fw-semibold">{{ agent.dispatched }}</td>
                       <td class="text-end fw-bold text-success">{{ agent.replyRate }}</td>
                       <td class="text-end">{{ agent.inbound }}</td>
                       <td class="text-end"><span class="badge bg-success-subtle text-success fw-bold" style="font-size: 0.8rem;">{{ agent.responseTime }}</span></td>
@@ -534,8 +589,8 @@
               </div>
               
               <div class="d-flex justify-content-between align-items-center mt-3 pt-3 border-top text-muted small">
-                <div>Mean Team SLA: <strong>4.8 minutes</strong> (target: < 10.0m)</div>
-                <a href="#" class="text-decoration-none fw-semibold">View Team Workload Heatmap <i class="bi bi-arrow-right"></i></a>
+                <div>Team Response Target: <strong>&lt; 5 mins</strong> (SLA adherence: 100%)</div>
+                <router-link to="/system-logs" class="text-decoration-none fw-semibold">View System Audit Logs <i class="bi bi-arrow-right"></i></router-link>
               </div>
             </div>
           </div>
@@ -559,6 +614,8 @@ export default {
       selectedBankId: 'all',
       banks: [],
       campaignSearch: '',
+      templateSearch: '',
+      agentSearch: '',
       perPage: 25,
       currentPage: 1,
       perPageOptions: [25, 50, 100, 250, 500, 1000, 'All'],
@@ -609,6 +666,32 @@ export default {
           (c.status && c.status.toLowerCase().includes(q)) ||
           (c.template_name && c.template_name.toLowerCase().includes(q)) ||
           (c.template_category && c.template_category.toLowerCase().includes(q))
+        );
+      }
+      return list;
+    },
+    filteredTemplates() {
+      let list = this.tables.templates || [];
+      if (this.templateSearch && this.templateSearch.trim()) {
+        const q = this.templateSearch.trim().toLowerCase();
+        list = list.filter(t => 
+          (t.name && t.name.toLowerCase().includes(q)) ||
+          (t.category && t.category.toLowerCase().includes(q)) ||
+          (t.campaign && t.campaign.toLowerCase().includes(q)) ||
+          (t.sub_campaign && t.sub_campaign.toLowerCase().includes(q)) ||
+          (t.id && String(t.id).toLowerCase().includes(q))
+        );
+      }
+      return list;
+    },
+    filteredAgents() {
+      let list = this.tables.agents || [];
+      if (this.agentSearch && this.agentSearch.trim()) {
+        const q = this.agentSearch.trim().toLowerCase();
+        list = list.filter(a => 
+          (a.name && a.name.toLowerCase().includes(q)) ||
+          (a.email && a.email.toLowerCase().includes(q)) ||
+          (a.role && a.role.toLowerCase().includes(q))
         );
       }
       return list;
@@ -893,6 +976,159 @@ export default {
       link.href = url;
       const fileDate = now.toISOString().slice(0, 10);
       link.download = `NexusCRM_Campaign_Performance_Report_${this.dateRange}_${fileDate}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    },
+    exportTemplateReport() {
+      const exportList = this.filteredTemplates.length > 0 ? this.filteredTemplates : (this.tables.templates || []);
+      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const now = new Date();
+      const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+      const cleanInt = (v) => parseInt(String(v ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+      const cleanFloat = (v) => parseFloat(String(v ?? '0').replace(/[^0-9.]/g, '')) || 0;
+
+      const totalSent = exportList.reduce((acc, t) => acc + cleanInt(t.sent), 0);
+      const totalCost = exportList.reduce((acc, t) => acc + cleanFloat(t.cost), 0);
+
+      const fileRows = [];
+      fileRows.push(['NEXUS CRM - WHATSAPP TEMPLATE PERFORMANCE & COST BREAKDOWN']);
+      fileRows.push(['Report Generated At', generatedAt]);
+      fileRows.push(['Filter Period', this.getDateRangeLabel(this.dateRange)]);
+      fileRows.push(['Institution / Department', this.getSelectedBankLabel()]);
+      if (this.templateSearch && this.templateSearch.trim()) {
+        fileRows.push(['Search Filter Applied', this.templateSearch.trim()]);
+      }
+      fileRows.push([]);
+
+      fileRows.push([
+        'Template Name',
+        'Template ID',
+        'Category',
+        'Campaigns Used In',
+        'Sub Campaign',
+        'Total Sent',
+        'Delivery Rate',
+        'Opt In / Reply Rate',
+        'Rate / Msg',
+        'Incurred Cost',
+        'Status'
+      ]);
+
+      exportList.forEach((t) => {
+        fileRows.push([
+          t.name,
+          t.id,
+          t.category,
+          t.campaign,
+          t.sub_campaign || '',
+          t.sent,
+          t.delivery,
+          t.reply,
+          t.rate,
+          t.cost,
+          t.status
+        ]);
+      });
+
+      fileRows.push([
+        'GRAND TOTAL',
+        '',
+        '',
+        '',
+        '',
+        totalSent,
+        '',
+        '',
+        '',
+        '$' + totalCost.toFixed(2),
+        ''
+      ]);
+
+      const csvContent = '\uFEFF' + fileRows
+        .map((row) => row.map(escapeCsv).join(','))
+        .join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const fileDate = now.toISOString().slice(0, 10);
+      link.download = `NexusCRM_WhatsApp_Template_Report_${this.dateRange}_${fileDate}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    },
+    exportAgentReport() {
+      const exportList = this.filteredAgents.length > 0 ? this.filteredAgents : (this.tables.agents || []);
+      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const now = new Date();
+      const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
+      const cleanInt = (v) => parseInt(String(v ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+
+      const totalCampaigns = exportList.reduce((acc, a) => acc + cleanInt(a.campaigns), 0);
+      const totalDispatched = exportList.reduce((acc, a) => acc + cleanInt(a.dispatched), 0);
+      const totalInbound = exportList.reduce((acc, a) => acc + cleanInt(a.inbound), 0);
+
+      const fileRows = [];
+      fileRows.push(['NEXUS CRM - AGENT & USER PRODUCTIVITY REPORT']);
+      fileRows.push(['Report Generated At', generatedAt]);
+      fileRows.push(['Filter Period', this.getDateRangeLabel(this.dateRange)]);
+      fileRows.push(['Institution / Department', this.getSelectedBankLabel()]);
+      if (this.agentSearch && this.agentSearch.trim()) {
+        fileRows.push(['Search Filter Applied', this.agentSearch.trim()]);
+      }
+      fileRows.push([]);
+
+      fileRows.push([
+        'Agent / User Name',
+        'Email Address',
+        'Role',
+        'Campaigns Managed',
+        'Messages Dispatched',
+        'Follow-up Reply Rate',
+        'Inbound Handled',
+        'Average Response Time'
+      ]);
+
+      exportList.forEach((a) => {
+        fileRows.push([
+          a.name,
+          a.email,
+          a.role,
+          a.campaigns,
+          a.dispatched,
+          a.replyRate,
+          a.inbound,
+          a.responseTime
+        ]);
+      });
+
+      fileRows.push([
+        'GRAND TOTAL',
+        '',
+        '',
+        totalCampaigns,
+        totalDispatched,
+        '',
+        totalInbound,
+        ''
+      ]);
+
+      const csvContent = '\uFEFF' + fileRows
+        .map((row) => row.map(escapeCsv).join(','))
+        .join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const fileDate = now.toISOString().slice(0, 10);
+      link.download = `NexusCRM_Agent_Statistics_Report_${this.dateRange}_${fileDate}.csv`;
       document.body.appendChild(link);
       link.click();
       link.remove();

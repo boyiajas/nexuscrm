@@ -283,6 +283,171 @@ class AnalyticsCampaignReportingTest extends TestCase
         $this->assertSame('$0.07', $target['cost']);
     }
 
+    public function test_analytics_reconciles_template_performance_agent_stats_and_overall_kpis(): void
+    {
+        [$superAdmin, $bank] = $this->createSuperAdminAndBank();
+
+        $staffUser = User::factory()->create([
+            'name' => 'Alice Staff',
+            'email' => 'alice@example.com',
+            'bank_id' => $bank->id,
+            'role' => 'STAFF',
+            'status' => 'Active',
+            'password_reset_required' => false,
+            'password_changed_at' => now(),
+        ]);
+
+        $adminUser = User::factory()->create([
+            'name' => 'Bob Admin',
+            'email' => 'bob@example.com',
+            'bank_id' => $bank->id,
+            'role' => User::ROLE_ADMIN,
+            'status' => 'Active',
+            'password_reset_required' => false,
+            'password_changed_at' => now(),
+        ]);
+
+        \App\Models\WhatsappTemplateCache::query()->create([
+            'friendly_name' => 'september_discount_offer',
+            'sid' => 'september_discount_offer',
+            'meta_id' => '1234567890',
+            'category' => 'MARKETING',
+            'status' => 'APPROVED',
+        ]);
+
+        \App\Models\WhatsappTemplateCache::query()->create([
+            'friendly_name' => 'monthly_payment_reminder',
+            'sid' => 'monthly_payment_reminder',
+            'meta_id' => '9876543210',
+            'category' => 'UTILITY',
+            'status' => 'APPROVED',
+        ]);
+
+        // Campaign 1: Marketing, created by Super Admin
+        $c1 = Campaign::query()->create([
+            'name' => 'September Settlement Promo',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        $msg1 = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $c1->id,
+            'created_by_user_id' => $superAdmin->id,
+            'template_name' => 'september_discount_offer',
+            'template_sid' => 'september_discount_offer',
+            'total' => 4,
+            'delivered' => 3,
+            'failed' => 1,
+            'sent_at' => now(),
+        ]);
+
+        for ($i = 1; $i <= 4; $i++) {
+            $client = Client::query()->create([
+                'name' => "Marketing Client {$i}",
+                'phone' => "+2782111000{$i}",
+                'bank_id' => $bank->id,
+            ]);
+            CampaignWhatsappRecipient::query()->create([
+                'whatsapp_message_id' => $msg1->id,
+                'client_id' => $client->id,
+                'status' => $i <= 2 ? 'Delivered' : ($i === 3 ? 'Sent' : 'Failed'),
+                'last_response' => $i === 1 ? 'Interested' : null,
+            ]);
+        }
+
+        // Campaign 2: Utility, created by Staff User
+        $c2 = Campaign::query()->create([
+            'name' => 'Monthly Reminder Notice',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        $msg2 = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $c2->id,
+            'created_by_user_id' => $staffUser->id,
+            'template_name' => 'monthly_payment_reminder',
+            'template_sid' => 'monthly_payment_reminder',
+            'total' => 3,
+            'delivered' => 2,
+            'failed' => 1,
+            'sent_at' => now(),
+        ]);
+
+        for ($i = 1; $i <= 3; $i++) {
+            $client = Client::query()->create([
+                'name' => "Utility Client {$i}",
+                'phone' => "+2782222000{$i}",
+                'bank_id' => $bank->id,
+            ]);
+            CampaignWhatsappRecipient::query()->create([
+                'whatsapp_message_id' => $msg2->id,
+                'client_id' => $client->id,
+                'status' => $i <= 2 ? 'Delivered' : 'Failed',
+            ]);
+        }
+
+        Sanctum::actingAs($superAdmin);
+
+        $response = $this->getJson('/api/analytics?timeframe=daily&date_range=all_time')->assertOk();
+
+        // 1. WhatsApp Template Breakdown
+        $templates = collect($response->json('tables.templates'));
+        $tplMarketing = $templates->firstWhere('name', 'september_discount_offer');
+        $this->assertNotNull($tplMarketing);
+        $this->assertSame('Marketing', $tplMarketing['category']);
+        $this->assertSame('September Settlement Promo', $tplMarketing['campaign']);
+        $this->assertSame('4', $tplMarketing['sent']);
+        $this->assertSame('75.0%', $tplMarketing['delivery']);
+        $this->assertSame('25.0%', $tplMarketing['reply']);
+        $this->assertSame('$0.0175', $tplMarketing['rate']);
+        // 3 accepted * 0.0175 = $0.05
+        $this->assertSame('$0.05', $tplMarketing['cost']);
+
+        $tplUtility = $templates->firstWhere('name', 'monthly_payment_reminder');
+        $this->assertNotNull($tplUtility);
+        $this->assertSame('Utility', $tplUtility['category']);
+        $this->assertSame('Monthly Reminder Notice', $tplUtility['campaign']);
+        $this->assertSame('3', $tplUtility['sent']);
+        $this->assertSame('66.7%', $tplUtility['delivery']);
+        $this->assertSame('$0.0076', $tplUtility['rate']);
+        // 2 accepted * 0.0076 = $0.02
+        $this->assertSame('$0.02', $tplUtility['cost']);
+
+        // Verify no mock placeholders
+        foreach ($templates as $t) {
+            $this->assertStringNotContainsString('TBD', $t['campaign']);
+            $this->assertStringNotContainsString('TBD', $t['sub_campaign']);
+        }
+
+        // 2. Agent & User Statistics
+        $agents = collect($response->json('tables.agents'));
+        $this->assertTrue($agents->contains('name', 'Alice Staff'));
+        $this->assertTrue($agents->contains('name', 'Bob Admin'));
+
+        $agSuper = $agents->firstWhere('name', $superAdmin->name);
+        $this->assertSame(1, $agSuper['campaigns']);
+        $this->assertSame('4', $agSuper['dispatched']);
+        $this->assertSame('25.0%', $agSuper['replyRate']);
+
+        $agStaff = $agents->firstWhere('name', 'Alice Staff');
+        $this->assertSame(1, $agStaff['campaigns']);
+        $this->assertSame('3', $agStaff['dispatched']);
+
+        $agAdmin = $agents->firstWhere('name', 'Bob Admin');
+        $this->assertSame(0, $agAdmin['campaigns']);
+        $this->assertSame('0', $agAdmin['dispatched']);
+        $this->assertSame('—', $agAdmin['responseTime']);
+
+        // 3. Overall Statistics & Spend
+        $this->assertSame('7', $response->json('summary.dispatched'));
+        $this->assertSame('5', $response->json('summary.delivered'));
+        $this->assertSame('71.4%', $response->json('summary.delivery_rate'));
+
+        $this->assertSame('$0.07', $response->json('spend.total'));
+        $this->assertSame('$0.05', $response->json('spend.marketing.cost'));
+        $this->assertSame('$0.02', $response->json('spend.utility.cost'));
+    }
+
     private function createSuperAdminAndBank(): array
     {
         $bank = Bank::query()->create([

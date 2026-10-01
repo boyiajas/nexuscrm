@@ -14,8 +14,15 @@ class CampaignWhatsappReportService
      */
     public function build(Campaign $campaign, ?callable $scopeRecipients = null): array
     {
+        $messageIds = $campaign->whatsappMessages()->select('id');
+        $hasCampaignMessageIdCol = \Illuminate\Support\Facades\Schema::hasColumn('campaign_whatsapp_recipients', 'campaign_whatsapp_message_id');
         $recipientQuery = CampaignWhatsappRecipient::query()
-            ->whereIn('whatsapp_message_id', $campaign->whatsappMessages()->select('id'));
+            ->where(function ($q) use ($messageIds, $hasCampaignMessageIdCol) {
+                $q->whereIn('whatsapp_message_id', $messageIds);
+                if ($hasCampaignMessageIdCol) {
+                    $q->orWhereIn('campaign_whatsapp_message_id', $messageIds);
+                }
+            });
 
         if ($scopeRecipients) {
             $scopeRecipients($recipientQuery);
