@@ -12,6 +12,7 @@ use App\Services\WhatsAppDailyLimitService;
 use App\Services\WhatsAppNumberControlService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class SettingsController extends Controller
@@ -269,6 +270,298 @@ class SettingsController extends Controller
                 $control->quality_rating
             ),
         ]);
+    }
+
+    public function getMetaPhoneNumberProfile(string $phoneNumberId)
+    {
+        $this->authorizeWabaNumbers();
+
+        try {
+            $service = MetaWhatsAppService::forPhoneNumberId($phoneNumberId);
+
+            $phoneData = [];
+            try {
+                $phoneData = $service->getPhoneNumber($phoneNumberId);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to fetch individual phone number node from Meta', [
+                    'phone_number_id' => $phoneNumberId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            if (empty($phoneData['display_phone_number'])) {
+                try {
+                    $allNumbers = $service->getPhoneNumbers();
+                    $found = collect($allNumbers)->first(fn ($n) => (string) ($n['id'] ?? '') === (string) $phoneNumberId);
+                    if ($found) {
+                        $phoneData = array_merge($found, array_filter($phoneData, fn ($v) => $v !== null && $v !== ''));
+                    }
+                } catch (\Throwable) {
+                    // ignore fallback failure
+                }
+            }
+
+            $businessProfile = [];
+            try {
+                $businessProfile = $service->getBusinessProfile($phoneNumberId);
+            } catch (\Throwable $e) {
+                Log::warning('Failed to fetch WhatsApp business profile from Meta', [
+                    'phone_number_id' => $phoneNumberId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            $crmAccount = WhatsappAccount::where('phone_number_id', $phoneNumberId)->first();
+
+            return response()->json([
+                'phone_number' => array_merge([
+                    'id' => $phoneNumberId,
+                    'display_phone_number' => $phoneData['display_phone_number'] ?? null,
+                    'verified_name' => $phoneData['verified_name'] ?? null,
+                    'name_status' => $phoneData['name_status'] ?? null,
+                    'new_display_name' => $phoneData['new_display_name'] ?? null,
+                    'new_name_status' => $phoneData['new_name_status'] ?? null,
+                    'code_verification_status' => $phoneData['code_verification_status'] ?? null,
+                    'quality_rating' => $phoneData['quality_rating'] ?? null,
+                    'messaging_limit_tier' => $phoneData['messaging_limit_tier'] ?? null,
+                    'platform_type' => $phoneData['platform_type'] ?? null,
+                ], $phoneData),
+                'business_profile' => [
+                    'about' => $businessProfile['about'] ?? '',
+                    'address' => $businessProfile['address'] ?? '',
+                    'description' => $businessProfile['description'] ?? '',
+                    'email' => $businessProfile['email'] ?? '',
+                    'profile_picture_url' => $businessProfile['profile_picture_url'] ?? null,
+                    'websites' => is_array($businessProfile['websites'] ?? null) ? array_values($businessProfile['websites']) : [],
+                    'vertical' => $businessProfile['vertical'] ?? 'OTHER',
+                ],
+                'crm_account' => $crmAccount ? [
+                    'id' => $crmAccount->id,
+                    'name' => $crmAccount->name,
+                    'bank_id' => $crmAccount->bank_id,
+                ] : null,
+                'vertical_options' => collect(MetaWhatsAppService::VALID_VERTICALS)->map(fn ($label, $val) => [
+                    'value' => $val,
+                    'label' => $label,
+                ])->values(),
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Error loading WhatsApp number profile', [
+                'phone_number_id' => $phoneNumberId,
+                'error' => $e->getMessage(),
+            ]);
+
+            $crmAccount = WhatsappAccount::where('phone_number_id', $phoneNumberId)->first();
+            return response()->json([
+                'phone_number' => [
+                    'id' => $phoneNumberId,
+                    'display_phone_number' => $crmAccount?->display_phone_number ?: $phoneNumberId,
+                    'verified_name' => $crmAccount?->name ?: '',
+                    'name_status' => 'UNKNOWN',
+                    'new_display_name' => null,
+                    'new_name_status' => null,
+                    'code_verification_status' => 'UNKNOWN',
+                    'quality_rating' => 'UNKNOWN',
+                    'messaging_limit_tier' => null,
+                    'platform_type' => 'CLOUD_API',
+                ],
+                'business_profile' => [
+                    'about' => '',
+                    'address' => '',
+                    'description' => '',
+                    'email' => '',
+                    'profile_picture_url' => null,
+                    'websites' => [],
+                    'vertical' => 'OTHER',
+                ],
+                'crm_account' => $crmAccount ? [
+                    'id' => $crmAccount->id,
+                    'name' => $crmAccount->name,
+                    'bank_id' => $crmAccount->bank_id,
+                ] : null,
+                'vertical_options' => collect(MetaWhatsAppService::VALID_VERTICALS)->map(fn ($label, $val) => [
+                    'value' => $val,
+                    'label' => $label,
+                ])->values(),
+                'fetch_warning' => 'Meta API details unavailable: ' . $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function updateMetaPhoneNumberProfile(Request $request, string $phoneNumberId)
+    {
+        $this->authorizeWabaNumbers();
+
+        $data = $request->validate([
+            'about' => ['nullable', 'string', 'max:139'],
+            'address' => ['nullable', 'string', 'max:256'],
+            'description' => ['nullable', 'string', 'max:512'],
+            'email' => ['nullable', 'email', 'max:128'],
+            'vertical' => ['nullable', 'string', 'in:' . implode(',', array_keys(MetaWhatsAppService::VALID_VERTICALS))],
+            'websites' => ['nullable'],
+            'website_1' => ['nullable', 'string', 'max:256'],
+            'website_2' => ['nullable', 'string', 'max:256'],
+            'new_display_name' => ['nullable', 'string', 'max:255'],
+            'profile_picture' => ['nullable', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+        ]);
+
+        try {
+            $service = MetaWhatsAppService::forPhoneNumberId($phoneNumberId);
+            $auditMeta = ['phone_number_id' => $phoneNumberId];
+            $messages = [];
+
+            // 1. Process display name change if provided
+            $newDisplayName = trim((string) ($data['new_display_name'] ?? ''));
+            if ($newDisplayName !== '') {
+                try {
+                    $service->updateDisplayName($phoneNumberId, $newDisplayName);
+                    $auditMeta['submitted_display_name'] = $newDisplayName;
+                    $messages[] = "Display name '{$newDisplayName}' submitted to Meta for review.";
+                } catch (\Throwable $e) {
+                    throw new \RuntimeException("Failed to submit display name: " . $e->getMessage());
+                }
+            }
+
+            // 2. Process profile picture upload if provided
+            $pictureHandle = null;
+            if ($request->hasFile('profile_picture')) {
+                try {
+                    $pictureHandle = $service->uploadProfilePicture($phoneNumberId, $request->file('profile_picture'));
+                    $auditMeta['profile_picture_uploaded'] = true;
+                    $messages[] = "Profile picture uploaded to Meta.";
+                } catch (\Throwable $e) {
+                    throw new \RuntimeException("Failed to upload profile picture: " . $e->getMessage());
+                }
+            }
+
+            // 3. Build websites array
+            $normalizeUrl = function (?string $url) {
+                if (!$url) return null;
+                $url = trim($url);
+                if ($url === '') return null;
+                if (!preg_match('~^(?:f|ht)tps?://~i', $url)) {
+                    $url = 'https://' . $url;
+                }
+                return filter_var($url, FILTER_VALIDATE_URL) ? $url : null;
+            };
+
+            $websites = [];
+            if (!empty($data['website_1'])) {
+                $u1 = $normalizeUrl($data['website_1']);
+                if ($u1) $websites[] = $u1;
+            }
+            if (!empty($data['website_2'])) {
+                $u2 = $normalizeUrl($data['website_2']);
+                if ($u2) $websites[] = $u2;
+            }
+            if (empty($websites) && isset($data['websites'])) {
+                $rawWebsites = is_array($data['websites']) ? $data['websites'] : json_decode((string) $data['websites'], true);
+                if (is_array($rawWebsites)) {
+                    foreach ($rawWebsites as $raw) {
+                        $norm = $normalizeUrl((string) $raw);
+                        if ($norm && count($websites) < 2) {
+                            $websites[] = $norm;
+                        }
+                    }
+                }
+            }
+
+            // 4. Update WhatsApp business profile
+            $profileUpdate = [
+                'about' => $data['about'] ?? '',
+                'address' => $data['address'] ?? '',
+                'description' => $data['description'] ?? '',
+                'email' => $data['email'] ?? '',
+                'vertical' => $data['vertical'] ?? 'OTHER',
+                'websites' => $websites,
+            ];
+            if ($pictureHandle) {
+                $profileUpdate['profile_picture_handle'] = $pictureHandle;
+            }
+
+            $service->updateBusinessProfile($phoneNumberId, $profileUpdate);
+            $auditMeta['profile_updated'] = true;
+            $messages[] = "Business profile details updated on Meta.";
+
+            // 5. Invalidate caches
+            $service->clearPhoneNumbersCache();
+            \Illuminate\Support\Facades\Cache::forget('meta_whatsapp_senders');
+
+            // 6. Audit log
+            $this->audit(
+                action: 'Updated WhatsApp Business Profile & Display Name',
+                module: 'Settings',
+                meta: $auditMeta
+            );
+
+            return response()->json([
+                'message' => implode(' ', $messages) ?: 'WhatsApp number profile updated successfully.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    public function updateMetaPhoneNumberDisplayName(Request $request, string $phoneNumberId)
+    {
+        $this->authorizeWabaNumbers();
+
+        $data = $request->validate([
+            'new_display_name' => ['required', 'string', 'min:2', 'max:255'],
+        ]);
+
+        try {
+            $service = MetaWhatsAppService::forPhoneNumberId($phoneNumberId);
+            $service->updateDisplayName($phoneNumberId, $data['new_display_name']);
+            $service->clearPhoneNumbersCache();
+
+            $this->audit(
+                action: 'Submitted WhatsApp display name to Meta',
+                module: 'Settings',
+                meta: [
+                    'phone_number_id' => $phoneNumberId,
+                    'new_display_name' => $data['new_display_name'],
+                ]
+            );
+
+            return response()->json([
+                'message' => "Display name '{$data['new_display_name']}' submitted to Meta for review. Approval status will update once reviewed.",
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to submit display name: ' . $e->getMessage()], 422);
+        }
+    }
+
+    public function updateMetaPhoneNumberProfilePicture(Request $request, string $phoneNumberId)
+    {
+        $this->authorizeWabaNumbers();
+
+        $request->validate([
+            'profile_picture' => ['required', 'file', 'mimes:jpeg,jpg,png', 'max:5120'],
+        ]);
+
+        try {
+            $service = MetaWhatsAppService::forPhoneNumberId($phoneNumberId);
+            $handle = $service->uploadProfilePicture($phoneNumberId, $request->file('profile_picture'));
+            $service->updateBusinessProfile($phoneNumberId, [
+                'profile_picture_handle' => $handle,
+            ]);
+            $service->clearPhoneNumbersCache();
+
+            $this->audit(
+                action: 'Uploaded WhatsApp profile picture to Meta',
+                module: 'Settings',
+                meta: [
+                    'phone_number_id' => $phoneNumberId,
+                ]
+            );
+
+            return response()->json([
+                'message' => 'Profile picture successfully uploaded and updated on Meta.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['message' => 'Failed to upload profile picture: ' . $e->getMessage()], 422);
+        }
     }
 
     public function update(Request $request)

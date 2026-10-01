@@ -21,6 +21,29 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         'business_management',
     ];
 
+    public const VALID_VERTICALS = [
+        'ALCOHOL' => 'Alcoholic Beverages',
+        'APPAREL' => 'Apparel & Clothing',
+        'AUTO' => 'Automotive',
+        'BEAUTY' => 'Beauty, Spa & Personal Care',
+        'EDU' => 'Education',
+        'ENTERTAIN' => 'Entertainment',
+        'EVENT_PLAN' => 'Event Planning & Services',
+        'FINANCE' => 'Finance & Banking',
+        'GOVT' => 'Public Service & Government',
+        'GROCERY' => 'Food & Grocery',
+        'HEALTH' => 'Medical & Healthcare',
+        'HOTEL' => 'Hotel & Lodging',
+        'NONPROFIT' => 'Non-profit Organization',
+        'ONLINE_GAMBLING' => 'Online Gaming & Gambling',
+        'OTHER' => 'Other',
+        'PHYSICAL_GAMBLING' => 'Gaming & Casino',
+        'PROF_SERVICES' => 'Professional Services',
+        'RESTAURANT' => 'Restaurant & Dining',
+        'RETAIL' => 'Shopping & Retail',
+        'TRAVEL' => 'Travel & Transportation',
+    ];
+
     private string $baseUrl = 'https://graph.facebook.com/v25.0';
     private ?string $appId = null;
     private ?string $accessToken = null;
@@ -30,17 +53,17 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
     private ?string $verifyToken = null;
     private ?string $appSecret = null;
 
-    public function __construct()
+    public function __construct(?array $customConfig = null)
     {
         $settings = SystemSetting::first();
 
-        $this->appId = $settings?->meta_app_id ?: Config::get('services.meta_whatsapp.app_id');
-        $this->accessToken = $settings?->meta_access_token ?: Config::get('services.meta_whatsapp.access_token');
-        $this->businessAccountId = $settings?->meta_whatsapp_business_account_id ?: Config::get('services.meta_whatsapp.business_account_id');
-        $this->phoneNumberId = $settings?->meta_whatsapp_phone_number_id ?: Config::get('services.meta_whatsapp.phone_number_id');
-        $this->displayPhoneNumber = $settings?->meta_whatsapp_display_phone_number ?: Config::get('services.meta_whatsapp.display_phone_number');
-        $this->verifyToken = $settings?->meta_webhook_verify_token ?: Config::get('services.meta_whatsapp.verify_token');
-        $this->appSecret = $settings?->meta_app_secret ?: Config::get('services.meta_whatsapp.app_secret');
+        $this->appId = $customConfig['app_id'] ?? ($settings?->meta_app_id ?: Config::get('services.meta_whatsapp.app_id'));
+        $this->accessToken = $customConfig['access_token'] ?? ($settings?->meta_access_token ?: Config::get('services.meta_whatsapp.access_token'));
+        $this->businessAccountId = $customConfig['business_account_id'] ?? ($settings?->meta_whatsapp_business_account_id ?: Config::get('services.meta_whatsapp.business_account_id'));
+        $this->phoneNumberId = $customConfig['phone_number_id'] ?? ($settings?->meta_whatsapp_phone_number_id ?: Config::get('services.meta_whatsapp.phone_number_id'));
+        $this->displayPhoneNumber = $customConfig['display_phone_number'] ?? ($settings?->meta_whatsapp_display_phone_number ?: Config::get('services.meta_whatsapp.display_phone_number'));
+        $this->verifyToken = $customConfig['verify_token'] ?? ($settings?->meta_webhook_verify_token ?: Config::get('services.meta_whatsapp.verify_token'));
+        $this->appSecret = $customConfig['app_secret'] ?? ($settings?->meta_app_secret ?: Config::get('services.meta_whatsapp.app_secret'));
 
         if (empty($this->accessToken) || empty($this->businessAccountId) || empty($this->phoneNumberId)) {
             throw new \RuntimeException('Meta WhatsApp credentials are incomplete. Configure access token, business account ID, and phone number ID.');
@@ -51,6 +74,32 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         if ((string) $this->phoneNumberId === (string) $this->businessAccountId) {
             $this->selfHealPhoneNumberIdFromWaba();
         }
+    }
+
+    public static function forAccount(\App\Models\WhatsappAccount $account): self
+    {
+        return new self([
+            'app_id' => $account->app_id,
+            'access_token' => $account->access_token,
+            'business_account_id' => $account->waba_id,
+            'phone_number_id' => $account->phone_number_id,
+            'display_phone_number' => $account->display_phone_number,
+            'verify_token' => $account->webhook_verify_token,
+            'app_secret' => $account->app_secret,
+        ]);
+    }
+
+    public static function forPhoneNumberId(string $phoneNumberId): self
+    {
+        try {
+            $account = \App\Models\WhatsappAccount::where('phone_number_id', $phoneNumberId)->first();
+            if ($account && !empty($account->access_token) && !empty($account->waba_id)) {
+                return self::forAccount($account);
+            }
+        } catch (\Throwable) {
+            // fallback to default
+        }
+        return app(self::class);
     }
 
     protected function selfHealPhoneNumberIdFromWaba(): void
@@ -246,6 +295,8 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                 'quality_rating',
                 'code_verification_status',
                 'name_status',
+                'new_display_name',
+                'new_name_status',
                 'messaging_limit_tier',
                 'platform_type',
                 'throughput',
@@ -351,6 +402,159 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         return $this->post("{$phoneNumberId}/register", [
             'messaging_product' => 'whatsapp',
             'pin' => $pin,
+        ]);
+    }
+
+    public function getPhoneNumber(string $phoneNumberId): array
+    {
+        $fields = [
+            'id',
+            'display_phone_number',
+            'verified_name',
+            'quality_rating',
+            'code_verification_status',
+            'name_status',
+            'new_display_name',
+            'new_name_status',
+            'messaging_limit_tier',
+            'platform_type',
+        ];
+
+        return $this->get($phoneNumberId, [
+            'fields' => implode(',', $fields),
+        ]);
+    }
+
+    public function getBusinessProfile(string $phoneNumberId): array
+    {
+        $fields = [
+            'about',
+            'address',
+            'description',
+            'email',
+            'profile_picture_url',
+            'websites',
+            'vertical',
+        ];
+
+        $response = $this->get("{$phoneNumberId}/whatsapp_business_profile", [
+            'fields' => implode(',', $fields),
+        ]);
+
+        return $response['data'][0] ?? [];
+    }
+
+    public function updateDisplayName(string $phoneNumberId, string $newDisplayName): array
+    {
+        $this->clearPhoneNumbersCache();
+
+        $encodedName = urlencode($newDisplayName);
+        return $this->post("{$phoneNumberId}?new_display_name={$encodedName}", [
+            'new_display_name' => $newDisplayName,
+        ]);
+    }
+
+    public function uploadProfilePicture(string $phoneNumberId, mixed $file): string
+    {
+        if (empty($this->appId) || empty($this->accessToken)) {
+            throw new \RuntimeException('Meta App ID and Access Token are required to upload profile pictures.');
+        }
+
+        if ($file instanceof \Illuminate\Http\UploadedFile) {
+            $fileLength = $file->getSize();
+            $mimeType = $file->getMimeType() ?: 'image/jpeg';
+            $fileName = $file->getClientOriginalName() ?: 'profile.jpg';
+            $content = file_get_contents($file->getRealPath());
+        } elseif (is_string($file) && file_exists($file)) {
+            $fileLength = filesize($file);
+            $mimeType = mime_content_type($file) ?: 'image/jpeg';
+            $fileName = basename($file);
+            $content = file_get_contents($file);
+        } else {
+            throw new \InvalidArgumentException('Invalid file provided for profile picture upload.');
+        }
+
+        if (!in_array($mimeType, ['image/jpeg', 'image/png', 'image/jpg'])) {
+            $mimeType = 'image/jpeg';
+        }
+
+        // 1. Initialize upload session
+        $initResponse = Http::withToken($this->accessToken)
+            ->timeout(15)
+            ->post("{$this->baseUrl}/{$this->appId}/uploads", [
+                'file_length' => $fileLength,
+                'file_type' => $mimeType,
+                'file_name' => $fileName,
+            ]);
+
+        $initData = $this->decodeResponse($initResponse->status(), $initResponse->json() ?? [], "{$this->appId}/uploads");
+        $uploadSessionId = $initData['id'] ?? null;
+
+        if (!$uploadSessionId) {
+            throw new \RuntimeException('Failed to initialize upload session with Meta.');
+        }
+
+        // 2. Upload file binary data to session
+        $uploadResponse = Http::withHeaders([
+            'Authorization' => "OAuth {$this->accessToken}",
+            'file_offset' => '0',
+            'Content-Type' => 'application/octet-stream',
+        ])->timeout(30)
+          ->withBody($content, 'application/octet-stream')
+          ->post("{$this->baseUrl}/{$uploadSessionId}");
+
+        $uploadData = $this->decodeResponse($uploadResponse->status(), $uploadResponse->json() ?? [], $uploadSessionId);
+        $handle = $uploadData['h'] ?? null;
+
+        if (!$handle) {
+            throw new \RuntimeException('Meta upload session did not return a profile picture handle.');
+        }
+
+        return $handle;
+    }
+
+    public function updateBusinessProfile(string $phoneNumberId, array $data): array
+    {
+        $payload = [
+            'messaging_product' => 'whatsapp',
+        ];
+
+        if (array_key_exists('about', $data)) {
+            $payload['about'] = $data['about'] !== null ? (string) $data['about'] : '';
+        }
+        if (array_key_exists('address', $data)) {
+            $payload['address'] = $data['address'] !== null ? (string) $data['address'] : '';
+        }
+        if (array_key_exists('description', $data)) {
+            $payload['description'] = $data['description'] !== null ? (string) $data['description'] : '';
+        }
+        if (array_key_exists('email', $data)) {
+            $payload['email'] = $data['email'] !== null ? (string) $data['email'] : '';
+        }
+        if (array_key_exists('vertical', $data) && !empty($data['vertical'])) {
+            $payload['vertical'] = (string) $data['vertical'];
+        }
+        if (array_key_exists('websites', $data)) {
+            $websites = is_array($data['websites']) ? $data['websites'] : [];
+            $websites = array_values(array_filter(array_map('trim', $websites)));
+            $payload['websites'] = array_slice($websites, 0, 2);
+        }
+        if (!empty($data['profile_picture_handle'])) {
+            $payload['profile_picture_handle'] = (string) $data['profile_picture_handle'];
+        }
+
+        $response = $this->post("{$phoneNumberId}/whatsapp_business_profile", $payload);
+        $this->clearPhoneNumbersCache();
+
+        return $response;
+    }
+
+    public function updatePhoneNumberProfilePicture(string $phoneNumberId, mixed $file): array
+    {
+        $handle = $this->uploadProfilePicture($phoneNumberId, $file);
+
+        return $this->updateBusinessProfile($phoneNumberId, [
+            'profile_picture_handle' => $handle,
         ]);
     }
 

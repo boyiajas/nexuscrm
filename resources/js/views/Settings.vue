@@ -936,7 +936,15 @@
                     <div class="fw-semibold">{{ num.display_phone_number || '-' }}</div>
                     <div class="small text-muted font-monospace">{{ num.id }}</div>
                   </td>
-                  <td>{{ num.verified_name || '-' }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ num.verified_name || '-' }}</div>
+                    <div v-if="num.new_display_name" class="small mt-1 text-primary">
+                      <span class="text-muted">Requested:</span> {{ num.new_display_name }}
+                      <span class="badge ms-1" :class="displayNameStatusBadge(num.new_name_status)">
+                        {{ num.new_name_status || 'PENDING' }}
+                      </span>
+                    </div>
+                  </td>
                   <td><span class="badge" :class="String(num.code_verification_status).toUpperCase() === 'VERIFIED' ? 'bg-success' : 'bg-warning text-dark'">{{ num.code_verification_status || 'UNVERIFIED' }}</span></td>
                   <td><span class="badge" :class="String(num.name_status).toUpperCase() === 'APPROVED' ? 'bg-success' : 'bg-warning text-dark'">{{ num.name_status || 'PENDING' }}</span></td>
                   <td><span class="badge" :class="String(num.platform_type).toUpperCase() === 'CLOUD_API' ? 'bg-success' : 'bg-secondary'">{{ String(num.platform_type).toUpperCase() === 'CLOUD_API' ? 'REGISTERED' : 'NOT REGISTERED' }}</span></td>
@@ -949,7 +957,7 @@
                     <button v-else-if="String(num.platform_type).toUpperCase() !== 'CLOUD_API'" class="btn btn-sm btn-outline-success" @click="openRegistrationModal(num)">
                       Register
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary ms-1" @click="openMetaNumberManager(num, 'edit')" title="Edit the display name in Meta WhatsApp Manager">
+                    <button class="btn btn-sm btn-outline-primary ms-1" @click="openEditNumberModal(num)" title="Edit display name, profile photo, and business info">
                       <i class="bi bi-pencil"></i>
                     </button>
                     <button class="btn btn-sm btn-outline-danger ms-1" @click="openMetaNumberManager(num, 'remove')" title="Remove this number in Meta WhatsApp Manager">
@@ -961,7 +969,7 @@
             </table>
           </div>
           <div class="card-footer small text-muted">
-            Meta does not allow phone-number deletion or display-name editing through the Graph API. Edit and remove actions open WhatsApp Manager for the selected WABA.
+            Display names, profile photos, and business profiles can be edited and submitted to Meta directly from NexusCRM. Phone-number deletion must be completed in WhatsApp Manager.
           </div>
         </div>
 
@@ -992,7 +1000,15 @@
                 <tr v-for="num in wn.numbers" :key="num.id">
                   <td class="ps-4 py-3 fw-semibold">{{ num.display_phone_number }}</td>
                   <td class="text-muted small font-monospace">{{ num.id }}</td>
-                  <td>{{ num.verified_name || '-' }}</td>
+                  <td>
+                    <div class="fw-semibold">{{ num.verified_name || '-' }}</div>
+                    <div v-if="num.new_display_name" class="small mt-1 text-primary">
+                      <span class="text-muted">Requested:</span> {{ num.new_display_name }}
+                      <span class="badge ms-1" :class="displayNameStatusBadge(num.new_name_status)">
+                        {{ num.new_name_status || 'PENDING' }}
+                      </span>
+                    </div>
+                  </td>
                   <td>
                     <span v-if="num.whatsapp_profile_name" class="fw-semibold">{{ num.whatsapp_profile_name }}</span>
                     <span v-else class="text-muted small">Not linked</span>
@@ -1008,6 +1024,15 @@
                   </td>
                   <td>{{ num.messaging_limit_tier || '-' }}</td>
                   <td class="text-end pe-4">
+                    <button
+                      type="button"
+                      class="btn btn-light text-primary border-0 p-1 px-2 me-1"
+                      title="Edit WhatsApp number profile, display name, photo & info"
+                      aria-label="Edit WhatsApp number profile"
+                      @click="openEditNumberModal(num)"
+                    >
+                      <i class="bi bi-pencil-square"></i>
+                    </button>
                     <button
                       type="button"
                       class="btn btn-light border-0 p-1 px-2"
@@ -1908,6 +1933,358 @@
         </div>
       </div>
     </div>
+
+    <!-- EDIT WHATSAPP NUMBER & PROFILE MODAL -->
+    <div class="modal fade" tabindex="-1" ref="editNumberModalRef" data-bs-backdrop="static">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header bg-light">
+            <div>
+              <h5 class="modal-title mb-1">
+                <i class="bi bi-whatsapp text-success me-2"></i>Edit WhatsApp Number & Business Profile
+              </h5>
+              <div class="small text-muted">
+                {{ wn.editForm.display_phone_number || wn.editForm.id }}
+                <span class="font-monospace ms-2 text-secondary">(Phone ID: {{ wn.editForm.id }})</span>
+              </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" :disabled="wn.editForm.saving"></button>
+          </div>
+
+          <div class="modal-body p-0">
+            <div v-if="wn.editForm.loading" class="text-center py-5 text-muted">
+              <div class="spinner-border text-primary mb-2" role="status"></div>
+              <div>Loading profile details from Meta...</div>
+            </div>
+
+            <div v-else>
+              <!-- Tabs Navigation -->
+              <ul class="nav nav-tabs px-3 pt-3 bg-light border-bottom" role="tablist">
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    :class="{ active: wn.editForm.activeTab === 'profile' }"
+                    type="button"
+                    @click="wn.editForm.activeTab = 'profile'"
+                  >
+                    <i class="bi bi-building me-1"></i> Business Profile
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    :class="{ active: wn.editForm.activeTab === 'name' }"
+                    type="button"
+                    @click="wn.editForm.activeTab = 'name'"
+                  >
+                    <i class="bi bi-tag me-1"></i> Display Name
+                    <span v-if="wn.editForm.new_name_status" class="badge ms-1" :class="displayNameStatusBadge(wn.editForm.new_name_status)">
+                      {{ wn.editForm.new_name_status }}
+                    </span>
+                  </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                  <button
+                    class="nav-link"
+                    :class="{ active: wn.editForm.activeTab === 'picture' }"
+                    type="button"
+                    @click="wn.editForm.activeTab = 'picture'"
+                  >
+                    <i class="bi bi-image me-1"></i> Profile Photo
+                  </button>
+                </li>
+              </ul>
+
+              <div class="p-4">
+                <!-- TAB 1: BUSINESS PROFILE INFO -->
+                <div v-if="wn.editForm.activeTab === 'profile'">
+                  <div class="alert alert-info py-2 small d-flex align-items-center gap-2 mb-3">
+                    <i class="bi bi-info-circle-fill fs-5"></i>
+                    <div>
+                      These details appear in the official WhatsApp contact card and business profile viewed by your clients.
+                    </div>
+                  </div>
+
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label fw-semibold small">Industry Category (Vertical)</label>
+                      <select v-model="wn.editForm.vertical" class="form-select">
+                        <option v-for="opt in wn.editForm.vertical_options" :key="opt.value" :value="opt.value">
+                          {{ opt.label }}
+                        </option>
+                      </select>
+                      <div class="form-text">Choose the category that best describes your business.</div>
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label fw-semibold small">Customer Support Email</label>
+                      <input
+                        v-model.trim="wn.editForm.email"
+                        type="email"
+                        class="form-control"
+                        placeholder="e.g. support@example.com"
+                        maxlength="128"
+                      />
+                      <div class="form-text">Displayed on WhatsApp for customer inquiries.</div>
+                    </div>
+
+                    <div class="col-12">
+                      <label class="form-label fw-semibold small">Business Physical Address</label>
+                      <input
+                        v-model.trim="wn.editForm.address"
+                        type="text"
+                        class="form-control"
+                        placeholder="e.g. 123 Main Street, Suite 400, Johannesburg, 2000"
+                        maxlength="256"
+                      />
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label fw-semibold small">Primary Website</label>
+                      <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-globe"></i></span>
+                        <input
+                          v-model.trim="wn.editForm.website_1"
+                          type="text"
+                          class="form-control"
+                          placeholder="https://example.com"
+                          maxlength="256"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="col-md-6">
+                      <label class="form-label fw-semibold small">Secondary Website (Optional)</label>
+                      <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-globe2"></i></span>
+                        <input
+                          v-model.trim="wn.editForm.website_2"
+                          type="text"
+                          class="form-control"
+                          placeholder="https://portal.example.com"
+                          maxlength="256"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="col-12">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label fw-semibold small mb-0">About / Status Line</label>
+                        <span class="badge" :class="(wn.editForm.about || '').length > 130 ? 'bg-warning text-dark' : 'bg-light text-muted border'">
+                          {{ (wn.editForm.about || '').length }} / 139
+                        </span>
+                      </div>
+                      <input
+                        v-model="wn.editForm.about"
+                        type="text"
+                        class="form-control"
+                        placeholder="Brief bio or status line (e.g. Official WhatsApp Support)"
+                        maxlength="139"
+                      />
+                      <div class="form-text">Appears under your WhatsApp name as your business status.</div>
+                    </div>
+
+                    <div class="col-12">
+                      <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label fw-semibold small mb-0">Business Description</label>
+                        <span class="badge" :class="(wn.editForm.description || '').length > 500 ? 'bg-warning text-dark' : 'bg-light text-muted border'">
+                          {{ (wn.editForm.description || '').length }} / 512
+                        </span>
+                      </div>
+                      <textarea
+                        v-model="wn.editForm.description"
+                        class="form-control"
+                        rows="3"
+                        placeholder="Full description of your services, company, and offerings..."
+                        maxlength="512"
+                      ></textarea>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- TAB 2: DISPLAY NAME -->
+                <div v-if="wn.editForm.activeTab === 'name'">
+                  <div class="card border-0 bg-light mb-3">
+                    <div class="card-body p-3">
+                      <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                          <div class="small text-muted">Current Verified Name</div>
+                          <div class="fs-5 fw-bold text-dark">{{ wn.editForm.verified_name || 'None' }}</div>
+                        </div>
+                        <div>
+                          <span class="badge fs-6" :class="displayNameStatusBadge(wn.editForm.name_status)">
+                            {{ wn.editForm.name_status || 'UNKNOWN' }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="wn.editForm.new_display_name" class="alert alert-warning py-2 mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <div>
+                        <div class="fw-semibold small"><i class="bi bi-hourglass-split me-1"></i>Pending New Display Name</div>
+                        <div class="font-monospace fs-6">{{ wn.editForm.new_display_name }}</div>
+                      </div>
+                      <span class="badge" :class="displayNameStatusBadge(wn.editForm.new_name_status)">
+                        {{ wn.editForm.new_name_status || 'PENDING' }}
+                      </span>
+                    </div>
+                    <div v-if="wn.editForm.new_name_status === 'APPROVED'" class="mt-2 pt-2 border-top">
+                      <div class="small mb-1 text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>Approved by Meta! Re-register to activate:</div>
+                      <button class="btn btn-sm btn-success" @click="reRegisterFromEditModal">
+                        <i class="bi bi-arrow-repeat me-1"></i> Re-register on Cloud API
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label fw-semibold small">New Display Name to Submit</label>
+                    <div class="input-group">
+                      <input
+                        v-model.trim="wn.editForm.new_display_name_input"
+                        type="text"
+                        class="form-control"
+                        placeholder="e.g. Acme Corporation"
+                        maxlength="255"
+                      />
+                      <button
+                        class="btn btn-outline-primary"
+                        type="button"
+                        @click="submitDisplayNameOnly"
+                        :disabled="wn.editForm.savingName || !wn.editForm.new_display_name_input"
+                      >
+                        <span v-if="wn.editForm.savingName" class="spinner-border spinner-border-sm me-1"></span>
+                        Submit Name
+                      </button>
+                    </div>
+                    <div class="form-text">Enter the updated display name to submit to Meta for approval.</div>
+                  </div>
+
+                  <div class="alert alert-secondary py-2 small mb-0">
+                    <div class="fw-semibold mb-1"><i class="bi bi-shield-check me-1"></i>Meta Display Name Guidelines:</div>
+                    <ul class="mb-0 ps-3">
+                      <li>Must represent the business or service branding.</li>
+                      <li>Must match your official company documents, website domain, or trademark.</li>
+                      <li>Display name changes can be submitted up to 10 times in a 30-day window.</li>
+                      <li>Once approved by Meta, the number must be re-registered using your 6-digit PIN to apply the change.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <!-- TAB 3: PROFILE PHOTO -->
+                <div v-if="wn.editForm.activeTab === 'picture'">
+                  <div class="row align-items-center g-4 mb-3">
+                    <div class="col-auto text-center">
+                      <div class="position-relative d-inline-block">
+                        <div
+                          class="rounded-circle border border-2 border-primary-subtle shadow-sm overflow-hidden d-flex align-items-center justify-content-center bg-light"
+                          style="width: 130px; height: 130px;"
+                        >
+                          <img
+                            v-if="wn.editForm.picturePreview || wn.editForm.profile_picture_url"
+                            :src="wn.editForm.picturePreview || wn.editForm.profile_picture_url"
+                            alt="WhatsApp Profile Picture"
+                            class="w-100 h-100 object-fit-cover"
+                          />
+                          <i v-else class="bi bi-whatsapp text-success" style="font-size: 4rem;"></i>
+                        </div>
+                        <span
+                          v-if="wn.editForm.picturePreview"
+                          class="position-absolute top-0 end-0 badge rounded-pill bg-primary"
+                          title="New photo selected"
+                        >
+                          New
+                        </span>
+                      </div>
+                    </div>
+
+                    <div class="col">
+                      <h6 class="mb-1">WhatsApp Business Profile Photo</h6>
+                      <p class="small text-muted mb-2">
+                        Upload a square brand image (JPEG or PNG, recommended 640 x 640 px, max 5 MB). This photo is synced to Meta and displayed on client chats.
+                      </p>
+
+                      <div class="d-flex flex-wrap gap-2 align-items-center">
+                        <label class="btn btn-outline-primary btn-sm mb-0">
+                          <i class="bi bi-upload me-1"></i> Choose New Photo
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg"
+                            class="d-none"
+                            @change="handlePictureFileChange"
+                          />
+                        </label>
+                        <button
+                          v-if="wn.editForm.pictureFile"
+                          type="button"
+                          class="btn btn-sm btn-outline-danger"
+                          @click="removeSelectedPicture"
+                        >
+                          <i class="bi bi-x-circle me-1"></i> Cancel Selected
+                        </button>
+                        <button
+                          v-if="wn.editForm.pictureFile"
+                          type="button"
+                          class="btn btn-sm btn-success"
+                          @click="submitPictureOnly"
+                          :disabled="wn.editForm.savingPicture"
+                        >
+                          <span v-if="wn.editForm.savingPicture" class="spinner-border spinner-border-sm me-1"></span>
+                          Upload Photo Now
+                        </button>
+                      </div>
+
+                      <div v-if="wn.editForm.pictureFile" class="small text-success mt-2">
+                        <i class="bi bi-check2 me-1"></i>Selected: {{ wn.editForm.pictureFile.name }} ({{ Math.round(wn.editForm.pictureFile.size / 1024) }} KB)
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="alert alert-info py-2 small mb-0">
+                    <i class="bi bi-lightbulb me-1"></i>
+                    <strong>Tip:</strong> The image must be square (1:1 aspect ratio). Logos with transparent or clean backgrounds look best in WhatsApp contact lists.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer bg-light d-flex justify-content-between align-items-center">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              @click="openMetaNumberManager(wn.editForm, 'edit')"
+              title="Open WhatsApp Manager in Meta Business Suite"
+            >
+              <i class="bi bi-box-arrow-up-right me-1"></i> WhatsApp Manager
+            </button>
+
+            <div class="d-flex gap-2">
+              <button
+                type="button"
+                class="btn btn-outline-secondary"
+                data-bs-dismiss="modal"
+                :disabled="wn.editForm.saving"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary"
+                @click="submitEditNumberProfile"
+                :disabled="wn.editForm.saving || wn.editForm.loading"
+              >
+                <span v-if="wn.editForm.saving" class="spinner-border spinner-border-sm me-1"></span>
+                <i v-else class="bi bi-cloud-arrow-up me-1"></i>
+                Save All Changes to Meta
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- WHATSAPP MIGRATE MODAL -->
     <div class="modal fade" id="whatsappMigrateModal" tabindex="-1" ref="migrateModalRef">
       <div class="modal-dialog modal-dialog-centered">
@@ -2369,6 +2746,36 @@ export default {
         },
         addNumberModal: null,
         verifyNumberModal: null,
+        editNumberModal: null,
+        editForm: {
+          id: null,
+          display_phone_number: '',
+          verified_name: '',
+          name_status: '',
+          new_display_name: '',
+          new_name_status: '',
+          new_display_name_input: '',
+          code_verification_status: '',
+          quality_rating: '',
+          messaging_limit_tier: '',
+          platform_type: '',
+          about: '',
+          address: '',
+          description: '',
+          email: '',
+          vertical: 'OTHER',
+          website_1: '',
+          website_2: '',
+          profile_picture_url: null,
+          pictureFile: null,
+          picturePreview: null,
+          activeTab: 'profile',
+          loading: false,
+          saving: false,
+          savingName: false,
+          savingPicture: false,
+          vertical_options: [],
+        },
       },
       wa: {
         templates: [],
@@ -2453,6 +2860,7 @@ export default {
       this.statusInfoModal = createManagedModal(this.$refs.statusInfoModalRef);
       this.wn.addNumberModal = createManagedModal(this.$refs.addNumberModalRef);
       this.wn.verifyNumberModal = createManagedModal(this.$refs.verifyNumberModalRef);
+      this.wn.editNumberModal = createManagedModal(this.$refs.editNumberModalRef);
       this.wp.modal = createManagedModal(this.$refs.profileModalRef);
       this.wa.migrateModal = createManagedModal(this.$refs.migrateModalRef);
 
@@ -2479,6 +2887,7 @@ export default {
     disposeManagedModal(this.statusInfoModal);
     disposeManagedModal(this.wn.addNumberModal);
     disposeManagedModal(this.wn.verifyNumberModal);
+    disposeManagedModal(this.wn.editNumberModal);
     disposeManagedModal(this.wp.modal);
     disposeManagedModal(this.wa.migrateModal);
     if (this.wa.syncPollTimer) {
@@ -4028,9 +4437,185 @@ export default {
       });
       window.open(`https://business.facebook.com/latest/whatsapp_manager/phone_numbers/?${query.toString()}`, '_blank', 'noopener,noreferrer');
       notify.info(
-        `Meta requires ${action === 'remove' ? 'number removal' : 'display-name editing'} to be completed in WhatsApp Manager.`,
+        action === 'remove'
+          ? 'Opening WhatsApp Manager to remove this phone number.'
+          : 'Opening WhatsApp Manager for advanced phone number settings.',
         'Settings'
       );
+    },
+    openEditNumberModal(num) {
+      this.wn.editForm = {
+        id: num.id,
+        display_phone_number: num.display_phone_number || num.id,
+        verified_name: num.verified_name || '',
+        name_status: num.name_status || 'UNKNOWN',
+        new_display_name: num.new_display_name || '',
+        new_name_status: num.new_name_status || '',
+        new_display_name_input: '',
+        code_verification_status: num.code_verification_status || '',
+        quality_rating: num.quality_rating || '',
+        messaging_limit_tier: num.messaging_limit_tier || '',
+        platform_type: num.platform_type || '',
+        about: '',
+        address: '',
+        description: '',
+        email: '',
+        vertical: 'OTHER',
+        website_1: '',
+        website_2: '',
+        profile_picture_url: null,
+        pictureFile: null,
+        picturePreview: null,
+        activeTab: 'profile',
+        loading: true,
+        saving: false,
+        savingName: false,
+        savingPicture: false,
+        vertical_options: [],
+      };
+      this.wn.editNumberModal?.show();
+      this.loadEditNumberProfile(num.id);
+    },
+    async loadEditNumberProfile(phoneNumberId) {
+      this.wn.editForm.loading = true;
+      try {
+        const { data } = await axios.get(`/api/settings/meta/phone-numbers/${phoneNumberId}/profile`);
+        const phone = data?.phone_number || {};
+        const profile = data?.business_profile || {};
+
+        this.wn.editForm.verified_name = phone.verified_name || this.wn.editForm.verified_name;
+        this.wn.editForm.name_status = phone.name_status || this.wn.editForm.name_status;
+        this.wn.editForm.new_display_name = phone.new_display_name || '';
+        this.wn.editForm.new_name_status = phone.new_name_status || '';
+        this.wn.editForm.display_phone_number = phone.display_phone_number || this.wn.editForm.display_phone_number;
+
+        this.wn.editForm.about = profile.about || '';
+        this.wn.editForm.address = profile.address || '';
+        this.wn.editForm.description = profile.description || '';
+        this.wn.editForm.email = profile.email || '';
+        this.wn.editForm.vertical = profile.vertical || 'OTHER';
+        this.wn.editForm.profile_picture_url = profile.profile_picture_url || null;
+
+        const websites = Array.isArray(profile.websites) ? profile.websites : [];
+        this.wn.editForm.website_1 = websites[0] || '';
+        this.wn.editForm.website_2 = websites[1] || '';
+
+        this.wn.editForm.vertical_options = data?.vertical_options || [];
+      } catch (err) {
+        notify.error('Failed to load profile details: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        this.wn.editForm.loading = false;
+      }
+    },
+    handlePictureFileChange(e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+        notify.warning('Please select a JPG or PNG image file.', 'Settings');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        notify.warning('Image file size must be less than 5 MB.', 'Settings');
+        return;
+      }
+
+      this.wn.editForm.pictureFile = file;
+      this.wn.editForm.picturePreview = URL.createObjectURL(file);
+    },
+    removeSelectedPicture() {
+      if (this.wn.editForm.picturePreview) {
+        URL.revokeObjectURL(this.wn.editForm.picturePreview);
+      }
+      this.wn.editForm.pictureFile = null;
+      this.wn.editForm.picturePreview = null;
+    },
+    async submitDisplayNameOnly() {
+      const name = (this.wn.editForm.new_display_name_input || '').trim();
+      if (!name) return;
+
+      this.wn.editForm.savingName = true;
+      try {
+        const { data } = await axios.post(`/api/settings/meta/phone-numbers/${this.wn.editForm.id}/display-name`, {
+          new_display_name: name,
+        });
+        notify.success(data.message || 'Display name submitted to Meta for review.', 'Settings');
+        this.wn.editForm.new_display_name = name;
+        this.wn.editForm.new_name_status = 'APPROVAL_PENDING';
+        this.wn.editForm.new_display_name_input = '';
+        await this.fetchWhatsappNumbers();
+      } catch (err) {
+        notify.error('Failed to submit display name: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        this.wn.editForm.savingName = false;
+      }
+    },
+    async submitPictureOnly() {
+      if (!this.wn.editForm.pictureFile) return;
+
+      this.wn.editForm.savingPicture = true;
+      try {
+        const formData = new FormData();
+        formData.append('profile_picture', this.wn.editForm.pictureFile);
+
+        const { data } = await axios.post(
+          `/api/settings/meta/phone-numbers/${this.wn.editForm.id}/profile-picture`,
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+        notify.success(data.message || 'Profile picture uploaded to Meta.', 'Settings');
+        this.wn.editForm.profile_picture_url = this.wn.editForm.picturePreview;
+        this.wn.editForm.pictureFile = null;
+        await this.fetchWhatsappNumbers();
+      } catch (err) {
+        notify.error('Failed to upload profile picture: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        this.wn.editForm.savingPicture = false;
+      }
+    },
+    async submitEditNumberProfile() {
+      this.wn.editForm.saving = true;
+      try {
+        const formData = new FormData();
+        formData.append('about', this.wn.editForm.about || '');
+        formData.append('address', this.wn.editForm.address || '');
+        formData.append('description', this.wn.editForm.description || '');
+        formData.append('email', this.wn.editForm.email || '');
+        formData.append('vertical', this.wn.editForm.vertical || 'OTHER');
+        if (this.wn.editForm.website_1) formData.append('website_1', this.wn.editForm.website_1);
+        if (this.wn.editForm.website_2) formData.append('website_2', this.wn.editForm.website_2);
+
+        if (this.wn.editForm.new_display_name_input?.trim()) {
+          formData.append('new_display_name', this.wn.editForm.new_display_name_input.trim());
+        }
+
+        if (this.wn.editForm.pictureFile) {
+          formData.append('profile_picture', this.wn.editForm.pictureFile);
+        }
+
+        const { data } = await axios.post(
+          `/api/settings/meta/phone-numbers/${this.wn.editForm.id}/profile`,
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+
+        notify.success(data.message || 'WhatsApp number and profile updated on Meta.', 'Settings');
+        this.wn.editNumberModal?.hide();
+        await this.fetchWhatsappNumbers();
+      } catch (err) {
+        notify.error('Failed to update WhatsApp profile: ' + (err.response?.data?.message || err.message), 'Settings');
+      } finally {
+        this.wn.editForm.saving = false;
+      }
+    },
+    reRegisterFromEditModal() {
+      const num = {
+        id: this.wn.editForm.id,
+        display_phone_number: this.wn.editForm.display_phone_number,
+      };
+      this.wn.editNumberModal?.hide();
+      this.openRegistrationModal(num);
     },
     openAddNumberModal() {
       this.wn.addForm = { cc: '', phone_number: '', verified_name: '' };
@@ -4181,6 +4766,13 @@ export default {
       if (['YELLOW', 'MEDIUM'].includes(r)) return 'bg-warning text-dark';
       if (['RED', 'LOW'].includes(r)) return 'bg-danger text-white';
       return 'bg-secondary';
+    },
+    displayNameStatusBadge(status) {
+      const s = String(status || '').trim().toUpperCase();
+      if (s === 'APPROVED') return 'bg-success text-white';
+      if (['PENDING', 'APPROVAL_PENDING', 'PENDING_REVIEW'].includes(s)) return 'bg-warning text-dark';
+      if (['DECLINED', 'REJECTED'].includes(s)) return 'bg-danger text-white';
+      return 'bg-secondary text-white';
     },
     formatTemplateCheckedAt(value) {
       const date = new Date(value);
