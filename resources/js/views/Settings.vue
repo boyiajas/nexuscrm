@@ -4578,7 +4578,9 @@ export default {
       this.wn.editForm.saving = true;
       try {
         const formData = new FormData();
-        formData.append('about', this.wn.editForm.about || '');
+        if (this.wn.editForm.about?.trim()) {
+          formData.append('about', this.wn.editForm.about.trim());
+        }
         formData.append('address', this.wn.editForm.address || '');
         formData.append('description', this.wn.editForm.description || '');
         formData.append('email', this.wn.editForm.email || '');

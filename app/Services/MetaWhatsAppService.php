@@ -519,20 +519,22 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
             'messaging_product' => 'whatsapp',
         ];
 
-        if (array_key_exists('about', $data)) {
-            $payload['about'] = $data['about'] !== null ? (string) $data['about'] : '';
+        // Meta Graph API explicitly forbids empty string for 'about' (must be between 1 and 139 characters).
+        // Sending an empty string about ("about": "") causes Meta 500 error code 131000 ("Something went wrong").
+        if (!empty($data['about']) && trim((string) $data['about']) !== '') {
+            $payload['about'] = trim((string) $data['about']);
         }
         if (array_key_exists('address', $data)) {
-            $payload['address'] = $data['address'] !== null ? (string) $data['address'] : '';
+            $payload['address'] = trim((string) ($data['address'] ?? ''));
         }
         if (array_key_exists('description', $data)) {
-            $payload['description'] = $data['description'] !== null ? (string) $data['description'] : '';
+            $payload['description'] = trim((string) ($data['description'] ?? ''));
         }
         if (array_key_exists('email', $data)) {
-            $payload['email'] = $data['email'] !== null ? (string) $data['email'] : '';
+            $payload['email'] = trim((string) ($data['email'] ?? ''));
         }
         if (array_key_exists('vertical', $data) && !empty($data['vertical'])) {
-            $payload['vertical'] = (string) $data['vertical'];
+            $payload['vertical'] = strtoupper(trim((string) $data['vertical']));
         }
         if (array_key_exists('websites', $data)) {
             $websites = is_array($data['websites']) ? $data['websites'] : [];

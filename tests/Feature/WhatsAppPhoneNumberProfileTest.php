@@ -211,6 +211,41 @@ class WhatsAppPhoneNumberProfileTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_update_profile_without_about_and_payload_omits_empty_about(): void
+    {
+        $phoneId = '773609549180055';
+
+        Http::fake([
+            "https://graph.facebook.com/v25.0/{$phoneId}/whatsapp_business_profile" => Http::response([
+                'success' => true,
+            ], 200),
+        ]);
+
+        Sanctum::actingAs($this->adminUser);
+
+        $response = $this->postJson("/api/settings/meta/phone-numbers/{$phoneId}/profile", [
+            'about' => '',
+            'address' => '9th Floor, Strauss Daly Place',
+            'description' => 'Legal and debt collections.',
+            'email' => 'enquires@straussdaly.co.za',
+            'vertical' => 'OTHER',
+            'website_1' => 'https://www.straussdaly.co.za',
+        ]);
+
+        $response->assertOk();
+
+        Http::assertSent(function (\Illuminate\Http\Client\Request $request) use ($phoneId) {
+            if ($request->url() === "https://graph.facebook.com/v25.0/{$phoneId}/whatsapp_business_profile") {
+                $data = $request->data();
+                return !array_key_exists('about', $data)
+                    && $data['vertical'] === 'OTHER'
+                    && $data['email'] === 'enquires@straussdaly.co.za'
+                    && $data['address'] === '9th Floor, Strauss Daly Place';
+            }
+            return false;
+        });
+    }
+
     public function test_regular_user_is_forbidden_from_managing_waba_number_profile(): void
     {
         $phoneId = '773609549180055';

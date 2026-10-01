@@ -468,13 +468,16 @@ class SettingsController extends Controller
 
             // 4. Update WhatsApp business profile
             $profileUpdate = [
-                'about' => $data['about'] ?? '',
                 'address' => $data['address'] ?? '',
                 'description' => $data['description'] ?? '',
                 'email' => $data['email'] ?? '',
                 'vertical' => $data['vertical'] ?? 'OTHER',
                 'websites' => $websites,
             ];
+            $about = trim((string) ($data['about'] ?? ''));
+            if ($about !== '') {
+                $profileUpdate['about'] = $about;
+            }
             if ($pictureHandle) {
                 $profileUpdate['profile_picture_handle'] = $pictureHandle;
             }
