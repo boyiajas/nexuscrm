@@ -23,6 +23,7 @@ const WhatsAppFlows = () => import('./views/WhatsAppFlows.vue');
 const WhatsappReplies = () => import('./views/WhatsappReplies.vue');
 const QueueMonitor = () => import('./views/QueueMonitor.vue');
 const Analytics = () => import('./views/Analytics.vue');
+const MetaBilling = () => import('./views/MetaBilling.vue');
 const Support = () => import('./views/Support.vue');
 const MainLayout = () => import('./components/layout/MainLayout.vue');
 
@@ -69,6 +70,12 @@ const routes = [
         name: 'analytics',
         component: Analytics,
         meta: { sensitiveView: true, pageIcon: 'bi-bar-chart-line-fill' },
+      },
+      {
+        path: 'meta-billing',
+        name: 'meta-billing',
+        component: MetaBilling,
+        meta: { sensitiveView: true, pageIcon: 'bi-receipt-cutoff' },
       },
       {
         path: 'settings',

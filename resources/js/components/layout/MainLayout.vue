@@ -71,6 +71,11 @@
               <i class="bi bi-bar-chart-line-fill me-2"></i><span class="nav-label">Analytics / Reports</span>
             </router-link>
           </li>
+          <li class="nav-item" v-if="canViewMetaBilling">
+            <router-link :to="{ name: 'meta-billing' }" class="nav-link" :class="{ active: isActive('meta-billing') }">
+              <i class="bi bi-receipt-cutoff me-2"></i><span class="nav-label">Meta Billing</span>
+            </router-link>
+          </li>
           <li class="nav-item" v-if="canViewAuditLog">
             <router-link :to="{ name: 'audit-log' }" class="nav-link" :class="{ active: isActive('audit-log') }">
               <i class="bi bi-journal-text me-2"></i><span class="nav-label">Audit Log</span>
@@ -519,6 +524,14 @@ export default {
     },
     canViewQueueJobs() {
       return this.hasAnyRole(['SUPER_ADMIN']);
+    },
+    canViewMetaBilling() {
+      return (
+        this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']) ||
+        this.hasPermission('settings_meta_whatsapp') ||
+        this.hasPermission('manage_system_settings') ||
+        this.hasPermission('view_campaigns')
+      );
     },
     roleWatermarkEnabled() {
       if (Array.isArray(this.user?.roles) && this.user.roles.length) {

@@ -35,6 +35,7 @@ class SystemSetting extends Model
         'meta_whatsapp_business_account_id',
         'meta_whatsapp_phone_number_id',
         'meta_whatsapp_display_phone_number',
+        'meta_ad_account_id',
         'meta_webhook_verify_token',
         'twilio_api_key',
         'twilio_sid',

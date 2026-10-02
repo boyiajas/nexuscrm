@@ -180,6 +180,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('dashboard', [DashboardController::class, 'index']);
     Route::get('analytics', [\App\Http\Controllers\Api\AnalyticsController::class, 'index']);
+    Route::get('meta-billing', [\App\Http\Controllers\Api\MetaBillingController::class, 'index']);
+    Route::post('meta-billing/sync', [\App\Http\Controllers\Api\MetaBillingController::class, 'sync']);
+    Route::post('meta-billing/ad-account', [\App\Http\Controllers\Api\MetaBillingController::class, 'updateAdAccount']);
 
     Route::apiResource('departments', DepartmentController::class);
     Route::get('departments/{department}/whatsapp-stats', [DepartmentStatsController::class, 'whatsappStats']);
