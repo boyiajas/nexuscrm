@@ -22,7 +22,7 @@ class UserAccountCreated extends Mailable
      */
     public function __construct(public User $user, public string $rawPassword)
     {
-        $this->appName = SystemSetting::first()?->app_name ?: 'NexusCRM';
+        $this->appName = SystemSetting::first()?->app_name ?: 'SR Solution';
     }
 
     /**

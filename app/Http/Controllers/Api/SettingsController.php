@@ -720,9 +720,9 @@ class SettingsController extends Controller
     {
         if (!$settings) {
             return [
-                'app_name' => 'NexusCRM',
-                'app_short_name' => 'NC',
-                'app_tagline' => 'Mini CRM Console',
+                'app_name' => 'SR Solution',
+                'app_short_name' => 'SR',
+                'app_tagline' => 'WhatsApp CRM Console',
                 'company_name' => null,
                 'live_chat_locked' => false,
                 'live_chat_locked_message' => 'Live chat is temporarily disabled.',
@@ -765,9 +765,9 @@ class SettingsController extends Controller
         }
 
         return [
-            'app_name' => $settings->app_name ?: 'NexusCRM',
-            'app_short_name' => $settings->app_short_name ?: 'NC',
-            'app_tagline' => $settings->app_tagline ?: 'Mini CRM Console',
+            'app_name' => $settings->app_name ?: 'SR Solution',
+            'app_short_name' => $settings->app_short_name ?: 'SR',
+            'app_tagline' => $settings->app_tagline ?: 'WhatsApp CRM Console',
             'company_name' => $settings->company_name,
             'live_chat_locked' => (bool) $settings->live_chat_locked,
             'live_chat_locked_message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.',

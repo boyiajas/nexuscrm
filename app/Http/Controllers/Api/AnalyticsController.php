@@ -757,7 +757,9 @@ class AnalyticsController extends Controller
                 'templates' => $templatesData,
                 'campaigns' => $campaignsData,
                 'agents' => $agentsData,
-            ]
+            ],
+            'system_name' => \App\Models\SystemSetting::first()?->app_name ?: 'SR Solution',
+            'app_short_name' => \App\Models\SystemSetting::first()?->app_short_name ?: 'SR',
         ]);
     }
 

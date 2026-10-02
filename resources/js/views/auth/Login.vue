@@ -356,12 +356,10 @@ export default {
   },
   methods: {
     applyBranding(branding = {}) {
-      const resolvedName = !branding.app_name || branding.app_name === 'NexusCRM'
-        ? 'SRS DailyCRM'
-        : branding.app_name;
+      const resolvedName = branding.app_name || 'SR Solution';
       this.branding = {
         app_name: resolvedName,
-        app_short_name: branding.app_short_name || 'NC',
+        app_short_name: branding.app_short_name || 'SR',
         app_tagline: branding.app_tagline || 'Sign in to your dashboard',
         app_logo_url: branding.app_logo_url || '',
       };

@@ -376,11 +376,11 @@
                 <div class="row g-3">
                   <div class="col-md-8">
                     <label class="form-label">Application Name</label>
-                    <input v-model="system.form.app_name" type="text" class="form-control" placeholder="NexusCRM" />
+                    <input v-model="system.form.app_name" type="text" class="form-control" placeholder="SR Solution" />
                   </div>
                   <div class="col-md-4">
                     <label class="form-label">Short Name</label>
-                    <input v-model="system.form.app_short_name" type="text" class="form-control" placeholder="NC" maxlength="8" />
+                    <input v-model="system.form.app_short_name" type="text" class="form-control" placeholder="SR" maxlength="8" />
                   </div>
                   <div class="col-12">
                     <label class="form-label">Tagline</label>
@@ -478,8 +478,8 @@
                       <span v-else>{{ systemBrandInitials }}</span>
                     </div>
                     <div>
-                      <div class="fw-bold fs-5">{{ system.form.app_name || 'NexusCRM' }}</div>
-                      <div class="text-muted small">{{ system.form.app_tagline || 'Mini CRM Console' }}</div>
+                      <div class="fw-bold fs-5">{{ system.form.app_name || 'SR Solution' }}</div>
+                      <div class="text-muted small">{{ system.form.app_tagline || 'WhatsApp CRM Console' }}</div>
                     </div>
                   </div>
                   <div class="small text-muted">
@@ -969,7 +969,7 @@
             </table>
           </div>
           <div class="card-footer small text-muted">
-            Display names, profile photos, and business profiles can be edited and submitted to Meta directly from NexusCRM. Phone-number deletion must be completed in WhatsApp Manager.
+            Display names, profile photos, and business profiles can be edited and submitted to Meta directly from the system. Phone-number deletion must be completed in WhatsApp Manager.
           </div>
         </div>
 
@@ -2658,9 +2658,9 @@ export default {
         logoPreviewUrl: null,
         removeLogo: false,
         form: {
-          app_name: 'NexusCRM',
-          app_short_name: 'NC',
-          app_tagline: 'Mini CRM Console',
+          app_name: 'SR Solution',
+          app_short_name: 'SR',
+          app_tagline: 'WhatsApp CRM Console',
           company_name: '',
           support_email: '',
           support_phone: '',
@@ -3485,9 +3485,9 @@ export default {
 
     applyBranding(settings) {
       const branding = {
-        app_name: settings.app_name || 'NexusCRM',
-        app_short_name: settings.app_short_name || 'NC',
-        app_tagline: settings.app_tagline || 'Mini CRM Console',
+        app_name: settings.app_name || 'SR Solution',
+        app_short_name: settings.app_short_name || 'SR',
+        app_tagline: settings.app_tagline || 'WhatsApp CRM Console',
         company_name: settings.company_name || '',
         support_email: settings.support_email || '',
         support_phone: settings.support_phone || '',
@@ -3500,9 +3500,9 @@ export default {
     },
     applyAdminSettings(settings) {
       this.system.form = {
-        app_name: settings.app_name || 'NexusCRM',
-        app_short_name: settings.app_short_name || 'NC',
-        app_tagline: settings.app_tagline || 'Mini CRM Console',
+        app_name: settings.app_name || 'SR Solution',
+        app_short_name: settings.app_short_name || 'SR',
+        app_tagline: settings.app_tagline || 'WhatsApp CRM Console',
         company_name: settings.company_name || '',
         live_chat_locked: settings.live_chat_locked || false,
         live_chat_locked_message: settings.live_chat_locked_message || 'Live chat is temporarily disabled.',

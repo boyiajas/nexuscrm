@@ -3,7 +3,7 @@
 
 Hi {{ $targetUser->first_name ?? $targetUser->name ?? 'Team' }},
 
-A client has replied to a WhatsApp campaign message on **{{ $appName ?? 'NexusCRM' }}**.
+A client has replied to a WhatsApp campaign message on **{{ $appName ?? 'SR Solution' }}**.
 
 <x-mail::panel>
 **Client Message:**
@@ -32,5 +32,5 @@ Open Client Live Chat
 </x-mail::button>
 
 Thanks,<br>
-{{ $appName ?? 'NexusCRM' }}
+{{ $appName ?? 'SR Solution' }}
 </x-mail::message>

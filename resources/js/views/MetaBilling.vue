@@ -52,10 +52,52 @@
           <span>{{ syncing ? 'Syncing...' : 'Sync Meta' }}</span>
         </button>
 
-        <!-- Export Statement CSV Button -->
-        <button class="btn btn-sm btn-dark d-flex align-items-center gap-1 shadow-sm" @click="exportStatement">
-          <i class="bi bi-cloud-download me-1"></i> Export Statement
-        </button>
+        <!-- Export Statement Dropdown Button -->
+        <div class="dropdown">
+          <button class="btn btn-sm btn-dark dropdown-toggle d-flex align-items-center gap-1 shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-cloud-download me-1"></i> Export Statement
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 py-2" style="min-width: 230px; z-index: 1050;">
+            <li><h6 class="dropdown-header text-uppercase small fw-bold text-muted">Select Export Format</h6></li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportBillingReport('pdf')">
+                <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                <div>
+                  <div class="fw-semibold">PDF Document (.pdf)</div>
+                  <small class="text-muted">Printable executive statement</small>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportBillingReport('excel')">
+                <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                <div>
+                  <div class="fw-semibold">Excel Workbook (.xls)</div>
+                  <small class="text-muted">Formatted ledger spreadsheet</small>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportBillingReport('word')">
+                <i class="bi bi-file-earmark-word text-primary fs-5"></i>
+                <div>
+                  <div class="fw-semibold">Word Document (.doc)</div>
+                  <small class="text-muted">Executive statement memo</small>
+                </div>
+              </a>
+            </li>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportBillingReport('csv')">
+                <i class="bi bi-filetype-csv text-secondary fs-5"></i>
+                <div>
+                  <div class="fw-semibold">CSV Spreadsheet (.csv)</div>
+                  <small class="text-muted">Raw itemized ledger</small>
+                </div>
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -469,7 +511,7 @@
                         <li class="mb-1">Log in to <a :href="quickLinks.system_users" target="_blank" class="fw-bold text-decoration-none">Meta Business Settings <i class="bi bi-box-arrow-up-right"></i></a> for Business ID <code>{{ config.owner_business?.id || '1323375205187636' }}</code>.</li>
                         <li class="mb-1">Under <strong>Users -> System Users</strong>, select your API system user or admin user.</li>
                         <li class="mb-1">Click <strong>Generate New Token</strong> (or Edit Permissions) and check the <strong><code>ads_read</code></strong> and <strong><code>read_insights</code></strong> scopes.</li>
-                        <li>Update the system token in <router-link to="/settings" class="fw-bold text-decoration-none">NexusCRM Settings -> Meta WhatsApp</router-link>, and enter your Ad Account ID above.</li>
+                        <li>Update the system token in <router-link to="/settings" class="fw-bold text-decoration-none">System Settings -> Meta WhatsApp</router-link>, and enter your Ad Account ID above.</li>
                       </ol>
                     </div>
                   </div>
@@ -730,11 +772,13 @@
 <script>
 import Chart from 'chart.js/auto';
 import axios from '../axios';
+import { exportToCsv, exportToExcel, exportToWord, exportToPdf } from '../utils/reportExporter';
 
 export default {
   name: 'MetaBilling',
   data() {
     return {
+      systemName: 'SR Solution',
       loading: true,
       syncing: false,
       savingAdAccount: false,
@@ -788,6 +832,12 @@ export default {
     },
   },
   mounted() {
+    try {
+      const stored = JSON.parse(localStorage.getItem('nexus_branding') || '{}');
+      if (stored.app_name) {
+        this.systemName = stored.app_name;
+      }
+    } catch (e) {}
     this.fetchBanks();
     this.fetchBilling();
   },
@@ -819,6 +869,9 @@ export default {
         });
         const data = res.data;
         this.config = data.meta_config || {};
+        if (this.config.system_name) {
+          this.systemName = this.config.system_name;
+        }
         this.adAccountInput = this.config.ad_account_id || '';
         this.whatsappSummary = data.whatsapp_billing?.summary || {};
         this.categories = data.whatsapp_billing?.categories || {};
@@ -946,49 +999,71 @@ export default {
         },
       });
     },
+    getDateRangeLabel(range) {
+      const map = {
+        today: 'Today',
+        yesterday: 'Yesterday',
+        last_7_days: 'Last 7 Days',
+        last_30_days: 'Last 30 Days',
+        this_month: 'This Month',
+        last_90_days: 'Last 90 Days',
+        '3_months': 'Last 3 Months',
+        '6_months': 'Last 6 Months',
+        '1_year': 'Last 1 Year',
+        all_time: 'All Time (Historical)',
+      };
+      return map[range] || range;
+    },
+    getSelectedBankLabel() {
+      if (!this.selectedBankId || this.selectedBankId === 'all') return 'All Institutions / Portfolios';
+      const b = this.banks.find(bank => String(bank.id) === String(this.selectedBankId));
+      return b ? b.name : `Bank #${this.selectedBankId}`;
+    },
     exportStatement() {
-      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      this.exportBillingReport('csv');
+    },
+    exportBillingReport(format = 'csv') {
+      const templateList = this.filteredTemplates.length > 0 ? this.filteredTemplates : this.templates;
+      const cleanInt = (v) => parseInt(String(v ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
+      const cleanFloat = (v) => parseFloat(String(v ?? '0').replace(/[^0-9.]/g, '')) || 0;
+
+      const totalSent = templateList.reduce((acc, t) => acc + cleanInt(t.sent), 0);
+      const totalDelivered = templateList.reduce((acc, t) => acc + cleanInt(t.delivered), 0);
+      const totalCost = templateList.reduce((acc, t) => acc + cleanFloat(t.cost), 0);
+
+      const title = 'Facebook Meta Billing & WhatsApp Charges Statement';
+      const systemName = this.systemName || this.config.system_name || 'SR Solution';
       const now = new Date();
-      const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      const fileDate = now.toISOString().slice(0, 10);
+      const cleanSysName = systemName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const filenameBase = `${cleanSysName}_Meta_Billing_Statement_${this.dateRange}_${fileDate}`;
 
-      const fileRows = [];
-      fileRows.push(['NEXUS CRM - FACEBOOK META BILLING & CHARGES STATEMENT']);
-      fileRows.push(['Generated At', generatedAt]);
-      fileRows.push(['Meta App ID', this.config.app_id || '347591848299284']);
-      fileRows.push(['Meta App Name', this.config.app_name || 'CRM System API']);
-      fileRows.push(['WhatsApp Business Account ID', this.config.waba_id || '406811385845304']);
-      fileRows.push(['WABA Name', this.config.waba_name || 'Iconis CRM']);
-      fileRows.push(['Owner Business', this.config.owner_business?.name || 'ICON INFORMATION SYSTEMS']);
-      fileRows.push(['Reporting Period', this.dateRange]);
-      fileRows.push([]);
+      const metadata = [
+        { label: 'System Console', value: systemName },
+        { label: 'Statement Generated', value: generatedAt },
+        { label: 'Reporting Period', value: this.getDateRangeLabel(this.dateRange) },
+        { label: 'Institution Filter', value: this.getSelectedBankLabel() },
+        { label: 'Meta App ID', value: this.config.app_id || '347591848299284' },
+        { label: 'Meta App Name', value: this.config.app_name || 'CRM System API' },
+        { label: 'WhatsApp Business Account ID', value: this.config.waba_id || '406811385845304' },
+        { label: 'WABA Name', value: this.config.waba_name || 'Iconis CRM' },
+        { label: 'Owner Business Entity', value: this.config.owner_business?.name || 'ICON INFORMATION SYSTEMS' },
+        { label: 'Ad Account ID', value: this.config.ad_account_id || 'Not Configured' },
+      ];
 
-      fileRows.push(['EXECUTIVE BILLING SUMMARY']);
-      fileRows.push(['Total WhatsApp Cloud Spend', this.whatsappSummary.total_spend || '$0.00']);
-      fileRows.push(['Total Messages Dispatched', this.whatsappSummary.dispatched || '0']);
-      fileRows.push(['Total Messages Delivered', this.whatsappSummary.delivered || '0']);
-      fileRows.push(['Delivery Success Rate', this.whatsappSummary.delivery_rate || '0%']);
-      fileRows.push(['Read Confirmation Rate', this.whatsappSummary.read_rate || '0%']);
-      fileRows.push(['Average Cost Per Delivered Message', this.whatsappSummary.avg_cost_per_delivered || '$0.00']);
-      fileRows.push([]);
+      const summaryKpis = [
+        { label: 'Total WhatsApp Cloud Spend', value: this.whatsappSummary.total_spend || '$0.00' },
+        { label: 'Total Messages Dispatched', value: String(this.whatsappSummary.dispatched || '0') },
+        { label: 'Total Messages Delivered', value: String(this.whatsappSummary.delivered || '0') },
+        { label: 'Delivery Success Rate', value: this.whatsappSummary.delivery_rate || '0%' },
+        { label: 'Read Confirmation Rate', value: this.whatsappSummary.read_rate || '0%' },
+        { label: 'Avg Cost Per Delivered Msg', value: this.whatsappSummary.avg_cost_per_delivered || '$0.00' },
+        { label: 'Marketing Tier Incurred', value: `${this.categories.marketing?.cost || '$0.00'} (${this.categories.marketing?.messages || 0} msgs @ ${this.categories.marketing?.rate || '$0.0175'})` },
+        { label: 'Utility Tier Incurred', value: `${this.categories.utility?.cost || '$0.00'} (${this.categories.utility?.messages || 0} msgs @ ${this.categories.utility?.rate || '$0.0076'})` },
+      ];
 
-      fileRows.push(['CATEGORY CHARGE BREAKDOWN']);
-      fileRows.push(['Category', 'Messages Dispatched', 'Rate / Msg', 'Incurred Cost', 'Percentage']);
-      if (this.categories.marketing) {
-        fileRows.push(['Marketing Tier', this.categories.marketing.messages, this.categories.marketing.rate, this.categories.marketing.cost, this.categories.marketing.pct + '%']);
-      }
-      if (this.categories.utility) {
-        fileRows.push(['Utility Tier', this.categories.utility.messages, this.categories.utility.rate, this.categories.utility.cost, this.categories.utility.pct + '%']);
-      }
-      if (this.categories.auth) {
-        fileRows.push(['Authentication Tier', this.categories.auth.messages, this.categories.auth.rate, this.categories.auth.cost, this.categories.auth.pct + '%']);
-      }
-      if (this.categories.service) {
-        fileRows.push(['Service Window', this.categories.service.messages, this.categories.service.rate, this.categories.service.cost, this.categories.service.pct + '%']);
-      }
-      fileRows.push([]);
-
-      fileRows.push(['ITEMIZED WHATSAPP TEMPLATE LEDGER']);
-      fileRows.push([
+      const tableHeaders = [
         'Template Name',
         'Meta Template ID',
         'Category',
@@ -1000,35 +1075,112 @@ export default {
         'Rate / Msg',
         'Incurred Cost',
         'Status',
+      ];
+
+      const tableRows = templateList.map((t) => [
+        t.name,
+        t.meta_id,
+        t.category,
+        t.campaign,
+        t.sent,
+        t.delivered,
+        t.delivery_rate,
+        t.reply_rate,
+        t.rate,
+        t.cost,
+        t.status,
       ]);
 
-      const templateList = this.filteredTemplates.length > 0 ? this.filteredTemplates : this.templates;
-      templateList.forEach((t) => {
-        fileRows.push([
-          t.name,
-          t.meta_id,
-          t.category,
-          t.campaign,
-          t.sent,
-          t.delivered,
-          t.delivery_rate,
-          t.reply_rate,
-          t.rate,
-          t.cost,
-          t.status,
-        ]);
-      });
+      const totalsRow = [
+        'GRAND TOTAL',
+        '',
+        '',
+        '',
+        totalSent,
+        totalDelivered,
+        '',
+        '',
+        '',
+        '$' + totalCost.toFixed(2),
+        '',
+      ];
 
-      const csvContent = '\uFEFF' + fileRows.map((r) => r.map(escapeCsv).join(',')).join('\r\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Meta_Billing_Statement_${this.dateRange}_${now.toISOString().slice(0, 10)}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      if (format === 'pdf') {
+        exportToPdf({
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else if (format === 'excel') {
+        exportToExcel(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else if (format === 'word') {
+        exportToWord(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else {
+        // CSV format
+        const csvRows = [];
+        csvRows.push([`${systemName.toUpperCase()} - FACEBOOK META BILLING & CHARGES STATEMENT`]);
+        csvRows.push(['Generated At', generatedAt]);
+        csvRows.push(['Reporting Period', this.getDateRangeLabel(this.dateRange)]);
+        csvRows.push(['Institution Filter', this.getSelectedBankLabel()]);
+        csvRows.push(['Meta App ID', this.config.app_id || '347591848299284']);
+        csvRows.push(['Meta App Name', this.config.app_name || 'CRM System API']);
+        csvRows.push(['WhatsApp Business Account ID', this.config.waba_id || '406811385845304']);
+        csvRows.push(['WABA Name', this.config.waba_name || 'Iconis CRM']);
+        csvRows.push(['Owner Business', this.config.owner_business?.name || 'ICON INFORMATION SYSTEMS']);
+        csvRows.push([]);
+
+        csvRows.push(['EXECUTIVE BILLING SUMMARY']);
+        csvRows.push(['Total WhatsApp Cloud Spend', this.whatsappSummary.total_spend || '$0.00']);
+        csvRows.push(['Total Messages Dispatched', this.whatsappSummary.dispatched || '0']);
+        csvRows.push(['Total Messages Delivered', this.whatsappSummary.delivered || '0']);
+        csvRows.push(['Delivery Success Rate', this.whatsappSummary.delivery_rate || '0%']);
+        csvRows.push(['Read Confirmation Rate', this.whatsappSummary.read_rate || '0%']);
+        csvRows.push(['Average Cost Per Delivered Message', this.whatsappSummary.avg_cost_per_delivered || '$0.00']);
+        csvRows.push([]);
+
+        csvRows.push(['CATEGORY CHARGE BREAKDOWN']);
+        csvRows.push(['Category', 'Messages Dispatched', 'Rate / Msg', 'Incurred Cost', 'Percentage']);
+        if (this.categories.marketing) {
+          csvRows.push(['Marketing Tier', this.categories.marketing.messages, this.categories.marketing.rate, this.categories.marketing.cost, this.categories.marketing.pct + '%']);
+        }
+        if (this.categories.utility) {
+          csvRows.push(['Utility Tier', this.categories.utility.messages, this.categories.utility.rate, this.categories.utility.cost, this.categories.utility.pct + '%']);
+        }
+        if (this.categories.auth) {
+          csvRows.push(['Authentication Tier', this.categories.auth.messages, this.categories.auth.rate, this.categories.auth.cost, this.categories.auth.pct + '%']);
+        }
+        if (this.categories.service) {
+          csvRows.push(['Service Window', this.categories.service.messages, this.categories.service.rate, this.categories.service.cost, this.categories.service.pct + '%']);
+        }
+        csvRows.push([]);
+
+        csvRows.push(['ITEMIZED WHATSAPP TEMPLATE LEDGER']);
+        csvRows.push(tableHeaders);
+        tableRows.forEach(r => csvRows.push(r));
+        csvRows.push(totalsRow);
+
+        exportToCsv(filenameBase, csvRows);
+      }
     },
   },
 };

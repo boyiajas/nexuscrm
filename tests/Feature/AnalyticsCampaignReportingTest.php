@@ -41,6 +41,8 @@ class AnalyticsCampaignReportingTest extends TestCase
         $this->assertSame('Campaign 1', $campaigns[0]['name']);
         $this->assertSame('Campaign 20', $campaigns[19]['name']);
         $this->assertNotNull($campaigns[0]['created_at']);
+        $this->assertSame('SR Solution', $response->json('system_name'));
+        $this->assertSame('SR', $response->json('app_short_name'));
     }
 
     public function test_analytics_pulls_and_backdates_with_year_to_date_and_all_time(): void

@@ -24,7 +24,8 @@ class MetaBillingTest extends TestCase
         parent::setUp();
 
         SystemSetting::create([
-            'app_name' => 'Nexus CRM',
+            'app_name' => 'SR Solution',
+            'app_short_name' => 'SR',
             'meta_app_id' => '347591848299284',
             'meta_app_secret' => 'test_app_secret',
             'meta_access_token' => 'test_access_token',
@@ -131,6 +132,8 @@ class MetaBillingTest extends TestCase
         $response = $this->getJson('/api/meta-billing');
 
         $response->assertOk()
+            ->assertJsonPath('meta_config.system_name', 'SR Solution')
+            ->assertJsonPath('meta_config.app_short_name', 'SR')
             ->assertJsonPath('meta_config.app_id', '347591848299284')
             ->assertJsonPath('meta_config.waba_id', '406811385845304')
             ->assertJsonPath('meta_config.waba_name', 'Iconis CRM')

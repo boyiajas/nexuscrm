@@ -36,9 +36,52 @@
         <button class="btn btn-sm btn-light border shadow-sm fw-semibold d-flex align-items-center gap-1" @click="fetchData">
           <i class="bi bi-arrow-clockwise"></i> Refresh
         </button>
-        <button class="btn btn-sm btn-dark shadow-sm fw-semibold d-flex align-items-center gap-1" @click="exportCampaignReport">
-          <i class="bi bi-cloud-download"></i> Export Report
-        </button>
+        <!-- Export Dropdown -->
+        <div class="dropdown">
+          <button class="btn btn-sm btn-dark dropdown-toggle shadow-sm fw-semibold d-flex align-items-center gap-1" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-cloud-download me-1"></i> Export Report
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 py-2" style="min-width: 230px; z-index: 1050;">
+            <li><h6 class="dropdown-header text-uppercase small fw-bold text-muted">Select Export Format</h6></li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportCampaignReport('pdf')">
+                <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                <div>
+                  <div class="fw-semibold">PDF Document (.pdf)</div>
+                  <small class="text-muted">Printable executive landscape</small>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportCampaignReport('excel')">
+                <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                <div>
+                  <div class="fw-semibold">Excel Workbook (.xls)</div>
+                  <small class="text-muted">Formatted metrics spreadsheet</small>
+                </div>
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportCampaignReport('word')">
+                <i class="bi bi-file-earmark-word text-primary fs-5"></i>
+                <div>
+                  <div class="fw-semibold">Word Document (.doc)</div>
+                  <small class="text-muted">Executive summary memo</small>
+                </div>
+              </a>
+            </li>
+            <li><hr class="dropdown-divider my-1"></li>
+            <li>
+              <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportCampaignReport('csv')">
+                <i class="bi bi-filetype-csv text-secondary fs-5"></i>
+                <div>
+                  <div class="fw-semibold">CSV Spreadsheet (.csv)</div>
+                  <small class="text-muted">Raw campaign matrix data</small>
+                </div>
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
@@ -299,9 +342,39 @@
                     <i class="bi bi-x"></i>
                   </button>
                 </div>
-                <button class="btn btn-sm btn-light border" @click="exportTemplateReport">
-                  <i class="bi bi-cloud-download me-1"></i> Export
-                </button>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-light border dropdown-toggle d-flex align-items-center gap-1 shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-cloud-download me-1"></i> Export
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 py-2" style="min-width: 220px; z-index: 1050;">
+                    <li><h6 class="dropdown-header text-uppercase small fw-bold text-muted">Template Report</h6></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportTemplateReport('pdf')">
+                        <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                        <span>PDF Document (.pdf)</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportTemplateReport('excel')">
+                        <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                        <span>Excel Workbook (.xls)</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportTemplateReport('word')">
+                        <i class="bi bi-file-earmark-word text-primary fs-5"></i>
+                        <span>Word Document (.doc)</span>
+                      </a>
+                    </li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportTemplateReport('csv')">
+                        <i class="bi bi-filetype-csv text-secondary fs-5"></i>
+                        <span>CSV Spreadsheet (.csv)</span>
+                      </a>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
             <div class="card-body">
@@ -381,9 +454,39 @@
                     <i class="bi bi-x"></i>
                   </button>
                 </div>
-                <button class="btn btn-sm btn-light border" @click="exportCampaignReport">
-                  <i class="bi bi-cloud-download me-1"></i> Export
-                </button>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-light border dropdown-toggle d-flex align-items-center gap-1 shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-cloud-download me-1"></i> Export
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 py-2" style="min-width: 220px; z-index: 1050;">
+                    <li><h6 class="dropdown-header text-uppercase small fw-bold text-muted">Campaign Report</h6></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportCampaignReport('pdf')">
+                        <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                        <span>PDF Document (.pdf)</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportCampaignReport('excel')">
+                        <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                        <span>Excel Workbook (.xls)</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportCampaignReport('word')">
+                        <i class="bi bi-file-earmark-word text-primary fs-5"></i>
+                        <span>Word Document (.doc)</span>
+                      </a>
+                    </li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportCampaignReport('csv')">
+                        <i class="bi bi-filetype-csv text-secondary fs-5"></i>
+                        <span>CSV Spreadsheet (.csv)</span>
+                      </a>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
             <div class="card-body">
@@ -540,9 +643,39 @@
                     <i class="bi bi-x"></i>
                   </button>
                 </div>
-                <button class="btn btn-sm btn-light border" @click="exportAgentReport">
-                  <i class="bi bi-cloud-download me-1"></i> Export
-                </button>
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-light border dropdown-toggle d-flex align-items-center gap-1 shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-cloud-download me-1"></i> Export
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 py-2" style="min-width: 220px; z-index: 1050;">
+                    <li><h6 class="dropdown-header text-uppercase small fw-bold text-muted">Agent Statistics</h6></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportAgentReport('pdf')">
+                        <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                        <span>PDF Document (.pdf)</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportAgentReport('excel')">
+                        <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                        <span>Excel Workbook (.xls)</span>
+                      </a>
+                    </li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportAgentReport('word')">
+                        <i class="bi bi-file-earmark-word text-primary fs-5"></i>
+                        <span>Word Document (.doc)</span>
+                      </a>
+                    </li>
+                    <li><hr class="dropdown-divider my-1"></li>
+                    <li>
+                      <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportAgentReport('csv')">
+                        <i class="bi bi-filetype-csv text-secondary fs-5"></i>
+                        <span>CSV Spreadsheet (.csv)</span>
+                      </a>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
             <div class="card-body">
@@ -603,11 +736,14 @@
 <script>
 import Chart from 'chart.js/auto';
 import axios from '../axios';
+import { exportToCsv, exportToExcel, exportToWord, exportToPdf } from '../utils/reportExporter';
 
 export default {
   name: 'Analytics',
   data() {
     return {
+      systemName: 'SR Solution',
+      appShortName: 'SR',
       loading: true,
       timeframe: 'daily',
       dateRange: 'last_30_days',
@@ -754,6 +890,15 @@ export default {
   },
   mounted() {
     this.chartInstance = null; // Store non-reactively
+    try {
+      const stored = JSON.parse(localStorage.getItem('nexus_branding') || '{}');
+      if (stored.app_name) {
+        this.systemName = stored.app_name;
+      }
+      if (stored.app_short_name) {
+        this.appShortName = stored.app_short_name;
+      }
+    } catch (e) {}
     this.fetchBanks();
     this.fetchData();
   },
@@ -816,6 +961,13 @@ export default {
         });
         const data = response.data;
         
+        if (data.system_name) {
+          this.systemName = data.system_name;
+        }
+        if (data.app_short_name) {
+          this.appShortName = data.app_short_name;
+        }
+
         this.summary = data.summary;
         this.spend = data.spend;
         this.assets = data.assets;
@@ -830,12 +982,14 @@ export default {
         });
       }
     },
-    exportCampaignReport() {
+    exportCampaignReport(format = 'csv') {
       const exportList = this.filteredCampaigns.length > 0 ? this.filteredCampaigns : (this.tables.campaigns || []);
-      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-
+      const systemName = this.systemName || 'SR Solution';
       const now = new Date();
       const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      const fileDate = now.toISOString().slice(0, 10);
+      const cleanSysName = systemName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const filenameBase = `${cleanSysName}_Campaign_Performance_Report_${this.dateRange}_${fileDate}`;
 
       const dateRangeLabel = this.getDateRangeLabel(this.dateRange);
       const bankLabel = this.getSelectedBankLabel();
@@ -858,39 +1012,36 @@ export default {
       const totalCost = exportList.reduce((acc, c) => acc + cleanFloat(c.cost), 0);
       const overallDeliveryRate = totalSent > 0 ? ((totalDeliveredCombined / totalSent) * 100).toFixed(1) + '%' : '0.0%';
 
-      const fileRows = [];
+      const title = 'Campaign Performance & Financial Report';
 
-      // SECTION 1: HEADER & METADATA
-      fileRows.push(['NEXUS CRM - CAMPAIGN PERFORMANCE & FINANCIAL REPORT']);
-      fileRows.push(['Report Generated At', generatedAt]);
-      fileRows.push(['Filter Period', dateRangeLabel]);
-      fileRows.push(['Institution / Department', bankLabel]);
+      const metadata = [
+        { label: 'System Console', value: systemName },
+        { label: 'Report Generated At', value: generatedAt },
+        { label: 'Filter Period', value: dateRangeLabel },
+        { label: 'Institution / Department', value: bankLabel },
+      ];
       if (this.campaignSearch && this.campaignSearch.trim()) {
-        fileRows.push(['Search Filter Applied', this.campaignSearch.trim()]);
+        metadata.push({ label: 'Search Filter Applied', value: this.campaignSearch.trim() });
       }
-      fileRows.push([]); // Blank line
 
-      // SECTION 2: EXECUTIVE SUMMARY & TOTALS
-      fileRows.push(['EXECUTIVE SUMMARY & TOTALS']);
-      fileRows.push(['Total Campaigns Analyzed', exportList.length]);
-      fileRows.push(['Total Messages Sent (Dispatched)', totalSent]);
-      fileRows.push(['Delivered (Read / Seen)', totalDeliveredRead]);
-      fileRows.push(['Delivered (Unread / Received)', totalDeliveredUnread]);
-      fileRows.push(['Combined Total Delivered', totalDeliveredCombined]);
-      fileRows.push(['Delivery Success Rate', overallDeliveryRate]);
-      fileRows.push(['Failed / Undeliverable Messages', totalFailed]);
-      fileRows.push(['Unique Inbound Replies', totalReplies]);
-      fileRows.push(['Quick Button Replies', totalQuickReplies]);
-      fileRows.push(['Opt-Outs / Stop Requests', totalOptOuts]);
-      fileRows.push(['Promises to Pay (PTP)', totalPtp]);
-      fileRows.push(['Debit Orders Captured', totalDebitOrder]);
-      fileRows.push(['Payment Options Not Set', totalPaymentNotSet]);
-      fileRows.push(['Total Estimated Meta Cost', '$' + totalCost.toFixed(2)]);
-      fileRows.push([]); // Blank line
+      const summaryKpis = [
+        { label: 'Total Campaigns Analyzed', value: String(exportList.length) },
+        { label: 'Total Messages Dispatched', value: String(totalSent) },
+        { label: 'Delivered (Read / Seen)', value: String(totalDeliveredRead) },
+        { label: 'Delivered (Unread / Received)', value: String(totalDeliveredUnread) },
+        { label: 'Combined Total Delivered', value: String(totalDeliveredCombined) },
+        { label: 'Delivery Success Rate', value: overallDeliveryRate },
+        { label: 'Failed / Undeliverable Messages', value: String(totalFailed) },
+        { label: 'Unique Inbound Replies', value: String(totalReplies) },
+        { label: 'Quick Button Replies', value: String(totalQuickReplies) },
+        { label: 'Opt-Outs / Stop Requests', value: String(totalOptOuts) },
+        { label: 'Promises to Pay (PTP)', value: String(totalPtp) },
+        { label: 'Debit Orders Captured', value: String(totalDebitOrder) },
+        { label: 'Payment Options Not Set', value: String(totalPaymentNotSet) },
+        { label: 'Total Estimated Meta Cost', value: '$' + totalCost.toFixed(2) },
+      ];
 
-      // SECTION 3: CAMPAIGN BREAKDOWN MATRIX
-      fileRows.push(['CAMPAIGN PERFORMANCE MATRIX BREAKDOWN']);
-      const matrixHeaders = [
+      const tableHeaders = [
         'Campaign Name',
         'Campaign ID',
         'Bank / Department',
@@ -913,36 +1064,32 @@ export default {
         'Rate / Msg',
         'Estimated Meta Cost',
       ];
-      fileRows.push(matrixHeaders);
 
-      exportList.forEach((c) => {
-        fileRows.push([
-          c.name,
-          c.id,
-          c.bank,
-          c.batch,
-          c.status,
-          c.created_at || 'N/A',
-          c.sent,
-          c.delivered_read || '0',
-          c.delivered_unread || '0',
-          c.delivered || '0',
-          c.failed || '0',
-          c.delivery,
-          c.replies,
-          c.quick_replies,
-          c.opt_outs,
-          c.ptp,
-          c.debit_order,
-          c.payment_not_set,
-          c.template_category || 'N/A',
-          c.rate || 'N/A',
-          c.cost,
-        ]);
-      });
+      const tableRows = exportList.map((c) => [
+        c.name,
+        c.id,
+        c.bank,
+        c.batch,
+        c.status,
+        c.created_at || 'N/A',
+        c.sent,
+        c.delivered_read || '0',
+        c.delivered_unread || '0',
+        c.delivered || '0',
+        c.failed || '0',
+        c.delivery,
+        c.replies,
+        c.quick_replies,
+        c.opt_outs,
+        c.ptp,
+        c.debit_order,
+        c.payment_not_set,
+        c.template_category || 'N/A',
+        c.rate || 'N/A',
+        c.cost,
+      ]);
 
-      // SECTION 4: GRAND TOTAL ROW
-      fileRows.push([
+      const totalsRow = [
         'GRAND TOTAL',
         '',
         '',
@@ -964,28 +1111,70 @@ export default {
         '',
         '',
         '$' + totalCost.toFixed(2),
-      ]);
+      ];
 
-      const csvContent = '\uFEFF' + fileRows
-        .map((row) => row.map(escapeCsv).join(','))
-        .join('\r\n');
+      if (format === 'pdf') {
+        exportToPdf({
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else if (format === 'excel') {
+        exportToExcel(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else if (format === 'word') {
+        exportToWord(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else {
+        // CSV format
+        const fileRows = [];
+        fileRows.push([`${systemName.toUpperCase()} - CAMPAIGN PERFORMANCE & FINANCIAL REPORT`]);
+        fileRows.push(['Report Generated At', generatedAt]);
+        fileRows.push(['Filter Period', dateRangeLabel]);
+        fileRows.push(['Institution / Department', bankLabel]);
+        if (this.campaignSearch && this.campaignSearch.trim()) {
+          fileRows.push(['Search Filter Applied', this.campaignSearch.trim()]);
+        }
+        fileRows.push([]);
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const fileDate = now.toISOString().slice(0, 10);
-      link.download = `NexusCRM_Campaign_Performance_Report_${this.dateRange}_${fileDate}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+        fileRows.push(['EXECUTIVE SUMMARY & TOTALS']);
+        summaryKpis.forEach((k) => fileRows.push([k.label, k.value]));
+        fileRows.push([]);
+
+        fileRows.push(['CAMPAIGN PERFORMANCE MATRIX BREAKDOWN']);
+        fileRows.push(tableHeaders);
+        tableRows.forEach((r) => fileRows.push(r));
+        fileRows.push(totalsRow);
+
+        exportToCsv(filenameBase, fileRows);
+      }
     },
-    exportTemplateReport() {
+    exportTemplateReport(format = 'csv') {
       const exportList = this.filteredTemplates.length > 0 ? this.filteredTemplates : (this.tables.templates || []);
-      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const systemName = this.systemName || 'SR Solution';
       const now = new Date();
       const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      const fileDate = now.toISOString().slice(0, 10);
+      const cleanSysName = systemName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const filenameBase = `${cleanSysName}_WhatsApp_Template_Report_${this.dateRange}_${fileDate}`;
 
       const cleanInt = (v) => parseInt(String(v ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
       const cleanFloat = (v) => parseFloat(String(v ?? '0').replace(/[^0-9.]/g, '')) || 0;
@@ -993,17 +1182,25 @@ export default {
       const totalSent = exportList.reduce((acc, t) => acc + cleanInt(t.sent), 0);
       const totalCost = exportList.reduce((acc, t) => acc + cleanFloat(t.cost), 0);
 
-      const fileRows = [];
-      fileRows.push(['NEXUS CRM - WHATSAPP TEMPLATE PERFORMANCE & COST BREAKDOWN']);
-      fileRows.push(['Report Generated At', generatedAt]);
-      fileRows.push(['Filter Period', this.getDateRangeLabel(this.dateRange)]);
-      fileRows.push(['Institution / Department', this.getSelectedBankLabel()]);
-      if (this.templateSearch && this.templateSearch.trim()) {
-        fileRows.push(['Search Filter Applied', this.templateSearch.trim()]);
-      }
-      fileRows.push([]);
+      const title = 'WhatsApp Template Performance & Cost Breakdown';
 
-      fileRows.push([
+      const metadata = [
+        { label: 'System Console', value: systemName },
+        { label: 'Report Generated At', value: generatedAt },
+        { label: 'Filter Period', value: this.getDateRangeLabel(this.dateRange) },
+        { label: 'Institution / Department', value: this.getSelectedBankLabel() },
+      ];
+      if (this.templateSearch && this.templateSearch.trim()) {
+        metadata.push({ label: 'Search Filter Applied', value: this.templateSearch.trim() });
+      }
+
+      const summaryKpis = [
+        { label: 'Total Templates Analyzed', value: String(exportList.length) },
+        { label: 'Total Messages Sent', value: String(totalSent) },
+        { label: 'Total Incurred Cost', value: '$' + totalCost.toFixed(2) },
+      ];
+
+      const tableHeaders = [
         'Template Name',
         'Template ID',
         'Category',
@@ -1014,26 +1211,24 @@ export default {
         'Opt In / Reply Rate',
         'Rate / Msg',
         'Incurred Cost',
-        'Status'
+        'Status',
+      ];
+
+      const tableRows = exportList.map((t) => [
+        t.name,
+        t.id,
+        t.category,
+        t.campaign,
+        t.sub_campaign || '',
+        t.sent,
+        t.delivery,
+        t.reply,
+        t.rate,
+        t.cost,
+        t.status,
       ]);
 
-      exportList.forEach((t) => {
-        fileRows.push([
-          t.name,
-          t.id,
-          t.category,
-          t.campaign,
-          t.sub_campaign || '',
-          t.sent,
-          t.delivery,
-          t.reply,
-          t.rate,
-          t.cost,
-          t.status
-        ]);
-      });
-
-      fileRows.push([
+      const totalsRow = [
         'GRAND TOTAL',
         '',
         '',
@@ -1044,29 +1239,70 @@ export default {
         '',
         '',
         '$' + totalCost.toFixed(2),
-        ''
-      ]);
+        '',
+      ];
 
-      const csvContent = '\uFEFF' + fileRows
-        .map((row) => row.map(escapeCsv).join(','))
-        .join('\r\n');
+      if (format === 'pdf') {
+        exportToPdf({
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else if (format === 'excel') {
+        exportToExcel(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else if (format === 'word') {
+        exportToWord(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else {
+        // CSV format
+        const fileRows = [];
+        fileRows.push([`${systemName.toUpperCase()} - WHATSAPP TEMPLATE PERFORMANCE & COST BREAKDOWN`]);
+        fileRows.push(['Report Generated At', generatedAt]);
+        fileRows.push(['Filter Period', this.getDateRangeLabel(this.dateRange)]);
+        fileRows.push(['Institution / Department', this.getSelectedBankLabel()]);
+        if (this.templateSearch && this.templateSearch.trim()) {
+          fileRows.push(['Search Filter Applied', this.templateSearch.trim()]);
+        }
+        fileRows.push([]);
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const fileDate = now.toISOString().slice(0, 10);
-      link.download = `NexusCRM_WhatsApp_Template_Report_${this.dateRange}_${fileDate}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+        fileRows.push(['EXECUTIVE SUMMARY & TOTALS']);
+        summaryKpis.forEach((k) => fileRows.push([k.label, k.value]));
+        fileRows.push([]);
+
+        fileRows.push(tableHeaders);
+        tableRows.forEach((r) => fileRows.push(r));
+        fileRows.push(totalsRow);
+
+        exportToCsv(filenameBase, fileRows);
+      }
     },
-    exportAgentReport() {
+    exportAgentReport(format = 'csv') {
       const exportList = this.filteredAgents.length > 0 ? this.filteredAgents : (this.tables.agents || []);
-      const escapeCsv = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+      const systemName = this.systemName || 'SR Solution';
       const now = new Date();
       const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      const fileDate = now.toISOString().slice(0, 10);
+      const cleanSysName = systemName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const filenameBase = `${cleanSysName}_Agent_Statistics_Report_${this.dateRange}_${fileDate}`;
 
       const cleanInt = (v) => parseInt(String(v ?? '0').replace(/[^0-9]/g, ''), 10) || 0;
 
@@ -1074,17 +1310,26 @@ export default {
       const totalDispatched = exportList.reduce((acc, a) => acc + cleanInt(a.dispatched), 0);
       const totalInbound = exportList.reduce((acc, a) => acc + cleanInt(a.inbound), 0);
 
-      const fileRows = [];
-      fileRows.push(['NEXUS CRM - AGENT & USER PRODUCTIVITY REPORT']);
-      fileRows.push(['Report Generated At', generatedAt]);
-      fileRows.push(['Filter Period', this.getDateRangeLabel(this.dateRange)]);
-      fileRows.push(['Institution / Department', this.getSelectedBankLabel()]);
-      if (this.agentSearch && this.agentSearch.trim()) {
-        fileRows.push(['Search Filter Applied', this.agentSearch.trim()]);
-      }
-      fileRows.push([]);
+      const title = 'Agent & User Productivity Report';
 
-      fileRows.push([
+      const metadata = [
+        { label: 'System Console', value: systemName },
+        { label: 'Report Generated At', value: generatedAt },
+        { label: 'Filter Period', value: this.getDateRangeLabel(this.dateRange) },
+        { label: 'Institution / Department', value: this.getSelectedBankLabel() },
+      ];
+      if (this.agentSearch && this.agentSearch.trim()) {
+        metadata.push({ label: 'Search Filter Applied', value: this.agentSearch.trim() });
+      }
+
+      const summaryKpis = [
+        { label: 'Total Specialists / Users', value: String(exportList.length) },
+        { label: 'Total Campaigns Managed', value: String(totalCampaigns) },
+        { label: 'Total Messages Dispatched', value: String(totalDispatched) },
+        { label: 'Total Inbound Messages Handled', value: String(totalInbound) },
+      ];
+
+      const tableHeaders = [
         'Agent / User Name',
         'Email Address',
         'Role',
@@ -1092,23 +1337,21 @@ export default {
         'Messages Dispatched',
         'Follow-up Reply Rate',
         'Inbound Handled',
-        'Average Response Time'
+        'Average Response Time',
+      ];
+
+      const tableRows = exportList.map((a) => [
+        a.name,
+        a.email,
+        a.role,
+        a.campaigns,
+        a.dispatched,
+        a.replyRate,
+        a.inbound,
+        a.responseTime,
       ]);
 
-      exportList.forEach((a) => {
-        fileRows.push([
-          a.name,
-          a.email,
-          a.role,
-          a.campaigns,
-          a.dispatched,
-          a.replyRate,
-          a.inbound,
-          a.responseTime
-        ]);
-      });
-
-      fileRows.push([
+      const totalsRow = [
         'GRAND TOTAL',
         '',
         '',
@@ -1116,23 +1359,61 @@ export default {
         totalDispatched,
         '',
         totalInbound,
-        ''
-      ]);
+        '',
+      ];
 
-      const csvContent = '\uFEFF' + fileRows
-        .map((row) => row.map(escapeCsv).join(','))
-        .join('\r\n');
+      if (format === 'pdf') {
+        exportToPdf({
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else if (format === 'excel') {
+        exportToExcel(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else if (format === 'word') {
+        exportToWord(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow,
+        });
+      } else {
+        // CSV format
+        const fileRows = [];
+        fileRows.push([`${systemName.toUpperCase()} - AGENT & USER PRODUCTIVITY REPORT`]);
+        fileRows.push(['Report Generated At', generatedAt]);
+        fileRows.push(['Filter Period', this.getDateRangeLabel(this.dateRange)]);
+        fileRows.push(['Institution / Department', this.getSelectedBankLabel()]);
+        if (this.agentSearch && this.agentSearch.trim()) {
+          fileRows.push(['Search Filter Applied', this.agentSearch.trim()]);
+        }
+        fileRows.push([]);
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      const fileDate = now.toISOString().slice(0, 10);
-      link.download = `NexusCRM_Agent_Statistics_Report_${this.dateRange}_${fileDate}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+        fileRows.push(['EXECUTIVE SUMMARY & TOTALS']);
+        summaryKpis.forEach((k) => fileRows.push([k.label, k.value]));
+        fileRows.push([]);
+
+        fileRows.push(tableHeaders);
+        tableRows.forEach((r) => fileRows.push(r));
+        fileRows.push(totalsRow);
+
+        exportToCsv(filenameBase, fileRows);
+      }
     },
     initChart() {
       const canvas = this.$refs.funnelChart;

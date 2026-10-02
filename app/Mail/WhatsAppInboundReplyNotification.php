@@ -38,7 +38,7 @@ class WhatsAppInboundReplyNotification extends Mailable
         public string $clientMessage,
         public string $phone
     ) {
-        $this->appName = SystemSetting::first()?->app_name ?: 'NexusCRM';
+        $this->appName = SystemSetting::first()?->app_name ?: 'SR Solution';
         
         $baseUrl = config('app.url', url('/'));
         if ($client?->id) {

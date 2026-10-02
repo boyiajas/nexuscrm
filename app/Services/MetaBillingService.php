@@ -60,6 +60,8 @@ class MetaBillingService
 
         return [
             'meta_config' => [
+                'system_name' => $this->settings?->app_name ?: 'SR Solution',
+                'app_short_name' => $this->settings?->app_short_name ?: 'SR',
                 'app_id' => $this->appId,
                 'app_name' => $liveWaba['app']['name'] ?? 'CRM System API',
                 'app_category' => $liveWaba['app']['category'] ?? 'Business',

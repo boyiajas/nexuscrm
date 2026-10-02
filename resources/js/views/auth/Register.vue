@@ -119,9 +119,9 @@ export default {
   data() {
     return {
       branding: {
-        app_name: 'NexusCRM',
-        app_short_name: 'NC',
-        app_tagline: 'Mini CRM Console',
+        app_name: 'SR Solution',
+        app_short_name: 'SR',
+        app_tagline: 'WhatsApp CRM Console',
         app_logo_url: '',
       },
       form: {
@@ -143,9 +143,9 @@ export default {
   methods: {
     applyBranding(branding = {}) {
       this.branding = {
-        app_name: branding.app_name || 'NexusCRM',
-        app_short_name: branding.app_short_name || 'NC',
-        app_tagline: branding.app_tagline || 'Mini CRM Console',
+        app_name: branding.app_name || 'SR Solution',
+        app_short_name: branding.app_short_name || 'SR',
+        app_tagline: branding.app_tagline || 'WhatsApp CRM Console',
         app_logo_url: branding.app_logo_url || '',
       };
       document.title = this.branding.app_name;

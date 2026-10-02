@@ -247,7 +247,7 @@
           <div v-if="currentTab === 'supported'">
             <div class="d-flex justify-content-between align-items-center mb-2">
               <div class="small text-muted">
-                NexusCRM accepts all standard South African bank debtor export headers (Capfin, FinChoice, Ackermans, Tenacity, ABSA, FNB, etc.).
+                The system accepts all standard South African bank debtor export headers (Capfin, FinChoice, Ackermans, Tenacity, ABSA, FNB, etc.).
               </div>
               <input
                 v-model.trim="searchQuery"
