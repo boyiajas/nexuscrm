@@ -65,6 +65,13 @@ class RolePermissionRegressionTest extends TestCase
             $this->createCustomRole('FLOW_MANAGER_CUSTOM', ['manage_whatsapp_flows'])
         ));
         $this->getJson('/api/whatsapp-flows')->assertOk();
+
+        Sanctum::actingAs($this->makeUserForRole(
+            $this->createCustomRole('PAUSE_WHATSAPP_NUMBERS_CUSTOM', ['pause_whatsapp_numbers'])
+        ));
+        $this->patchJson('/api/settings/meta/phone-numbers/1247262038476724/pause', [
+            'paused' => true,
+        ])->assertOk();
     }
 
     public function test_endpoints_use_their_own_permissions_instead_of_shared_management_shortcuts(): void
@@ -89,6 +96,13 @@ class RolePermissionRegressionTest extends TestCase
         $this->getJson('/api/import-uploads')->assertForbidden();
         $this->getJson('/api/chat/sessions')->assertForbidden();
         $this->getJson('/api/whatsapp-flows')->assertForbidden();
+
+        Sanctum::actingAs($this->makeUserForRole(
+            $this->createCustomRole('WABA_NUMBERS_WITHOUT_PAUSE_CUSTOM', ['settings_waba_numbers'])
+        ));
+        $this->patchJson('/api/settings/meta/phone-numbers/1247262038476724/pause', [
+            'paused' => true,
+        ])->assertForbidden();
     }
 
     private function createCustomRole(string $code, array $permissionCodes): Role

@@ -12,6 +12,7 @@ use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -162,6 +163,33 @@ class AuthController extends Controller
         return $this->issueAuthenticatedResponse($user, $request, 'password+mfa');
     }
 
+    public function resendLoginMfa(Request $request)
+    {
+        $data = $request->validate([
+            'challenge_id' => ['required', 'uuid'],
+        ]);
+
+        $cacheKey = self::MFA_CACHE_PREFIX . $data['challenge_id'];
+        $challenge = app(CacheRepository::class)->get($cacheKey);
+
+        if (!$challenge) {
+            throw ValidationException::withMessages([
+                'code' => ['The verification session has expired. Please sign in again.'],
+            ]);
+        }
+
+        if (($challenge['ip'] ?? null) !== $request->ip()) {
+            throw ValidationException::withMessages([
+                'code' => ['Invalid verification request for this device.'],
+            ]);
+        }
+
+        $user = User::findOrFail($challenge['user_id']);
+        app(CacheRepository::class)->forget($cacheKey);
+
+        return $this->startMfaChallenge($user, $request);
+    }
+
     public function resetLoginPassword(Request $request)
     {
         $data = $request->validate([
@@ -232,12 +260,24 @@ class AuthController extends Controller
                 now()->addMinutes(15)
             );
 
-            Mail::raw(
-                "Your SRS DailyCRM password reset code is {$code}. It expires in 15 minutes.",
-                function ($message) use ($user) {
-                    $message->to($user->email)->subject('Your SRS DailyCRM password reset code');
-                }
-            );
+            try {
+                Mail::raw(
+                    "Your SRS DailyCRM password reset code is {$code}. It expires in 15 minutes.",
+                    function ($message) use ($user) {
+                        $message->to($user->email)->subject('Your SRS DailyCRM password reset code');
+                    }
+                );
+
+                Log::info("Password reset code email dispatched.", [
+                    'user_id' => $user->id,
+                    'email'   => $user->email,
+                ]);
+            } catch (\Throwable $e) {
+                Log::error("Failed to send password reset email to {$user->email}: " . $e->getMessage(), [
+                    'user_id'   => $user->id,
+                    'exception' => $e->getMessage(),
+                ]);
+            }
 
             $this->audit(
                 action: "Forgot password challenge created for {$user->email}",
@@ -457,12 +497,24 @@ class AuthController extends Controller
             now()->addMinutes(10)
         );
 
-        Mail::raw(
-            "Your Strauss DailyCRM verification code is {$code}. It expires in 10 minutes.",
-            function ($message) use ($user) {
-                $message->to($user->email)->subject('Your Strauss DailyCRM verification code');
-            }
-        );
+        try {
+            Mail::raw(
+                "Your Strauss DailyCRM verification code is {$code}. It expires in 10 minutes.",
+                function ($message) use ($user) {
+                    $message->to($user->email)->subject('Your Strauss DailyCRM verification code');
+                }
+            );
+
+            Log::info("MFA verification code email dispatched.", [
+                'user_id' => $user->id,
+                'email'   => $user->email,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error("Failed to send MFA email to {$user->email}: " . $e->getMessage(), [
+                'user_id'   => $user->id,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         $this->audit(
             action: "MFA challenge created for {$user->email}",

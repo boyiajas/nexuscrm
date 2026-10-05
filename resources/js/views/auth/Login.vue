@@ -142,9 +142,14 @@
                   required
                 />
               </div>
-              <button type="button" class="btn btn-link btn-sm p-0 mb-3 login-link" @click="resetToCredentials" :disabled="loading">
-                Use different credentials
-              </button>
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <button type="button" class="btn btn-link btn-sm p-0 login-link" @click="resendMfa" :disabled="loading">
+                  Resend code
+                </button>
+                <button type="button" class="btn btn-link btn-sm p-0 login-link" @click="resetToCredentials" :disabled="loading">
+                  Use different credentials
+                </button>
+              </div>
             </div>
 
             <div v-if="step === 'password_reset'">
@@ -559,6 +564,27 @@ export default {
         // Keep the login flow usable even if the follow-up profile sync fails.
       }
       this.$router.push({ name: 'dashboard' });
+    },
+    async resendMfa() {
+      if (!this.mfa.challengeId || this.loading) return;
+      this.loading = true;
+      this.error = null;
+      try {
+        const response = await axios.post('/api/login/mfa/resend', {
+          challenge_id: this.mfa.challengeId,
+        });
+        this.mfa.challengeId = response.data.challenge_id;
+        this.mfa.message = response.data.message || 'A new verification code has been sent to your email address.';
+        this.mfa.maskedEmail = response.data.masked_email || this.mfa.maskedEmail;
+        this.successMessage = 'A new verification code has been sent.';
+        setTimeout(() => {
+          this.successMessage = null;
+        }, 5000);
+      } catch (e) {
+        this.error = e.response?.data?.message || 'Failed to resend code. Please try again.';
+      } finally {
+        this.loading = false;
+      }
     },
   },
 };

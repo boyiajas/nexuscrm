@@ -1034,6 +1034,7 @@
                       <i class="bi bi-pencil-square"></i>
                     </button>
                     <button
+                      v-if="canPauseWhatsappNumbers"
                       type="button"
                       class="btn btn-light border-0 p-1 px-2"
                       :class="num.is_paused ? 'text-success' : 'text-warning'"
@@ -2942,6 +2943,9 @@ export default {
     canAccessWabaNumbers() {
       return this.hasPermission('settings_waba_numbers');
     },
+    canPauseWhatsappNumbers() {
+      return this.hasPermission('pause_whatsapp_numbers');
+    },
     canAccessWabaTemplates() {
       return this.hasPermission('settings_waba_templates');
     },
@@ -4730,6 +4734,10 @@ export default {
       }
     },
     toggleWhatsappNumberPause(num) {
+      if (!this.canPauseWhatsappNumbers) {
+        notify.error('You do not have permission to pause or resume WhatsApp numbers.', 'Settings');
+        return;
+      }
       const shouldPause = !num.is_paused;
       const rating = String(num.quality_rating || 'UNKNOWN').toUpperCase();
       const number = num.display_phone_number || num.id;

@@ -256,6 +256,11 @@ class User extends Authenticatable
         return $this->isSuperAdmin() || $this->hasPermission('settings_waba_numbers');
     }
 
+    public function canPauseWhatsappNumbers(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('pause_whatsapp_numbers');
+    }
+
     public function canAccessWabaTemplatesSettings(): bool
     {
         return $this->isSuperAdmin() || $this->hasPermission('settings_waba_templates');

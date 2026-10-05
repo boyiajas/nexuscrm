@@ -231,7 +231,7 @@ class SettingsController extends Controller
         string $phoneNumberId,
         WhatsAppNumberControlService $numberControlService
     ) {
-        $this->authorizeWabaNumbers();
+        $this->authorizePauseWhatsappNumbers();
 
         $data = $request->validate([
             'paused' => ['required', 'boolean'],
@@ -868,6 +868,14 @@ class SettingsController extends Controller
         $user = Auth::user();
         if (!$user || !$user->canAccessWabaNumbersSettings()) {
             abort(403, 'You are not allowed to manage WABA phone numbers.');
+        }
+    }
+
+    private function authorizePauseWhatsappNumbers(): void
+    {
+        $user = Auth::user();
+        if (!$user || !$user->canPauseWhatsappNumbers()) {
+            abort(403, 'You are not allowed to pause or resume WhatsApp phone numbers.');
         }
     }
 }

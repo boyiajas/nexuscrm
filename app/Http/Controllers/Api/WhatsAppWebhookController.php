@@ -293,10 +293,16 @@ class WhatsAppWebhookController extends Controller
             $recipient->message_sid = $recipient->message_sid ?: $messageId;
             $recipient->status_payload = $payload;
             $recipient->provider_status_payload = $payload;
-            $recipient->reply_type = $isOptOut ? 'opt_out' : $reply['reply_type'];
-            $recipient->reply_label = $reply['reply_label'] ?: $body;
-            $recipient->reply_key = $reply['reply_key'];
-            $recipient->reply_source = $reply['reply_source'];
+
+            $rawReplyType = $isOptOut ? 'opt_out' : $reply['reply_type'];
+            $rawReplyLabel = $reply['reply_label'] ?: $body;
+            $rawReplyKey = $reply['reply_key'];
+            $rawReplySource = $reply['reply_source'];
+
+            $recipient->reply_type = $rawReplyType ? mb_substr((string) $rawReplyType, 0, 50) : null;
+            $recipient->reply_label = $rawReplyLabel;
+            $recipient->reply_key = $rawReplyKey;
+            $recipient->reply_source = $rawReplySource ? mb_substr((string) $rawReplySource, 0, 100) : null;
             if ($client && !$recipient->client_id) {
                 $recipient->client_id = $client->id;
             }
@@ -306,7 +312,18 @@ class WhatsAppWebhookController extends Controller
                 $recipient->last_response_at = Carbon::now();
             }
 
-            $recipient->save();
+            try {
+                $recipient->save();
+            } catch (\Illuminate\Database\QueryException $e) {
+                // If column truncation error occurs (e.g. reply_label / reply_key VARCHAR(255) prior to migration running)
+                if ((int) $e->getCode() === 22001 || str_contains($e->getMessage(), 'Data too long')) {
+                    $recipient->reply_label = $rawReplyLabel ? mb_substr((string) $rawReplyLabel, 0, 255) : null;
+                    $recipient->reply_key = $rawReplyKey ? mb_substr((string) $rawReplyKey, 0, 255) : null;
+                    $recipient->save();
+                } else {
+                    throw $e;
+                }
+            }
             $this->refreshWhatsappMessageCounts($recipient->message);
 
             // Strictly only send automated messages if the message was sent from the Flow tab or has a flow attached
