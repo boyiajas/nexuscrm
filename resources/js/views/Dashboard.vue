@@ -1,9 +1,69 @@
 <template>
   <div>
-    <!-- Header -->
-    <div class="mb-4">
-      <h1 class="h3 fw-bold text-dark mb-1">Dashboard Overview</h1>
-      <p class="text-muted small mb-0">High-level metrics and recent activity across your campaigns.</p>
+    <!-- Header with Filters on the Right Section of the same row -->
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+      <div>
+        <h1 class="h3 fw-bold text-dark mb-1">Dashboard Overview</h1>
+        <p class="text-muted small mb-0">High-level metrics and recent activity across your campaigns.</p>
+      </div>
+
+      <!-- Filters: Bank Multi-Select & Date Range Dropdown -->
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <!-- Bank Multi-select Filter -->
+        <div class="dashboard-filter-bank" style="min-width: 230px; max-width: 320px;">
+          <VueMultiselect
+            v-model="selectedBanks"
+            :options="availableBanks"
+            :multiple="true"
+            :close-on-select="false"
+            :clear-on-select="false"
+            :preserve-search="true"
+            placeholder="All Banks"
+            label="name"
+            track-by="id"
+            :show-labels="false"
+            @update:model-value="fetchData"
+          >
+            <template #selection="{ values, isOpen }">
+              <span class="multiselect__single small text-truncate d-inline-block" style="max-width: 210px;" v-if="values.length && !isOpen">
+                <i class="bi bi-bank me-1 text-primary"></i>
+                {{ values.length === 1 ? values[0].name : `${values.length} banks selected` }}
+              </span>
+            </template>
+          </VueMultiselect>
+        </div>
+
+        <!-- Date Range Filter Dropdown -->
+        <div style="min-width: 140px;">
+          <select
+            v-model="selectedDateRange"
+            class="form-select form-select-sm shadow-sm"
+            style="min-height: 40px; font-weight: 500; font-size: 0.85rem;"
+            @change="fetchData"
+          >
+            <option value="today">Today</option>
+            <option value="1_week">1 Week</option>
+            <option value="2_weeks">2 Weeks</option>
+            <option value="3_weeks">3 Weeks</option>
+            <option value="1_month">1 Month</option>
+            <option value="3_months">3 Months</option>
+            <option value="6_months">6 Months</option>
+            <option value="1_year">1 Year</option>
+          </select>
+        </div>
+
+        <!-- Refresh Button -->
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-center shadow-sm"
+          style="height: 40px; width: 40px;"
+          title="Refresh Data"
+          :disabled="loading"
+          @click="fetchData"
+        >
+          <i class="bi bi-arrow-clockwise fs-6" :class="{ 'spin-animation': loading }"></i>
+        </button>
+      </div>
     </div>
 
     <!-- Summary 4 Stat Cards Strip -->
@@ -22,7 +82,7 @@
               </div>
             </div>
             <div class="mt-3 pt-2 border-top d-flex align-items-center gap-1 text-success fw-semibold small" style="font-size: 0.78rem;">
-              <i class="bi bi-graph-up-arrow"></i> +12% from last month
+              <i class="bi bi-people-fill"></i> {{ summary.active_clients || 0 }} active in selected period
             </div>
           </div>
           <i class="bi bi-people-fill position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
@@ -43,7 +103,7 @@
               </div>
             </div>
             <div class="mt-3 pt-2 border-top text-muted small" style="font-size: 0.78rem;">
-              Across 3 regions
+              Active in selected period
             </div>
           </div>
           <i class="bi bi-megaphone-fill position-absolute text-success" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
@@ -63,8 +123,13 @@
                 <i class="bi bi-chat-left-text-fill"></i>
               </div>
             </div>
-            <div class="mt-3 pt-2 border-top text-danger fw-semibold small d-flex align-items-center gap-1" style="font-size: 0.78rem;">
-              <i class="bi bi-exclamation-triangle-fill"></i> 45 require attention
+            <div
+              class="mt-3 pt-2 border-top fw-semibold small d-flex align-items-center gap-1"
+              :class="(summary.chats_requiring_attention || 0) > 0 ? 'text-danger' : 'text-muted'"
+              style="font-size: 0.78rem;"
+            >
+              <i :class="(summary.chats_requiring_attention || 0) > 0 ? 'bi bi-exclamation-triangle-fill text-danger' : 'bi bi-check-circle-fill text-success'"></i>
+              {{ summary.chats_requiring_attention || 0 }} require attention
             </div>
           </div>
           <i class="bi bi-chat-left-text-fill position-absolute text-primary" style="bottom: -15px; right: -5px; font-size: 4.5rem; opacity: 0.1; z-index: 0; pointer-events: none;"></i>
@@ -210,6 +275,12 @@
                         </button>
                       </td>
                     </tr>
+                    <tr v-if="!loading && recentLogs.length === 0">
+                      <td colspan="5" class="text-center text-muted py-4">
+                        <i class="bi bi-clock-history fs-4 d-block mb-1 text-secondary"></i>
+                        No activity logs recorded for this period.
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -238,7 +309,7 @@
                 />
                 <path
                   stroke-width="3.5"
-                  stroke-dasharray="100, 100"
+                  :stroke-dasharray="`${channelPercentages.whatsapp}, 100`"
                   stroke-linecap="round"
                   stroke="currentColor"
                   fill="none"
@@ -247,7 +318,7 @@
                 />
               </svg>
               <div class="position-absolute text-center">
-                <div class="h2 fw-bold text-dark mb-0">100%</div>
+                <div class="h2 fw-bold text-dark mb-0">{{ channelPercentages.whatsapp }}%</div>
                 <div class="text-muted small fw-medium" style="font-size: 0.75rem;">WhatsApp</div>
               </div>
             </div>
@@ -259,14 +330,14 @@
                   <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #059669;"></span>
                   WhatsApp
                 </div>
-                <div class="fw-bold small text-dark">100%</div>
+                <div class="fw-bold small text-dark">{{ channelPercentages.whatsapp }}%</div>
               </div>
               <div class="d-flex align-items-center justify-content-between p-2 rounded-2 bg-light border">
                 <div class="d-flex align-items-center gap-2 small fw-semibold text-muted">
                   <span class="rounded-circle" style="width: 8px; height: 8px; background-color: #cbd5e1;"></span>
                   SMS
                 </div>
-                <div class="fw-bold small text-muted">0%</div>
+                <div class="fw-bold small text-muted">{{ channelPercentages.sms }}%</div>
               </div>
             </div>
           </div>
@@ -292,36 +363,85 @@
 <script>
 import axios from '../axios';
 import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
+import VueMultiselect from 'vue-multiselect';
+import 'vue-multiselect/dist/vue-multiselect.min.css';
 
 export default {
   name: 'DashboardView',
-  components: { TableLoadingWrapper },
+  components: {
+    TableLoadingWrapper,
+    VueMultiselect,
+  },
   data() {
     return {
       loading: false,
+      selectedDateRange: 'today', // by default: current day
+      selectedBanks: [],
+      availableBanks: [],
       summary: {
         total_clients: 0,
+        active_clients: 0,
         active_campaigns: 0,
         open_chats: 0,
+        chats_requiring_attention: 0,
         delivery_rate: 0,
         total_delivered: 0,
         total_failed: 0,
         total_pending: 0,
         total_messages: 0,
       },
+      channels: {
+        WhatsApp: 0,
+        Email: 0,
+        SMS: 0,
+      },
       recentLogs: [],
     };
   },
+  computed: {
+    channelPercentages() {
+      const wa = this.channels.WhatsApp || 0;
+      const sms = this.channels.SMS || 0;
+      const total = wa + sms;
+      if (total === 0) {
+        return { whatsapp: 100, sms: 0 };
+      }
+      const waPct = Math.round((wa / total) * 100);
+      return {
+        whatsapp: waPct,
+        sms: 100 - waPct,
+      };
+    },
+  },
   async mounted() {
+    await this.fetchBanks();
     this.fetchData();
   },
   methods: {
+    async fetchBanks() {
+      try {
+        const res = await axios.get('/api/banks', { params: { per_page: 200 } });
+        this.availableBanks = res.data.data || res.data || [];
+      } catch (err) {
+        console.error('Failed to load banks for dashboard filter:', err);
+      }
+    },
     fetchData() {
       this.loading = true;
-      axios.get('/api/dashboard')
+      const params = {
+        date_range: this.selectedDateRange,
+      };
+      if (this.selectedBanks && this.selectedBanks.length > 0) {
+        params.bank_ids = this.selectedBanks.map(b => b.id).join(',');
+      }
+
+      axios.get('/api/dashboard', { params })
         .then((res) => {
           if (res.data && res.data.summary) {
             this.summary = { ...this.summary, ...res.data.summary };
+          }
+          if (res.data && res.data.channels) {
+            this.channels = { ...this.channels, ...res.data.channels };
           }
           if (res.data && res.data.recent_activity) {
             this.recentLogs = res.data.recent_activity.map(log => ({
@@ -364,3 +484,30 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.dashboard-filter-bank :deep(.multiselect) {
+  min-height: 40px;
+}
+.dashboard-filter-bank :deep(.multiselect__tags) {
+  min-height: 40px;
+  padding-top: 8px;
+  border-radius: 0.375rem;
+  border-color: #dee2e6;
+  font-size: 0.85rem;
+}
+.dashboard-filter-bank :deep(.multiselect__placeholder) {
+  margin-bottom: 0;
+  padding-top: 0;
+  color: #6c757d;
+  font-size: 0.85rem;
+}
+.spin-animation {
+  display: inline-block;
+  animation: spin-anim 0.8s linear infinite;
+}
+@keyframes spin-anim {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+</style>
