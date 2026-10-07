@@ -309,9 +309,10 @@ body {
   color: var(--text-primary) !important;
 }
 
-/* Modal System */
+/* Modal System - Compact & Scaled Down */
 .modal {
   z-index: 1060 !important;
+  font-size: 0.8125rem;
 }
 .modal-backdrop {
   z-index: 1050 !important;
@@ -320,38 +321,60 @@ body {
   background-color: var(--bg-surface) !important;
   border: 1px solid var(--border-medium) !important;
   color: var(--text-primary) !important;
-  border-radius: var(--radius-lg) !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 16px 24px -4px rgba(0, 0, 0, 0.15) !important;
+  font-size: 0.8125rem !important;
 }
 .modal-header {
   background-color: var(--bg-muted) !important;
   border-bottom: 1px solid var(--border-medium) !important;
-  padding: 1.15rem 1.5rem !important;
-  border-top-left-radius: calc(var(--radius-lg) - 1px);
-  border-top-right-radius: calc(var(--radius-lg) - 1px);
+  padding: 0.65rem 1rem !important;
+  border-top-left-radius: calc(var(--radius-md) - 1px);
+  border-top-right-radius: calc(var(--radius-md) - 1px);
 }
 .modal-title {
   font-weight: 700 !important;
   color: var(--text-primary) !important;
-  font-size: 1.15rem !important;
+  font-size: 0.925rem !important;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
+  margin-bottom: 0 !important;
 }
 .modal-title i {
   color: var(--accent-primary);
+  font-size: 0.95rem !important;
+}
+.modal-header .small,
+.modal-header small,
+.modal-header p {
+  font-size: 0.74rem !important;
+  margin-bottom: 0;
+}
+.modal-body {
+  padding: 0.85rem 1rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.45;
+}
+.modal-body.p-4,
+.modal .modal-body.p-4 {
+  padding: 0.85rem 1rem !important;
+}
+.modal-body.p-3,
+.modal .modal-body.p-3 {
+  padding: 0.75rem 0.9rem !important;
 }
 .modal-footer {
   background-color: var(--bg-muted) !important;
   border-top: 1px solid var(--border-medium) !important;
-  padding: 1.15rem 1.5rem !important;
-  border-bottom-left-radius: calc(var(--radius-lg) - 1px);
-  border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+  padding: 0.55rem 1rem !important;
+  border-bottom-left-radius: calc(var(--radius-md) - 1px);
+  border-bottom-right-radius: calc(var(--radius-md) - 1px);
 }
 .btn-close {
   opacity: 0.5;
   transition: opacity 0.2s ease;
-  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000000'%3e%3cpath d='M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z'/%3e%3c/svg%3e") center/1em auto no-repeat !important;
+  background: transparent url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23000000'%3e%3cpath d='M.293.293a1 1 0 011.414 0L8 6.586 14.293.293a1 1 0 111.414 1.414L9.414 8l6.293 6.293a1 1 0 01-1.414 1.414L8 9.414l-6.293 6.293a1 1 0 01-1.414-1.414L6.586 8 .293 1.707a1 1 0 010-1.414z'/%3e%3c/svg%3e") center/0.85em auto no-repeat !important;
   filter: invert(0) !important;
 }
 .btn-close:hover {
@@ -360,6 +383,139 @@ body {
 .modal-backdrop.show {
   opacity: 0.65;
   backdrop-filter: blur(4px);
+}
+
+/* Modal Content & Controls Size Optimization */
+.modal .form-label {
+  font-size: 0.775rem !important;
+  font-weight: 600;
+  margin-bottom: 0.22rem !important;
+}
+.modal .form-control,
+.modal .form-select {
+  font-size: 0.8125rem !important;
+  padding: 0.3rem 0.6rem !important;
+  border-radius: var(--radius-sm) !important;
+  min-height: calc(1.5em + 0.6rem + 2px);
+}
+.modal .form-control-sm,
+.modal .form-select-sm {
+  font-size: 0.75rem !important;
+  padding: 0.2rem 0.5rem !important;
+  min-height: calc(1.5em + 0.4rem + 2px);
+}
+.modal .input-group-text {
+  font-size: 0.775rem !important;
+  padding: 0.3rem 0.55rem !important;
+}
+.modal .form-text,
+.modal .text-muted.small,
+.modal small {
+  font-size: 0.72rem !important;
+}
+.modal .form-check-label {
+  font-size: 0.78rem !important;
+}
+.modal .form-check-input {
+  width: 0.95em !important;
+  height: 0.95em !important;
+  margin-top: 0.15em !important;
+}
+.modal .form-switch .form-check-input {
+  width: 1.75em !important;
+  height: 0.95em !important;
+}
+.modal .btn {
+  font-size: 0.78rem !important;
+  padding: 0.28rem 0.65rem !important;
+}
+.modal .btn-sm {
+  font-size: 0.74rem !important;
+  padding: 0.2rem 0.48rem !important;
+}
+.modal .badge {
+  font-size: 0.71rem !important;
+  padding: 0.22rem 0.42rem !important;
+}
+.modal .alert {
+  font-size: 0.775rem !important;
+  padding: 0.45rem 0.75rem !important;
+  margin-bottom: 0.65rem !important;
+}
+.modal .card {
+  font-size: 0.8125rem !important;
+}
+.modal .table th,
+.modal .table td {
+  font-size: 0.75rem !important;
+  padding: 0.35rem 0.5rem !important;
+}
+
+/* Compact Margins for Rows and Groups inside Modals */
+.modal .modal-body .row.g-3 {
+  --bs-gutter-y: 0.6rem;
+  --bs-gutter-x: 0.65rem;
+}
+.modal .modal-body .row.g-4 {
+  --bs-gutter-y: 0.75rem;
+  --bs-gutter-x: 0.75rem;
+}
+.modal .modal-body .mb-4 {
+  margin-bottom: 0.75rem !important;
+}
+.modal .modal-body .mb-3 {
+  margin-bottom: 0.6rem !important;
+}
+.modal .modal-body .mb-2 {
+  margin-bottom: 0.45rem !important;
+}
+
+/* VueMultiselect inside Modals */
+.modal .multiselect {
+  min-height: 32px !important;
+  font-size: 0.8125rem !important;
+}
+.modal .multiselect__tags {
+  min-height: 32px !important;
+  padding: 3px 34px 0 6px !important;
+  font-size: 0.8125rem !important;
+  border-radius: var(--radius-sm) !important;
+}
+.modal .multiselect__tag {
+  font-size: 0.71rem !important;
+  padding: 2px 20px 2px 6px !important;
+  margin-bottom: 2px !important;
+  margin-right: 4px !important;
+}
+.modal .multiselect__tag-icon {
+  width: 18px !important;
+  line-height: 18px !important;
+}
+.modal .multiselect__input,
+.modal .multiselect__single {
+  font-size: 0.8125rem !important;
+  padding-left: 4px !important;
+  margin-bottom: 3px !important;
+  line-height: 20px !important;
+}
+.modal .multiselect__placeholder {
+  font-size: 0.8125rem !important;
+  padding-top: 2px !important;
+  margin-bottom: 3px !important;
+}
+.modal .multiselect__select {
+  height: 32px !important;
+  width: 32px !important;
+  padding: 4px 6px !important;
+}
+.modal .multiselect__content-wrapper {
+  font-size: 0.8rem !important;
+}
+.modal .multiselect__option {
+  font-size: 0.78rem !important;
+  padding: 5px 8px !important;
+  min-height: 28px !important;
+  line-height: 16px !important;
 }
 
 /* Form Controls & Inputs */

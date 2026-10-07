@@ -2794,7 +2794,7 @@
             </div>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
-          <div class="modal-body p-4">
+          <div class="modal-body p-3">
             <!-- Top Status Card -->
             <div class="card border-0 bg-light shadow-sm mb-3">
               <div class="card-body">
@@ -2983,30 +2983,30 @@
       <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content">
           <form @submit.prevent="saveCostThresholdRule">
-            <div class="modal-header border-bottom">
+            <div class="modal-header border-bottom py-2 px-3">
               <div class="d-flex align-items-center gap-2">
-                <div class="p-2 rounded-3 bg-primary-subtle text-primary">
-                  <i class="bi bi-speedometer2 fs-5"></i>
+                <div class="p-1.5 rounded-2 bg-primary-subtle text-primary">
+                  <i class="bi bi-speedometer2"></i>
                 </div>
                 <div>
-                  <h5 class="modal-title fw-bold mb-0">
+                  <h6 class="modal-title fw-bold mb-0">
                     {{ ct.modalMode === 'create' ? 'Create Monthly Cost Threshold Rule' : 'Edit Cost Threshold Rule' }}
-                  </h5>
+                  </h6>
                   <p class="text-muted small mb-0">Define budget caps, multi-bank pools, and notification milestones.</p>
                 </div>
               </div>
               <button type="button" class="btn-close" data-bs-dismiss="modal" :disabled="ct.saving"></button>
             </div>
 
-            <div class="modal-body p-4">
+            <div class="modal-body p-3">
               <!-- Row 1: Name and Monthly Budget -->
-              <div class="row g-3 mb-4">
+              <div class="row g-2 mb-2.5">
                 <div class="col-md-7">
                   <label class="form-label fw-semibold small">Rule Name <span class="text-danger">*</span></label>
                   <input
                     v-model.trim="ct.form.name"
                     type="text"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     placeholder="e.g. Collections WhatsApp Monthly Budget"
                     required
                   />
@@ -3014,14 +3014,14 @@
                 </div>
                 <div class="col-md-5">
                   <label class="form-label fw-semibold small">Monthly Budget Cap (USD $) <span class="text-danger">*</span></label>
-                  <div class="input-group">
+                  <div class="input-group input-group-sm">
                     <span class="input-group-text">$</span>
                     <input
                       v-model.number="ct.form.threshold_amount"
                       type="number"
                       step="0.01"
                       min="1"
-                      class="form-control fw-bold"
+                      class="form-control form-control-sm fw-bold"
                       placeholder="1000.00"
                       required
                     />
@@ -3032,7 +3032,7 @@
               </div>
 
               <!-- Row 2: Bank Selection (Multiple Banks via VueMultiselect) -->
-              <div class="mb-4">
+              <div class="mb-2.5">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <label class="form-label fw-semibold small mb-0">
                     Assigned Banks / Financial Institutions <span class="text-danger">*</span>
@@ -3055,7 +3055,7 @@
                     </button>
                   </div>
                 </div>
-                <small class="text-muted d-block mb-2">
+                <small class="text-muted d-block mb-1.5">
                   Select one or more banks. Spending for all selected banks will be aggregated against this monthly budget.
                   <span class="fw-semibold text-primary">(Only banks assigned to your account are accessible).</span>
                 </small>
@@ -3103,22 +3103,22 @@
               </div>
 
               <!-- Row 3: Threshold Notification Milestones (Multiple Percentages) -->
-              <div class="mb-4">
+              <div class="mb-2.5">
                 <label class="form-label fw-semibold small mb-1">
                   Notification Milestones (%) <span class="text-danger">*</span>
                 </label>
-                <small class="text-muted d-block mb-2">
+                <small class="text-muted d-block mb-1.5">
                   Select or add multiple percentage thresholds to receive email alerts when cumulative month spend hits each milestone (e.g., warning at 80%, critical at 90%, ceiling reached at 100%).
                 </small>
 
                 <!-- Quick Presets -->
-                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                <div class="d-flex flex-wrap gap-1.5 align-items-center mb-1.5">
                   <span class="small text-muted me-1">Presets:</span>
                   <button
                     v-for="pct in [50, 75, 80, 85, 90, 95, 100, 110]"
                     :key="pct"
                     type="button"
-                    class="btn btn-sm py-1 px-2 rounded-pill"
+                    class="btn btn-sm py-0.5 px-2 rounded-pill"
                     :class="ct.form.threshold_percentages.includes(pct) ? 'btn-primary' : 'btn-outline-secondary'"
                     @click="toggleThresholdPercentage(pct)"
                   >
@@ -3128,19 +3128,19 @@
                 </div>
 
                 <!-- Custom Percentage Adder -->
-                <div class="input-group input-group-sm mb-2" style="max-width: 280px;">
+                <div class="input-group input-group-sm mb-1.5" style="max-width: 260px;">
                   <input
                     type="number"
                     min="1"
                     max="500"
                     placeholder="Custom % (e.g. 120)"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     v-model.number="ct.customPercentageInput"
                     @keyup.enter.prevent="addCustomPercentage"
                   />
                   <button
                     type="button"
-                    class="btn btn-outline-secondary"
+                    class="btn btn-outline-secondary btn-sm"
                     @click="addCustomPercentage"
                     :disabled="!ct.customPercentageInput || ct.customPercentageInput < 1"
                   >
@@ -3154,13 +3154,13 @@
                   <span
                     v-for="pct in sortedFormPercentages"
                     :key="pct"
-                    class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 d-inline-flex align-items-center gap-1"
+                    class="badge bg-primary-subtle text-primary border border-primary-subtle px-1.5 py-0.5 d-inline-flex align-items-center gap-1"
                   >
                     {{ pct }}%
                     <button
                       type="button"
                       class="btn-close"
-                      style="font-size: 0.55rem;"
+                      style="font-size: 0.5rem;"
                       @click="toggleThresholdPercentage(pct)"
                     ></button>
                   </span>
@@ -3168,7 +3168,7 @@
               </div>
 
               <!-- Row 4: Notification Emails -->
-              <div class="mb-4">
+              <div class="mb-2.5">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <label class="form-label fw-semibold small mb-0">
                     Notification Email Addresses <span class="text-danger">*</span>
@@ -3182,21 +3182,21 @@
                     <i class="bi bi-person-plus me-1"></i> Add My Email ({{ currentUser.email }})
                   </button>
                 </div>
-                <small class="text-muted d-block mb-2">
+                <small class="text-muted d-block mb-1.5">
                   Email addresses that will receive instant alerts when a threshold milestone is reached.
                 </small>
 
-                <div class="input-group input-group-sm mb-2">
+                <div class="input-group input-group-sm mb-1.5">
                   <input
                     type="email"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     placeholder="Enter email address (e.g. finance@example.com) and click Add or press Enter..."
                     v-model.trim="ct.emailInput"
                     @keyup.enter.prevent="addNotificationEmail"
                   />
                   <button
                     type="button"
-                    class="btn btn-outline-primary"
+                    class="btn btn-outline-primary btn-sm"
                     @click="addNotificationEmail"
                     :disabled="!ct.emailInput"
                   >
@@ -3209,14 +3209,14 @@
                   <span
                     v-for="(email, idx) in ct.form.notification_emails"
                     :key="idx"
-                    class="badge bg-light text-dark border px-2 py-1 d-inline-flex align-items-center gap-2"
+                    class="badge bg-light text-dark border px-1.5 py-0.5 d-inline-flex align-items-center gap-1.5"
                   >
                     <i class="bi bi-envelope text-muted"></i>
                     {{ email }}
                     <button
                       type="button"
                       class="btn-close"
-                      style="font-size: 0.55rem;"
+                      style="font-size: 0.5rem;"
                       @click="removeNotificationEmail(idx)"
                     ></button>
                   </span>
@@ -3227,7 +3227,7 @@
               </div>
 
               <!-- Row 5: Active Switch & Description -->
-              <div class="row g-3">
+              <div class="row g-2">
                 <div class="col-12">
                   <div class="form-check form-switch">
                     <input
@@ -3246,7 +3246,7 @@
                   <label class="form-label fw-semibold small">Description / Notes (Optional)</label>
                   <textarea
                     v-model.trim="ct.form.description"
-                    class="form-control"
+                    class="form-control form-control-sm"
                     rows="2"
                     placeholder="Optional details or context regarding this budget threshold..."
                     maxlength="1000"
@@ -3255,13 +3255,13 @@
               </div>
             </div>
 
-            <div class="modal-footer border-top bg-light">
+            <div class="modal-footer border-top bg-light py-2 px-3">
               <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" :disabled="ct.saving">
                 Cancel
               </button>
               <button
                 type="submit"
-                class="btn btn-primary btn-sm px-4 shadow-sm"
+                class="btn btn-primary btn-sm px-3 shadow-sm"
                 :disabled="ct.saving || (ct.selectedBanks && ct.selectedBanks.length === 0) || ct.form.notification_emails.length === 0 || ct.form.threshold_percentages.length === 0"
               >
                 <span v-if="ct.saving" class="spinner-border spinner-border-sm me-1"></span>
@@ -3279,30 +3279,30 @@
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <form @submit.prevent="sendTestAlert">
-            <div class="modal-header border-bottom">
+            <div class="modal-header border-bottom py-2 px-3">
               <div class="d-flex align-items-center gap-2">
-                <div class="p-2 rounded-3 bg-info-subtle text-info">
-                  <i class="bi bi-envelope-check fs-5"></i>
+                <div class="p-1.5 rounded-2 bg-info-subtle text-info">
+                  <i class="bi bi-envelope-check"></i>
                 </div>
                 <div>
-                  <h5 class="modal-title fw-bold mb-0">Send Test Threshold Alert</h5>
+                  <h6 class="modal-title fw-bold mb-0">Send Test Threshold Alert</h6>
                   <p class="text-muted small mb-0">Simulate a threshold notification email dispatch.</p>
                 </div>
               </div>
               <button type="button" class="btn-close" data-bs-dismiss="modal" :disabled="ct.testForm.sending"></button>
             </div>
 
-            <div class="modal-body p-4">
-              <div class="card border-0 bg-light p-3 mb-3 rounded-3">
+            <div class="modal-body p-3">
+              <div class="card border-0 bg-light p-2 mb-2 rounded-2">
                 <div class="fw-bold text-dark">{{ ct.testForm.ruleName }}</div>
-                <div class="small text-muted mt-1">
+                <div class="small text-muted mt-0.5">
                   Budget: ${{ formatUsd(ct.testForm.budget) }} USD / Month
                 </div>
               </div>
 
-              <div class="mb-3">
+              <div class="mb-2">
                 <label class="form-label fw-semibold small">Simulate Alert Milestone (%)</label>
-                <select v-model.number="ct.testForm.percentage" class="form-select">
+                <select v-model.number="ct.testForm.percentage" class="form-select form-select-sm">
                   <option v-for="pct in ct.testForm.availablePercentages" :key="pct" :value="pct">
                     {{ pct }}% Threshold Milestone (Simulate ${{ formatUsd((ct.testForm.budget * pct) / 100) }} spend)
                   </option>
@@ -3315,24 +3315,24 @@
                   <span
                     v-for="(email, idx) in ct.testForm.emails"
                     :key="idx"
-                    class="badge bg-white text-dark border px-2 py-1"
+                    class="badge bg-white text-dark border px-1.5 py-0.5"
                   >
                     <i class="bi bi-envelope me-1 text-muted"></i>{{ email }}
                   </span>
                 </div>
               </div>
 
-              <div class="alert alert-info border-info-subtle bg-info-subtle p-2.5 small mt-3 mb-0">
+              <div class="alert alert-info border-info-subtle bg-info-subtle p-2 small mt-2 mb-0">
                 <i class="bi bi-info-circle me-1"></i>
                 This sends a marked test email right now to all listed recipients without affecting your real monthly spend tracking or triggered tiers.
               </div>
             </div>
 
-            <div class="modal-footer border-top bg-light">
+            <div class="modal-footer border-top bg-light py-2 px-3">
               <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" :disabled="ct.testForm.sending">
                 Cancel
               </button>
-              <button type="submit" class="btn btn-info text-white btn-sm px-4 shadow-sm" :disabled="ct.testForm.sending">
+              <button type="submit" class="btn btn-info text-white btn-sm px-3 shadow-sm" :disabled="ct.testForm.sending">
                 <span v-if="ct.testForm.sending" class="spinner-border spinner-border-sm me-1"></span>
                 <i v-else class="bi bi-send-fill me-1"></i>
                 Send Test Alert Now
