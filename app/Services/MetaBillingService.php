@@ -449,14 +449,21 @@ class MetaBillingService
     /**
      * Reconcile WhatsApp Cloud API usage & charges.
      */
-    public function getReconciledWhatsAppCharges(?Carbon $startDate, ?Carbon $endDate, ?int $bankId = null): array
+    public function getReconciledWhatsAppCharges(?Carbon $startDate, ?Carbon $endDate, $bankId = null): array
     {
         $recipientQuery = CampaignWhatsappRecipient::query()
             ->join('campaign_whatsapp_messages', 'campaign_whatsapp_messages.id', '=', 'campaign_whatsapp_recipients.whatsapp_message_id')
             ->join('campaigns', 'campaigns.id', '=', 'campaign_whatsapp_messages.campaign_id');
 
-        if ($bankId) {
-            $recipientQuery->where('campaigns.bank_id', $bankId);
+        if (!empty($bankId) && $bankId !== 'all') {
+            if (is_array($bankId)) {
+                $cleanIds = array_values(array_filter(array_map('intval', $bankId)));
+                if (!empty($cleanIds)) {
+                    $recipientQuery->whereIn('campaigns.bank_id', $cleanIds);
+                }
+            } else {
+                $recipientQuery->where('campaigns.bank_id', (int) $bankId);
+            }
         }
         if ($startDate) {
             $recipientQuery->where('campaign_whatsapp_recipients.created_at', '>=', $startDate);

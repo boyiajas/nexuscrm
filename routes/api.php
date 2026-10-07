@@ -179,6 +179,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/settings/whatsapp-accounts', App\Http\Controllers\Api\WhatsappAccountController::class)->except(['show']);
     Route::post('/settings/whatsapp-accounts/{id}/activate', [App\Http\Controllers\Api\WhatsappAccountController::class, 'activate']);
 
+    Route::get('/settings/cost-thresholds', [\App\Http\Controllers\Api\CostThresholdSettingController::class, 'index']);
+    Route::post('/settings/cost-thresholds', [\App\Http\Controllers\Api\CostThresholdSettingController::class, 'store']);
+    Route::get('/settings/cost-thresholds/{id}', [\App\Http\Controllers\Api\CostThresholdSettingController::class, 'show']);
+    Route::put('/settings/cost-thresholds/{id}', [\App\Http\Controllers\Api\CostThresholdSettingController::class, 'update']);
+    Route::delete('/settings/cost-thresholds/{id}', [\App\Http\Controllers\Api\CostThresholdSettingController::class, 'destroy']);
+    Route::post('/settings/cost-thresholds/{id}/test-alert', [\App\Http\Controllers\Api\CostThresholdSettingController::class, 'testAlert']);
+    Route::post('/settings/cost-thresholds/{id}/evaluate', [\App\Http\Controllers\Api\CostThresholdSettingController::class, 'evaluate']);
+
     Route::get('dashboard', [DashboardController::class, 'index']);
     Route::get('analytics', [\App\Http\Controllers\Api\AnalyticsController::class, 'index']);
     Route::get('meta-billing', [\App\Http\Controllers\Api\MetaBillingController::class, 'index']);

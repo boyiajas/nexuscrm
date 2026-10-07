@@ -95,6 +95,19 @@
           <i class="bi bi-file-earmark-text-fill me-1"></i> WABA Templates
         </button>
       </li>
+      <li class="nav-item" role="presentation" v-if="canAccessCostThresholds">
+        <button
+          class="nav-link px-3 py-2 fw-semibold"
+          :class="{ active: activeMainTab === 'cost-thresholds' }"
+          @click="activeMainTab = 'cost-thresholds'"
+          id="cost-thresholds-tab"
+          data-bs-toggle="tab"
+          data-bs-target="#cost-thresholds"
+          type="button"
+        >
+          <i class="bi bi-speedometer2 me-1"></i> Cost Thresholds
+        </button>
+      </li>
     </ul>
 
     <div class="tab-content">
@@ -1836,6 +1849,378 @@
       </div>
     </div>
 
+      <!-- COST THRESHOLDS TAB -->
+      <div class="tab-pane fade" :class="{ 'show active': activeMainTab === 'cost-thresholds' }" id="cost-thresholds" v-if="canAccessCostThresholds">
+        <!-- Tab Header -->
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+          <div>
+            <h4 class="fw-bold mb-1 d-flex align-items-center gap-2">
+              <i class="bi bi-speedometer2 text-primary"></i>
+              Monthly Cost Thresholds & Budget Notifications
+            </h4>
+            <p class="text-muted small mb-0">
+              Manage WhatsApp messaging spend caps in USD ($), monitor real-time monthly Meta charges, and configure automated email alerts across multi-bank portfolios.
+            </p>
+          </div>
+          <div class="d-flex gap-2">
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
+              @click="fetchCostThresholds"
+              :disabled="ct.loading"
+            >
+              <span v-if="ct.loading" class="spinner-border spinner-border-sm me-1"></span>
+              <i v-else class="bi bi-arrow-clockwise me-1"></i>
+              Refresh
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm d-flex align-items-center gap-1 shadow-sm"
+              @click="openCostThresholdModal()"
+            >
+              <i class="bi bi-plus-lg me-1"></i>
+              New Threshold Rule
+            </button>
+          </div>
+        </div>
+
+        <!-- Metric Cards -->
+        <div class="row g-3 mb-4">
+          <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+              <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Total Monthly Budget</div>
+                    <h4 class="fw-bold text-dark mt-1 mb-0">${{ formatUsd(ct.summary.total_budget) }}</h4>
+                    <small class="text-muted" style="font-size: 0.75rem;">Across {{ ct.summary.active_rules }} active rule(s)</small>
+                  </div>
+                  <div class="p-2 rounded-3 bg-primary-subtle text-primary">
+                    <i class="bi bi-cash-stack fs-5"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+              <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Current Month Spend</div>
+                    <h4 class="fw-bold text-dark mt-1 mb-0">${{ formatUsd(ct.summary.total_spend) }}</h4>
+                    <small class="text-muted" style="font-size: 0.75rem;">Live Meta WhatsApp messaging</small>
+                  </div>
+                  <div class="p-2 rounded-3 bg-info-subtle text-info">
+                    <i class="bi bi-graph-up-arrow fs-5"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+              <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Overall Budget Usage</div>
+                    <h4 class="fw-bold mt-1 mb-0" :class="getSpendTextClass(ct.summary.overall_percentage)">
+                      {{ ct.summary.overall_percentage }}%
+                    </h4>
+                    <div class="progress mt-2" style="height: 6px; width: 140px;">
+                      <div
+                        class="progress-bar"
+                        :class="getSpendProgressVariant(ct.summary.overall_percentage)"
+                        :style="{ width: Math.min(ct.summary.overall_percentage, 100) + '%' }"
+                      ></div>
+                    </div>
+                  </div>
+                  <div class="p-2 rounded-3" :class="getSpendIconBgClass(ct.summary.overall_percentage)">
+                    <i class="bi bi-pie-chart fs-5"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-sm-6 col-xl-3">
+            <div class="card border-0 shadow-sm rounded-3 h-100 bg-white">
+              <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="text-muted small fw-semibold text-uppercase" style="font-size: 0.72rem; letter-spacing: 0.05em;">Active Monitoring Rules</div>
+                    <h4 class="fw-bold text-dark mt-1 mb-0">{{ ct.summary.active_rules }} / {{ ct.summary.total_rules }}</h4>
+                    <small class="text-success" style="font-size: 0.75rem;">
+                      <i class="bi bi-shield-check me-1"></i>Hourly scheduler active
+                    </small>
+                  </div>
+                  <div class="p-2 rounded-3 bg-success-subtle text-success">
+                    <i class="bi bi-bell-fill fs-5"></i>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bank Scope Notice Banner -->
+        <div class="alert border shadow-sm p-3 mb-4 rounded-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2" :class="ct.canManageAllBanks ? 'alert-primary bg-primary-subtle border-primary-subtle' : 'alert-info bg-info-subtle border-info-subtle'">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi fs-5" :class="ct.canManageAllBanks ? 'bi-globe-americas text-primary' : 'bi-shield-lock-fill text-info'"></i>
+            <div>
+              <span class="fw-bold" v-if="ct.canManageAllBanks">Full System Access:</span>
+              <span class="fw-bold" v-else>Portfolio Scoped Access:</span>
+              <span class="ms-1" v-if="ct.canManageAllBanks">You can configure and view monthly budget thresholds across all registered banks.</span>
+              <span class="ms-1" v-else>You are authorized to manage threshold notification rules strictly for your assigned banks ({{ ct.accessibleBanks.length }} bank{{ ct.accessibleBanks.length === 1 ? '' : 's' }} available).</span>
+            </div>
+          </div>
+          <div class="d-flex flex-wrap gap-1 align-items-center">
+            <span class="badge bg-white text-dark border px-2 py-1" v-for="b in ct.accessibleBanks.slice(0, 4)" :key="b.id">
+              {{ b.name }}
+            </span>
+            <span class="badge bg-white text-muted border px-2 py-1" v-if="ct.accessibleBanks.length > 4">
+              +{{ ct.accessibleBanks.length - 4 }} more
+            </span>
+          </div>
+        </div>
+
+        <!-- Threshold Rules Card -->
+        <div class="card border shadow-sm rounded-3 bg-white">
+          <div class="card-header bg-white py-3 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div class="d-flex align-items-center gap-2">
+              <h5 class="fw-bold text-dark mb-0">Configured Cost Threshold Rules</h5>
+              <span class="badge bg-secondary-subtle text-secondary border rounded-pill">{{ ct.rules.length }}</span>
+            </div>
+            <div class="d-flex gap-2">
+              <div class="input-group input-group-sm" style="max-width: 260px;">
+                <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                <input
+                  type="text"
+                  class="form-control bg-light"
+                  placeholder="Filter rules or banks..."
+                  v-model.trim="ct.filterQuery"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Loading state -->
+          <div v-if="ct.loading" class="text-center py-5">
+            <div class="spinner-border text-primary mb-2"></div>
+            <p class="text-muted small mb-0">Loading threshold notification settings...</p>
+          </div>
+
+          <!-- Empty state -->
+          <div v-else-if="filteredCostThresholdRules.length === 0" class="text-center py-5 px-3">
+            <div class="mb-3 text-muted">
+              <i class="bi bi-speedometer2 display-4"></i>
+            </div>
+            <h5 class="fw-bold text-dark">No Cost Threshold Rules Found</h5>
+            <p class="text-muted small mb-3" style="max-width: 460px; margin: 0 auto;">
+              {{ ct.filterQuery ? 'No threshold rules match your filter criteria.' : 'Create your first threshold rule to set a monthly USD budget, select multiple banks, and configure automated email notifications across 80%, 90%, 100% spend milestones.' }}
+            </p>
+            <button
+              v-if="!ct.filterQuery"
+              type="button"
+              class="btn btn-primary btn-sm px-3 shadow-sm"
+              @click="openCostThresholdModal()"
+            >
+              <i class="bi bi-plus-lg me-1"></i> Create Threshold Rule
+            </button>
+          </div>
+
+          <!-- Table -->
+          <div v-else class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th class="ps-3 py-3 text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">Rule & Details</th>
+                  <th class="py-3 text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">Assigned Banks</th>
+                  <th class="py-3 text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">Monthly Budget</th>
+                  <th class="py-3 text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em; min-width: 170px;">Month Spend & Progress</th>
+                  <th class="py-3 text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">Threshold Milestones</th>
+                  <th class="py-3 text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">Notification Recipients</th>
+                  <th class="py-3 text-center text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">Status</th>
+                  <th class="pe-3 py-3 text-end text-uppercase text-secondary" style="font-size: 0.72rem; letter-spacing: 0.05em;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="rule in filteredCostThresholdRules" :key="rule.id">
+                  <!-- Name & details -->
+                  <td class="ps-3 py-3">
+                    <div class="fw-bold text-dark">{{ rule.name }}</div>
+                    <div class="small text-muted text-truncate" style="max-width: 220px;" v-if="rule.description" :title="rule.description">
+                      {{ rule.description }}
+                    </div>
+                    <div class="small text-muted mt-1" style="font-size: 0.72rem;">
+                      <i class="bi bi-clock-history me-1"></i>
+                      <span v-if="rule.last_alerted_at">Alerted: {{ formatThresholdDate(rule.last_alerted_at) }}</span>
+                      <span v-else class="text-muted">No alerts sent this month</span>
+                    </div>
+                  </td>
+
+                  <!-- Banks -->
+                  <td class="py-3">
+                    <div class="d-flex flex-wrap gap-1" style="max-width: 200px;">
+                      <span
+                        v-for="bName in (rule.bank_names || []).slice(0, 3)"
+                        :key="bName"
+                        class="badge bg-light text-dark border px-2 py-1"
+                        style="font-size: 0.72rem;"
+                      >
+                        {{ bName }}
+                      </span>
+                      <span
+                        v-if="(rule.bank_names || []).length > 3"
+                        class="badge bg-secondary-subtle text-secondary border px-2 py-1"
+                        style="font-size: 0.72rem;"
+                        :title="(rule.bank_names || []).slice(3).join(', ')"
+                      >
+                        +{{ (rule.bank_names || []).length - 3 }} more
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Monthly Budget USD -->
+                  <td class="py-3">
+                    <div class="fw-bold text-dark fs-6">${{ formatUsd(rule.threshold_amount) }}</div>
+                    <small class="text-muted" style="font-size: 0.7rem;">USD / month</small>
+                  </td>
+
+                  <!-- Month Spend & Progress -->
+                  <td class="py-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <span class="fw-bold" :class="getSpendTextClass(rule.spend_percentage)">
+                        ${{ formatUsd(rule.current_month_spend) }}
+                      </span>
+                      <small class="fw-semibold" :class="getSpendTextClass(rule.spend_percentage)">
+                        {{ rule.spend_percentage }}%
+                      </small>
+                    </div>
+                    <div class="progress" style="height: 6px;">
+                      <div
+                        class="progress-bar"
+                        :class="getSpendProgressVariant(rule.spend_percentage)"
+                        :style="{ width: Math.min(rule.spend_percentage, 100) + '%' }"
+                      ></div>
+                    </div>
+                    <div class="mt-1" style="font-size: 0.72rem;">
+                      <span v-if="rule.remaining_budget >= 0" class="text-muted">
+                        ${{ formatUsd(rule.remaining_budget) }} remaining
+                      </span>
+                      <span v-else class="text-danger fw-semibold">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        ${{ formatUsd(Math.abs(rule.remaining_budget)) }} over budget
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Milestones -->
+                  <td class="py-3">
+                    <div class="d-flex flex-wrap gap-1">
+                      <span
+                        v-for="pct in rule.threshold_percentages"
+                        :key="pct"
+                        class="badge px-2 py-1"
+                        :class="rule.triggered_this_month && rule.triggered_this_month.includes(pct) ? 'bg-danger text-white shadow-sm' : 'bg-light text-dark border'"
+                        style="font-size: 0.72rem;"
+                        :title="rule.triggered_this_month && rule.triggered_this_month.includes(pct) ? 'Triggered alert sent this month' : 'Pending threshold'"
+                      >
+                        <i v-if="rule.triggered_this_month && rule.triggered_this_month.includes(pct)" class="bi bi-bell-fill me-1"></i>
+                        {{ pct }}%
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Notification Emails -->
+                  <td class="py-3">
+                    <div class="d-flex flex-column gap-1" style="max-width: 190px;">
+                      <div
+                        v-for="(email, eIdx) in (rule.notification_emails || []).slice(0, 2)"
+                        :key="eIdx"
+                        class="small text-truncate text-secondary"
+                        :title="email"
+                        style="font-size: 0.75rem;"
+                      >
+                        <i class="bi bi-envelope me-1"></i>{{ email }}
+                      </div>
+                      <div
+                        v-if="(rule.notification_emails || []).length > 2"
+                        class="small text-primary fw-semibold"
+                        style="font-size: 0.72rem; cursor: pointer;"
+                        :title="(rule.notification_emails || []).slice(2).join(', ')"
+                      >
+                        +{{ (rule.notification_emails || []).length - 2 }} more recipient(s)
+                      </div>
+                    </div>
+                  </td>
+
+                  <!-- Status Switch -->
+                  <td class="py-3 text-center">
+                    <div class="form-check form-switch d-inline-block">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        role="switch"
+                        :checked="rule.is_active"
+                        @change="toggleRuleActive(rule)"
+                        style="cursor: pointer;"
+                      />
+                    </div>
+                    <div>
+                      <span class="badge" :class="rule.is_active ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-secondary-subtle text-secondary border border-secondary-subtle'" style="font-size: 0.68rem;">
+                        {{ rule.is_active ? 'Active' : 'Paused' }}
+                      </span>
+                    </div>
+                  </td>
+
+                  <!-- Actions -->
+                  <td class="pe-3 py-3 text-end">
+                    <div class="btn-group btn-group-sm">
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary"
+                        @click="evaluateCostThresholdRule(rule)"
+                        :disabled="ct.evaluatingId === rule.id"
+                        title="Evaluate spend and check alert tiers"
+                      >
+                        <span v-if="ct.evaluatingId === rule.id" class="spinner-border spinner-border-sm"></span>
+                        <i v-else class="bi bi-cpu"></i>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-outline-info"
+                        @click="openTestAlertModal(rule)"
+                        title="Send sample test alert email"
+                      >
+                        <i class="bi bi-send"></i>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-outline-primary"
+                        @click="openCostThresholdModal(rule)"
+                        title="Edit threshold rule"
+                      >
+                        <i class="bi bi-pencil"></i>
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-outline-danger"
+                        @click="deleteCostThresholdRule(rule)"
+                        title="Delete threshold rule"
+                      >
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ADD NUMBER MODAL -->
@@ -2593,6 +2978,376 @@
       </div>
     </div>
 
+    <!-- COST THRESHOLD EDIT/CREATE MODAL -->
+    <div class="modal fade" id="costThresholdModal" tabindex="-1" ref="costThresholdModalRef">
+      <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+          <form @submit.prevent="saveCostThresholdRule">
+            <div class="modal-header border-bottom">
+              <div class="d-flex align-items-center gap-2">
+                <div class="p-2 rounded-3 bg-primary-subtle text-primary">
+                  <i class="bi bi-speedometer2 fs-5"></i>
+                </div>
+                <div>
+                  <h5 class="modal-title fw-bold mb-0">
+                    {{ ct.modalMode === 'create' ? 'Create Monthly Cost Threshold Rule' : 'Edit Cost Threshold Rule' }}
+                  </h5>
+                  <p class="text-muted small mb-0">Define budget caps, multi-bank pools, and notification milestones.</p>
+                </div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" :disabled="ct.saving"></button>
+            </div>
+
+            <div class="modal-body p-4">
+              <!-- Row 1: Name and Monthly Budget -->
+              <div class="row g-3 mb-4">
+                <div class="col-md-7">
+                  <label class="form-label fw-semibold small">Rule Name <span class="text-danger">*</span></label>
+                  <input
+                    v-model.trim="ct.form.name"
+                    type="text"
+                    class="form-control"
+                    placeholder="e.g. Collections WhatsApp Monthly Budget"
+                    required
+                  />
+                  <small class="text-muted">A clear name describing this budget rule or team portfolio.</small>
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label fw-semibold small">Monthly Budget Cap (USD $) <span class="text-danger">*</span></label>
+                  <div class="input-group">
+                    <span class="input-group-text">$</span>
+                    <input
+                      v-model.number="ct.form.threshold_amount"
+                      type="number"
+                      step="0.01"
+                      min="1"
+                      class="form-control fw-bold"
+                      placeholder="1000.00"
+                      required
+                    />
+                    <span class="input-group-text">USD</span>
+                  </div>
+                  <small class="text-muted">Current month messaging budget cap.</small>
+                </div>
+              </div>
+
+              <!-- Row 2: Bank Selection (Multiple Banks) -->
+              <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label class="form-label fw-semibold small mb-0">
+                    Assigned Banks / Financial Institutions <span class="text-danger">*</span>
+                  </label>
+                  <div class="d-flex gap-2">
+                    <button
+                      type="button"
+                      class="btn btn-link btn-sm p-0 text-decoration-none"
+                      @click="selectAllAccessibleBanks"
+                    >
+                      Select All ({{ ct.accessibleBanks.length }})
+                    </button>
+                    <span class="text-muted">|</span>
+                    <button
+                      type="button"
+                      class="btn btn-link btn-sm p-0 text-decoration-none text-muted"
+                      @click="clearBankSelection"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <small class="text-muted d-block mb-2">
+                  Select one or more banks. Spending for all selected banks will be aggregated against this monthly budget.
+                  <span class="fw-semibold text-primary">(Only banks assigned to your account are accessible).</span>
+                </small>
+
+                <!-- Search filter for banks if > 4 -->
+                <div v-if="ct.accessibleBanks.length > 4" class="mb-2">
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Search accessible banks..."
+                    v-model.trim="ct.bankSearchQuery"
+                  />
+                </div>
+
+                <div class="border rounded p-2 bg-light" style="max-height: 190px; overflow-y: auto;">
+                  <div class="row g-2">
+                    <div
+                      v-for="bank in modalFilteredBanks"
+                      :key="bank.id"
+                      class="col-md-6"
+                    >
+                      <div
+                        class="p-2 rounded border bg-white d-flex align-items-center gap-2"
+                        :class="{ 'border-primary bg-primary-subtle': ct.form.bank_ids.includes(bank.id) }"
+                        style="cursor: pointer;"
+                        @click="toggleBankSelection(bank.id)"
+                      >
+                        <input
+                          class="form-check-input mt-0"
+                          type="checkbox"
+                          :checked="ct.form.bank_ids.includes(bank.id)"
+                          @click.stop="toggleBankSelection(bank.id)"
+                        />
+                        <div class="small flex-grow-1 text-truncate">
+                          <span class="fw-semibold">{{ bank.name }}</span>
+                          <span class="badge bg-light text-muted border ms-1 font-monospace" style="font-size: 0.68rem;">{{ bank.code }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                  <small class="text-muted">
+                    <span class="fw-bold text-dark">{{ ct.form.bank_ids.length }}</span> bank(s) selected
+                  </small>
+                  <small v-if="ct.form.bank_ids.length === 0" class="text-danger fw-semibold">
+                    * At least one bank must be selected
+                  </small>
+                </div>
+              </div>
+
+              <!-- Row 3: Threshold Notification Milestones (Multiple Percentages) -->
+              <div class="mb-4">
+                <label class="form-label fw-semibold small mb-1">
+                  Notification Milestones (%) <span class="text-danger">*</span>
+                </label>
+                <small class="text-muted d-block mb-2">
+                  Select or add multiple percentage thresholds to receive email alerts when cumulative month spend hits each milestone (e.g., warning at 80%, critical at 90%, ceiling reached at 100%).
+                </small>
+
+                <!-- Quick Presets -->
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                  <span class="small text-muted me-1">Presets:</span>
+                  <button
+                    v-for="pct in [50, 75, 80, 85, 90, 95, 100, 110]"
+                    :key="pct"
+                    type="button"
+                    class="btn btn-sm py-1 px-2 rounded-pill"
+                    :class="ct.form.threshold_percentages.includes(pct) ? 'btn-primary' : 'btn-outline-secondary'"
+                    @click="toggleThresholdPercentage(pct)"
+                  >
+                    <i v-if="ct.form.threshold_percentages.includes(pct)" class="bi bi-check me-1"></i>
+                    {{ pct }}%
+                  </button>
+                </div>
+
+                <!-- Custom Percentage Adder -->
+                <div class="input-group input-group-sm mb-2" style="max-width: 280px;">
+                  <input
+                    type="number"
+                    min="1"
+                    max="500"
+                    placeholder="Custom % (e.g. 120)"
+                    class="form-control"
+                    v-model.number="ct.customPercentageInput"
+                    @keyup.enter.prevent="addCustomPercentage"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    @click="addCustomPercentage"
+                    :disabled="!ct.customPercentageInput || ct.customPercentageInput < 1"
+                  >
+                    + Add Milestone
+                  </button>
+                </div>
+
+                <!-- Active Tiers Display -->
+                <div class="d-flex flex-wrap gap-1 align-items-center">
+                  <span class="small text-muted me-1">Active Milestones:</span>
+                  <span
+                    v-for="pct in sortedFormPercentages"
+                    :key="pct"
+                    class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 d-inline-flex align-items-center gap-1"
+                  >
+                    {{ pct }}%
+                    <button
+                      type="button"
+                      class="btn-close"
+                      style="font-size: 0.55rem;"
+                      @click="toggleThresholdPercentage(pct)"
+                    ></button>
+                  </span>
+                </div>
+              </div>
+
+              <!-- Row 4: Notification Emails -->
+              <div class="mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                  <label class="form-label fw-semibold small mb-0">
+                    Notification Email Addresses <span class="text-danger">*</span>
+                  </label>
+                  <button
+                    v-if="currentUser?.email && !ct.form.notification_emails.includes(currentUser.email)"
+                    type="button"
+                    class="btn btn-link btn-sm p-0 text-decoration-none"
+                    @click="addCurrentUserEmail"
+                  >
+                    <i class="bi bi-person-plus me-1"></i> Add My Email ({{ currentUser.email }})
+                  </button>
+                </div>
+                <small class="text-muted d-block mb-2">
+                  Email addresses that will receive instant alerts when a threshold milestone is reached.
+                </small>
+
+                <div class="input-group input-group-sm mb-2">
+                  <input
+                    type="email"
+                    class="form-control"
+                    placeholder="Enter email address (e.g. finance@example.com) and click Add or press Enter..."
+                    v-model.trim="ct.emailInput"
+                    @keyup.enter.prevent="addNotificationEmail"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-outline-primary"
+                    @click="addNotificationEmail"
+                    :disabled="!ct.emailInput"
+                  >
+                    <i class="bi bi-plus-lg me-1"></i> Add Email
+                  </button>
+                </div>
+
+                <!-- Email Badges Display -->
+                <div class="d-flex flex-wrap gap-1 align-items-center">
+                  <span
+                    v-for="(email, idx) in ct.form.notification_emails"
+                    :key="idx"
+                    class="badge bg-light text-dark border px-2 py-1 d-inline-flex align-items-center gap-2"
+                  >
+                    <i class="bi bi-envelope text-muted"></i>
+                    {{ email }}
+                    <button
+                      type="button"
+                      class="btn-close"
+                      style="font-size: 0.55rem;"
+                      @click="removeNotificationEmail(idx)"
+                    ></button>
+                  </span>
+                  <span v-if="ct.form.notification_emails.length === 0" class="text-danger small">
+                    * Please specify at least one notification email address.
+                  </span>
+                </div>
+              </div>
+
+              <!-- Row 5: Active Switch & Description -->
+              <div class="row g-3">
+                <div class="col-12">
+                  <div class="form-check form-switch">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      role="switch"
+                      id="ruleActiveSwitch"
+                      v-model="ct.form.is_active"
+                    />
+                    <label class="form-check-label fw-semibold small" for="ruleActiveSwitch">
+                      Active Rule (Enable automated checks and hourly alert emails)
+                    </label>
+                  </div>
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold small">Description / Notes (Optional)</label>
+                  <textarea
+                    v-model.trim="ct.form.description"
+                    class="form-control"
+                    rows="2"
+                    placeholder="Optional details or context regarding this budget threshold..."
+                    maxlength="1000"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-footer border-top bg-light">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" :disabled="ct.saving">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                class="btn btn-primary btn-sm px-4 shadow-sm"
+                :disabled="ct.saving || ct.form.bank_ids.length === 0 || ct.form.notification_emails.length === 0 || ct.form.threshold_percentages.length === 0"
+              >
+                <span v-if="ct.saving" class="spinner-border spinner-border-sm me-1"></span>
+                <i v-else class="bi bi-check2-circle me-1"></i>
+                {{ ct.modalMode === 'create' ? 'Create Rule' : 'Save Changes' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- COST THRESHOLD TEST ALERT MODAL -->
+    <div class="modal fade" id="costThresholdTestModal" tabindex="-1" ref="costThresholdTestModalRef">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <form @submit.prevent="sendTestAlert">
+            <div class="modal-header border-bottom">
+              <div class="d-flex align-items-center gap-2">
+                <div class="p-2 rounded-3 bg-info-subtle text-info">
+                  <i class="bi bi-envelope-check fs-5"></i>
+                </div>
+                <div>
+                  <h5 class="modal-title fw-bold mb-0">Send Test Threshold Alert</h5>
+                  <p class="text-muted small mb-0">Simulate a threshold notification email dispatch.</p>
+                </div>
+              </div>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" :disabled="ct.testForm.sending"></button>
+            </div>
+
+            <div class="modal-body p-4">
+              <div class="card border-0 bg-light p-3 mb-3 rounded-3">
+                <div class="fw-bold text-dark">{{ ct.testForm.ruleName }}</div>
+                <div class="small text-muted mt-1">
+                  Budget: ${{ formatUsd(ct.testForm.budget) }} USD / Month
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label fw-semibold small">Simulate Alert Milestone (%)</label>
+                <select v-model.number="ct.testForm.percentage" class="form-select">
+                  <option v-for="pct in ct.testForm.availablePercentages" :key="pct" :value="pct">
+                    {{ pct }}% Threshold Milestone (Simulate ${{ formatUsd((ct.testForm.budget * pct) / 100) }} spend)
+                  </option>
+                </select>
+              </div>
+
+              <div class="mb-2">
+                <label class="form-label fw-semibold small">Recipients Receiving Test Email:</label>
+                <div class="d-flex flex-wrap gap-1">
+                  <span
+                    v-for="(email, idx) in ct.testForm.emails"
+                    :key="idx"
+                    class="badge bg-white text-dark border px-2 py-1"
+                  >
+                    <i class="bi bi-envelope me-1 text-muted"></i>{{ email }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="alert alert-info border-info-subtle bg-info-subtle p-2.5 small mt-3 mb-0">
+                <i class="bi bi-info-circle me-1"></i>
+                This sends a marked test email right now to all listed recipients without affecting your real monthly spend tracking or triggered tiers.
+              </div>
+            </div>
+
+            <div class="modal-footer border-top bg-light">
+              <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal" :disabled="ct.testForm.sending">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-info text-white btn-sm px-4 shadow-sm" :disabled="ct.testForm.sending">
+                <span v-if="ct.testForm.sending" class="spinner-border spinner-border-sm me-1"></span>
+                <i v-else class="bi bi-send-fill me-1"></i>
+                Send Test Alert Now
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
     <ConfirmationModal ref="confirmModal" />
 </template>
 
@@ -2653,6 +3408,46 @@ export default {
       departmentOptions: [],
       selectedDepartments: [],
       banks: [],
+      // Cost Thresholds State
+      ct: {
+        loading: false,
+        saving: false,
+        evaluatingId: null,
+        filterQuery: '',
+        rules: [],
+        summary: {
+          total_rules: 0,
+          active_rules: 0,
+          total_budget: 0,
+          total_spend: 0,
+          overall_percentage: 0,
+        },
+        accessibleBanks: [],
+        canManageAllBanks: false,
+        bankSearchQuery: '',
+        modalMode: 'create', // 'create' | 'edit'
+        form: {
+          id: null,
+          name: '',
+          threshold_amount: '',
+          bank_ids: [],
+          notification_emails: [],
+          threshold_percentages: [80, 90, 100],
+          is_active: true,
+          description: '',
+        },
+        emailInput: '',
+        customPercentageInput: null,
+        testForm: {
+          ruleId: null,
+          ruleName: '',
+          budget: 0,
+          emails: [],
+          percentage: 80,
+          availablePercentages: [80, 90, 100],
+          sending: false,
+        },
+      },
       system: {
         saving: false,
         logoFile: null,
@@ -2864,6 +3659,8 @@ export default {
       this.wn.editNumberModal = createManagedModal(this.$refs.editNumberModalRef);
       this.wp.modal = createManagedModal(this.$refs.profileModalRef);
       this.wa.migrateModal = createManagedModal(this.$refs.migrateModalRef);
+      this.costThresholdModal = createManagedModal(this.$refs.costThresholdModalRef);
+      this.costThresholdTestModal = createManagedModal(this.$refs.costThresholdTestModalRef);
 
       this.checkActiveTab();
 
@@ -2879,6 +3676,9 @@ export default {
       if (this.canAccessWabaNumbers) {
         this.fetchWhatsappNumbers();
       }
+      if (this.canAccessCostThresholds) {
+        this.fetchCostThresholds();
+      }
       this.loadDepartmentOptions();
       this.fetchBanks();
     },
@@ -2891,11 +3691,18 @@ export default {
     disposeManagedModal(this.wn.editNumberModal);
     disposeManagedModal(this.wp.modal);
     disposeManagedModal(this.wa.migrateModal);
+    disposeManagedModal(this.costThresholdModal);
+    disposeManagedModal(this.costThresholdTestModal);
     if (this.wa.syncPollTimer) {
       window.clearTimeout(this.wa.syncPollTimer);
     }
   },
   watch: {
+    activeMainTab(newTab) {
+      if (newTab === 'cost-thresholds' && this.canAccessCostThresholds) {
+        this.fetchCostThresholds();
+      }
+    },
     selectedDepartments: {
       handler(newValue) {
         this.form.department_ids = Array.isArray(newValue)
@@ -2948,6 +3755,33 @@ export default {
     },
     canAccessWabaTemplates() {
       return this.hasPermission('settings_waba_templates');
+    },
+    canAccessCostThresholds() {
+      return this.canAccessSystem || this.canAccessMetaWhatsapp || this.canAccessUserAccount || this.hasPermission('settings_cost_thresholds') || this.isSuperAdmin;
+    },
+    filteredCostThresholdRules() {
+      if (!this.ct.filterQuery) {
+        return this.ct.rules;
+      }
+      const q = this.ct.filterQuery.toLowerCase();
+      return this.ct.rules.filter((rule) => {
+        const matchName = String(rule.name || '').toLowerCase().includes(q);
+        const matchDesc = String(rule.description || '').toLowerCase().includes(q);
+        const matchBanks = Array.isArray(rule.bank_names) && rule.bank_names.some((b) => String(b).toLowerCase().includes(q));
+        return matchName || matchDesc || matchBanks;
+      });
+    },
+    modalFilteredBanks() {
+      if (!this.ct.bankSearchQuery) {
+        return this.ct.accessibleBanks;
+      }
+      const q = this.ct.bankSearchQuery.toLowerCase();
+      return this.ct.accessibleBanks.filter((b) => {
+        return String(b.name || '').toLowerCase().includes(q) || String(b.code || '').toLowerCase().includes(q);
+      });
+    },
+    sortedFormPercentages() {
+      return [...(this.ct.form.threshold_percentages || [])].sort((a, b) => a - b);
     },
     pendingWhatsappNumbers() {
       return this.wn.numbers.filter((number) => {
@@ -3284,6 +4118,10 @@ export default {
     },
     checkActiveTab() {
       const queryTab = this.$route?.query?.tab;
+      if (queryTab === 'cost-thresholds' && this.canAccessCostThresholds) {
+        this.activeMainTab = 'cost-thresholds';
+        return;
+      }
       if (queryTab === 'whatsapp-templates' && this.canAccessWabaTemplates) {
         this.activeMainTab = 'whatsapp-templates';
         return;
@@ -3321,6 +4159,8 @@ export default {
         this.activeMainTab = 'whatsapp-numbers';
       } else if (this.canAccessWabaTemplates) {
         this.activeMainTab = 'whatsapp-templates';
+      } else if (this.canAccessCostThresholds) {
+        this.activeMainTab = 'cost-thresholds';
       }
     },
     // Load profile
@@ -4958,6 +5798,325 @@ export default {
     toDateTimeLocal(value) {
       if (!value) return '';
       return String(value).replace(' ', 'T').slice(0, 16);
+    },
+    // --- Cost Threshold Methods ---
+    fetchCostThresholds() {
+      this.ct.loading = true;
+      axios.get('/api/settings/cost-thresholds')
+        .then((res) => {
+          this.ct.rules = res.data.rules || [];
+          this.ct.summary = res.data.summary || {
+            total_rules: 0,
+            active_rules: 0,
+            total_budget: 0,
+            total_spend: 0,
+            overall_percentage: 0,
+          };
+          this.ct.accessibleBanks = res.data.accessible_banks || [];
+          this.ct.canManageAllBanks = !!res.data.can_manage_all_banks;
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || 'Failed to load cost threshold settings.', 'Cost Thresholds');
+        })
+        .finally(() => {
+          this.ct.loading = false;
+        });
+    },
+
+    openCostThresholdModal(rule = null) {
+      if (rule) {
+        this.ct.modalMode = 'edit';
+        this.ct.form = {
+          id: rule.id,
+          name: rule.name,
+          threshold_amount: rule.threshold_amount,
+          bank_ids: Array.isArray(rule.bank_ids) ? [...rule.bank_ids] : [],
+          notification_emails: Array.isArray(rule.notification_emails) ? [...rule.notification_emails] : [],
+          threshold_percentages: Array.isArray(rule.threshold_percentages) ? [...rule.threshold_percentages] : [80, 90, 100],
+          is_active: !!rule.is_active,
+          description: rule.description || '',
+        };
+      } else {
+        this.ct.modalMode = 'create';
+        const defaultBankIds = this.ct.accessibleBanks.length === 1 ? [this.ct.accessibleBanks[0].id] : [];
+        const defaultEmails = this.currentUser?.email ? [this.currentUser.email] : [];
+        this.ct.form = {
+          id: null,
+          name: '',
+          threshold_amount: '',
+          bank_ids: defaultBankIds,
+          notification_emails: defaultEmails,
+          threshold_percentages: [80, 90, 100],
+          is_active: true,
+          description: '',
+        };
+      }
+      this.ct.emailInput = '';
+      this.ct.customPercentageInput = null;
+      this.ct.bankSearchQuery = '';
+      if (this.costThresholdModal) {
+        this.costThresholdModal.show();
+      }
+    },
+
+    toggleBankSelection(bankId) {
+      const idx = this.ct.form.bank_ids.indexOf(bankId);
+      if (idx > -1) {
+        this.ct.form.bank_ids.splice(idx, 1);
+      } else {
+        this.ct.form.bank_ids.push(bankId);
+      }
+    },
+
+    selectAllAccessibleBanks() {
+      this.ct.form.bank_ids = this.ct.accessibleBanks.map((b) => b.id);
+    },
+
+    clearBankSelection() {
+      this.ct.form.bank_ids = [];
+    },
+
+    toggleThresholdPercentage(pct) {
+      const num = parseInt(pct, 10);
+      const idx = this.ct.form.threshold_percentages.indexOf(num);
+      if (idx > -1) {
+        if (this.ct.form.threshold_percentages.length > 1) {
+          this.ct.form.threshold_percentages.splice(idx, 1);
+        } else {
+          notify.error('At least one notification milestone percentage is required.', 'Cost Thresholds');
+        }
+      } else {
+        this.ct.form.threshold_percentages.push(num);
+      }
+    },
+
+    addCustomPercentage() {
+      const val = parseInt(this.ct.customPercentageInput, 10);
+      if (!val || val < 1 || val > 500) {
+        notify.error('Please enter a valid percentage milestone between 1 and 500.', 'Cost Thresholds');
+        return;
+      }
+      if (!this.ct.form.threshold_percentages.includes(val)) {
+        this.ct.form.threshold_percentages.push(val);
+      }
+      this.ct.customPercentageInput = null;
+    },
+
+    addNotificationEmail() {
+      const raw = String(this.ct.emailInput || '').trim();
+      if (!raw) return;
+
+      const emails = raw.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean);
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      let added = 0;
+
+      emails.forEach((email) => {
+        if (emailRegex.test(email)) {
+          if (!this.ct.form.notification_emails.includes(email)) {
+            this.ct.form.notification_emails.push(email);
+            added++;
+          }
+        } else {
+          notify.error(`"${email}" is not a valid email address.`, 'Cost Thresholds');
+        }
+      });
+
+      if (added > 0) {
+        this.ct.emailInput = '';
+      }
+    },
+
+    removeNotificationEmail(index) {
+      if (this.ct.form.notification_emails.length > 1) {
+        this.ct.form.notification_emails.splice(index, 1);
+      } else {
+        notify.error('At least one notification email recipient is required.', 'Cost Thresholds');
+      }
+    },
+
+    addCurrentUserEmail() {
+      if (this.currentUser?.email && !this.ct.form.notification_emails.includes(this.currentUser.email)) {
+        this.ct.form.notification_emails.push(this.currentUser.email);
+      }
+    },
+
+    saveCostThresholdRule() {
+      if (!this.ct.form.name) {
+        notify.error('Please provide a rule name.', 'Cost Thresholds');
+        return;
+      }
+      if (!this.ct.form.threshold_amount || this.ct.form.threshold_amount < 1) {
+        notify.error('Please enter a monthly threshold amount greater than $0.', 'Cost Thresholds');
+        return;
+      }
+      if (this.ct.form.bank_ids.length === 0) {
+        notify.error('Please select at least one assigned bank.', 'Cost Thresholds');
+        return;
+      }
+      if (this.ct.form.notification_emails.length === 0) {
+        notify.error('Please configure at least one notification email address.', 'Cost Thresholds');
+        return;
+      }
+      if (this.ct.form.threshold_percentages.length === 0) {
+        notify.error('Please configure at least one threshold milestone percentage.', 'Cost Thresholds');
+        return;
+      }
+
+      this.ct.saving = true;
+      const isEdit = this.ct.modalMode === 'edit' && this.ct.form.id;
+      const url = isEdit
+        ? `/api/settings/cost-thresholds/${this.ct.form.id}`
+        : '/api/settings/cost-thresholds';
+      const method = isEdit ? 'put' : 'post';
+
+      const payload = {
+        name: this.ct.form.name,
+        threshold_amount: parseFloat(this.ct.form.threshold_amount),
+        bank_ids: this.ct.form.bank_ids,
+        notification_emails: this.ct.form.notification_emails,
+        threshold_percentages: this.ct.form.threshold_percentages,
+        is_active: !!this.ct.form.is_active,
+        description: this.ct.form.description || null,
+      };
+
+      axios[method](url, payload)
+        .then((res) => {
+          notify.success(res.data.message || 'Threshold notification rule saved successfully.', 'Cost Thresholds');
+          if (this.costThresholdModal) {
+            this.costThresholdModal.hide();
+          }
+          this.fetchCostThresholds();
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || 'Failed to save cost threshold rule.', 'Cost Thresholds');
+        })
+        .finally(() => {
+          this.ct.saving = false;
+        });
+    },
+
+    deleteCostThresholdRule(rule) {
+      this.$refs.confirmModal.open({
+        title: 'Delete Cost Threshold Rule',
+        message: `Are you sure you want to delete "${rule.name}"? Real-time spend tracking and alerts for this rule will be terminated.`,
+        confirmLabel: 'Delete Rule',
+        confirmVariant: 'danger',
+        onConfirm: async () => {
+          try {
+            const res = await axios.delete(`/api/settings/cost-thresholds/${rule.id}`);
+            notify.success(res.data.message || 'Cost threshold rule deleted.', 'Cost Thresholds');
+            this.fetchCostThresholds();
+          } catch (err) {
+            notify.error(err.response?.data?.message || 'Failed to delete threshold rule.', 'Cost Thresholds');
+          }
+        },
+      });
+    },
+
+    toggleRuleActive(rule) {
+      const newStatus = !rule.is_active;
+      axios.put(`/api/settings/cost-thresholds/${rule.id}`, { is_active: newStatus })
+        .then(() => {
+          rule.is_active = newStatus;
+          notify.success(`Rule "${rule.name}" is now ${newStatus ? 'active' : 'paused'}.`, 'Cost Thresholds');
+          this.fetchCostThresholds();
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || 'Failed to update rule status.', 'Cost Thresholds');
+        });
+    },
+
+    evaluateCostThresholdRule(rule) {
+      this.ct.evaluatingId = rule.id;
+      axios.post(`/api/settings/cost-thresholds/${rule.id}/evaluate`)
+        .then((res) => {
+          notify.success(res.data.message || 'Spend evaluated successfully.', 'Cost Thresholds');
+          if (res.data.rule) {
+            const idx = this.ct.rules.findIndex((r) => r.id === rule.id);
+            if (idx > -1) {
+              this.ct.rules.splice(idx, 1, res.data.rule);
+            }
+          }
+          this.fetchCostThresholds();
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || 'Failed to evaluate threshold rule.', 'Cost Thresholds');
+        })
+        .finally(() => {
+          this.ct.evaluatingId = null;
+        });
+    },
+
+    openTestAlertModal(rule) {
+      this.ct.testForm = {
+        ruleId: rule.id,
+        ruleName: rule.name,
+        budget: rule.threshold_amount || 0,
+        emails: Array.isArray(rule.notification_emails) ? [...rule.notification_emails] : [],
+        availablePercentages: Array.isArray(rule.threshold_percentages) && rule.threshold_percentages.length
+          ? [...rule.threshold_percentages]
+          : [80, 90, 100],
+        percentage: rule.threshold_percentages?.[0] || 80,
+        sending: false,
+      };
+      if (this.costThresholdTestModal) {
+        this.costThresholdTestModal.show();
+      }
+    },
+
+    sendTestAlert() {
+      if (!this.ct.testForm.ruleId) return;
+      this.ct.testForm.sending = true;
+
+      axios.post(`/api/settings/cost-thresholds/${this.ct.testForm.ruleId}/test-alert`, {
+        percentage: this.ct.testForm.percentage,
+      })
+        .then((res) => {
+          notify.success(res.data.message || 'Test alert email sent successfully!', 'Cost Thresholds');
+          if (this.costThresholdTestModal) {
+            this.costThresholdTestModal.hide();
+          }
+        })
+        .catch((err) => {
+          notify.error(err.response?.data?.message || 'Failed to send test alert email.', 'Cost Thresholds');
+        })
+        .finally(() => {
+          this.ct.testForm.sending = false;
+        });
+    },
+
+    formatUsd(val) {
+      const num = parseFloat(val);
+      if (isNaN(num)) return '0.00';
+      return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+
+    formatThresholdDate(val) {
+      if (!val) return '';
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return String(val);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    },
+
+    getSpendProgressVariant(pct) {
+      const val = parseFloat(pct) || 0;
+      if (val >= 100) return 'bg-danger';
+      if (val >= 80) return 'bg-warning';
+      return 'bg-success';
+    },
+
+    getSpendTextClass(pct) {
+      const val = parseFloat(pct) || 0;
+      if (val >= 100) return 'text-danger';
+      if (val >= 80) return 'text-warning-emphasis';
+      return 'text-success';
+    },
+
+    getSpendIconBgClass(pct) {
+      const val = parseFloat(pct) || 0;
+      if (val >= 100) return 'bg-danger-subtle text-danger';
+      if (val >= 80) return 'bg-warning-subtle text-warning-emphasis';
+      return 'bg-success-subtle text-success';
     },
   },
 };

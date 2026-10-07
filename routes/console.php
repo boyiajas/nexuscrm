@@ -10,3 +10,5 @@ Artisan::command('inspire', function () {
 
 Schedule::command('campaigns:process-scheduled')->everyMinute();
 Schedule::command('nexuscrm:dispatch-whatsapp')->everyMinute()->withoutOverlapping();
+Schedule::command('thresholds:check')->hourly()->withoutOverlapping();
+
