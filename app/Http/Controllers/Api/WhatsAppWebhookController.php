@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class WhatsAppWebhookController extends Controller
 {
@@ -171,6 +172,21 @@ class WhatsAppWebhookController extends Controller
                     'whatsapp_sent_at' => $recipient->delivered_at ?? now(),
                     'updated_at' => now(),
                 ]);
+        }
+
+        if ($mappedStatus === 'Failed') {
+            $failedClient = $recipient->client ?: ($recipient->client_id ? Client::find($recipient->client_id) : null);
+            if (!$failedClient && $recipientPhone) {
+                $failedClient = Client::where('phone', $recipientPhone)->orWhere('cell_phone', $recipientPhone)->first();
+            }
+
+            if ($failedClient) {
+                $reason = 'WhatsApp delivery failed';
+                if ($errorCode || $errorTitle) {
+                    $reason .= ': ' . trim(($errorCode ? "[$errorCode] " : '') . ($errorTitle ?: ''));
+                }
+                $failedClient->setOptIn('no', Str::limit($reason, 255));
+            }
         }
 
         $this->refreshWhatsappMessageCounts($recipient->message);

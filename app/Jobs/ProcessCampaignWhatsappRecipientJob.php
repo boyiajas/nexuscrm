@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Contracts\WhatsAppServiceInterface;
 use App\Models\CampaignClient;
 use App\Models\CampaignWhatsappRecipient;
+use App\Models\Client;
 use App\Services\WhatsAppBatchService;
 use App\Services\WhatsAppDailyLimitService;
 use App\Services\WhatsAppNumberControlService;
@@ -15,6 +16,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\RateLimited;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
 {
@@ -104,6 +106,7 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                 'status' => 'No Phone',
                 'error_message' => 'Recipient has no valid phone number.',
             ]);
+            $client?->setOptIn('no', 'Recipient has no valid phone number');
             $batchService->syncMessageProgress($message);
             return;
         }
@@ -222,6 +225,14 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                         'whatsapp_sent_at' => $deliveredAt ?: now(),
                         'updated_at' => now(),
                     ]);
+
+                if ($status === 'Failed') {
+                    $failReason = 'WhatsApp provider rejected send';
+                    if (!empty($response['error_message']) || !empty($response['message'])) {
+                        $failReason .= ': ' . ($response['error_message'] ?? $response['message']);
+                    }
+                    $client->setOptIn('no', Str::limit($failReason, 255));
+                }
             }
 
             $batchService->completeAttempt($attempt, $recipient->fresh(), $status, $providerMessageId);
@@ -282,6 +293,9 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
                         'whatsapp_status' => 'Failed',
                         'updated_at' => now(),
                     ]);
+
+                $reason = 'WhatsApp send failed' . ($errorMsg ? ': ' . Str::limit($errorMsg, 200) : '');
+                $client->setOptIn('no', Str::limit($reason, 255));
             }
 
             if ($attempt) {
@@ -297,7 +311,7 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
 
     public function failed(\Throwable $e): void
     {
-        $recipient = CampaignWhatsappRecipient::with('message')->find($this->recipientId);
+        $recipient = CampaignWhatsappRecipient::with(['message', 'client'])->find($this->recipientId);
         if (!$recipient || !$recipient->message || !in_array($recipient->status, ['Queued', 'Processing'], true)) {
             return;
         }
@@ -306,6 +320,12 @@ class ProcessCampaignWhatsappRecipientJob implements ShouldQueue
             'status' => 'Failed',
             'error_message' => $e->getMessage(),
         ]);
+
+        $client = $recipient->client ?: ($recipient->client_id ? Client::find($recipient->client_id) : null);
+        if ($client) {
+            $reason = 'WhatsApp job failed: ' . Str::limit($e->getMessage(), 200);
+            $client->setOptIn('no', Str::limit($reason, 255));
+        }
 
         app(WhatsAppBatchService::class)->syncMessageProgress($recipient->message->fresh());
     }
