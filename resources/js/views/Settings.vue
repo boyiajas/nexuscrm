@@ -3031,7 +3031,7 @@
                 </div>
               </div>
 
-              <!-- Row 2: Bank Selection (Multiple Banks) -->
+              <!-- Row 2: Bank Selection (Multiple Banks via VueMultiselect) -->
               <div class="mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <label class="form-label fw-semibold small mb-0">
@@ -3060,48 +3060,43 @@
                   <span class="fw-semibold text-primary">(Only banks assigned to your account are accessible).</span>
                 </small>
 
-                <!-- Search filter for banks if > 4 -->
-                <div v-if="ct.accessibleBanks.length > 4" class="mb-2">
-                  <input
-                    type="text"
-                    class="form-control form-control-sm"
-                    placeholder="Search accessible banks..."
-                    v-model.trim="ct.bankSearchQuery"
-                  />
-                </div>
-
-                <div class="border rounded p-2 bg-light" style="max-height: 190px; overflow-y: auto;">
-                  <div class="row g-2">
-                    <div
-                      v-for="bank in modalFilteredBanks"
-                      :key="bank.id"
-                      class="col-md-6"
-                    >
-                      <div
-                        class="p-2 rounded border bg-white d-flex align-items-center gap-2"
-                        :class="{ 'border-primary bg-primary-subtle': ct.form.bank_ids.includes(bank.id) }"
-                        style="cursor: pointer;"
-                        @click="toggleBankSelection(bank.id)"
-                      >
-                        <input
-                          class="form-check-input mt-0"
-                          type="checkbox"
-                          :checked="ct.form.bank_ids.includes(bank.id)"
-                          @click.stop="toggleBankSelection(bank.id)"
-                        />
-                        <div class="small flex-grow-1 text-truncate">
-                          <span class="fw-semibold">{{ bank.name }}</span>
-                          <span class="badge bg-light text-muted border ms-1 font-monospace" style="font-size: 0.68rem;">{{ bank.code }}</span>
-                        </div>
+                <div class="cost-threshold-bank-select">
+                  <VueMultiselect
+                    v-model="ct.selectedBanks"
+                    :options="ct.accessibleBanks"
+                    :multiple="true"
+                    :close-on-select="false"
+                    :clear-on-select="false"
+                    :preserve-search="true"
+                    placeholder="Search and select assigned banks..."
+                    label="name"
+                    track-by="id"
+                    :searchable="true"
+                    @update:model-value="onThresholdBanksChanged"
+                  >
+                    <template #tag="{ option, remove }">
+                      <span class="multiselect__tag">
+                        <span>{{ option.name }}</span>
+                        <small v-if="option.code" class="opacity-75 ms-1">({{ option.code }})</small>
+                        <i class="multiselect__tag-icon" @click="remove(option)"></i>
+                      </span>
+                    </template>
+                    <template #option="{ option }">
+                      <div class="d-flex justify-content-between align-items-center py-0.5">
+                        <span class="fw-semibold">{{ option.name }}</span>
+                        <span class="badge bg-light text-muted border font-monospace ms-2" style="font-size: 0.68rem;">{{ option.code }}</span>
                       </div>
-                    </div>
-                  </div>
+                    </template>
+                    <template #noResult>
+                      <span class="text-muted small">No assigned banks match your search query.</span>
+                    </template>
+                  </VueMultiselect>
                 </div>
                 <div class="d-flex justify-content-between align-items-center mt-1">
                   <small class="text-muted">
-                    <span class="fw-bold text-dark">{{ ct.form.bank_ids.length }}</span> bank(s) selected
+                    <span class="fw-bold text-dark">{{ ct.selectedBanks.length }}</span> bank(s) selected
                   </small>
-                  <small v-if="ct.form.bank_ids.length === 0" class="text-danger fw-semibold">
+                  <small v-if="ct.selectedBanks.length === 0" class="text-danger fw-semibold">
                     * At least one bank must be selected
                   </small>
                 </div>
@@ -3267,7 +3262,7 @@
               <button
                 type="submit"
                 class="btn btn-primary btn-sm px-4 shadow-sm"
-                :disabled="ct.saving || ct.form.bank_ids.length === 0 || ct.form.notification_emails.length === 0 || ct.form.threshold_percentages.length === 0"
+                :disabled="ct.saving || (ct.selectedBanks && ct.selectedBanks.length === 0) || ct.form.notification_emails.length === 0 || ct.form.threshold_percentages.length === 0"
               >
                 <span v-if="ct.saving" class="spinner-border spinner-border-sm me-1"></span>
                 <i v-else class="bi bi-check2-circle me-1"></i>
@@ -3423,8 +3418,8 @@ export default {
           overall_percentage: 0,
         },
         accessibleBanks: [],
+        selectedBanks: [],
         canManageAllBanks: false,
-        bankSearchQuery: '',
         modalMode: 'create', // 'create' | 'edit'
         form: {
           id: null,
@@ -3769,15 +3764,6 @@ export default {
         const matchDesc = String(rule.description || '').toLowerCase().includes(q);
         const matchBanks = Array.isArray(rule.bank_names) && rule.bank_names.some((b) => String(b).toLowerCase().includes(q));
         return matchName || matchDesc || matchBanks;
-      });
-    },
-    modalFilteredBanks() {
-      if (!this.ct.bankSearchQuery) {
-        return this.ct.accessibleBanks;
-      }
-      const q = this.ct.bankSearchQuery.toLowerCase();
-      return this.ct.accessibleBanks.filter((b) => {
-        return String(b.name || '').toLowerCase().includes(q) || String(b.code || '').toLowerCase().includes(q);
       });
     },
     sortedFormPercentages() {
@@ -5814,6 +5800,10 @@ export default {
           };
           this.ct.accessibleBanks = res.data.accessible_banks || [];
           this.ct.canManageAllBanks = !!res.data.can_manage_all_banks;
+          if (this.ct.form.bank_ids && this.ct.form.bank_ids.length && (!this.ct.selectedBanks || !this.ct.selectedBanks.length)) {
+            const ruleBankIds = this.ct.form.bank_ids.map(Number);
+            this.ct.selectedBanks = this.ct.accessibleBanks.filter((b) => ruleBankIds.includes(Number(b.id)));
+          }
         })
         .catch((err) => {
           notify.error(err.response?.data?.message || 'Failed to load cost threshold settings.', 'Cost Thresholds');
@@ -5826,11 +5816,13 @@ export default {
     openCostThresholdModal(rule = null) {
       if (rule) {
         this.ct.modalMode = 'edit';
+        const ruleBankIds = Array.isArray(rule.bank_ids) ? rule.bank_ids.map(Number) : [];
+        this.ct.selectedBanks = this.ct.accessibleBanks.filter((b) => ruleBankIds.includes(Number(b.id)));
         this.ct.form = {
           id: rule.id,
           name: rule.name,
           threshold_amount: rule.threshold_amount,
-          bank_ids: Array.isArray(rule.bank_ids) ? [...rule.bank_ids] : [],
+          bank_ids: this.ct.selectedBanks.map((b) => b.id),
           notification_emails: Array.isArray(rule.notification_emails) ? [...rule.notification_emails] : [],
           threshold_percentages: Array.isArray(rule.threshold_percentages) ? [...rule.threshold_percentages] : [80, 90, 100],
           is_active: !!rule.is_active,
@@ -5838,13 +5830,17 @@ export default {
         };
       } else {
         this.ct.modalMode = 'create';
-        const defaultBankIds = this.ct.accessibleBanks.length === 1 ? [this.ct.accessibleBanks[0].id] : [];
+        if (this.ct.accessibleBanks.length === 1) {
+          this.ct.selectedBanks = [...this.ct.accessibleBanks];
+        } else {
+          this.ct.selectedBanks = [];
+        }
         const defaultEmails = this.currentUser?.email ? [this.currentUser.email] : [];
         this.ct.form = {
           id: null,
           name: '',
           threshold_amount: '',
-          bank_ids: defaultBankIds,
+          bank_ids: this.ct.selectedBanks.map((b) => b.id),
           notification_emails: defaultEmails,
           threshold_percentages: [80, 90, 100],
           is_active: true,
@@ -5853,26 +5849,22 @@ export default {
       }
       this.ct.emailInput = '';
       this.ct.customPercentageInput = null;
-      this.ct.bankSearchQuery = '';
       if (this.costThresholdModal) {
         this.costThresholdModal.show();
       }
     },
 
-    toggleBankSelection(bankId) {
-      const idx = this.ct.form.bank_ids.indexOf(bankId);
-      if (idx > -1) {
-        this.ct.form.bank_ids.splice(idx, 1);
-      } else {
-        this.ct.form.bank_ids.push(bankId);
-      }
+    onThresholdBanksChanged(selected) {
+      this.ct.form.bank_ids = Array.isArray(selected) ? selected.map((b) => b.id) : [];
     },
 
     selectAllAccessibleBanks() {
+      this.ct.selectedBanks = [...this.ct.accessibleBanks];
       this.ct.form.bank_ids = this.ct.accessibleBanks.map((b) => b.id);
     },
 
     clearBankSelection() {
+      this.ct.selectedBanks = [];
       this.ct.form.bank_ids = [];
     },
 
@@ -5941,6 +5933,10 @@ export default {
     },
 
     saveCostThresholdRule() {
+      if (Array.isArray(this.ct.selectedBanks)) {
+        this.ct.form.bank_ids = this.ct.selectedBanks.map((b) => b.id);
+      }
+
       if (!this.ct.form.name) {
         notify.error('Please provide a rule name.', 'Cost Thresholds');
         return;
@@ -5949,7 +5945,7 @@ export default {
         notify.error('Please enter a monthly threshold amount greater than $0.', 'Cost Thresholds');
         return;
       }
-      if (this.ct.form.bank_ids.length === 0) {
+      if (!this.ct.form.bank_ids || this.ct.form.bank_ids.length === 0) {
         notify.error('Please select at least one assigned bank.', 'Cost Thresholds');
         return;
       }
