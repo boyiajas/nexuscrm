@@ -348,10 +348,22 @@ class ChatController extends Controller
         $settings = \App\Models\SystemSetting::first();
         $liveChatLocked = $settings ? (bool) $settings->live_chat_locked : false;
         $liveChatLockedMessage = $settings ? $settings->live_chat_locked_message : 'Live chat is temporarily disabled.';
+        $liveChatLockedPhoneNumbers = $settings ? ($settings->live_chat_locked_phone_numbers ?: []) : [];
+        $liveChatLockedIdentifiers = $settings ? $settings->getLiveChatLockedPhoneNumberIdentifiers() : [];
         $disableChatForOptedOutClients = $settings && $settings->disable_chat_for_opted_out_clients !== null ? (bool) $settings->disable_chat_for_opted_out_clients : true;
         $optedOutChatMessage = ($settings && $settings->opted_out_chat_message) ? $settings->opted_out_chat_message : 'This client has opted out of WhatsApp communication. Messaging is disabled.';
 
-        return response()->json(compact('banks', 'departments', 'wabas', 'liveChatLocked', 'liveChatLockedMessage', 'disableChatForOptedOutClients', 'optedOutChatMessage'));
+        return response()->json(compact(
+            'banks',
+            'departments',
+            'wabas',
+            'liveChatLocked',
+            'liveChatLockedMessage',
+            'liveChatLockedPhoneNumbers',
+            'liveChatLockedIdentifiers',
+            'disableChatForOptedOutClients',
+            'optedOutChatMessage'
+        ));
     }
 
     public function show(Request $request, ChatSession $session)
@@ -404,7 +416,7 @@ class ChatController extends Controller
         }
 
         $settings = \App\Models\SystemSetting::first();
-        if ($settings && $settings->live_chat_locked) {
+        if ($settings && $settings->isLiveChatLockedForSession($session)) {
             return response()->json([
                 'message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.'
             ], 403);
@@ -529,7 +541,7 @@ class ChatController extends Controller
         }
 
         $settings = \App\Models\SystemSetting::first();
-        if ($settings && $settings->live_chat_locked) {
+        if ($settings && $settings->isLiveChatLockedForSession($session)) {
             return response()->json([
                 'message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.'
             ], 403);

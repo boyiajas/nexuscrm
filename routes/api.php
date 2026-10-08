@@ -176,6 +176,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/settings/meta/phone-numbers/{phoneNumberId}/display-name', [SettingsController::class, 'updateMetaPhoneNumberDisplayName']);
     Route::post('/settings/meta/phone-numbers/{phoneNumberId}/profile-picture', [SettingsController::class, 'updateMetaPhoneNumberProfilePicture']);
 
+    Route::get('/settings/whatsapp-numbers', [SettingsController::class, 'getAvailableWhatsappNumbers']);
     Route::apiResource('/settings/whatsapp-accounts', App\Http\Controllers\Api\WhatsappAccountController::class)->except(['show']);
     Route::post('/settings/whatsapp-accounts/{id}/activate', [App\Http\Controllers\Api\WhatsappAccountController::class, 'activate']);
 

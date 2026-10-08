@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\SystemSetting;
 use App\Models\WhatsappAccount;
+use App\Models\Bank;
 use App\Services\MetaWhatsAppService;
 use App\Services\WhatsAppDailyLimitService;
 use App\Services\WhatsAppNumberControlService;
@@ -578,6 +579,7 @@ class SettingsController extends Controller
             'company_name'           => ['sometimes', 'nullable', 'string', 'max:255'],
             'live_chat_locked'       => ['sometimes', 'boolean'],
             'live_chat_locked_message' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'live_chat_locked_phone_numbers' => ['sometimes', 'nullable'],
             'disable_chat_for_opted_out_clients' => ['sometimes', 'boolean'],
             'opted_out_chat_message' => ['sometimes', 'nullable', 'string', 'max:255'],
             'support_email'          => ['sometimes', 'nullable', 'email', 'max:255'],
@@ -672,6 +674,15 @@ class SettingsController extends Controller
             $data['meta_token_last_rotated_at'] = $data['meta_token_last_rotated_at'] ?? now();
         }
 
+        if (array_key_exists('live_chat_locked_phone_numbers', $data)) {
+            if (is_string($data['live_chat_locked_phone_numbers'])) {
+                $decoded = json_decode($data['live_chat_locked_phone_numbers'], true);
+                $data['live_chat_locked_phone_numbers'] = is_array($decoded) ? $decoded : [];
+            } elseif (!is_array($data['live_chat_locked_phone_numbers'])) {
+                $data['live_chat_locked_phone_numbers'] = [];
+            }
+        }
+
         $settings->fill($data);
         $settings->save();
 
@@ -726,6 +737,7 @@ class SettingsController extends Controller
                 'company_name' => null,
                 'live_chat_locked' => false,
                 'live_chat_locked_message' => 'Live chat is temporarily disabled.',
+                'live_chat_locked_phone_numbers' => [],
                 'disable_chat_for_opted_out_clients' => true,
                 'opted_out_chat_message' => 'This client has opted out of WhatsApp communication. Messaging is disabled.',
                 'support_email' => null,
@@ -771,6 +783,7 @@ class SettingsController extends Controller
             'company_name' => $settings->company_name,
             'live_chat_locked' => (bool) $settings->live_chat_locked,
             'live_chat_locked_message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.',
+            'live_chat_locked_phone_numbers' => $settings->live_chat_locked_phone_numbers ?: [],
             'disable_chat_for_opted_out_clients' => $settings->disable_chat_for_opted_out_clients !== null ? (bool) $settings->disable_chat_for_opted_out_clients : true,
             'opted_out_chat_message' => $settings->opted_out_chat_message ?: 'This client has opted out of WhatsApp communication. Messaging is disabled.',
             'support_email' => $settings->support_email,
@@ -831,8 +844,165 @@ class SettingsController extends Controller
             [
                 'meta_phone_profile' => $this->resolveMetaPhoneProfile($settings),
                 'whatsapp_daily_limit_summary' => app(WhatsAppDailyLimitService::class)->summaryFor(Auth::user()),
+                'available_whatsapp_numbers' => $this->getAvailableSystemWhatsappNumbers(),
             ]
         );
+    }
+
+    public function getAvailableWhatsappNumbers()
+    {
+        $this->authorizeAdmin();
+
+        return response()->json([
+            'numbers' => $this->getAvailableSystemWhatsappNumbers(),
+        ]);
+    }
+
+    public function getAvailableSystemWhatsappNumbers(): array
+    {
+        $numbersMap = [];
+
+        // 1. WhatsApp Accounts configured in system
+        try {
+            $accounts = WhatsappAccount::with('bank:id,name,code')->get();
+            foreach ($accounts as $acc) {
+                $id = (string) ($acc->phone_number_id ?: $acc->id);
+                $display = $acc->display_phone_number ?: $acc->name;
+                $clean = preg_replace('/\D+/', '', (string) $display);
+                $bankName = $acc->bank ? $acc->bank->name : null;
+                $label = $display;
+                if ($bankName) {
+                    $label .= " ({$bankName} - {$acc->name})";
+                } elseif ($acc->name && $acc->name !== $display) {
+                    $label .= " ({$acc->name})";
+                }
+
+                $key = $acc->phone_number_id ? (string) $acc->phone_number_id : ($clean ?: (string) $acc->id);
+                $numbersMap[$key] = [
+                    'id' => (string) ($acc->phone_number_id ?: $acc->id),
+                    'phone_number_id' => $acc->phone_number_id ? (string) $acc->phone_number_id : null,
+                    'display_phone_number' => $display,
+                    'label' => $label,
+                    'name' => $acc->name,
+                    'bank_name' => $bankName,
+                    'source' => 'whatsapp_account',
+                ];
+            }
+        } catch (\Throwable $e) {
+            // Silently continue
+        }
+
+        // 2. Bank primary and secondary WhatsApp numbers
+        try {
+            $banks = Bank::query()
+                ->whereNotNull('primary_whatsapp_number')
+                ->orWhereNotNull('secondary_whatsapp_numbers')
+                ->get();
+
+            foreach ($banks as $bank) {
+                if (!empty($bank->primary_whatsapp_number)) {
+                    $clean = preg_replace('/\D+/', '', (string) $bank->primary_whatsapp_number);
+                    $key = $clean ?: (string) $bank->primary_whatsapp_number;
+                    if (!isset($numbersMap[$key])) {
+                        $numbersMap[$key] = [
+                            'id' => (string) $bank->primary_whatsapp_number,
+                            'phone_number_id' => null,
+                            'display_phone_number' => $bank->primary_whatsapp_number,
+                            'label' => "{$bank->primary_whatsapp_number} ({$bank->name} - Primary)",
+                            'name' => $bank->name,
+                            'bank_name' => $bank->name,
+                            'source' => 'bank_primary',
+                        ];
+                    }
+                }
+
+                if (!empty($bank->secondary_whatsapp_numbers) && is_array($bank->secondary_whatsapp_numbers)) {
+                    foreach ($bank->secondary_whatsapp_numbers as $secNum) {
+                        $secStr = is_string($secNum) ? $secNum : ($secNum['number'] ?? '');
+                        if (!empty($secStr)) {
+                            $clean = preg_replace('/\D+/', '', (string) $secStr);
+                            $key = $clean ?: (string) $secStr;
+                            if (!isset($numbersMap[$key])) {
+                                $numbersMap[$key] = [
+                                    'id' => (string) $secStr,
+                                    'phone_number_id' => null,
+                                    'display_phone_number' => (string) $secStr,
+                                    'label' => "{$secStr} ({$bank->name} - Secondary)",
+                                    'name' => $bank->name,
+                                    'bank_name' => $bank->name,
+                                    'source' => 'bank_secondary',
+                                ];
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently continue
+        }
+
+        // 3. Meta API Phone Numbers if accessible
+        try {
+            $service = app(MetaWhatsAppService::class);
+            $metaNumbers = $service->getPhoneNumbers();
+            foreach ($metaNumbers as $metaNum) {
+                $phoneId = !empty($metaNum['id']) ? (string) $metaNum['id'] : null;
+                $display = $metaNum['display_phone_number'] ?? $metaNum['verified_name'] ?? $phoneId;
+                $verifiedName = $metaNum['verified_name'] ?? null;
+                $clean = preg_replace('/\D+/', '', (string) $display);
+                $key = $phoneId ?: ($clean ?: (string) $display);
+
+                $label = (string) $display;
+                if ($verifiedName && $verifiedName !== $display) {
+                    $label .= " ({$verifiedName})";
+                }
+
+                if (isset($numbersMap[$key])) {
+                    if ($phoneId && empty($numbersMap[$key]['phone_number_id'])) {
+                        $numbersMap[$key]['phone_number_id'] = $phoneId;
+                    }
+                } else {
+                    $numbersMap[$key] = [
+                        'id' => (string) ($phoneId ?: $display),
+                        'phone_number_id' => $phoneId,
+                        'display_phone_number' => (string) $display,
+                        'label' => $label,
+                        'name' => $verifiedName ?: (string) $display,
+                        'bank_name' => null,
+                        'source' => 'meta',
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently continue
+        }
+
+        // 4. Default SystemSetting Meta number
+        try {
+            $settings = SystemSetting::first();
+            if ($settings && (!empty($settings->meta_whatsapp_phone_number_id) || !empty($settings->meta_whatsapp_display_phone_number))) {
+                $phoneId = $settings->meta_whatsapp_phone_number_id ? (string) $settings->meta_whatsapp_phone_number_id : null;
+                $display = $settings->meta_whatsapp_display_phone_number ?: $phoneId;
+                $clean = preg_replace('/\D+/', '', (string) $display);
+                $key = $phoneId ?: ($clean ?: (string) $display);
+
+                if (!isset($numbersMap[$key])) {
+                    $numbersMap[$key] = [
+                        'id' => (string) ($phoneId ?: $display),
+                        'phone_number_id' => $phoneId,
+                        'display_phone_number' => (string) $display,
+                        'label' => "{$display} (System Default Meta)",
+                        'name' => 'System Default Meta',
+                        'bank_name' => null,
+                        'source' => 'system_settings',
+                    ];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently continue
+        }
+
+        return array_values($numbersMap);
     }
 
     protected function resolveMetaPhoneProfile(?SystemSetting $settings): ?array

@@ -508,19 +508,120 @@
         <div class="row g-3 mt-1">
           <div class="col-12 col-lg-6">
             <div class="card shadow-sm border-danger h-100">
-              <div class="card-header bg-danger text-white">
-                <h6 class="mb-0"><i class="bi bi-shield-lock-fill me-2"></i>Live Chat Emergency Lock</h6>
+              <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center py-2">
+                <h6 class="mb-0 fs-7 fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Live Chat Emergency Lock</h6>
+                <span v-if="system.form.live_chat_locked" class="badge bg-white text-danger fw-bold text-uppercase" style="font-size: 0.65rem;">
+                  All Chats Locked
+                </span>
+                <span v-else-if="system.selectedLockedNumbers && system.selectedLockedNumbers.length > 0" class="badge bg-warning text-dark fw-bold" style="font-size: 0.65rem;">
+                  {{ system.selectedLockedNumbers.length }} Number(s) Locked
+                </span>
               </div>
-              <div class="card-body">
-                <div class="form-check form-switch mb-3">
+              <div class="card-body p-3">
+                <div class="form-check form-switch mb-2">
                   <input class="form-check-input" type="checkbox" role="switch" id="globalChatLock" v-model="system.form.live_chat_locked" />
-                  <label class="form-check-label text-danger fw-bold" for="globalChatLock">Lock all Live Chat communication</label>
-                  <div class="form-text">When enabled, agents will not be able to send outbound messages. Inbound messages will still be received.</div>
+                  <label class="form-check-label text-danger fw-bold small" for="globalChatLock">Lock all Live Chat communication</label>
+                  <div class="form-text text-muted" style="font-size: 0.72rem;">When enabled, agents will not be able to send outbound messages on any number. Inbound messages will still be received.</div>
                 </div>
-                <div>
-                  <label class="form-label" :class="{'text-danger': system.form.live_chat_locked}">Disabled Message</label>
-                  <input v-model="system.form.live_chat_locked_message" type="text" class="form-control" :class="{'border-danger': system.form.live_chat_locked}" placeholder="Live chat is temporarily disabled." :disabled="!system.form.live_chat_locked" />
-                  <small class="text-muted">This message will be displayed in the chat input area for all agents.</small>
+
+                <!-- Selective Number Lock via VueMultiselect -->
+                <div class="mt-3 pt-2 border-top">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="form-label fw-bold small mb-0" :class="{'text-danger': system.selectedLockedNumbers && system.selectedLockedNumbers.length > 0}">
+                      <i class="bi bi-telephone-x me-1"></i>Lock Specific WhatsApp Numbers
+                    </label>
+                    <div class="btn-group btn-group-sm" role="group">
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-xs py-0 px-2"
+                        style="font-size: 0.68rem;"
+                        @click="selectAllSystemNumbersToLock"
+                        :disabled="!system.availableWhatsappNumbers || system.availableWhatsappNumbers.length === 0"
+                        title="Select all system numbers"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-xs py-0 px-2"
+                        style="font-size: 0.68rem;"
+                        @click="clearLockedNumbersSelection"
+                        :disabled="!system.selectedLockedNumbers || system.selectedLockedNumbers.length === 0"
+                        title="Clear selected numbers"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div class="form-text text-muted mb-1.5" style="font-size: 0.72rem;">
+                    Select one or more WhatsApp numbers to lock chat communication for only those numbers.
+                  </div>
+
+                  <div class="live-chat-locked-numbers-select">
+                    <VueMultiselect
+                      v-model="system.selectedLockedNumbers"
+                      :options="system.availableWhatsappNumbers"
+                      :multiple="true"
+                      :close-on-select="false"
+                      :clear-on-select="false"
+                      :preserve-search="true"
+                      placeholder="Search and select WhatsApp numbers..."
+                      label="label"
+                      track-by="id"
+                      :searchable="true"
+                      @update:model-value="onLockedNumbersChanged"
+                    >
+                      <template #tag="{ option, remove }">
+                        <span class="multiselect__tag bg-danger text-white border-0 py-0.5 px-2">
+                          <i class="bi bi-lock-fill me-1" style="font-size: 0.65rem;"></i>
+                          <span>{{ option.display_phone_number || option.label }}</span>
+                          <small v-if="option.name && option.name !== option.display_phone_number" class="opacity-75 ms-1">({{ option.name }})</small>
+                          <i class="multiselect__tag-icon text-white" @click="remove(option)"></i>
+                        </span>
+                      </template>
+                      <template #option="{ option }">
+                        <div class="d-flex justify-content-between align-items-center py-0.5">
+                          <div>
+                            <span class="fw-semibold small">{{ option.display_phone_number || option.label }}</span>
+                            <div v-if="option.name && option.name !== option.display_phone_number" class="text-muted" style="font-size: 0.7rem;">
+                              {{ option.name }}
+                              <span v-if="option.bank_name" class="badge bg-light text-secondary border ms-1 py-0 px-1" style="font-size: 0.65rem;">
+                                {{ option.bank_name }}
+                              </span>
+                            </div>
+                          </div>
+                          <span v-if="option.phone_number_id" class="badge bg-light text-muted border font-monospace ms-2" style="font-size: 0.65rem;">
+                            ID: {{ option.phone_number_id }}
+                          </span>
+                        </div>
+                      </template>
+                      <template #noResult>
+                        <span class="text-muted small">No WhatsApp numbers match your search query.</span>
+                      </template>
+                    </VueMultiselect>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mt-1">
+                    <small class="text-muted" style="font-size: 0.72rem;">
+                      <span class="fw-bold text-dark">{{ system.selectedLockedNumbers ? system.selectedLockedNumbers.length : 0 }}</span> of
+                      <span>{{ system.availableWhatsappNumbers ? system.availableWhatsappNumbers.length : 0 }}</span> WhatsApp number(s) selected
+                    </small>
+                    <small v-if="system.selectedLockedNumbers && system.selectedLockedNumbers.length > 0" class="text-danger fw-semibold" style="font-size: 0.72rem;">
+                      <i class="bi bi-exclamation-triangle me-1"></i>Selective lock active
+                    </small>
+                  </div>
+                </div>
+
+                <div class="mt-3 pt-2 border-top">
+                  <label class="form-label small fw-semibold mb-1" :class="{'text-danger': system.form.live_chat_locked || (system.selectedLockedNumbers && system.selectedLockedNumbers.length > 0)}">Disabled Message</label>
+                  <input
+                    v-model="system.form.live_chat_locked_message"
+                    type="text"
+                    class="form-control form-control-sm"
+                    :class="{'border-danger': system.form.live_chat_locked || (system.selectedLockedNumbers && system.selectedLockedNumbers.length > 0)}"
+                    placeholder="Live chat is temporarily disabled."
+                    :disabled="!system.form.live_chat_locked && (!system.selectedLockedNumbers || system.selectedLockedNumbers.length === 0)"
+                  />
+                  <small class="text-muted d-block mt-1" style="font-size: 0.72rem;">This message will be displayed in the chat input area for agents when chat is locked.</small>
                 </div>
               </div>
             </div>
@@ -3448,6 +3549,9 @@ export default {
         logoFile: null,
         logoPreviewUrl: null,
         removeLogo: false,
+        availableWhatsappNumbers: [],
+        selectedLockedNumbers: [],
+        loadingNumbers: false,
         form: {
           app_name: 'SR Solution',
           app_short_name: 'SR',
@@ -3466,6 +3570,7 @@ export default {
           app_logo_url: '',
           live_chat_locked: false,
           live_chat_locked_message: 'Live chat is temporarily disabled.',
+          live_chat_locked_phone_numbers: [],
           disable_chat_for_opted_out_clients: true,
           opted_out_chat_message: 'This client has opted out of WhatsApp communication. Messaging is disabled.',
         },
@@ -4376,6 +4481,14 @@ export default {
       this.meta.daily_limit_summary = settings.whatsapp_daily_limit_summary || null;
 
       this.applyBranding(settings);
+
+      if (Array.isArray(settings.available_whatsapp_numbers)) {
+        this.system.availableWhatsappNumbers = settings.available_whatsapp_numbers;
+      }
+      this.system.form.live_chat_locked_phone_numbers = Array.isArray(settings.live_chat_locked_phone_numbers)
+        ? settings.live_chat_locked_phone_numbers
+        : [];
+      this.syncSelectedLockedNumbers();
     },
     loadAdminSettings() {
       axios
@@ -4400,6 +4513,78 @@ export default {
       this.system.logoPreviewUrl = null;
       this.system.removeLogo = true;
     },
+    onLockedNumbersChanged(selected) {
+      this.system.selectedLockedNumbers = selected || [];
+      this.system.form.live_chat_locked_phone_numbers = selected || [];
+    },
+    selectAllSystemNumbersToLock() {
+      if (!this.system.availableWhatsappNumbers || this.system.availableWhatsappNumbers.length === 0) return;
+      this.system.selectedLockedNumbers = [...this.system.availableWhatsappNumbers];
+      this.system.form.live_chat_locked_phone_numbers = [...this.system.availableWhatsappNumbers];
+    },
+    clearLockedNumbersSelection() {
+      this.system.selectedLockedNumbers = [];
+      this.system.form.live_chat_locked_phone_numbers = [];
+    },
+    syncSelectedLockedNumbers() {
+      const rawLocked = this.system.form.live_chat_locked_phone_numbers;
+      if (!Array.isArray(rawLocked) || rawLocked.length === 0) {
+        this.system.selectedLockedNumbers = [];
+        return;
+      }
+
+      const available = this.system.availableWhatsappNumbers || [];
+      const selected = [];
+
+      for (const item of rawLocked) {
+        if (!item) continue;
+        const targetId = typeof item === 'object' ? (item.id || item.phone_number_id || item.display_phone_number) : String(item);
+        const targetNum = typeof item === 'object' ? (item.display_phone_number || item.number || item.id) : String(item);
+        const cleanTarget = String(targetNum).replace(/\D+/g, '');
+
+        const matched = available.find(opt => {
+          if (String(opt.id) === String(targetId)) return true;
+          if (opt.phone_number_id && String(opt.phone_number_id) === String(targetId)) return true;
+          const cleanOpt = String(opt.display_phone_number || opt.label || '').replace(/\D+/g, '');
+          if (cleanTarget && cleanOpt && cleanTarget === cleanOpt) return true;
+          return false;
+        });
+
+        if (matched) {
+          if (!selected.some(s => s.id === matched.id)) {
+            selected.push(matched);
+          }
+        } else {
+          const fallback = typeof item === 'object' ? item : {
+            id: String(item),
+            phone_number_id: null,
+            display_phone_number: String(item),
+            label: String(item),
+            name: String(item),
+          };
+          if (!selected.some(s => s.id === fallback.id)) {
+            selected.push(fallback);
+          }
+        }
+      }
+
+      this.system.selectedLockedNumbers = selected;
+    },
+    fetchAvailableWhatsappNumbers() {
+      this.system.loadingNumbers = true;
+      axios
+        .get('/api/settings/whatsapp-numbers')
+        .then((res) => {
+          if (Array.isArray(res.data?.numbers)) {
+            this.system.availableWhatsappNumbers = res.data.numbers;
+            this.syncSelectedLockedNumbers();
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.system.loadingNumbers = false;
+        });
+    },
     saveSystemSettings() {
       this.system.saving = true;
       const payload = new FormData();
@@ -4411,6 +4596,7 @@ export default {
       payload.append('support_phone', this.system.form.support_phone || '');
       payload.append('live_chat_locked', this.system.form.live_chat_locked ? '1' : '0');
       payload.append('live_chat_locked_message', this.system.form.live_chat_locked_message || '');
+      payload.append('live_chat_locked_phone_numbers', JSON.stringify(this.system.selectedLockedNumbers || []));
       payload.append('disable_chat_for_opted_out_clients', this.system.form.disable_chat_for_opted_out_clients ? '1' : '0');
       payload.append('opted_out_chat_message', this.system.form.opted_out_chat_message || '');
       payload.append('admin_ip_allowlist', this.system.form.admin_ip_allowlist || '');
