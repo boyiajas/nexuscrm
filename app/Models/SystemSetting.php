@@ -119,6 +119,9 @@ class SystemSetting extends Model
                     $clean = preg_replace('/\D+/', '', (string) $item['display_phone_number']);
                     if ($clean) {
                         $identifiers[] = $clean;
+                        if (strlen($clean) >= 9) {
+                            $identifiers[] = substr($clean, -9);
+                        }
                     }
                 }
                 if (!empty($item['number'])) {
@@ -126,6 +129,33 @@ class SystemSetting extends Model
                     $clean = preg_replace('/\D+/', '', (string) $item['number']);
                     if ($clean) {
                         $identifiers[] = $clean;
+                        if (strlen($clean) >= 9) {
+                            $identifiers[] = substr($clean, -9);
+                        }
+                    }
+                }
+
+                // If this item has an ID that matches a WhatsappAccount, pull its linked phone_number_id
+                if (!empty($item['id']) && is_numeric($item['id'])) {
+                    try {
+                        $acc = WhatsappAccount::find((int) $item['id']);
+                        if ($acc) {
+                            if (!empty($acc->phone_number_id)) {
+                                $identifiers[] = (string) $acc->phone_number_id;
+                            }
+                            if (!empty($acc->display_phone_number)) {
+                                $identifiers[] = (string) $acc->display_phone_number;
+                                $cleanAcc = preg_replace('/\D+/', '', (string) $acc->display_phone_number);
+                                if ($cleanAcc) {
+                                    $identifiers[] = $cleanAcc;
+                                    if (strlen($cleanAcc) >= 9) {
+                                        $identifiers[] = substr($cleanAcc, -9);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        // Silently continue
                     }
                 }
             } elseif (is_string($item) || is_numeric($item)) {
@@ -134,6 +164,9 @@ class SystemSetting extends Model
                 $clean = preg_replace('/\D+/', '', $str);
                 if ($clean) {
                     $identifiers[] = $clean;
+                    if (strlen($clean) >= 9) {
+                        $identifiers[] = substr($clean, -9);
+                    }
                 }
             }
         }
@@ -156,41 +189,133 @@ class SystemSetting extends Model
         }
 
         $sessionIdentifiers = [];
+
+        // 1. Session waba_phone_number_id
         if (!empty($session->waba_phone_number_id)) {
             $sessionIdentifiers[] = (string) $session->waba_phone_number_id;
             $cleanWaba = preg_replace('/\D+/', '', (string) $session->waba_phone_number_id);
             if ($cleanWaba) {
                 $sessionIdentifiers[] = $cleanWaba;
+                if (strlen($cleanWaba) >= 9) {
+                    $sessionIdentifiers[] = substr($cleanWaba, -9);
+                }
             }
-        }
 
-        if ($session->relationLoaded('bank') || $session->bank_id) {
-            $bank = $session->bank ?: Bank::find($session->bank_id);
-            if ($bank && !empty($bank->primary_whatsapp_number)) {
-                $sessionIdentifiers[] = (string) $bank->primary_whatsapp_number;
-                $cleanBankNum = preg_replace('/\D+/', '', (string) $bank->primary_whatsapp_number);
-                if ($cleanBankNum) {
-                    $sessionIdentifiers[] = $cleanBankNum;
-                }
-            }
-            if ($bank && $bank->relationLoaded('whatsappAccount') && $bank->whatsappAccount) {
-                if (!empty($bank->whatsappAccount->phone_number_id)) {
-                    $sessionIdentifiers[] = (string) $bank->whatsappAccount->phone_number_id;
-                }
-                if (!empty($bank->whatsappAccount->display_phone_number)) {
-                    $sessionIdentifiers[] = (string) $bank->whatsappAccount->display_phone_number;
-                    $cleanAccNum = preg_replace('/\D+/', '', (string) $bank->whatsappAccount->display_phone_number);
-                    if ($cleanAccNum) {
-                        $sessionIdentifiers[] = $cleanAccNum;
+            // Look up WhatsappAccount by phone_number_id or id
+            try {
+                $waAccounts = WhatsappAccount::where('phone_number_id', (string) $session->waba_phone_number_id)
+                    ->orWhere('id', (string) $session->waba_phone_number_id)
+                    ->get();
+
+                foreach ($waAccounts as $wa) {
+                    $sessionIdentifiers[] = (string) $wa->id;
+                    if (!empty($wa->phone_number_id)) {
+                        $sessionIdentifiers[] = (string) $wa->phone_number_id;
+                    }
+                    if (!empty($wa->display_phone_number)) {
+                        $sessionIdentifiers[] = (string) $wa->display_phone_number;
+                        $clean = preg_replace('/\D+/', '', (string) $wa->display_phone_number);
+                        if ($clean) {
+                            $sessionIdentifiers[] = $clean;
+                            if (strlen($clean) >= 9) {
+                                $sessionIdentifiers[] = substr($clean, -9);
+                            }
+                        }
                     }
                 }
+            } catch (\Throwable $e) {
+                // Silently continue
             }
         }
 
+        // 2. Bank associated with session or client
+        $bankId = $session->bank_id ?: $session->client?->bank_id;
+        if ($bankId) {
+            try {
+                $bank = $session->relationLoaded('bank') && $session->bank
+                    ? $session->bank
+                    : Bank::with(['whatsappAccount', 'whatsappAccounts'])->find($bankId);
+
+                if ($bank) {
+                    if (!empty($bank->primary_whatsapp_number)) {
+                        $sessionIdentifiers[] = (string) $bank->primary_whatsapp_number;
+                        $cleanBankNum = preg_replace('/\D+/', '', (string) $bank->primary_whatsapp_number);
+                        if ($cleanBankNum) {
+                            $sessionIdentifiers[] = $cleanBankNum;
+                            if (strlen($cleanBankNum) >= 9) {
+                                $sessionIdentifiers[] = substr($cleanBankNum, -9);
+                            }
+                        }
+                    }
+
+                    if (!empty($bank->secondary_whatsapp_numbers) && is_array($bank->secondary_whatsapp_numbers)) {
+                        foreach ($bank->secondary_whatsapp_numbers as $sec) {
+                            $secStr = is_string($sec) ? $sec : ($sec['number'] ?? '');
+                            if ($secStr) {
+                                $sessionIdentifiers[] = (string) $secStr;
+                                $cleanSec = preg_replace('/\D+/', '', (string) $secStr);
+                                if ($cleanSec) {
+                                    $sessionIdentifiers[] = $cleanSec;
+                                    if (strlen($cleanSec) >= 9) {
+                                        $sessionIdentifiers[] = substr($cleanSec, -9);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    $accountsToCheck = collect();
+                    if ($bank->whatsappAccount) {
+                        $accountsToCheck->push($bank->whatsappAccount);
+                    }
+                    if ($bank->relationLoaded('whatsappAccounts') && $bank->whatsappAccounts) {
+                        $accountsToCheck = $accountsToCheck->merge($bank->whatsappAccounts);
+                    } elseif ($bank->id) {
+                        $accountsToCheck = $accountsToCheck->merge(WhatsappAccount::where('bank_id', $bank->id)->get());
+                    }
+
+                    foreach ($accountsToCheck->unique('id') as $waAcc) {
+                        $sessionIdentifiers[] = (string) $waAcc->id;
+                        if (!empty($waAcc->phone_number_id)) {
+                            $sessionIdentifiers[] = (string) $waAcc->phone_number_id;
+                        }
+                        if (!empty($waAcc->display_phone_number)) {
+                            $sessionIdentifiers[] = (string) $waAcc->display_phone_number;
+                            $cleanAccNum = preg_replace('/\D+/', '', (string) $waAcc->display_phone_number);
+                            if ($cleanAccNum) {
+                                $sessionIdentifiers[] = $cleanAccNum;
+                                if (strlen($cleanAccNum) >= 9) {
+                                    $sessionIdentifiers[] = substr($cleanAccNum, -9);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Silently continue
+            }
+        }
+
+        // 3. Match against locked identifiers
         foreach ($sessionIdentifiers as $ident) {
             if (in_array((string) $ident, $lockedIdentifiers, true)) {
                 return true;
             }
+        }
+
+        // 4. Try phonesMatch via BankWabaResolver if available
+        try {
+            /** @var \App\Services\BankWabaResolver $resolver */
+            $resolver = app(\App\Services\BankWabaResolver::class);
+            foreach ($sessionIdentifiers as $sId) {
+                foreach ($lockedIdentifiers as $lId) {
+                    if ($resolver->phonesMatch($sId, $lId)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently continue
         }
 
         return false;

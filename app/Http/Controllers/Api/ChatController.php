@@ -30,7 +30,7 @@ class ChatController extends Controller
     {
         $user = $this->authorizeView();
 
-        $query = ChatSession::with(['client', 'agent', 'latestMessage'])
+        $query = ChatSession::with(['client', 'agent', 'latestMessage', 'bank.whatsappAccount', 'bank.whatsappAccounts'])
             ->orderByDesc('updated_at');
 
         $this->scopeChatSessionQueryToUser($query, $user);
@@ -373,7 +373,7 @@ class ChatController extends Controller
 
         $session->load(['messages' => function ($q) {
             $q->orderBy('sent_at', 'asc');
-        }, 'agent', 'client']);
+        }, 'agent', 'client', 'bank.whatsappAccount', 'bank.whatsappAccounts']);
 
         // Keep review-only roles read-only by skipping unread-count mutation.
         if (!$user->isReadOnlyRole() && !$request->boolean('peek')) {

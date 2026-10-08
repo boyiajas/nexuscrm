@@ -1002,6 +1002,60 @@ class SettingsController extends Controller
             // Silently continue
         }
 
+        // 5. Live WABA senders from WhatsApp service if available
+        try {
+            if (app()->bound(\App\Contracts\WhatsAppServiceInterface::class)) {
+                $whatsApp = app(\App\Contracts\WhatsAppServiceInterface::class);
+                $liveSenders = $whatsApp->listWhatsappSenders();
+                /** @var \App\Services\BankWabaResolver $resolver */
+                $resolver = app(\App\Services\BankWabaResolver::class);
+
+                foreach ($liveSenders as $s) {
+                    $pId = !empty($s['phone_number_id']) ? (string) $s['phone_number_id'] : null;
+                    $num = !empty($s['number']) ? (string) $s['number'] : null;
+                    $lbl = !empty($s['label']) ? (string) $s['label'] : ($pId ?: $num);
+                    $clean = $num ? preg_replace('/\D+/', '', $num) : null;
+                    $key = $pId ?: ($clean ?: $num);
+
+                    if (!$key) continue;
+
+                    $matchedBank = $resolver->resolveBankForSender($pId, $num, $lbl);
+                    $bankName = $matchedBank?->name;
+
+                    $label = $num ?: $lbl;
+                    if ($bankName) {
+                        $label .= " ({$bankName} - {$lbl})";
+                    } elseif ($lbl && $lbl !== $num) {
+                        $label .= " ({$lbl})";
+                    }
+
+                    if (isset($numbersMap[$key])) {
+                        if ($pId && empty($numbersMap[$key]['phone_number_id'])) {
+                            $numbersMap[$key]['phone_number_id'] = $pId;
+                        }
+                        if ($num && empty($numbersMap[$key]['display_phone_number'])) {
+                            $numbersMap[$key]['display_phone_number'] = $num;
+                        }
+                        if ($bankName && empty($numbersMap[$key]['bank_name'])) {
+                            $numbersMap[$key]['bank_name'] = $bankName;
+                        }
+                    } else {
+                        $numbersMap[$key] = [
+                            'id' => (string) ($pId ?: ($num ?: $key)),
+                            'phone_number_id' => $pId,
+                            'display_phone_number' => (string) ($num ?: $lbl),
+                            'label' => $label,
+                            'name' => $lbl,
+                            'bank_name' => $bankName,
+                            'source' => 'waba_live_sender',
+                        ];
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently continue
+        }
+
         return array_values($numbersMap);
     }
 

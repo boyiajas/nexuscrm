@@ -263,6 +263,71 @@ class ChatEmergencyLockNumberTest extends TestCase
         ]);
     }
 
+    public function test_message_sending_blocked_for_session_matching_locked_number_via_waba_account_or_bank_phone(): void
+    {
+        $bank = Bank::query()->create([
+            'name' => 'Bank A',
+            'code' => 'bank-a',
+            'status' => 'Active',
+            'primary_whatsapp_number' => '+27 61 064 7115',
+        ]);
+
+        WhatsappAccount::query()->create([
+            'name' => 'Tenacity 2 - Captin Strauss Recovery',
+            'bank_id' => $bank->id,
+            'app_id' => '123456789',
+            'app_secret' => 'test-secret',
+            'access_token' => 'test-token',
+            'waba_id' => 'waba_9999',
+            'phone_number_id' => '102938475612345',
+            'display_phone_number' => '+27 61 064 7115',
+            'webhook_verify_token' => 'test-verify',
+        ]);
+
+        SystemSetting::query()->create([
+            'live_chat_locked' => false,
+            'live_chat_locked_message' => 'Line +27 61 064 7115 is locked.',
+            'live_chat_locked_phone_numbers' => [
+                [
+                    'id' => '+27 61 064 7115',
+                    'display_phone_number' => '+27 61 064 7115',
+                    'label' => '+27 61 064 7115 (Tenacity 2)',
+                ],
+            ],
+            'disable_chat_for_opted_out_clients' => false,
+        ]);
+
+        $user = $this->createAdminUser($bank);
+        Sanctum::actingAs($user);
+
+        $client = Client::query()->create([
+            'bank_id' => $bank->id,
+            'name' => 'Esthersc Monyanyi',
+            'phone' => '+27761112233',
+            'opt_in' => 'yes',
+        ]);
+
+        // Session where waba_phone_number_id is Meta numeric ID, but locked list has '+27 61 064 7115'
+        $session = ChatSession::query()->create([
+            'bank_id' => $bank->id,
+            'client_id' => $client->id,
+            'client_name' => $client->name,
+            'phone' => $client->phone,
+            'waba_phone_number_id' => '102938475612345',
+            'status' => 'active',
+            'platform' => 'whatsapp',
+        ]);
+
+        $response = $this->postJson("/api/chat/sessions/{$session->id}/messages", [
+            'content' => 'Hello test',
+        ]);
+
+        $response->assertStatus(403);
+        $response->assertJson([
+            'message' => 'Line +27 61 064 7115 is locked.',
+        ]);
+    }
+
     public function test_global_emergency_lock_overrides_and_locks_all_sessions(): void
     {
         SystemSetting::query()->create([
