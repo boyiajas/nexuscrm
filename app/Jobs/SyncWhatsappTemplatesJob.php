@@ -80,7 +80,7 @@ class SyncWhatsappTemplatesJob implements ShouldQueue, ShouldBeUnique
             foreach ($templates as $template) {
                 $whatsapp = $template['whatsapp'] ?? [];
 
-                WhatsappTemplateCache::updateOrCreate(
+                $record = WhatsappTemplateCache::updateOrCreate(
                     ['sid' => $template['sid']],
                     [
                         'meta_id' => $template['meta_id'] ?? null,
@@ -99,6 +99,30 @@ class SyncWhatsappTemplatesJob implements ShouldQueue, ShouldBeUnique
                         'synced_at' => $now,
                     ]
                 );
+
+                if ($record->banks()->count() === 0) {
+                    $matchedBankIds = \App\Models\Bank::all()->filter(function ($b) use ($template) {
+                        $name = strtolower($template['sid'] . ' ' . ($template['friendly_name'] ?? ''));
+                        $bankCode = strtolower(str_replace(['-', '_'], '', $b->code ?? ''));
+                        $bankName = strtolower(str_replace(['-', '_'], '', $b->name ?? ''));
+                        $cleanName = strtolower(str_replace(['-', '_'], '', $name));
+                        return ($bankCode !== '' && str_contains($cleanName, $bankCode))
+                            || ($bankName !== '' && (str_contains($cleanName, $bankName) || str_contains($name, strtolower($b->name))))
+                            || (str_contains($name, 'capfin') && str_contains($bankName, 'capfin'))
+                            || (str_contains($name, 'fnb') && str_contains($bankName, 'fnb'))
+                            || ((str_contains($name, 'finchoice') || str_contains($name, 'fin_choice')) && str_contains($bankName, 'finchoice'))
+                            || (str_contains($name, 'tenacity') && str_contains($bankName, 'tenacity'));
+                    })->pluck('id')->all();
+
+                    if (!empty($matchedBankIds)) {
+                        $record->banks()->sync($matchedBankIds);
+                    } else {
+                        $defaultBank = \App\Models\Bank::where('code', 'default-bank')->first() ?? \App\Models\Bank::first();
+                        if ($defaultBank) {
+                            $record->banks()->sync([$defaultBank->id]);
+                        }
+                    }
+                }
             }
 
             Cache::put(self::STATUS_CACHE_KEY, array_merge($status, [

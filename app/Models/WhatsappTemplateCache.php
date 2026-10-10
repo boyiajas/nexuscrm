@@ -34,6 +34,16 @@ class WhatsappTemplateCache extends Model
         'synced_at'    => 'datetime',
     ];
 
+    public function banks()
+    {
+        return $this->belongsToMany(
+            Bank::class,
+            'bank_whatsapp_template_cache',
+            'whatsapp_template_cache_id',
+            'bank_id'
+        )->withTimestamps();
+    }
+
     /**
      * Convert this model back to the shape expected by the campaign frontend.
      */
@@ -43,6 +53,24 @@ class WhatsappTemplateCache extends Model
         $rejectedReason = $raw['rejected_reason'] ?? null;
         if (is_string($rejectedReason) && strtoupper($rejectedReason) === 'NONE') {
             $rejectedReason = null;
+        }
+
+        $banksData = [];
+        $bankIds = [];
+        if ($this->relationLoaded('banks')) {
+            $banksData = $this->banks->map(fn ($b) => [
+                'id'   => $b->id,
+                'name' => $b->name,
+                'code' => $b->code,
+            ])->values()->all();
+            $bankIds = $this->banks->pluck('id')->values()->all();
+        } else {
+            $banksData = $this->banks()->select(['banks.id', 'banks.name', 'banks.code'])->get()->map(fn ($b) => [
+                'id'   => $b->id,
+                'name' => $b->name,
+                'code' => $b->code,
+            ])->values()->all();
+            $bankIds = array_column($banksData, 'id');
         }
 
         return [
@@ -65,6 +93,8 @@ class WhatsappTemplateCache extends Model
             'buttons'         => $this->buttons ?? [],
             'components'      => $raw['components'] ?? [],
             'synced_at'       => optional($this->synced_at)->toDateTimeString(),
+            'banks'           => $banksData,
+            'bank_ids'        => $bankIds,
         ];
     }
 }

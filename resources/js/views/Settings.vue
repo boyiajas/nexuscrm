@@ -1262,11 +1262,21 @@
         <div class="card shadow-sm mb-3">
           <div class="card-body border-bottom">
             <div class="row g-2">
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <label class="form-label small text-muted mb-1">Search</label>
-                <input v-model.trim="wa.filters.search" type="text" class="form-control form-control-sm" placeholder="Search name, preview, language..." />
+                <input v-model.trim="wa.filters.search" type="text" class="form-control form-control-sm" placeholder="Search name, bank, preview..." />
               </div>
               <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Bank</label>
+                <select v-model="wa.filters.bank_id" class="form-select form-select-sm">
+                  <option value="">All banks</option>
+                  <option v-if="isSuperAdmin" value="unassigned">Unassigned (No Bank)</option>
+                  <option v-for="bank in accessibleWabaBanks" :key="bank.id" :value="String(bank.id)">
+                    {{ bank.name }} {{ bank.code ? '(' + bank.code + ')' : '' }}
+                  </option>
+                </select>
+              </div>
+              <div class="col-md-2">
                 <label class="form-label small text-muted mb-1">Status</label>
                 <select v-model="wa.filters.status" class="form-select form-select-sm">
                   <option value="">All statuses</option>
@@ -1275,7 +1285,7 @@
                   </option>
                 </select>
               </div>
-              <div class="col-md-3">
+              <div class="col-md-2">
                 <label class="form-label small text-muted mb-1">Category</label>
                 <select v-model="wa.filters.category" class="form-select form-select-sm">
                   <option value="">All categories</option>
@@ -1296,7 +1306,7 @@
               <div class="col-12 d-flex justify-content-between align-items-center pt-1">
                 <small class="text-muted">{{ filteredWhatsappTemplates.length }} of {{ wa.templates.length }} templates</small>
                 <button
-                  v-if="wa.filters.search || wa.filters.status || wa.filters.category || wa.filters.language"
+                  v-if="wa.filters.search || wa.filters.bank_id || wa.filters.status || wa.filters.category || wa.filters.language"
                   type="button"
                   class="btn btn-link btn-sm p-0"
                   @click="resetWhatsappTemplateFilters"
@@ -1333,6 +1343,7 @@
                     </div>
                   </th>
                   <th>Name</th>
+                  <th>Bank</th>
                   <th>Language</th>
                   <th>Category</th>
                   <th>Status</th>
@@ -1348,6 +1359,22 @@
                     </div>
                   </td>
                   <td class="fw-semibold">{{ t.name }}</td>
+                  <td>
+                    <div v-if="t.banks && t.banks.length" class="d-flex flex-wrap gap-1" style="max-width: 220px;">
+                      <span
+                        v-for="b in t.banks"
+                        :key="b.id"
+                        class="badge bg-light text-primary border shadow-xs text-truncate py-0.5 px-1.5"
+                        style="font-size: 0.72rem; max-width: 160px;"
+                        :title="b.name + (b.code ? ' (' + b.code + ')' : '')"
+                      >
+                        <i class="bi bi-bank me-1 text-primary opacity-75"></i>{{ b.name }}
+                      </span>
+                    </div>
+                    <span v-else class="badge bg-light text-muted border py-0.5 px-1.5" style="font-size: 0.72rem;">
+                      Unassigned
+                    </span>
+                  </td>
                   <td>{{ t.language || '-' }}</td>
                   <td>{{ t.category || '-' }}</td>
                   <td>
@@ -1394,7 +1421,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredWhatsappTemplates.length === 0">
-                  <td colspan="7" class="text-center text-muted py-5">
+                  <td colspan="8" class="text-center text-muted py-5">
                     No templates match the current filters.
                   </td>
                 </tr>
@@ -1445,6 +1472,71 @@
                       <option value="marketing">Marketing</option>
                       <option value="authentication">Authentication</option>
                     </select>
+                  </div>
+                  <div class="col-12">
+                    <label class="form-label small fw-semibold mb-1 d-flex align-items-center justify-content-between">
+                      <span>
+                        <i class="bi bi-bank text-primary me-1"></i>
+                        Bank(s) <span class="text-danger" v-if="!wa.viewOnly">*</span>
+                      </span>
+                      <span v-if="!wa.viewOnly" class="text-muted fw-normal" style="font-size: 0.72rem;">
+                        Assign this template to one or more bank institutions
+                      </span>
+                    </label>
+                    <div v-if="wa.viewOnly">
+                      <div v-if="wa.selectedBanks && wa.selectedBanks.length" class="d-flex flex-wrap gap-1">
+                        <span
+                          v-for="b in wa.selectedBanks"
+                          :key="b.id"
+                          class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 py-1 px-2"
+                          style="font-size: 0.76rem;"
+                        >
+                          <i class="bi bi-bank me-1"></i>{{ b.name }} <small v-if="b.code" class="opacity-75">({{ b.code }})</small>
+                        </span>
+                      </div>
+                      <div v-else class="text-muted small py-1 px-2 bg-light rounded border" style="font-size: 0.75rem;">
+                        No bank assigned (visible only to Super Administrators).
+                      </div>
+                    </div>
+                    <div v-else>
+                      <VueMultiselect
+                        v-model="wa.selectedBanks"
+                        :options="accessibleWabaBanks"
+                        :multiple="true"
+                        :close-on-select="false"
+                        :clear-on-select="false"
+                        :preserve-search="true"
+                        placeholder="Search and select one or more banks..."
+                        label="name"
+                        track-by="id"
+                        :searchable="true"
+                      >
+                        <template #tag="{ option, remove }">
+                          <span class="multiselect__tag">
+                            <span>{{ option.name }}</span>
+                            <small v-if="option.code" class="opacity-75 ms-1">({{ option.code }})</small>
+                            <i class="multiselect__tag-icon" @click="remove(option)"></i>
+                          </span>
+                        </template>
+                        <template #option="{ option }">
+                          <div class="d-flex justify-content-between align-items-center py-0.5">
+                            <span class="fw-semibold">{{ option.name }}</span>
+                            <span class="badge bg-light text-muted border font-monospace ms-2" style="font-size: 0.68rem;">{{ option.code }}</span>
+                          </div>
+                        </template>
+                        <template #noResult>
+                          <span class="text-muted small">No banks match your search.</span>
+                        </template>
+                      </VueMultiselect>
+                      <div class="d-flex justify-content-between align-items-center mt-1">
+                        <small class="text-muted" style="font-size: 0.72rem;">
+                          <span class="fw-bold text-dark">{{ wa.selectedBanks ? wa.selectedBanks.length : 0 }}</span> bank(s) selected
+                        </small>
+                        <small v-if="!wa.selectedBanks || wa.selectedBanks.length === 0" class="text-danger fw-semibold" style="font-size: 0.72rem;">
+                          <i class="bi bi-exclamation-circle me-1"></i>Please select at least one bank.
+                        </small>
+                      </div>
+                    </div>
                   </div>
                   <div class="col-12">
                     <label class="form-label small fw-semibold mb-1">Body</label>
@@ -3690,9 +3782,11 @@ export default {
         },
         viewOnly: false,
         viewingSid: null,
+        selectedBanks: [],
         approvalView: 'all',
         filters: {
           search: '',
+          bank_id: '',
           status: '',
           category: '',
           language: '',
@@ -4149,6 +4243,9 @@ export default {
       const value = this.whatsappDailyLimitSummary?.effective_limit;
       return value === null || value === undefined ? 'Unlimited' : Number(value).toLocaleString();
     },
+    accessibleWabaBanks() {
+      return Array.isArray(this.banks) ? this.banks : [];
+    },
     templateStatusCounts() {
       const counts = { all: this.wa.templates.length, pending: 0, approved: 0, rejected: 0, attention: 0 };
       this.wa.templates.forEach((template) => {
@@ -4163,15 +4260,21 @@ export default {
     filteredWhatsappTemplates() {
       const search = (this.wa.filters.search || '').trim().toLowerCase();
       return this.wa.templates.filter((template) => {
+        const bankNames = (template.banks || []).map((b) => b.name + ' ' + (b.code || '')).join(' ');
         const matchesSearch = !search || [
           template.name,
           template.body_preview,
           template.language,
           template.category,
           template.status,
+          bankNames,
         ]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(search));
+
+        const matchesBank = !this.wa.filters.bank_id
+          || (this.wa.filters.bank_id === 'unassigned' && (!template.banks || template.banks.length === 0))
+          || (template.banks || []).some((b) => String(b.id) === String(this.wa.filters.bank_id));
 
         const status = String(template.status || '').toLowerCase();
         const matchesApprovalView = this.wa.approvalView === 'all'
@@ -4183,7 +4286,7 @@ export default {
         const matchesCategory = !this.wa.filters.category || (template.category || '').toLowerCase() === this.wa.filters.category.toLowerCase();
         const matchesLanguage = !this.wa.filters.language || (template.language || '').toLowerCase() === this.wa.filters.language.toLowerCase();
 
-        return matchesSearch && matchesApprovalView && matchesStatus && matchesCategory && matchesLanguage;
+        return matchesSearch && matchesBank && matchesApprovalView && matchesStatus && matchesCategory && matchesLanguage;
       });
     },
     detectedRisks() {
@@ -4797,6 +4900,7 @@ export default {
     resetWhatsappTemplateFilters() {
       this.wa.filters = {
         search: '',
+        bank_id: '',
         status: '',
         category: '',
         language: '',
@@ -4920,6 +5024,13 @@ export default {
     startCreate() {
       this.resetForm();
       this.wa.viewOnly = false;
+      this.wa.selectedBanks = [];
+      if (!this.banks || this.banks.length === 0) {
+        this.fetchBanks();
+      }
+      if (this.banks && this.banks.length === 1) {
+        this.wa.selectedBanks = [{ ...this.banks[0] }];
+      }
       this.wa.previewVariables = {};
       this.wa.customVariables = [];
       this.wa.showAddVariable = false;
@@ -4937,6 +5048,11 @@ export default {
       this.wa.showAddVariable = false;
       this.wa.newVariableKey = '';
       this.wa.newVariableValue = '';
+      this.wa.selectedBanks = (t.banks || []).map(b => ({
+        id: b.id,
+        name: b.name,
+        code: b.code,
+      }));
       this.wa.saving = true;
       axios
         .get(`/api/whatsapp-templates/${encodeURIComponent(t.sid)}`)
@@ -4968,6 +5084,12 @@ export default {
             body_examples: bodyExamples,
           };
 
+          this.wa.selectedBanks = (template.banks || t.banks || []).map(b => ({
+            id: b.id,
+            name: b.name,
+            code: b.code,
+          }));
+
           if (bodyExamples && Object.keys(bodyExamples).length > 0) {
             this.wa.previewVariables = { ...bodyExamples };
           }
@@ -4989,6 +5111,14 @@ export default {
       this.wa.showAddVariable = false;
       this.wa.newVariableKey = '';
       this.wa.newVariableValue = '';
+      this.wa.selectedBanks = (t.banks || []).map(b => ({
+        id: b.id,
+        name: b.name,
+        code: b.code,
+      }));
+      if (!this.banks || this.banks.length === 0) {
+        this.fetchBanks();
+      }
       const bodyExamples = this.extractTemplateBodyExamples(t) || {};
       this.wa.form = {
         sid: t.sid,
@@ -5026,6 +5156,7 @@ export default {
       }, {});
     },
     resetForm() {
+      this.wa.selectedBanks = [];
       this.wa.previewVariables = {};
       this.wa.customVariables = [];
       this.wa.showAddVariable = false;
@@ -5305,11 +5436,18 @@ export default {
         }
       }
 
+      const selectedBankIds = (this.wa.selectedBanks || []).map(b => b.id).filter(Boolean);
+      if (!selectedBankIds.length) {
+        notify.warning('Please select at least one bank for this WhatsApp template.', 'Settings');
+        return;
+      }
+
       const payload = {
         friendly_name: normalizedName,
         body: this.wa.form.body,
         language: this.wa.form.language,
         category: this.wa.form.category,
+        bank_ids: selectedBankIds,
         media_urls: [],
         body_examples: bodyExamples,
         buttons: buttons,

@@ -558,11 +558,21 @@ class ChatController extends Controller
         }
 
         $template = WhatsappTemplateCache::query()
+            ->with('banks')
             ->where('sid', $data['template_id'])
             ->first();
 
         if (!$template || strtoupper((string) $template->status) !== 'APPROVED') {
             return response()->json(['message' => 'The selected WhatsApp template is unavailable or is not approved.'], 422);
+        }
+
+        $user = Auth::user();
+        if ($user && !$user->canAccessAllBanks()) {
+            $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            $templateBankIds = $template->banks->pluck('id')->all();
+            if (!empty($templateBankIds) && empty(array_intersect($templateBankIds, $accessibleBankIds))) {
+                return response()->json(['message' => 'You do not have access to this WhatsApp template.'], 403);
+            }
         }
 
         $submittedVariables = $data['variables'] ?? [];

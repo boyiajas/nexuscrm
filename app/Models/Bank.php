@@ -66,4 +66,14 @@ class Bank extends Model
     {
         return $this->hasMany(WhatsappAccount::class, 'bank_id');
     }
+
+    public function whatsappTemplates()
+    {
+        return $this->belongsToMany(
+            WhatsappTemplateCache::class,
+            'bank_whatsapp_template_cache',
+            'bank_id',
+            'whatsapp_template_cache_id'
+        )->withTimestamps();
+    }
 }

@@ -25,18 +25,47 @@ class WhatsAppTemplateController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
+        $user = Auth::user();
         $onlyApproved = filter_var($request->query('approved', '1'), FILTER_VALIDATE_BOOLEAN);
 
-        $query = WhatsappTemplateCache::orderBy('friendly_name');
+        $query = WhatsappTemplateCache::with('banks')->orderBy('friendly_name');
 
         if ($onlyApproved) {
             $query->where('status', 'approved');
         }
 
+        // Access control:
+        // Apart from Super Admin, all other role users can ONLY see templates of the banks they belong to
+        if ($user && !$user->canAccessAllBanks()) {
+            $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            if (empty($accessibleBankIds)) {
+                return response()->json([]);
+            }
+            $query->whereHas('banks', fn ($q) => $q->whereIn('banks.id', $accessibleBankIds));
+        }
+
+        // Optional filtering by bank_id
+        if ($request->filled('bank_id')) {
+            $bankId = $request->query('bank_id');
+            if ($bankId === 'unassigned') {
+                if ($user && $user->canAccessAllBanks()) {
+                    $query->whereDoesntHave('banks');
+                } else {
+                    return response()->json([]);
+                }
+            } else {
+                $targetBankId = (int) $bankId;
+                if ($user && !$user->canAccessAllBanks() && !$user->canAccessBankId($targetBankId)) {
+                    return response()->json([]);
+                }
+                $query->whereHas('banks', fn ($q) => $q->where('banks.id', $targetBankId));
+            }
+        }
+
         $data = $query->get()->map(fn ($t) => $t->toApiArray())->values();
 
         // Never block the listing request on Meta. Queue a first sync when the cache is empty.
-        if ($data->isEmpty() && !SyncWhatsappTemplatesJob::isActive()) {
+        if ($data->isEmpty() && !SyncWhatsappTemplatesJob::isActive() && (!$user || $user->canAccessAllBanks())) {
             SyncWhatsappTemplatesJob::markQueued(Auth::id());
             SyncWhatsappTemplatesJob::dispatch(Auth::id());
         }
@@ -47,13 +76,24 @@ class WhatsAppTemplateController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $this->authorizeAdmin();
+        $user = Auth::user();
 
         $fileName = 'waba_templates_' . now()->format('Ymd_His') . '.xls';
 
-        return response()->streamDownload(function () {
-            $templates = WhatsappTemplateCache::query()
-                ->orderBy('friendly_name')
-                ->get();
+        return response()->streamDownload(function () use ($user) {
+            $query = WhatsappTemplateCache::with('banks')
+                ->orderBy('friendly_name');
+
+            if ($user && !$user->canAccessAllBanks()) {
+                $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                if (empty($accessibleBankIds)) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereHas('banks', fn ($q) => $q->whereIn('banks.id', $accessibleBankIds));
+                }
+            }
+
+            $templates = $query->get();
 
             echo "\xEF\xBB\xBF";
             echo '<html><head><meta charset="UTF-8"></head><body>';
@@ -62,6 +102,7 @@ class WhatsAppTemplateController extends Controller
 
             foreach ([
                 'Template Name',
+                'Bank(s)',
                 'SID',
                 'Meta ID',
                 'Language',
@@ -82,9 +123,11 @@ class WhatsAppTemplateController extends Controller
             echo '</tr></thead><tbody>';
 
             foreach ($templates as $template) {
+                $bankNames = $template->banks->pluck('name')->implode(', ') ?: 'Unassigned';
                 echo '<tr>';
                 foreach ([
                     $template->friendly_name,
+                    $bankNames,
                     $template->sid,
                     $template->meta_id,
                     $template->language,
@@ -176,9 +219,19 @@ class WhatsAppTemplateController extends Controller
 
     public function show(string $id): JsonResponse
     {
+        $user = Auth::user();
+
         // Try DB first
-        $cached = WhatsappTemplateCache::where('sid', $id)->first();
+        $cached = WhatsappTemplateCache::with('banks')->where('sid', $id)->first();
         if ($cached) {
+            if ($user && !$user->canAccessAllBanks()) {
+                $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                $templateBankIds = $cached->banks->pluck('id')->all();
+                if (empty($templateBankIds) || empty(array_intersect($templateBankIds, $accessibleBankIds))) {
+                    abort(403, 'You do not have access to templates for this bank.');
+                }
+            }
+
             return response()->json([
                 'template'  => $cached->toApiArray(),
                 'approvals' => [],
@@ -186,6 +239,7 @@ class WhatsAppTemplateController extends Controller
         }
 
         // Fallback to Meta API for non-cached
+        $this->authorizeAdmin();
         $details   = $this->whatsApp->getTemplateDetails($id);
         $approvals = $this->whatsApp->getTemplateApprovalStatus($id);
 
@@ -198,12 +252,15 @@ class WhatsAppTemplateController extends Controller
     public function store(Request $request): JsonResponse
     {
         $this->authorizeAdmin();
+        $user = Auth::user();
 
         $data = $request->validate([
             'friendly_name' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
             'language' => ['required', 'string', 'max:10'],
             'category' => ['required', 'string', 'max:50'],
+            'bank_ids' => ['sometimes', 'array', 'min:1'],
+            'bank_ids.*' => ['integer', 'exists:banks,id'],
             'media_urls' => ['array'],
             'media_urls.*' => ['string'],
             'body_examples' => ['sometimes', 'array'],
@@ -214,6 +271,29 @@ class WhatsAppTemplateController extends Controller
             'buttons.*.url' => ['nullable', 'string', 'max:2000'],
             'buttons.*.phone_number' => ['nullable', 'string', 'max:50'],
         ]);
+
+        $assignedBankIds = [];
+        if (!empty($data['bank_ids'])) {
+            $assignedBankIds = array_map('intval', $data['bank_ids']);
+            if ($user && !$user->canAccessAllBanks()) {
+                $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                $invalid = array_diff($assignedBankIds, $accessibleBankIds);
+                if (!empty($invalid)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'bank_ids' => 'You can only assign templates to banks you have access to.',
+                    ]);
+                }
+            }
+        } else {
+            if ($user && !$user->canAccessAllBanks()) {
+                $assignedBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            } elseif ($user && $user->bank_id) {
+                $assignedBankIds = [(int) $user->bank_id];
+            } else {
+                $defaultBank = \App\Models\Bank::first();
+                $assignedBankIds = $defaultBank ? [$defaultBank->id] : [];
+            }
+        }
 
         $this->validateBodyExamples($data['body'], $data['body_examples'] ?? []);
 
@@ -323,18 +403,36 @@ class WhatsAppTemplateController extends Controller
             ]
         );
 
-        return response()->json($record->toApiArray(), 201);
+        if (!empty($assignedBankIds)) {
+            $record->banks()->sync($assignedBankIds);
+        }
+
+        return response()->json($record->fresh('banks')->toApiArray(), 201);
     }
 
     public function update(Request $request, string $id): JsonResponse
     {
         $this->authorizeAdmin();
+        $user = Auth::user();
+
+        $record = WhatsappTemplateCache::with('banks')->where('sid', $id)->orWhere('meta_id', $id)->firstOrFail();
+
+        // Enforce that non-super-admins cannot update templates of other banks
+        if ($user && !$user->canAccessAllBanks()) {
+            $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            $templateBankIds = $record->banks->pluck('id')->all();
+            if (!empty($templateBankIds) && empty(array_intersect($templateBankIds, $accessibleBankIds))) {
+                abort(403, 'You do not have access to edit templates for this bank.');
+            }
+        }
 
         $data = $request->validate([
             'friendly_name' => ['sometimes', 'string', 'max:255'],
             'body' => ['sometimes', 'string'],
             'language' => ['sometimes', 'string', 'max:10'],
             'category' => ['sometimes', 'string', 'max:50'],
+            'bank_ids' => ['sometimes', 'array', 'min:1'],
+            'bank_ids.*' => ['integer', 'exists:banks,id'],
             'media_urls' => ['array'],
             'media_urls.*' => ['string'],
             'body_examples' => ['sometimes', 'array'],
@@ -346,7 +444,20 @@ class WhatsAppTemplateController extends Controller
             'buttons.*.phone_number' => ['nullable', 'string', 'max:50'],
         ]);
 
-        $record = WhatsappTemplateCache::where('sid', $id)->orWhere('meta_id', $id)->firstOrFail();
+        if (isset($data['bank_ids'])) {
+            $newBankIds = array_map('intval', $data['bank_ids']);
+            if ($user && !$user->canAccessAllBanks()) {
+                $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+                $invalid = array_diff($newBankIds, $accessibleBankIds);
+                if (!empty($invalid)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'bank_ids' => 'You can only assign templates to banks you have access to.',
+                    ]);
+                }
+            }
+            $record->banks()->sync($newBankIds);
+        }
+
         $body = $data['body'] ?? $record->body_preview ?? '';
         $this->validateBodyExamples($body, $data['body_examples'] ?? []);
 
@@ -388,6 +499,11 @@ class WhatsAppTemplateController extends Controller
             $buttons = $record->buttons ?? [];
         }
 
+        $contentChanged = (isset($data['body']) && $data['body'] !== $record->body_preview)
+            || (isset($data['category']) && strtolower((string) $data['category']) !== strtolower((string) ($record->category ?? '')))
+            || (isset($data['language']) && $data['language'] !== $record->language)
+            || (isset($data['buttons']) && $buttons !== ($record->buttons ?? []));
+
         $payload = [
             'friendly_name' => $data['friendly_name'] ?? $record->friendly_name,
             'language' => $data['language'] ?? $record->language,
@@ -397,46 +513,67 @@ class WhatsAppTemplateController extends Controller
             'buttons' => $buttons,
         ];
 
-        $targetId = (string) ($record->meta_id ?: '');
-        if ($targetId === '') {
-            try {
-                $details = $this->whatsApp->getTemplateDetails($record->sid);
-                $targetId = (string) ($details['meta_id'] ?? '');
-                if ($targetId !== '') {
-                    $record->meta_id = $targetId;
-                    $record->save();
+        if ($contentChanged) {
+            $targetId = (string) ($record->meta_id ?: '');
+            if ($targetId === '') {
+                try {
+                    $details = $this->whatsApp->getTemplateDetails($record->sid);
+                    $targetId = (string) ($details['meta_id'] ?? '');
+                    if ($targetId !== '') {
+                        $record->meta_id = $targetId;
+                        $record->save();
+                    }
+                } catch (\Throwable $lookupError) {
+                    Log::warning('Failed to resolve Meta ID for template update', ['error' => $lookupError->getMessage()]);
                 }
-            } catch (\Throwable $lookupError) {
-                Log::warning('Failed to resolve Meta ID for template update', ['error' => $lookupError->getMessage()]);
             }
+
+            $updated = $this->whatsApp->updateWhatsAppTemplate(
+                $targetId !== '' ? $targetId : $id,
+                $payload
+            );
+
+            $record->forceFill([
+                'friendly_name' => $payload['friendly_name'],
+                'language' => $payload['language'],
+                'body_preview' => $payload['body'],
+                'category' => strtolower((string) $payload['category']),
+                'status' => $updated['status'] ?? 'PENDING',
+                'buttons' => $buttons,
+                'synced_at' => now(),
+            ])->save();
+        } else {
+            if (isset($data['friendly_name'])) {
+                $record->friendly_name = $data['friendly_name'];
+            }
+            $record->save();
         }
 
-        $updated = $this->whatsApp->updateWhatsAppTemplate(
-            $targetId !== '' ? $targetId : $id,
-            $payload
-        );
-
-        $record->forceFill([
-            'friendly_name' => $payload['friendly_name'],
-            'language' => $payload['language'],
-            'body_preview' => $payload['body'],
-            'category' => strtolower((string) $payload['category']),
-            'status' => $updated['status'] ?? 'PENDING',
-            'buttons' => $buttons,
-            'synced_at' => now(),
-        ])->save();
-
-        return response()->json($record->fresh()->toApiArray());
+        return response()->json($record->fresh('banks')->toApiArray());
     }
 
     public function destroy(string $id): JsonResponse
     {
         $this->authorizeAdmin();
+        $user = Auth::user();
+
+        $record = WhatsappTemplateCache::with('banks')->where('sid', $id)->first();
+        if ($record && $user && !$user->canAccessAllBanks()) {
+            $accessibleBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            $templateBankIds = $record->banks->pluck('id')->all();
+            if (!empty($templateBankIds) && empty(array_intersect($templateBankIds, $accessibleBankIds))) {
+                abort(403, 'You do not have access to delete templates for this bank.');
+            }
+        }
 
         $this->whatsApp->deleteWhatsAppTemplate($id);
 
-        // Also remove from local cache
-        WhatsappTemplateCache::where('sid', $id)->delete();
+        if ($record) {
+            $record->banks()->detach();
+            $record->delete();
+        } else {
+            WhatsappTemplateCache::where('sid', $id)->delete();
+        }
 
         return response()->json([], 204);
     }
@@ -444,6 +581,10 @@ class WhatsAppTemplateController extends Controller
     public function bulkDestroy(Request $request): JsonResponse
     {
         $this->authorizeAdmin();
+        $user = Auth::user();
+        $accessibleBankIds = ($user && !$user->canAccessAllBanks())
+            ? ($user->accessibleBankIds() ?: $user->resolvedBankIds())
+            : null;
 
         $data = $request->validate([
             'template_ids'   => ['required', 'array'],
@@ -453,8 +594,21 @@ class WhatsAppTemplateController extends Controller
         $deletedCount = 0;
         foreach ($data['template_ids'] as $id) {
             try {
+                $record = WhatsappTemplateCache::with('banks')->where('sid', $id)->first();
+                if ($record && $accessibleBankIds !== null) {
+                    $templateBankIds = $record->banks->pluck('id')->all();
+                    if (!empty($templateBankIds) && empty(array_intersect($templateBankIds, $accessibleBankIds))) {
+                        continue;
+                    }
+                }
+
                 $this->whatsApp->deleteWhatsAppTemplate($id);
-                WhatsappTemplateCache::where('sid', $id)->delete();
+                if ($record) {
+                    $record->banks()->detach();
+                    $record->delete();
+                } else {
+                    WhatsappTemplateCache::where('sid', $id)->delete();
+                }
                 $deletedCount++;
             } catch (\Exception $e) {
                 // continue deleting others
