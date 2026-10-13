@@ -57,7 +57,8 @@ class ClientController extends Controller
                   ->orWhere('account_number', 'like', "%$search%")
                   ->orWhere('easy_pay_number', 'like', "%$search%")
                   ->orWhere('store_number', 'like', "%$search%")
-                  ->orWhere('store_name', 'like', "%$search%");
+                  ->orWhere('store_name', 'like', "%$search%")
+                  ->orWhere('speciality', 'like', "%$search%");
             });
         }
 
@@ -257,6 +258,7 @@ class ClientController extends Controller
             'easy_pay_number' => ['nullable', 'string', 'max:255'],
             'store_number' => ['nullable', 'string', 'max:255'],
             'store_name' => ['nullable', 'string', 'max:255'],
+            'speciality' => ['nullable', 'string', 'max:255'],
             'outstanding_balance' => ['nullable', 'numeric'],
             'arrears_amount' => ['nullable', 'numeric'],
             'settlement_amount' => ['nullable', 'numeric'],
@@ -309,6 +311,7 @@ class ClientController extends Controller
                 'easy_pay_number' => $data['easy_pay_number'] ?? null,
                 'store_number' => $data['store_number'] ?? null,
                 'store_name' => $data['store_name'] ?? null,
+                'speciality' => $data['speciality'] ?? null,
                 'outstanding_balance' => $data['outstanding_balance'] ?? null,
                 'arrears_amount' => $data['arrears_amount'] ?? null,
                 'settlement_amount' => $data['settlement_amount'] ?? null,
@@ -385,6 +388,7 @@ class ClientController extends Controller
             'easy_pay_number' => ['nullable', 'string', 'max:255'],
             'store_number' => ['nullable', 'string', 'max:255'],
             'store_name' => ['nullable', 'string', 'max:255'],
+            'speciality' => ['nullable', 'string', 'max:255'],
             'outstanding_balance' => ['nullable', 'numeric'],
             'arrears_amount' => ['nullable', 'numeric'],
             'settlement_amount' => ['nullable', 'numeric'],
@@ -444,6 +448,7 @@ class ClientController extends Controller
                 'easy_pay_number' => $data['easy_pay_number'] ?? $client->easy_pay_number,
                 'store_number' => $data['store_number'] ?? $client->store_number,
                 'store_name' => $data['store_name'] ?? $client->store_name,
+                'speciality' => array_key_exists('speciality', $data) ? $data['speciality'] : $client->speciality,
                 'outstanding_balance' => array_key_exists('outstanding_balance', $data) ? $data['outstanding_balance'] : $client->outstanding_balance,
                 'arrears_amount' => array_key_exists('arrears_amount', $data) ? $data['arrears_amount'] : $client->arrears_amount,
                 'settlement_amount' => array_key_exists('settlement_amount', $data) ? $data['settlement_amount'] : $client->settlement_amount,
@@ -609,7 +614,8 @@ class ClientController extends Controller
                     ->orWhere('account_number', 'like', "%$search%")
                     ->orWhere('easy_pay_number', 'like', "%$search%")
                     ->orWhere('store_number', 'like', "%$search%")
-                    ->orWhere('store_name', 'like', "%$search%");
+                    ->orWhere('store_name', 'like', "%$search%")
+                    ->orWhere('speciality', 'like', "%$search%");
             });
         }
 

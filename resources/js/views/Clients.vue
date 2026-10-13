@@ -531,6 +531,10 @@
                   <label class="form-label">Client Store Name</label>
                   <input v-model="form.store_name" type="text" class="form-control" />
                 </div>
+                <div class="col-md-6">
+                  <label class="form-label">Speciality</label>
+                  <input v-model="form.speciality" type="text" class="form-control" />
+                </div>
                 <div class="col-md-4">
                   <label class="form-label">Outstanding Balance</label>
                   <input v-model="form.outstanding_balance" type="number" step="0.01" class="form-control" />
@@ -808,6 +812,7 @@
                   <div class="col-md-6 mb-2"><strong>Easy Pay Number:</strong> {{ viewClient.easy_pay_number || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Store Number:</strong> {{ viewClient.store_number || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Client Store Name:</strong> {{ viewClient.store_name || '-' }}</div>
+                  <div class="col-md-6 mb-2"><strong>Speciality:</strong> {{ viewClient.speciality || '-' }}</div>
                   <div class="col-md-6 mb-2"><strong>Arrears Amount:</strong> {{ viewClient.arrears_amount ? 'R' + Number(viewClient.arrears_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.arrears_amount || '-') }}</div>
                   <div class="col-md-6 mb-2"><strong>Outstanding Balance:</strong> {{ viewClient.outstanding_balance ? 'R' + Number(viewClient.outstanding_balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.outstanding_balance || '-') }}</div>
                   <div class="col-md-6 mb-2"><strong>Settlement Amount:</strong> {{ viewClient.settlement_amount ? 'R' + Number(viewClient.settlement_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : (viewClient.settlement_amount || '-') }}</div>
@@ -945,6 +950,7 @@ export default {
         bank_id: '',
         bank_name: '',
         store_name: '',
+        speciality: '',
         activation_amount: '',
         ptp_due_date: '',
         ptp_amount: '',
@@ -1290,6 +1296,7 @@ export default {
         easy_pay_number: '',
         store_number: '',
         store_name: '',
+        speciality: '',
         outstanding_balance: '',
         arrears_amount: '',
         settlement_amount: '',
@@ -1343,6 +1350,7 @@ export default {
           easy_pay_number: fullClient.easy_pay_number || '',
           store_number: fullClient.store_number || '',
           store_name: fullClient.store_name || '',
+          speciality: fullClient.speciality || '',
           outstanding_balance: fullClient.outstanding_balance || '',
           arrears_amount: fullClient.arrears_amount || '',
           settlement_amount: fullClient.settlement_amount || '',
@@ -1754,7 +1762,9 @@ export default {
               'ptp_due_date': 'PTP Due Date', 'ptpduedate': 'PTP Due Date', 'ptp_due': 'PTP Due Date', 'ptpdue': 'PTP Due Date', 'ptp_date': 'PTP Due Date', 'ptpdate': 'PTP Due Date', 'promise_to_pay_date': 'PTP Due Date', 'promise_to_pay_due_date': 'PTP Due Date',
               'ptp_amount': 'PTP Amount', 'ptpamount': 'PTP Amount', 'ptp_amt': 'PTP Amount', 'ptpamt': 'PTP Amount', 'ptp_value': 'PTP Amount', 'ptpvalue': 'PTP Amount', 'promise_to_pay_amount': 'PTP Amount',
               'settlement_amount': 'Settlement Amount',
-              'easy_pay_number': 'EasyPay Number', 'store_number': 'Store Number', 'store_name': 'Store Name', 'storename': 'Store Name', 'client_store_name': 'Store Name', 'surname': 'Surname', 'first_name': 'First Name',
+              'easy_pay_number': 'EasyPay Number', 'store_number': 'Store Number', 'store_name': 'Store Name', 'storename': 'Store Name', 'client_store_name': 'Store Name',
+              'speciality': 'Speciality', 'specialty': 'Speciality', 'client_speciality': 'Speciality', 'client_specialty': 'Speciality',
+              'surname': 'Surname', 'first_name': 'First Name',
               'name': 'Client Name', 'full_name': 'Client Name', 'client_name': 'Client Name', 'debtor_name': 'Client Name',
             };
 

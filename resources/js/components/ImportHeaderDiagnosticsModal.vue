@@ -512,6 +512,13 @@ export default {
           example: 'Ackermans Cape Town',
         },
         {
+          id: 'speciality',
+          name: 'Speciality',
+          required: false,
+          aliases: ['Speciality', 'Specialty', 'Client Speciality', 'Client Specialty'],
+          example: 'Cardiology, Legal, General',
+        },
+        {
           id: 'branch_code',
           name: 'Branch Code',
           required: false,

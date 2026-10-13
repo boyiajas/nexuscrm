@@ -37,6 +37,7 @@ class Client extends Model
         'easy_pay_number',
         'store_number',
         'store_name',
+        'speciality',
         'cell_phone',
         'home_phone',
         'work_phone',

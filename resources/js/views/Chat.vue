@@ -771,6 +771,13 @@
                 </div>
               </div>
 
+              <div class="col-6" v-if="contactInfoSession.client?.speciality">
+                <label class="small text-muted fw-medium d-block mb-1">Speciality</label>
+                <div class="text-dark bg-light p-2 rounded border small text-truncate">
+                  {{ contactInfoSession.client?.speciality }}
+                </div>
+              </div>
+
               <div class="col-12">
                 <label class="small text-muted fw-medium d-block mb-1">Email Address</label>
                 <div class="text-dark bg-light p-2 rounded border small">

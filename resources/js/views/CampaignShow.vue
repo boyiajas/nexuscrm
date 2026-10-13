@@ -1753,6 +1753,7 @@
                                 <option value="client.account_number">Client Account Number</option>
                                 <option value="client.easy_pay_number">Client Easy Pay Number</option>
                                 <option value="client.store_name">Client Store Name</option>
+                                <option value="client.speciality">Client Speciality</option>
                                 <option value="client.bank_name">Client Bank</option>
                                 <option value="client.branch_code">Client Branch Code</option>
                                 <option value="client.outstanding_balance">Client Outstanding Balance</option>
