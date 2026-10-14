@@ -1540,7 +1540,7 @@
                   </div>
                   <div class="col-12">
                     <label class="form-label small fw-semibold mb-1">Body</label>
-                    <textarea v-model="wa.form.body" class="form-control form-control-sm" rows="3" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
+                    <textarea v-model="wa.form.body" class="form-control form-control-sm" rows="9" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
                   </div>
                   <div v-if="!wa.viewOnly && templateBodyVariableIndexes.length" class="col-12">
                     <label class="form-label small fw-semibold mb-1">Variable Examples <span class="text-danger">*</span></label>
