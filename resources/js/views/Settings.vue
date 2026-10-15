@@ -510,12 +510,17 @@
             <div class="card shadow-sm border-danger h-100">
               <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center py-2">
                 <h6 class="mb-0 fs-7 fw-bold"><i class="bi bi-shield-lock-fill me-2"></i>Live Chat Emergency Lock</h6>
-                <span v-if="system.form.live_chat_locked" class="badge bg-white text-danger fw-bold text-uppercase" style="font-size: 0.65rem;">
-                  All Chats Locked
-                </span>
-                <span v-else-if="system.selectedLockedNumbers && system.selectedLockedNumbers.length > 0" class="badge bg-warning text-dark fw-bold" style="font-size: 0.65rem;">
-                  {{ system.selectedLockedNumbers.length }} Number(s) Locked
-                </span>
+                <div class="d-flex align-items-center gap-1 flex-wrap">
+                  <span v-if="system.form.live_chat_locked" class="badge bg-white text-danger fw-bold text-uppercase" style="font-size: 0.65rem;">
+                    All Chats Locked
+                  </span>
+                  <span v-else-if="system.selectedLockedNumbers && system.selectedLockedNumbers.length > 0" class="badge bg-warning text-dark fw-bold" style="font-size: 0.65rem;">
+                    {{ system.selectedLockedNumbers.length }} Chat(s) Locked
+                  </span>
+                  <span v-if="system.selectedTemplateLockedNumbers && system.selectedTemplateLockedNumbers.length > 0" class="badge bg-light text-dark fw-bold border" style="font-size: 0.65rem;">
+                    <i class="bi bi-file-earmark-lock me-1 text-warning"></i>{{ system.selectedTemplateLockedNumbers.length }} Template(s) Locked
+                  </span>
+                </div>
               </div>
               <div class="card-body p-3">
                 <div class="form-check form-switch mb-2">
@@ -607,6 +612,93 @@
                     </small>
                     <small v-if="system.selectedLockedNumbers && system.selectedLockedNumbers.length > 0" class="text-danger fw-semibold" style="font-size: 0.72rem;">
                       <i class="bi bi-exclamation-triangle me-1"></i>Selective lock active
+                    </small>
+                  </div>
+                </div>
+
+                <!-- Selective Template Lock via VueMultiselect -->
+                <div class="mt-3 pt-2 border-top">
+                  <div class="d-flex justify-content-between align-items-center mb-1">
+                    <label class="form-label fw-bold small mb-0" :class="{'text-warning-emphasis': system.selectedTemplateLockedNumbers && system.selectedTemplateLockedNumbers.length > 0}">
+                      <i class="bi bi-file-earmark-x me-1 text-warning"></i>Lock Send Template for Specific Numbers
+                    </label>
+                    <div class="btn-group btn-group-sm" role="group">
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-xs py-0 px-2"
+                        style="font-size: 0.68rem;"
+                        @click="selectAllSystemNumbersToTemplateLock"
+                        :disabled="!system.availableWhatsappNumbers || system.availableWhatsappNumbers.length === 0"
+                        title="Select all system numbers"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-xs py-0 px-2"
+                        style="font-size: 0.68rem;"
+                        @click="clearTemplateLockedNumbersSelection"
+                        :disabled="!system.selectedTemplateLockedNumbers || system.selectedTemplateLockedNumbers.length === 0"
+                        title="Clear selected numbers"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                  <div class="form-text text-muted mb-1.5" style="font-size: 0.72rem;">
+                    Select WhatsApp numbers where <strong>Send Template</strong> should be disabled in Live Chat. Normal text chatting will remain allowed for these numbers.
+                  </div>
+
+                  <div class="live-chat-locked-numbers-select">
+                    <VueMultiselect
+                      v-model="system.selectedTemplateLockedNumbers"
+                      :options="system.availableWhatsappNumbers"
+                      :multiple="true"
+                      :close-on-select="false"
+                      :clear-on-select="false"
+                      :preserve-search="true"
+                      placeholder="Search and select WhatsApp numbers to lock Send Template..."
+                      label="label"
+                      track-by="id"
+                      :searchable="true"
+                      @update:model-value="onTemplateLockedNumbersChanged"
+                    >
+                      <template #tag="{ option, remove }">
+                        <span class="multiselect__tag bg-warning text-dark border-0 py-0.5 px-2">
+                          <i class="bi bi-file-earmark-lock-fill me-1" style="font-size: 0.65rem;"></i>
+                          <span>{{ option.display_phone_number || option.label }}</span>
+                          <small v-if="option.name && option.name !== option.display_phone_number" class="opacity-75 ms-1">({{ option.name }})</small>
+                          <i class="multiselect__tag-icon text-dark" @click="remove(option)"></i>
+                        </span>
+                      </template>
+                      <template #option="{ option }">
+                        <div class="d-flex justify-content-between align-items-center py-0.5">
+                          <div>
+                            <span class="fw-semibold small">{{ option.display_phone_number || option.label }}</span>
+                            <div v-if="option.name && option.name !== option.display_phone_number" class="text-muted" style="font-size: 0.7rem;">
+                              {{ option.name }}
+                              <span v-if="option.bank_name" class="badge bg-light text-secondary border ms-1 py-0 px-1" style="font-size: 0.65rem;">
+                                {{ option.bank_name }}
+                              </span>
+                            </div>
+                          </div>
+                          <span v-if="option.phone_number_id" class="badge bg-light text-muted border font-monospace ms-2" style="font-size: 0.65rem;">
+                            ID: {{ option.phone_number_id }}
+                          </span>
+                        </div>
+                      </template>
+                      <template #noResult>
+                        <span class="text-muted small">No WhatsApp numbers match your search query.</span>
+                      </template>
+                    </VueMultiselect>
+                  </div>
+                  <div class="d-flex justify-content-between align-items-center mt-1">
+                    <small class="text-muted" style="font-size: 0.72rem;">
+                      <span class="fw-bold text-dark">{{ system.selectedTemplateLockedNumbers ? system.selectedTemplateLockedNumbers.length : 0 }}</span> of
+                      <span>{{ system.availableWhatsappNumbers ? system.availableWhatsappNumbers.length : 0 }}</span> WhatsApp number(s) selected
+                    </small>
+                    <small v-if="system.selectedTemplateLockedNumbers && system.selectedTemplateLockedNumbers.length > 0" class="text-warning-emphasis fw-semibold" style="font-size: 0.72rem;">
+                      <i class="bi bi-file-earmark-lock me-1"></i>Template lock active
                     </small>
                   </div>
                 </div>
@@ -3643,6 +3735,7 @@ export default {
         removeLogo: false,
         availableWhatsappNumbers: [],
         selectedLockedNumbers: [],
+        selectedTemplateLockedNumbers: [],
         loadingNumbers: false,
         form: {
           app_name: 'SR Solution',
@@ -3663,6 +3756,7 @@ export default {
           live_chat_locked: false,
           live_chat_locked_message: 'Live chat is temporarily disabled.',
           live_chat_locked_phone_numbers: [],
+          live_chat_template_locked_phone_numbers: [],
           disable_chat_for_opted_out_clients: true,
           opted_out_chat_message: 'This client has opted out of WhatsApp communication. Messaging is disabled.',
         },
@@ -4592,6 +4686,10 @@ export default {
         ? settings.live_chat_locked_phone_numbers
         : [];
       this.syncSelectedLockedNumbers();
+      this.system.form.live_chat_template_locked_phone_numbers = Array.isArray(settings.live_chat_template_locked_phone_numbers)
+        ? settings.live_chat_template_locked_phone_numbers
+        : [];
+      this.syncSelectedTemplateLockedNumbers();
     },
     loadAdminSettings() {
       axios
@@ -4673,6 +4771,63 @@ export default {
 
       this.system.selectedLockedNumbers = selected;
     },
+    onTemplateLockedNumbersChanged(selected) {
+      this.system.selectedTemplateLockedNumbers = selected || [];
+      this.system.form.live_chat_template_locked_phone_numbers = selected || [];
+    },
+    selectAllSystemNumbersToTemplateLock() {
+      if (!this.system.availableWhatsappNumbers || this.system.availableWhatsappNumbers.length === 0) return;
+      this.system.selectedTemplateLockedNumbers = [...this.system.availableWhatsappNumbers];
+      this.system.form.live_chat_template_locked_phone_numbers = [...this.system.availableWhatsappNumbers];
+    },
+    clearTemplateLockedNumbersSelection() {
+      this.system.selectedTemplateLockedNumbers = [];
+      this.system.form.live_chat_template_locked_phone_numbers = [];
+    },
+    syncSelectedTemplateLockedNumbers() {
+      const rawLocked = this.system.form.live_chat_template_locked_phone_numbers;
+      if (!Array.isArray(rawLocked) || rawLocked.length === 0) {
+        this.system.selectedTemplateLockedNumbers = [];
+        return;
+      }
+
+      const available = this.system.availableWhatsappNumbers || [];
+      const selected = [];
+
+      for (const item of rawLocked) {
+        if (!item) continue;
+        const targetId = typeof item === 'object' ? (item.id || item.phone_number_id || item.display_phone_number) : String(item);
+        const targetNum = typeof item === 'object' ? (item.display_phone_number || item.number || item.id) : String(item);
+        const cleanTarget = String(targetNum).replace(/\D+/g, '');
+
+        const matched = available.find(opt => {
+          if (String(opt.id) === String(targetId)) return true;
+          if (opt.phone_number_id && String(opt.phone_number_id) === String(targetId)) return true;
+          const cleanOpt = String(opt.display_phone_number || opt.label || '').replace(/\D+/g, '');
+          if (cleanTarget && cleanOpt && cleanTarget === cleanOpt) return true;
+          return false;
+        });
+
+        if (matched) {
+          if (!selected.some(s => s.id === matched.id)) {
+            selected.push(matched);
+          }
+        } else {
+          const fallback = typeof item === 'object' ? item : {
+            id: String(item),
+            phone_number_id: null,
+            display_phone_number: String(item),
+            label: String(item),
+            name: String(item),
+          };
+          if (!selected.some(s => s.id === fallback.id)) {
+            selected.push(fallback);
+          }
+        }
+      }
+
+      this.system.selectedTemplateLockedNumbers = selected;
+    },
     fetchAvailableWhatsappNumbers() {
       this.system.loadingNumbers = true;
       axios
@@ -4681,6 +4836,7 @@ export default {
           if (Array.isArray(res.data?.numbers)) {
             this.system.availableWhatsappNumbers = res.data.numbers;
             this.syncSelectedLockedNumbers();
+            this.syncSelectedTemplateLockedNumbers();
           }
         })
         .catch(() => {})
@@ -4700,6 +4856,7 @@ export default {
       payload.append('live_chat_locked', this.system.form.live_chat_locked ? '1' : '0');
       payload.append('live_chat_locked_message', this.system.form.live_chat_locked_message || '');
       payload.append('live_chat_locked_phone_numbers', JSON.stringify(this.system.selectedLockedNumbers || []));
+      payload.append('live_chat_template_locked_phone_numbers', JSON.stringify(this.system.selectedTemplateLockedNumbers || []));
       payload.append('disable_chat_for_opted_out_clients', this.system.form.disable_chat_for_opted_out_clients ? '1' : '0');
       payload.append('opted_out_chat_message', this.system.form.opted_out_chat_message || '');
       payload.append('admin_ip_allowlist', this.system.form.admin_ip_allowlist || '');

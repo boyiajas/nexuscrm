@@ -580,6 +580,7 @@ class SettingsController extends Controller
             'live_chat_locked'       => ['sometimes', 'boolean'],
             'live_chat_locked_message' => ['sometimes', 'nullable', 'string', 'max:255'],
             'live_chat_locked_phone_numbers' => ['sometimes', 'nullable'],
+            'live_chat_template_locked_phone_numbers' => ['sometimes', 'nullable'],
             'disable_chat_for_opted_out_clients' => ['sometimes', 'boolean'],
             'opted_out_chat_message' => ['sometimes', 'nullable', 'string', 'max:255'],
             'support_email'          => ['sometimes', 'nullable', 'email', 'max:255'],
@@ -683,6 +684,15 @@ class SettingsController extends Controller
             }
         }
 
+        if (array_key_exists('live_chat_template_locked_phone_numbers', $data)) {
+            if (is_string($data['live_chat_template_locked_phone_numbers'])) {
+                $decoded = json_decode($data['live_chat_template_locked_phone_numbers'], true);
+                $data['live_chat_template_locked_phone_numbers'] = is_array($decoded) ? $decoded : [];
+            } elseif (!is_array($data['live_chat_template_locked_phone_numbers'])) {
+                $data['live_chat_template_locked_phone_numbers'] = [];
+            }
+        }
+
         $settings->fill($data);
         $settings->save();
 
@@ -738,6 +748,7 @@ class SettingsController extends Controller
                 'live_chat_locked' => false,
                 'live_chat_locked_message' => 'Live chat is temporarily disabled.',
                 'live_chat_locked_phone_numbers' => [],
+                'live_chat_template_locked_phone_numbers' => [],
                 'disable_chat_for_opted_out_clients' => true,
                 'opted_out_chat_message' => 'This client has opted out of WhatsApp communication. Messaging is disabled.',
                 'support_email' => null,
@@ -784,6 +795,7 @@ class SettingsController extends Controller
             'live_chat_locked' => (bool) $settings->live_chat_locked,
             'live_chat_locked_message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.',
             'live_chat_locked_phone_numbers' => $settings->live_chat_locked_phone_numbers ?: [],
+            'live_chat_template_locked_phone_numbers' => $settings->live_chat_template_locked_phone_numbers ?: [],
             'disable_chat_for_opted_out_clients' => $settings->disable_chat_for_opted_out_clients !== null ? (bool) $settings->disable_chat_for_opted_out_clients : true,
             'opted_out_chat_message' => $settings->opted_out_chat_message ?: 'This client has opted out of WhatsApp communication. Messaging is disabled.',
             'support_email' => $settings->support_email,

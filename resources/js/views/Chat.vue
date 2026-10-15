@@ -234,13 +234,36 @@
               <span v-if="activeSession.client?.payment_option" class="badge bg-warning bg-opacity-10 text-warning-emphasis border border-warning border-opacity-25 ms-1" title="Payment Option">
                 <i class="bi bi-credit-card-2-front me-1"></i>Payment: {{ paymentOptionLabel(activeSession.client.payment_option) }}
               </span>
+              <span
+                v-if="activeWabaHealthStatus"
+                class="badge ms-1 d-inline-flex align-items-center"
+                :class="activeWabaHealthBadgeClass"
+                :title="activeWabaHealthTitle"
+              >
+                <i class="bi bi-heart-pulse-fill me-1"></i>Health: {{ activeWabaHealthStatus }}
+              </span>
               <span v-if="isCurrentChatLocked" class="badge bg-danger text-white ms-1" title="Live chat is locked for this line">
                 <i class="bi bi-shield-lock-fill me-1"></i>Live Chat Locked
+              </span>
+              <span v-else-if="isCurrentChatTemplateLocked" class="badge bg-warning text-dark border border-warning ms-1" title="WhatsApp template sending is locked for this number">
+                <i class="bi bi-file-earmark-lock me-1"></i>Templates Locked
               </span>
             </div>
             <small class="text-muted">
               {{ activeSession.platform }}
-              <span v-if="activeWaba"> • WABA: <strong :class="isCurrentChatLocked ? 'text-danger fw-bold' : 'text-dark'">{{ activeWaba.bank_name ? `${activeWaba.bank_name} • ` : '' }}{{ activeWaba.label }} ({{ activeWaba.number }})</strong><span v-if="isCurrentChatLocked" class="text-danger fw-bold ms-1">(Locked)</span></span>
+              <span v-if="activeWaba"> • WABA: <strong :class="isCurrentChatLocked ? 'text-danger fw-bold' : 'text-dark'">{{ activeWaba.bank_name ? `${activeWaba.bank_name} • ` : '' }}{{ activeWaba.label }} ({{ activeWaba.number }})</strong>
+                <span
+                  v-if="activeWabaHealthStatus"
+                  class="badge ms-1.5 py-0 px-1.5 align-middle"
+                  :class="activeWabaHealthBadgeClass"
+                  :title="activeWabaHealthTitle"
+                  style="font-size: 0.68rem;"
+                >
+                  <i class="bi bi-heart-pulse-fill me-0.5"></i>{{ activeWabaHealthStatus }}
+                </span>
+                <span v-if="isCurrentChatLocked" class="text-danger fw-bold ms-1">(Locked)</span>
+                <span v-else-if="isCurrentChatTemplateLocked" class="text-warning fw-bold ms-1">(Templates Locked)</span>
+              </span>
               <span v-if="activeSession.client?.easy_pay_number"> • EasyPay: <strong class="text-dark">{{ activeSession.client.easy_pay_number }}</strong></span>
               <span v-if="activeSession.agent"> • Assigned to {{ activeSession.agent.name }}</span>
             </small>
@@ -258,13 +281,19 @@
                 </li>
                 <li v-if="canManageChat && activeSession.platform?.toLowerCase() === 'whatsapp'">
                   <a
-                    class="dropdown-item py-2"
-                    :class="{ disabled: isSessionLocked(activeSession) || isOptedOutAndBlocked }"
+                    class="dropdown-item py-2 d-flex align-items-center justify-content-between"
+                    :class="{ disabled: isSessionLocked(activeSession) || isOptedOutAndBlocked || isTemplateSendingLocked(activeSession) }"
                     href="#"
-                    :aria-disabled="isSessionLocked(activeSession) || isOptedOutAndBlocked"
-                    @click.prevent="openTemplateModal(activeSession)"
+                    :aria-disabled="isSessionLocked(activeSession) || isOptedOutAndBlocked || isTemplateSendingLocked(activeSession)"
+                    :title="isTemplateSendingLocked(activeSession) ? 'Send Template is locked for this WhatsApp number in Settings.' : ''"
+                    @click.prevent="!isSessionLocked(activeSession) && !isOptedOutAndBlocked && !isTemplateSendingLocked(activeSession) && openTemplateModal(activeSession)"
                   >
-                    <i class="bi bi-file-earmark-text me-2 text-success"></i>Send Template
+                    <span>
+                      <i class="bi bi-file-earmark-text me-2" :class="isTemplateSendingLocked(activeSession) ? 'text-secondary' : 'text-success'"></i>Send Template
+                    </span>
+                    <span v-if="isTemplateSendingLocked(activeSession)" class="badge bg-warning text-dark font-monospace ms-2" style="font-size: 0.65rem;">
+                      <i class="bi bi-lock-fill me-0.5"></i>Locked
+                    </span>
                   </a>
                 </li>
                 <li v-if="canManageChat && !sessionHasClient(activeSession)">
@@ -940,6 +969,8 @@ export default {
       liveChatLockedMessage: '',
       liveChatLockedPhoneNumbers: [],
       liveChatLockedIdentifiers: [],
+      liveChatTemplateLockedPhoneNumbers: [],
+      liveChatTemplateLockedIdentifiers: [],
       disableChatForOptedOutClients: true,
       optedOutChatMessage: 'This client has opted out of WhatsApp communication. Messaging is disabled.',
       addClientModalInstance: null,
@@ -993,8 +1024,52 @@ export default {
       return this.messages.length - this.visibleCount;
     },
     activeWaba() {
-      if (!this.activeSession || !this.activeSession.waba_phone_number_id) return null;
-      return this.availableWabas.find(w => String(w.phone_number_id) === String(this.activeSession.waba_phone_number_id)) || null;
+      if (!this.activeSession) return null;
+      const wabaId = this.activeSession.waba_phone_number_id;
+      if (wabaId) {
+        const found = this.availableWabas.find(w =>
+          String(w.phone_number_id) === String(wabaId) ||
+          this.phonesMatch(w.number, wabaId)
+        );
+        if (found) return found;
+      }
+      const bankId = this.activeSession.bank_id || this.activeSession.bank?.id || this.activeSession.client?.bank_id;
+      if (bankId) {
+        const foundByBank = this.availableWabas.find(w => String(w.bank_id) === String(bankId));
+        if (foundByBank) return foundByBank;
+      }
+      return null;
+    },
+    activeWabaHealthStatus() {
+      if (this.activeWaba?.health_status) {
+        return this.activeWaba.health_status;
+      }
+      if (this.activeSession?.waba_health_status) {
+        return this.activeSession.waba_health_status;
+      }
+      const rating = (this.activeWaba?.quality_rating || this.activeSession?.waba_quality_rating || '').toUpperCase();
+      if (rating === 'GREEN') return 'Good';
+      if (rating === 'YELLOW') return 'Medium';
+      if (rating === 'RED') return 'Poor';
+      return null;
+    },
+    activeWabaHealthBadgeClass() {
+      const status = String(this.activeWabaHealthStatus || '').toLowerCase();
+      if (status === 'good' || status === 'green') return 'bg-success text-white';
+      if (status === 'medium' || status === 'yellow') return 'bg-warning text-dark';
+      if (status === 'poor' || status === 'red') return 'bg-danger text-white';
+      if (status === 'paused') return 'bg-secondary text-white';
+      return 'bg-info bg-opacity-25 text-dark border';
+    },
+    activeWabaHealthTitle() {
+      const parts = [];
+      if (this.activeWabaHealthStatus) parts.push(`Health: ${this.activeWabaHealthStatus}`);
+      const qr = this.activeWaba?.quality_rating || this.activeSession?.waba_quality_rating;
+      if (qr) parts.push(`Quality: ${qr}`);
+      if (this.activeWaba?.is_paused) {
+        parts.push(`Paused: ${this.activeWaba.pause_reason || 'Administrative hold'}`);
+      }
+      return parts.join(' | ') || 'WhatsApp Number Health';
     },
     templatePreviewWaba() {
       if (!this.templateSession?.waba_phone_number_id) return this.activeWaba;
@@ -1038,11 +1113,14 @@ export default {
       return this.renderTemplatePart(this.selectedTemplate?.body_preview, 'body');
     },
     canSendSelectedTemplate() {
-      if (!this.selectedTemplate || this.sendingTemplate || this.isCurrentChatLocked || this.isOptedOutAndBlocked) return false;
+      if (!this.selectedTemplate || this.sendingTemplate || this.isCurrentChatLocked || this.isCurrentChatTemplateLocked || this.isOptedOutAndBlocked) return false;
       return this.templateVariableEntries.every(({ key }) => String(this.templateVariableValues[key] || '').trim() !== '');
     },
     isCurrentChatLocked() {
       return this.isSessionLocked(this.activeSession);
+    },
+    isCurrentChatTemplateLocked() {
+      return this.isTemplateSendingLocked(this.activeSession);
     },
     isOptedOutAndBlocked() {
       if (!this.disableChatForOptedOutClients || !this.activeSession) return false;
@@ -1408,54 +1486,63 @@ export default {
       }
       return false;
     },
-    isWabaLocked(waba) {
-      if (this.liveChatLocked) return true;
-      if (!waba) return false;
-      const lockedList = Array.isArray(this.liveChatLockedPhoneNumbers) ? this.liveChatLockedPhoneNumbers : [];
-      const lockedIds = Array.isArray(this.liveChatLockedIdentifiers) ? this.liveChatLockedIdentifiers.map(String) : [];
-      if (lockedList.length === 0 && lockedIds.length === 0) return false;
+    matchesLockedPhoneNumbers(candidates, lockedList = [], lockedIds = []) {
+      const safeLockedList = Array.isArray(lockedList) ? lockedList : [];
+      const safeLockedIds = Array.isArray(lockedIds) ? lockedIds.map(String) : [];
 
-      const wabaCandidates = [];
-      if (waba.phone_number_id) wabaCandidates.push(String(waba.phone_number_id));
-      if (waba.number) wabaCandidates.push(String(waba.number));
+      if (safeLockedList.length === 0 && safeLockedIds.length === 0) {
+        return false;
+      }
 
-      for (const cand of wabaCandidates) {
+      for (const cand of candidates) {
+        if (!cand) continue;
         const candStr = String(cand);
         const candDigits = this.cleanPhone(cand);
         const candLast9 = candDigits.length >= 9 ? candDigits.slice(-9) : '';
         if (
-          lockedIds.includes(candStr) ||
-          (candDigits && lockedIds.includes(candDigits)) ||
-          (candLast9 && lockedIds.includes(candLast9))
+          safeLockedIds.includes(candStr) ||
+          (candDigits && safeLockedIds.includes(candDigits)) ||
+          (candLast9 && safeLockedIds.includes(candLast9))
         ) {
           return true;
         }
       }
 
-      for (const item of lockedList) {
+      for (const item of safeLockedList) {
         if (!item) continue;
         const itemId = typeof item === 'object' ? (item.id || item.phone_number_id) : String(item);
         const itemPhone = typeof item === 'object' ? (item.display_phone_number || item.number) : String(item);
 
-        for (const cand of wabaCandidates) {
-          if (itemId && String(cand) === String(itemId)) return true;
-          if (itemPhone && this.phonesMatch(cand, itemPhone)) return true;
+        for (const cand of candidates) {
+          if (!cand) continue;
+          if (itemId && String(cand) === String(itemId)) {
+            return true;
+          }
+          if (itemPhone && this.phonesMatch(cand, itemPhone)) {
+            return true;
+          }
         }
       }
+
       return false;
     },
-    isSessionLocked(session) {
+    isWabaLocked(waba) {
       if (this.liveChatLocked) return true;
-      if (!session) return false;
+      if (!waba) return false;
 
-      const lockedList = Array.isArray(this.liveChatLockedPhoneNumbers) ? this.liveChatLockedPhoneNumbers : [];
-      const lockedIds = Array.isArray(this.liveChatLockedIdentifiers) ? this.liveChatLockedIdentifiers.map(String) : [];
+      const wabaCandidates = [];
+      if (waba.phone_number_id) wabaCandidates.push(String(waba.phone_number_id));
+      if (waba.number) wabaCandidates.push(String(waba.number));
 
-      if (lockedList.length === 0 && lockedIds.length === 0) {
-        return false;
-      }
+      return this.matchesLockedPhoneNumbers(
+        wabaCandidates,
+        this.liveChatLockedPhoneNumbers,
+        this.liveChatLockedIdentifiers
+      );
+    },
+    getSessionPhoneCandidates(session) {
+      if (!session) return [];
 
-      // Collect all candidate phones/IDs from session
       const candidates = [];
       if (session.waba_phone_number_id) {
         candidates.push(String(session.waba_phone_number_id));
@@ -1521,39 +1608,31 @@ export default {
         }
       }
 
-      // Check candidates against lockedIds directly
-      for (const cand of candidates) {
-        if (!cand) continue;
-        const candStr = String(cand);
-        const candDigits = this.cleanPhone(cand);
-        const candLast9 = candDigits.length >= 9 ? candDigits.slice(-9) : '';
-        if (
-          lockedIds.includes(candStr) ||
-          (candDigits && lockedIds.includes(candDigits)) ||
-          (candLast9 && lockedIds.includes(candLast9))
-        ) {
-          return true;
-        }
-      }
+      return candidates;
+    },
+    isSessionLocked(session) {
+      if (this.liveChatLocked) return true;
+      if (!session) return false;
+      if (session.is_live_chat_locked) return true;
 
-      // Check candidates against lockedList using phonesMatch & ID match
-      for (const item of lockedList) {
-        if (!item) continue;
-        const itemId = typeof item === 'object' ? (item.id || item.phone_number_id) : String(item);
-        const itemPhone = typeof item === 'object' ? (item.display_phone_number || item.number) : String(item);
+      const candidates = this.getSessionPhoneCandidates(session);
+      return this.matchesLockedPhoneNumbers(
+        candidates,
+        this.liveChatLockedPhoneNumbers,
+        this.liveChatLockedIdentifiers
+      );
+    },
+    isTemplateSendingLocked(session) {
+      if (this.isSessionLocked(session)) return true;
+      if (!session) return false;
+      if (session.is_template_locked) return true;
 
-        for (const cand of candidates) {
-          if (!cand) continue;
-          if (itemId && String(cand) === String(itemId)) {
-            return true;
-          }
-          if (itemPhone && this.phonesMatch(cand, itemPhone)) {
-            return true;
-          }
-        }
-      }
-
-      return false;
+      const candidates = this.getSessionPhoneCandidates(session);
+      return this.matchesLockedPhoneNumbers(
+        candidates,
+        this.liveChatTemplateLockedPhoneNumbers,
+        this.liveChatTemplateLockedIdentifiers
+      );
     },
     isClientOptedOut(session) {
       if (!session) return false;
@@ -1732,7 +1811,7 @@ export default {
       return 'Not Set';
     },
     openTemplateModal(session) {
-      if (!this.canManageChat || !session || this.isSessionLocked(session)) return;
+      if (!this.canManageChat || !session || this.isSessionLocked(session) || this.isTemplateSendingLocked(session)) return;
       if (this.disableChatForOptedOutClients && this.isClientOptedOut(session)) {
         notify.warning(this.optedOutChatMessage || 'This client has opted out of WhatsApp communication. Messaging is disabled.', 'Opted Out');
         return;
@@ -1831,6 +1910,8 @@ export default {
         this.liveChatLockedMessage = res.data.liveChatLockedMessage || 'Live chat is temporarily disabled.';
         this.liveChatLockedPhoneNumbers = res.data.liveChatLockedPhoneNumbers || [];
         this.liveChatLockedIdentifiers = res.data.liveChatLockedIdentifiers || [];
+        this.liveChatTemplateLockedPhoneNumbers = res.data.liveChatTemplateLockedPhoneNumbers || [];
+        this.liveChatTemplateLockedIdentifiers = res.data.liveChatTemplateLockedIdentifiers || [];
         this.disableChatForOptedOutClients = res.data.disableChatForOptedOutClients !== undefined ? !!res.data.disableChatForOptedOutClients : true;
         this.optedOutChatMessage = res.data.optedOutChatMessage || 'This client has opted out of WhatsApp communication. Messaging is disabled.';
       }).catch((err) => {

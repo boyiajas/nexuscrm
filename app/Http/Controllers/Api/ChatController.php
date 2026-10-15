@@ -249,6 +249,9 @@ class ChatController extends Controller
             Log::error('Failed to load WABAs for chat filters: ' . $e->getMessage());
         }
 
+        // Fetch number controls to enrich WABA health and pause statuses
+        $controls = \App\Models\WhatsappNumberControl::all();
+
         // 3. Build unified WABA senders list with bank metadata
         $wabas = [];
         $seenPhoneIds = [];
@@ -270,6 +273,26 @@ class ChatController extends Controller
             $bankId = $matchedBank?->id ?: $acc?->bank_id;
             $bankName = $matchedBank?->name ?: $acc?->bank?->name;
 
+            // Match against WhatsappNumberControl
+            $control = $controls->first(function ($c) use ($pId, $num, $resolver) {
+                if ($pId && (string) $c->phone_number_id === $pId) return true;
+                if ($num && $resolver->phonesMatch($c->display_phone_number, $num)) return true;
+                return false;
+            });
+
+            $qualityRating = $s['quality_rating']
+                ?? $control?->quality_rating
+                ?? 'GREEN';
+
+            $healthStatus = ($control?->is_paused)
+                ? 'Paused'
+                : match (strtoupper((string) $qualityRating)) {
+                    'GREEN' => 'Good',
+                    'YELLOW' => 'Medium',
+                    'RED' => 'Poor',
+                    default => 'Good',
+                };
+
             $wabas[] = [
                 'number' => $num,
                 'label' => $acc?->name ?: $lbl,
@@ -277,6 +300,12 @@ class ChatController extends Controller
                 'phone_number_id' => $pId,
                 'bank_id' => $bankId,
                 'bank_name' => $bankName,
+                'quality_rating' => $qualityRating,
+                'health_status' => $healthStatus,
+                'is_paused' => (bool) ($control?->is_paused ?? false),
+                'pause_reason' => $control?->pause_reason,
+                'code_verification_status' => $s['code_verification_status'] ?? 'VERIFIED',
+                'name_status' => $s['name_status'] ?? 'APPROVED',
             ];
 
             if ($pId) {
@@ -295,6 +324,21 @@ class ChatController extends Controller
                 $bankId = $matchedBank?->id ?: $acc->bank_id;
                 $bankName = $matchedBank?->name ?: $acc->bank?->name;
 
+                $control = $controls->first(function ($c) use ($pId, $acc, $resolver) {
+                    if ($pId && (string) $c->phone_number_id === $pId) return true;
+                    if ($acc->display_phone_number && $resolver->phonesMatch($c->display_phone_number, $acc->display_phone_number)) return true;
+                    return false;
+                });
+                $qualityRating = $control?->quality_rating ?: 'GREEN';
+                $healthStatus = ($control?->is_paused)
+                    ? 'Paused'
+                    : match (strtoupper((string) $qualityRating)) {
+                        'GREEN' => 'Good',
+                        'YELLOW' => 'Medium',
+                        'RED' => 'Poor',
+                        default => 'Good',
+                    };
+
                 $wabas[] = [
                     'number' => $acc->display_phone_number ?: $acc->phone_number_id,
                     'label' => $acc->name,
@@ -302,6 +346,12 @@ class ChatController extends Controller
                     'phone_number_id' => $acc->phone_number_id,
                     'bank_id' => $bankId,
                     'bank_name' => $bankName,
+                    'quality_rating' => $qualityRating,
+                    'health_status' => $healthStatus,
+                    'is_paused' => (bool) ($control?->is_paused ?? false),
+                    'pause_reason' => $control?->pause_reason,
+                    'code_verification_status' => 'VERIFIED',
+                    'name_status' => 'APPROVED',
                 ];
                 $seenPhoneIds[] = $pId;
                 if ($acc->display_phone_number) {
@@ -324,6 +374,21 @@ class ChatController extends Controller
 
                 if (!$alreadySeen) {
                     $phoneId = $b->whatsappAccount?->phone_number_id ?: $b->primary_whatsapp_number;
+                    $control = $controls->first(function ($c) use ($phoneId, $b, $resolver) {
+                        if ($phoneId && (string) $c->phone_number_id === (string) $phoneId) return true;
+                        if ($resolver->phonesMatch($c->display_phone_number, $b->primary_whatsapp_number)) return true;
+                        return false;
+                    });
+                    $qualityRating = $control?->quality_rating ?: 'GREEN';
+                    $healthStatus = ($control?->is_paused)
+                        ? 'Paused'
+                        : match (strtoupper((string) $qualityRating)) {
+                            'GREEN' => 'Good',
+                            'YELLOW' => 'Medium',
+                            'RED' => 'Poor',
+                            default => 'Good',
+                        };
+
                     $wabas[] = [
                         'number' => $b->primary_whatsapp_number,
                         'label' => $b->name,
@@ -331,6 +396,12 @@ class ChatController extends Controller
                         'phone_number_id' => (string) $phoneId,
                         'bank_id' => $b->id,
                         'bank_name' => $b->name,
+                        'quality_rating' => $qualityRating,
+                        'health_status' => $healthStatus,
+                        'is_paused' => (bool) ($control?->is_paused ?? false),
+                        'pause_reason' => $control?->pause_reason,
+                        'code_verification_status' => 'VERIFIED',
+                        'name_status' => 'APPROVED',
                     ];
                     $seenNumbers[] = $b->primary_whatsapp_number;
                 }
@@ -350,6 +421,8 @@ class ChatController extends Controller
         $liveChatLockedMessage = $settings ? $settings->live_chat_locked_message : 'Live chat is temporarily disabled.';
         $liveChatLockedPhoneNumbers = $settings ? ($settings->live_chat_locked_phone_numbers ?: []) : [];
         $liveChatLockedIdentifiers = $settings ? $settings->getLiveChatLockedPhoneNumberIdentifiers() : [];
+        $liveChatTemplateLockedPhoneNumbers = $settings ? ($settings->live_chat_template_locked_phone_numbers ?: []) : [];
+        $liveChatTemplateLockedIdentifiers = $settings ? $settings->getLiveChatTemplateLockedPhoneNumberIdentifiers() : [];
         $disableChatForOptedOutClients = $settings && $settings->disable_chat_for_opted_out_clients !== null ? (bool) $settings->disable_chat_for_opted_out_clients : true;
         $optedOutChatMessage = ($settings && $settings->opted_out_chat_message) ? $settings->opted_out_chat_message : 'This client has opted out of WhatsApp communication. Messaging is disabled.';
 
@@ -361,6 +434,8 @@ class ChatController extends Controller
             'liveChatLockedMessage',
             'liveChatLockedPhoneNumbers',
             'liveChatLockedIdentifiers',
+            'liveChatTemplateLockedPhoneNumbers',
+            'liveChatTemplateLockedIdentifiers',
             'disableChatForOptedOutClients',
             'optedOutChatMessage'
         ));
@@ -379,6 +454,27 @@ class ChatController extends Controller
         if (!$user->isReadOnlyRole() && !$request->boolean('peek')) {
             $session->update(['unread_count' => 0]);
         }
+
+        $settings = \App\Models\SystemSetting::first();
+        $session->is_live_chat_locked = $settings ? $settings->isLiveChatLockedForSession($session) : false;
+        $session->is_template_locked = $settings ? $settings->isTemplateSendingLockedForSession($session) : false;
+
+        $wabaId = (string) ($session->waba_phone_number_id ?: '');
+        $control = null;
+        if ($wabaId) {
+            $cleanDigits = preg_replace('/\D+/', '', $wabaId);
+            $control = \App\Models\WhatsappNumberControl::where('phone_number_id', $wabaId)
+                ->when($cleanDigits, fn ($q) => $q->orWhere('normalized_display_phone_number', $cleanDigits))
+                ->first();
+        }
+        $qualityRating = $control?->quality_rating ?: 'GREEN';
+        $session->waba_quality_rating = $qualityRating;
+        $session->waba_health_status = ($control?->is_paused) ? 'Paused' : match (strtoupper((string) $qualityRating)) {
+            'GREEN' => 'Good',
+            'YELLOW' => 'Medium',
+            'RED' => 'Poor',
+            default => 'Good',
+        };
 
         return $this->appendCampaignMessages($session);
     }
@@ -544,6 +640,12 @@ class ChatController extends Controller
         if ($settings && $settings->isLiveChatLockedForSession($session)) {
             return response()->json([
                 'message' => $settings->live_chat_locked_message ?: 'Live chat is temporarily disabled.'
+            ], 403);
+        }
+
+        if ($settings && $settings->isTemplateSendingLockedForSession($session)) {
+            return response()->json([
+                'message' => 'Sending WhatsApp templates is currently locked for this WhatsApp number.'
             ], 403);
         }
 

@@ -14,6 +14,7 @@ class SystemSetting extends Model
         'live_chat_locked',
         'live_chat_locked_message',
         'live_chat_locked_phone_numbers',
+        'live_chat_template_locked_phone_numbers',
         'disable_chat_for_opted_out_clients',
         'opted_out_chat_message',
         'app_short_name',
@@ -83,6 +84,7 @@ class SystemSetting extends Model
         'meta_permissions_snapshot' => 'array',
         'live_chat_locked' => 'boolean',
         'live_chat_locked_phone_numbers' => 'array',
+        'live_chat_template_locked_phone_numbers' => 'array',
         'disable_chat_for_opted_out_clients' => 'boolean',
     ];
 
@@ -96,11 +98,10 @@ class SystemSetting extends Model
     }
 
     /**
-     * Get a flattened list of unique string identifiers for all locked WhatsApp phone numbers.
+     * Get a flattened list of unique string identifiers for an array of WhatsApp phone numbers / objects.
      */
-    public function getLiveChatLockedPhoneNumberIdentifiers(): array
+    public function extractPhoneNumberIdentifiers($raw): array
     {
-        $raw = $this->live_chat_locked_phone_numbers;
         if (empty($raw) || !is_array($raw)) {
             return [];
         }
@@ -175,17 +176,28 @@ class SystemSetting extends Model
     }
 
     /**
-     * Determine if live chat communication is locked for a specific ChatSession.
+     * Get a flattened list of unique string identifiers for all locked WhatsApp phone numbers.
      */
-    public function isLiveChatLockedForSession(?ChatSession $session = null): bool
+    public function getLiveChatLockedPhoneNumberIdentifiers(): array
     {
-        if ($this->live_chat_locked) {
-            return true;
-        }
+        return $this->extractPhoneNumberIdentifiers($this->live_chat_locked_phone_numbers);
+    }
 
-        $lockedIdentifiers = $this->getLiveChatLockedPhoneNumberIdentifiers();
-        if (empty($lockedIdentifiers) || !$session) {
-            return false;
+    /**
+     * Get a flattened list of unique string identifiers for all template-locked WhatsApp phone numbers.
+     */
+    public function getLiveChatTemplateLockedPhoneNumberIdentifiers(): array
+    {
+        return $this->extractPhoneNumberIdentifiers($this->live_chat_template_locked_phone_numbers);
+    }
+
+    /**
+     * Collect candidate phone numbers and identifiers for a specific ChatSession.
+     */
+    public function getSessionPhoneNumberIdentifiers(?ChatSession $session = null): array
+    {
+        if (!$session) {
+            return [];
         }
 
         $sessionIdentifiers = [];
@@ -296,6 +308,25 @@ class SystemSetting extends Model
             }
         }
 
+        return array_values(array_unique(array_filter($sessionIdentifiers)));
+    }
+
+    /**
+     * Determine if live chat communication is locked for a specific ChatSession.
+     */
+    public function isLiveChatLockedForSession(?ChatSession $session = null): bool
+    {
+        if ($this->live_chat_locked) {
+            return true;
+        }
+
+        $lockedIdentifiers = $this->getLiveChatLockedPhoneNumberIdentifiers();
+        if (empty($lockedIdentifiers) || !$session) {
+            return false;
+        }
+
+        $sessionIdentifiers = $this->getSessionPhoneNumberIdentifiers($session);
+
         // 3. Match against locked identifiers
         foreach ($sessionIdentifiers as $ident) {
             if (in_array((string) $ident, $lockedIdentifiers, true)) {
@@ -304,6 +335,45 @@ class SystemSetting extends Model
         }
 
         // 4. Try phonesMatch via BankWabaResolver if available
+        try {
+            /** @var \App\Services\BankWabaResolver $resolver */
+            $resolver = app(\App\Services\BankWabaResolver::class);
+            foreach ($sessionIdentifiers as $sId) {
+                foreach ($lockedIdentifiers as $lId) {
+                    if ($resolver->phonesMatch($sId, $lId)) {
+                        return true;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently continue
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if WhatsApp template sending is locked for a specific ChatSession.
+     */
+    public function isTemplateSendingLockedForSession(?ChatSession $session = null): bool
+    {
+        if ($this->isLiveChatLockedForSession($session)) {
+            return true;
+        }
+
+        $lockedIdentifiers = $this->getLiveChatTemplateLockedPhoneNumberIdentifiers();
+        if (empty($lockedIdentifiers) || !$session) {
+            return false;
+        }
+
+        $sessionIdentifiers = $this->getSessionPhoneNumberIdentifiers($session);
+
+        foreach ($sessionIdentifiers as $ident) {
+            if (in_array((string) $ident, $lockedIdentifiers, true)) {
+                return true;
+            }
+        }
+
         try {
             /** @var \App\Services\BankWabaResolver $resolver */
             $resolver = app(\App\Services\BankWabaResolver::class);

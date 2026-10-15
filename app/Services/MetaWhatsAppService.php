@@ -239,6 +239,10 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                         'label' => $num['verified_name'] ?? 'Meta WhatsApp Number',
                         'default' => false,
                         'phone_number_id' => $num['id'],
+                        'quality_rating' => $num['quality_rating'] ?? null,
+                        'code_verification_status' => $num['code_verification_status'] ?? null,
+                        'name_status' => $num['name_status'] ?? null,
+                        'messaging_limit_tier' => $num['messaging_limit_tier'] ?? null,
                     ];
                 }, $metaNumbers);
 
@@ -258,6 +262,9 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                     'label' => 'Meta WhatsApp Number',
                     'default' => true,
                     'phone_number_id' => $this->phoneNumberId,
+                    'quality_rating' => 'GREEN',
+                    'code_verification_status' => 'VERIFIED',
+                    'name_status' => 'APPROVED',
                 ]];
             }
         });
