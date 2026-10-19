@@ -89,6 +89,10 @@ class CampaignController extends Controller
     {
         $this->authorizeView($campaign);
 
+        if (request()->boolean('refresh') && method_exists($this->whatsApp, 'clearPhoneNumbersCache')) {
+            $this->whatsApp->clearPhoneNumbersCache();
+        }
+
         $campaign->load(['departments', 'bank']);
 
         $senderStatus = $this->numberControlService->statusFor(null);
@@ -105,7 +109,8 @@ class CampaignController extends Controller
 
             $senderStatus = $this->numberControlService->statusFor(
                 $senderContext['phone_number_id'] ?? null,
-                $senderContext['display_phone_number'] ?? $campaign->whatsapp_from
+                $senderContext['display_phone_number'] ?? $campaign->whatsapp_from,
+                $senderContext['quality_rating'] ?? null
             );
         }
 
@@ -2606,7 +2611,8 @@ class CampaignController extends Controller
     {
         $this->numberControlService->assertCanSend(
             $senderContext['phone_number_id'] ?? null,
-            $senderContext['display_phone_number'] ?? null
+            $senderContext['display_phone_number'] ?? null,
+            $senderContext['quality_rating'] ?? null
         );
     }
 
@@ -2622,6 +2628,7 @@ class CampaignController extends Controller
         return [
             'phone_number_id' => $sender['phone_number_id'] ?? null,
             'display_phone_number' => $sender['number'] ?? $overrideFrom,
+            'quality_rating' => $sender['quality_rating'] ?? null,
         ];
     }
 

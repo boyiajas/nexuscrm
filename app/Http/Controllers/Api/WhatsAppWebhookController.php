@@ -1056,9 +1056,36 @@ class WhatsAppWebhookController extends Controller
     {
         Log::critical("Meta WhatsApp Account Alert Received: {$field}", ['waba_id' => $wabaId, 'payload' => $value]);
 
+        // Invalidate cached senders and phone numbers so latest Meta rating/status is fetched
+        try {
+            app(\App\Services\MetaWhatsAppService::class)->clearPhoneNumbersCache();
+        } catch (\Throwable) {
+            // Ignore
+        }
+
         $event = $value['event'] ?? 'UNKNOWN_EVENT';
         $reason = $value['reason'] ?? '';
         $phoneOrAccount = $value['display_phone_number'] ?? 'WABA: ' . $wabaId;
+
+        // If quality rating is included in the payload, sync it with WhatsappNumberControl
+        if (!empty($value['quality_rating']) || !empty($value['event'])) {
+            try {
+                $rawRating = $value['quality_rating'] ?? match (strtoupper((string) $event)) {
+                    'UPGRADED', 'GREEN' => 'GREEN',
+                    'YELLOW' => 'YELLOW',
+                    'DOWNGRADED', 'FLAGGED', 'RED' => 'RED',
+                    default => null,
+                };
+
+                if ($rawRating) {
+                    $phoneId = isset($value['phone_number_id']) ? (string) $value['phone_number_id'] : null;
+                    $displayPhone = $value['display_phone_number'] ?? null;
+                    app(\App\Services\WhatsAppNumberControlService::class)->statusFor($phoneId, $displayPhone, $rawRating);
+                }
+            } catch (\Throwable) {
+                // Ignore
+            }
+        }
         
         $alertType = strtoupper($field) . ' - ' . $event;
         $eventDetails = "Event: {$event}\nReason: {$reason}";

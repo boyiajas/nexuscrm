@@ -594,6 +594,7 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                 return [
                     'phone_number_id' => $sender['phone_number_id'],
                     'display_phone_number' => $sender['number'] ?? $overrideStr,
+                    'quality_rating' => $sender['quality_rating'] ?? null,
                 ];
             }
 
@@ -603,9 +604,11 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                     ->where('phone_number_id', '!=', $overrideStr)
                     ->first();
                 if ($waByWaba && $waByWaba->phone_number_id) {
+                    $matchedSender = collect($senders)->first(fn ($s) => (string) ($s['phone_number_id'] ?? '') === (string) $waByWaba->phone_number_id);
                     return [
                         'phone_number_id' => (string) $waByWaba->phone_number_id,
                         'display_phone_number' => $waByWaba->display_phone_number ?: $overrideStr,
+                        'quality_rating' => $matchedSender['quality_rating'] ?? null,
                     ];
                 }
 
@@ -625,9 +628,11 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                 }
 
                 if ($waAccount && $waAccount->phone_number_id && (string) $waAccount->phone_number_id !== (string) $this->businessAccountId) {
+                    $matchedSender = collect($senders)->first(fn ($s) => (string) ($s['phone_number_id'] ?? '') === (string) $waAccount->phone_number_id);
                     return [
                         'phone_number_id' => (string) $waAccount->phone_number_id,
                         'display_phone_number' => $waAccount->display_phone_number ?: $overrideStr,
+                        'quality_rating' => $matchedSender['quality_rating'] ?? null,
                     ];
                 }
             } catch (\Throwable $e) {
@@ -636,16 +641,29 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
             // Only treat as a direct phone_number_id if it does NOT match the WABA ID
             if (preg_match('/^\d{14,20}$/', $overrideStr) && $overrideStr !== (string) $this->businessAccountId) {
+                $matchedSender = collect($senders)->first(fn ($s) => (string) ($s['phone_number_id'] ?? '') === $overrideStr);
                 return [
                     'phone_number_id' => $overrideStr,
-                    'display_phone_number' => $overrideStr,
+                    'display_phone_number' => $matchedSender['number'] ?? $overrideStr,
+                    'quality_rating' => $matchedSender['quality_rating'] ?? null,
                 ];
             }
+
+            $defaultSender = collect($senders)->first(fn ($s) => (string) ($s['phone_number_id'] ?? '') === (string) $this->phoneNumberId);
+            return [
+                'phone_number_id' => $this->phoneNumberId,
+                'display_phone_number' => $this->displayPhoneNumber ?: $overrideStr,
+                'quality_rating' => $defaultSender['quality_rating'] ?? null,
+            ];
         }
+
+        $senders = $this->listWhatsappSenders();
+        $defaultSender = collect($senders)->first(fn ($s) => (string) ($s['phone_number_id'] ?? '') === (string) $this->phoneNumberId) ?? ($senders[0] ?? []);
 
         return [
             'phone_number_id' => $this->phoneNumberId,
             'display_phone_number' => $this->displayPhoneNumber ?: $this->phoneNumberId,
+            'quality_rating' => $defaultSender['quality_rating'] ?? null,
         ];
     }
 

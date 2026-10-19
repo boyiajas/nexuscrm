@@ -21,7 +21,9 @@ class WhatsAppNumberControlService
         ]);
 
         $displayPhoneNumber = $displayPhoneNumber ?: $control->display_phone_number;
-        $qualityRating = $this->normalizeQualityRating($qualityRating) ?: $control->quality_rating;
+        $qualityRating = $this->normalizeQualityRating($qualityRating)
+            ?: $this->resolveLiveQualityRating($phoneNumberId, $displayPhoneNumber)
+            ?: $control->quality_rating;
 
         $control->fill([
             'display_phone_number' => $displayPhoneNumber,
@@ -46,22 +48,75 @@ class WhatsAppNumberControlService
     ): array {
         $control = $this->findControl($phoneNumberId, $displayPhoneNumber);
 
+        $normalizedRating = $this->normalizeQualityRating($currentQualityRating);
+
+        // If no rating passed, attempt to resolve live/cached rating from MetaWhatsAppService
+        if (! $normalizedRating) {
+            $normalizedRating = $this->resolveLiveQualityRating($phoneNumberId, $displayPhoneNumber);
+        }
+
+        // If we have a fresh rating and a control record exists, keep the DB record in sync
+        if ($control && $normalizedRating && $control->quality_rating !== $normalizedRating) {
+            $control->update([
+                'quality_rating' => $normalizedRating,
+            ]);
+        }
+
+        $effectiveRating = $normalizedRating
+            ?: $control?->quality_rating
+            ?: 'UNKNOWN';
+
         return [
             'is_paused' => (bool) ($control?->is_paused ?? false),
             'phone_number_id' => $control?->phone_number_id ?: $phoneNumberId,
             'display_phone_number' => $displayPhoneNumber ?: $control?->display_phone_number,
-            'quality_rating' => $this->normalizeQualityRating($currentQualityRating)
-                ?: $control?->quality_rating
-                ?: 'UNKNOWN',
+            'quality_rating' => $effectiveRating,
             'pause_reason' => $control?->pause_reason,
             'paused_at' => $control?->paused_at?->toDateTimeString(),
             'paused_by' => $control?->pausedBy?->name,
         ];
     }
 
-    public function assertCanSend(?string $phoneNumberId, ?string $displayPhoneNumber = null): void
+    public function resolveLiveQualityRating(?string $phoneNumberId, ?string $displayPhoneNumber = null): ?string
     {
-        $status = $this->statusFor($phoneNumberId, $displayPhoneNumber);
+        try {
+            /** @var \App\Services\MetaWhatsAppService $metaService */
+            $metaService = $phoneNumberId
+                ? \App\Services\MetaWhatsAppService::forPhoneNumberId((string) $phoneNumberId)
+                : app(\App\Services\MetaWhatsAppService::class);
+
+            $senders = $metaService->listWhatsappSenders();
+            $normDisplay = $this->normalizeDisplayNumber($displayPhoneNumber);
+
+            foreach ($senders as $s) {
+                $pId = (string) ($s['phone_number_id'] ?? '');
+                $sNum = $this->normalizeDisplayNumber($s['number'] ?? '');
+
+                $matchesId = $phoneNumberId && $pId && $pId === (string) $phoneNumberId;
+                $matchesNum = $normDisplay && $sNum && (
+                    $sNum === $normDisplay ||
+                    (strlen($sNum) >= 9 && strlen($normDisplay) >= 9 && substr($sNum, -9) === substr($normDisplay, -9))
+                );
+
+                if ($matchesId || $matchesNum) {
+                    if (!empty($s['quality_rating'])) {
+                        return $this->normalizeQualityRating($s['quality_rating']);
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Silently fall back
+        }
+
+        return null;
+    }
+
+    public function assertCanSend(
+        ?string $phoneNumberId,
+        ?string $displayPhoneNumber = null,
+        ?string $currentQualityRating = null
+    ): void {
+        $status = $this->statusFor($phoneNumberId, $displayPhoneNumber, $currentQualityRating);
         if (! $status['is_paused']) {
             return;
         }

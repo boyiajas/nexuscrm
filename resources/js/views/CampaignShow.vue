@@ -2988,16 +2988,17 @@ export default {
       return 'Sent';
     },
     refreshAll() {
-      this.fetchCampaign();
+      this.fetchCampaign(true);
       this.fetchStats();
       this.fetchClients();
       this.fetchWhatsApp();
       this.fetchEmails();
       this.fetchSms();
     },
-    fetchCampaign() {
+    fetchCampaign(forceRefresh = false) {
       const id = this.$route.params.id;
-      axios.get(`/api/campaigns/${id}`).then((res) => {
+      const params = forceRefresh ? { refresh: 1 } : {};
+      axios.get(`/api/campaigns/${id}`, { params }).then((res) => {
         this.campaign = res.data;
       }).catch((err) => {
         console.error('Failed to fetch campaign:', err);
