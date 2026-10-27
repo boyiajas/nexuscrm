@@ -102,6 +102,7 @@ class ImportClientsJob implements ShouldQueue
             $seenAccountNumbers = [];
             $seenEasyPayNumbers = [];
             $seenIdNumbers = [];
+            $touchedClientIds = [];
             
             $bankId = $this->bankId;
             $bankName = $this->resolveBankName($bankId, null);
@@ -359,7 +360,17 @@ class ImportClientsJob implements ShouldQueue
                     ['is_new_client' => $isNewClient]
                 );
 
+                $touchedClientIds[] = $client->id;
                 $importCount++;
+            }
+
+            if (!empty($touchedClientIds)) {
+                $institutionService = app(\App\Services\ClientInstitutionService::class);
+                Client::query()->whereIn('id', array_values(array_unique($touchedClientIds)))->chunkById(100, function ($batch) use ($institutionService) {
+                    foreach ($batch as $importedClient) {
+                        $institutionService->syncClientInstitutionTags($importedClient, syncPeers: true);
+                    }
+                });
             }
 
             $importUpload->forceFill([

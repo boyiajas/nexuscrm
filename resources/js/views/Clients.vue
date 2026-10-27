@@ -92,6 +92,9 @@
 
               <!-- Type Filter -->
               <input type="text" v-model="filters.type" class="form-control form-control-sm rounded-pill" style="width: 100px;" placeholder="Type..." @keyup.enter="applyFilters" @blur="applyFilters" />
+
+              <!-- Tag / Bank Filter -->
+              <input type="text" v-model="filters.tag" class="form-control form-control-sm rounded-pill" style="width: 140px;" placeholder="Tag / Bank..." @keyup.enter="applyFilters" @blur="applyFilters" />
             </div>
 
             <div class="d-flex align-items-center gap-3">
@@ -184,6 +187,18 @@
                     </td>
                     <td class="text-nowrap">
                       <div class="small fw-medium text-dark">{{ c.bank_name || 'Standard Bank' }}</div>
+                      <div v-if="c.linked_institutions && c.linked_institutions.length" class="d-flex flex-wrap gap-1 mt-1">
+                        <span
+                          v-for="inst in c.linked_institutions"
+                          :key="inst"
+                          class="badge bg-warning-subtle text-dark border border-warning-subtle px-1 py-0"
+                          style="font-size: 0.70rem; cursor: pointer;"
+                          :title="'Also associated with ' + inst + ' (click to filter)'"
+                          @click.stop="filterByBankTag(inst)"
+                        >
+                          <i class="bi bi-bank me-1"></i>{{ inst }}
+                        </span>
+                      </div>
                     </td>
                     <td class="text-nowrap">
                       <span v-if="c.bank?.primary_whatsapp_number" class="badge bg-info-subtle text-info border" title="Bank WhatsApp Profile">
@@ -844,6 +859,18 @@
                     </span>
                     <span v-else>-</span>
                   </div>
+                  <div v-if="viewClient.linked_institutions && viewClient.linked_institutions.length" class="col-12 mb-2">
+                    <strong>Other Associated Institutions:</strong>
+                    <div class="d-inline-flex flex-wrap gap-1 ms-2">
+                      <span
+                        v-for="inst in viewClient.linked_institutions"
+                        :key="inst"
+                        class="badge bg-warning-subtle text-dark border border-warning-subtle px-2 py-1"
+                      >
+                        <i class="bi bi-bank me-1"></i>{{ inst }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -929,6 +956,7 @@ export default {
         opt_in: '',
         account_type: '',
         type: '',
+        tag: '',
       },
       pageSize: 25,
       pageSizeOptions: [25, 50, 100, 250, 500, 1000],
@@ -1232,6 +1260,9 @@ export default {
         bank_id: this.filters.bank_id || undefined,
         status: this.filters.status || undefined,
         opt_in: this.filters.opt_in || undefined,
+        account_type: this.filters.account_type || undefined,
+        type: this.filters.type || undefined,
+        tag: this.filters.tag || undefined,
         per_page: this.pageSize,
       };
 
@@ -1268,8 +1299,23 @@ export default {
       this.fetchClients(1);
     },
     resetFilters() {
-      this.filters = { q: '', department: '', import_batch_number: '', client_type: 'all', bank_id: '', status: '', opt_in: '' };
+      this.filters = {
+        q: '',
+        department: '',
+        import_batch_number: '',
+        client_type: 'all',
+        bank_id: '',
+        status: '',
+        opt_in: '',
+        account_type: '',
+        type: '',
+        tag: '',
+      };
       this.fetchClients(1);
+    },
+    filterByBankTag(bankName) {
+      this.filters.tag = bankName;
+      this.applyFilters();
     },
     changePageSize() {
       this.fetchClients(1);

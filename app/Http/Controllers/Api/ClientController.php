@@ -28,8 +28,10 @@ class ClientController extends Controller
 
     use HasAuditLogging, GuardsSensitiveExports, AppliesAccessScopes;
 
-    public function __construct(private MalwareScanService $malwareScan)
-    {
+    public function __construct(
+        private MalwareScanService $malwareScan,
+        private \App\Services\ClientInstitutionService $clientInstitutionService
+    ) {
     }
     
     public function index(Request $request)
@@ -118,6 +120,12 @@ class ClientController extends Controller
             }
         }
 
+        if ($tag = $request->get('tag')) {
+            if (!in_array($tag, ['All', 'all', ''], true)) {
+                $query->whereJsonContains('tags', $tag);
+            }
+        }
+
         $batchOptionsQuery = Client::query();
         $this->scopeClientQueryToUser($batchOptionsQuery, $user);
 
@@ -161,7 +169,9 @@ class ClientController extends Controller
             ->get()
             ->keyBy('import_batch_number');
 
-        $clients->getCollection()->transform(function (Client $client) use ($uploadsByBatch) {
+        $linkedInstitutionsByClientId = $this->clientInstitutionService->resolveLinkedInstitutionsForCollection($clients->getCollection());
+
+        $clients->getCollection()->transform(function (Client $client) use ($uploadsByBatch, $linkedInstitutionsByClientId) {
             $upload = $client->import_batch_number ? $uploadsByBatch->get($client->import_batch_number) : null;
             $createdByName = $upload?->user?->name;
             $createdByLabel = $client->import_batch_number
@@ -182,6 +192,7 @@ class ClientController extends Controller
                 'whatsapp_opted_in_at' => optional($client->whatsapp_opted_in_at)->toDateTimeString(),
                 'whatsapp_can_receive' => $client->canReceiveWhatsapp(),
                 'whatsapp_compliance_status' => $this->whatsappComplianceStatus($client),
+                'linked_institutions' => $linkedInstitutionsByClientId[$client->id] ?? [],
                 'departments' => $client->departments->map(fn ($dept) => [
                     'id' => $dept->id,
                     'name' => $dept->name,
@@ -228,6 +239,7 @@ class ClientController extends Controller
             'whatsapp_can_receive' => $client->canReceiveWhatsapp(),
             'whatsapp_compliance_status' => $this->whatsappComplianceStatus($client),
             'tags' => $client->tags ?? [],
+            'linked_institutions' => $this->clientInstitutionService->resolveLinkedInstitutions($client),
             'departments' => $client->departments->map(function ($dept) {
                 return [
                     'id' => $dept->id,
@@ -345,6 +357,8 @@ class ClientController extends Controller
             $client->departments()->sync($data['department_ids']);
 
             DB::commit();
+
+            $this->clientInstitutionService->syncClientInstitutionTags($client, syncPeers: true);
 
             // Manual audit record with richer context
             $this->audit(
@@ -488,6 +502,8 @@ class ClientController extends Controller
             }
 
             DB::commit();
+
+            $this->clientInstitutionService->syncClientInstitutionTags($client, syncPeers: true);
 
             // Audit log for update
             $changes = [
