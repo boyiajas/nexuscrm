@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -254,14 +255,33 @@ class WhatsAppTemplateController extends Controller
         $this->authorizeAdmin();
         $user = Auth::user();
 
+        // Support multipart/form-data payloads where arrays are sent as JSON strings
+        if ($request->has('bank_ids') && is_string($request->input('bank_ids'))) {
+            $request->merge(['bank_ids' => json_decode($request->input('bank_ids'), true) ?? []]);
+        }
+        if ($request->has('buttons') && is_string($request->input('buttons'))) {
+            $request->merge(['buttons' => json_decode($request->input('buttons'), true) ?? []]);
+        }
+        if ($request->has('body_examples') && is_string($request->input('body_examples'))) {
+            $request->merge(['body_examples' => json_decode($request->input('body_examples'), true) ?? []]);
+        }
+        if ($request->has('media_urls') && is_string($request->input('media_urls'))) {
+            $request->merge(['media_urls' => json_decode($request->input('media_urls'), true) ?? []]);
+        }
+
         $data = $request->validate([
             'friendly_name' => ['required', 'string', 'max:255'],
-            'body' => ['required', 'string'],
+            'body' => ['required', 'string', 'max:1024'],
             'language' => ['required', 'string', 'max:10'],
             'category' => ['required', 'string', 'max:50'],
+            'template_type' => ['sometimes', 'nullable', 'string', 'in:standard,image,video,document,youtube'],
+            'header_format' => ['sometimes', 'nullable', 'string', 'in:TEXT,IMAGE,VIDEO,DOCUMENT'],
+            'header_text' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'footer_text' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'header_file' => ['sometimes', 'nullable', 'file'],
             'bank_ids' => ['sometimes', 'array', 'min:1'],
             'bank_ids.*' => ['integer', 'exists:banks,id'],
-            'media_urls' => ['array'],
+            'media_urls' => ['sometimes', 'array'],
             'media_urls.*' => ['string'],
             'body_examples' => ['sometimes', 'array'],
             'body_examples.*' => ['required', 'string', 'max:255'],
@@ -271,6 +291,45 @@ class WhatsAppTemplateController extends Controller
             'buttons.*.url' => ['nullable', 'string', 'max:2000'],
             'buttons.*.phone_number' => ['nullable', 'string', 'max:50'],
         ]);
+
+        $templateType = !empty($data['template_type']) ? strtolower(trim($data['template_type'])) : null;
+        $headerFormat = !empty($data['header_format']) ? strtoupper(trim($data['header_format'])) : null;
+        if ($templateType === 'image' && !$headerFormat) {
+            $headerFormat = 'IMAGE';
+        } elseif ($templateType === 'video' && !$headerFormat) {
+            $headerFormat = 'VIDEO';
+        } elseif ($templateType === 'document' && !$headerFormat) {
+            $headerFormat = 'DOCUMENT';
+        }
+
+        if ($request->hasFile('header_file')) {
+            if ($headerFormat === 'IMAGE') {
+                $request->validate([
+                    'header_file' => ['file', 'mimes:jpeg,jpg,png', 'max:5120'], // 5MB
+                ], [
+                    'header_file.max' => 'The image header file size exceeds the recommended maximum of 5 MB (5120 KB).',
+                    'header_file.mimes' => 'The image header must be a JPG or PNG file.',
+                ]);
+            } elseif ($headerFormat === 'VIDEO') {
+                $request->validate([
+                    'header_file' => ['file', 'mimetypes:video/mp4', 'max:16384'], // 16MB
+                ], [
+                    'header_file.max' => 'The video header file size exceeds the recommended maximum of 16 MB (16384 KB).',
+                    'header_file.mimetypes' => 'The video header must be an MP4 video file.',
+                ]);
+            } elseif ($headerFormat === 'DOCUMENT') {
+                $request->validate([
+                    'header_file' => ['file', 'mimes:pdf', 'max:102400'], // 100MB
+                ], [
+                    'header_file.max' => 'The document header file size exceeds the recommended maximum of 100 MB (102400 KB).',
+                    'header_file.mimes' => 'The document header must be a PDF file.',
+                ]);
+            }
+        } elseif (in_array($headerFormat, ['IMAGE', 'VIDEO', 'DOCUMENT'], true) && empty($data['media_urls'])) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'header_file' => "A sample {$headerFormat} file is required so Meta can review the template header.",
+            ]);
+        }
 
         $assignedBankIds = [];
         if (!empty($data['bank_ids'])) {
@@ -298,6 +357,7 @@ class WhatsAppTemplateController extends Controller
         $this->validateBodyExamples($data['body'], $data['body_examples'] ?? []);
 
         $buttons = [];
+        $hasYouTubeButton = false;
         if (!empty($data['buttons']) && is_array($data['buttons'])) {
             foreach ($data['buttons'] as $btn) {
                 $text = trim((string) ($btn['text'] ?? ''));
@@ -319,6 +379,14 @@ class WhatsAppTemplateController extends Controller
                             'buttons' => "The URL button '{$text}' must contain a valid web address starting with https:// or http://.",
                         ]);
                     }
+                    if ($templateType === 'youtube' || str_contains(strtolower($url), 'youtu')) {
+                        if (!preg_match('#^(https?://)?(www\.|m\.)?(youtube\.com/(watch\?v=|embed/|shorts/|v/)|youtu\.be/)([a-zA-Z0-9_-]{11})#i', $url)) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'buttons' => "The YouTube button '{$text}' must contain a valid YouTube video URL (e.g. https://www.youtube.com/watch?v=... or https://youtu.be/...).",
+                            ]);
+                        }
+                        $hasYouTubeButton = true;
+                    }
                     $btnItem['url'] = $url;
                 } elseif ($type === 'PHONE_NUMBER') {
                     $phone = trim((string) ($btn['phone_number'] ?? ''));
@@ -330,6 +398,30 @@ class WhatsAppTemplateController extends Controller
                     $btnItem['phone_number'] = $phone;
                 }
                 $buttons[] = $btnItem;
+            }
+        }
+
+        if ($templateType === 'youtube' && !$hasYouTubeButton) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'buttons' => 'A YouTube template requires at least one button containing a valid YouTube video URL.',
+            ]);
+        }
+
+        $mediaUrls = $data['media_urls'] ?? [];
+        $headerHandle = null;
+
+        if ($request->hasFile('header_file')) {
+            $uploaded = $request->file('header_file');
+            $ext = $uploaded->getClientOriginalExtension() ?: ($headerFormat === 'IMAGE' ? 'jpg' : ($headerFormat === 'VIDEO' ? 'mp4' : 'pdf'));
+            $storedName = 'template_' . Str::random(20) . '.' . $ext;
+            $relPath = $uploaded->storeAs('uploads/whatsapp_templates', $storedName, 'public');
+            $fileUrl = asset('storage/' . $relPath);
+            array_unshift($mediaUrls, $fileUrl);
+
+            try {
+                $headerHandle = $this->whatsApp->uploadMediaHandle($uploaded);
+            } catch (\Throwable $uploadEx) {
+                Log::warning('Meta media handle upload skipped or failed: ' . $uploadEx->getMessage());
             }
         }
 
@@ -361,9 +453,13 @@ class WhatsAppTemplateController extends Controller
                 $data['body'],
                 $data['language'],
                 $data['category'],
-                $data['media_urls'] ?? [],
+                $mediaUrls,
                 $data['body_examples'] ?? [],
-                $buttons
+                $buttons,
+                $headerFormat,
+                $data['header_text'] ?? null,
+                $headerHandle,
+                $data['footer_text'] ?? null
             );
         } catch (\Throwable $e) {
             if ($this->isAlreadyExistsError($e->getMessage())) {
@@ -395,8 +491,11 @@ class WhatsAppTemplateController extends Controller
                 'category' => $whatsapp['category'] ?? strtolower($data['category']),
                 'status' => $whatsapp['status'] ?? 'PENDING',
                 'body_preview' => $created['preview'] ?? $data['body'],
+                'header_format' => $created['header_format'] ?? $headerFormat,
+                'header_text' => $created['header_text'] ?? ($data['header_text'] ?? null),
+                'footer_text' => $created['footer_text'] ?? ($data['footer_text'] ?? null),
                 'variables' => $created['variables'] ?? [],
-                'media_urls' => $created['media'] ?? [],
+                'media_urls' => $created['media'] ?? $mediaUrls,
                 'buttons' => $created['buttons'] ?? $buttons,
                 'raw_whatsapp' => array_merge($whatsapp, ['raw' => $created['raw'] ?? []]),
                 'synced_at' => now(),
@@ -426,14 +525,32 @@ class WhatsAppTemplateController extends Controller
             }
         }
 
+        // Support multipart/form-data payloads where arrays are sent as JSON strings
+        if ($request->has('bank_ids') && is_string($request->input('bank_ids'))) {
+            $request->merge(['bank_ids' => json_decode($request->input('bank_ids'), true) ?? []]);
+        }
+        if ($request->has('buttons') && is_string($request->input('buttons'))) {
+            $request->merge(['buttons' => json_decode($request->input('buttons'), true) ?? []]);
+        }
+        if ($request->has('body_examples') && is_string($request->input('body_examples'))) {
+            $request->merge(['body_examples' => json_decode($request->input('body_examples'), true) ?? []]);
+        }
+        if ($request->has('media_urls') && is_string($request->input('media_urls'))) {
+            $request->merge(['media_urls' => json_decode($request->input('media_urls'), true) ?? []]);
+        }
+
         $data = $request->validate([
             'friendly_name' => ['sometimes', 'string', 'max:255'],
-            'body' => ['sometimes', 'string'],
+            'body' => ['sometimes', 'string', 'max:1024'],
             'language' => ['sometimes', 'string', 'max:10'],
             'category' => ['sometimes', 'string', 'max:50'],
+            'header_format' => ['sometimes', 'nullable', 'string', 'in:TEXT,IMAGE,VIDEO,DOCUMENT'],
+            'header_text' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'footer_text' => ['sometimes', 'nullable', 'string', 'max:60'],
+            'header_file' => ['sometimes', 'nullable', 'file'],
             'bank_ids' => ['sometimes', 'array', 'min:1'],
             'bank_ids.*' => ['integer', 'exists:banks,id'],
-            'media_urls' => ['array'],
+            'media_urls' => ['sometimes', 'array'],
             'media_urls.*' => ['string'],
             'body_examples' => ['sometimes', 'array'],
             'body_examples.*' => ['required', 'string', 'max:255'],
@@ -443,6 +560,36 @@ class WhatsAppTemplateController extends Controller
             'buttons.*.url' => ['nullable', 'string', 'max:2000'],
             'buttons.*.phone_number' => ['nullable', 'string', 'max:50'],
         ]);
+
+        $headerFormat = $data['header_format'] ?? $record->header_format;
+        if ($headerFormat) {
+            $headerFormat = strtoupper(trim((string) $headerFormat));
+        }
+
+        if ($request->hasFile('header_file')) {
+            if ($headerFormat === 'IMAGE') {
+                $request->validate([
+                    'header_file' => ['file', 'mimes:jpeg,jpg,png', 'max:5120'], // 5MB
+                ], [
+                    'header_file.max' => 'The image header file size exceeds the recommended maximum of 5 MB (5120 KB).',
+                    'header_file.mimes' => 'The image header must be a JPG or PNG file.',
+                ]);
+            } elseif ($headerFormat === 'VIDEO') {
+                $request->validate([
+                    'header_file' => ['file', 'mimetypes:video/mp4', 'max:16384'], // 16MB
+                ], [
+                    'header_file.max' => 'The video header file size exceeds the recommended maximum of 16 MB (16384 KB).',
+                    'header_file.mimetypes' => 'The video header must be an MP4 video file.',
+                ]);
+            } elseif ($headerFormat === 'DOCUMENT') {
+                $request->validate([
+                    'header_file' => ['file', 'mimes:pdf', 'max:102400'], // 100MB
+                ], [
+                    'header_file.max' => 'The document header file size exceeds the recommended maximum of 100 MB (102400 KB).',
+                    'header_file.mimes' => 'The document header must be a PDF file.',
+                ]);
+            }
+        }
 
         if (isset($data['bank_ids'])) {
             $newBankIds = array_map('intval', $data['bank_ids']);
@@ -483,6 +630,13 @@ class WhatsAppTemplateController extends Controller
                             'buttons' => "The URL button '{$text}' must contain a valid web address starting with https:// or http://.",
                         ]);
                     }
+                    if (str_contains(strtolower($url), 'youtu')) {
+                        if (!preg_match('#^(https?://)?(www\.|m\.)?(youtube\.com/(watch\?v=|embed/|shorts/|v/)|youtu\.be/)([a-zA-Z0-9_-]{11})#i', $url)) {
+                            throw \Illuminate\Validation\ValidationException::withMessages([
+                                'buttons' => "The YouTube button '{$text}' must contain a valid YouTube video URL (e.g. https://www.youtube.com/watch?v=... or https://youtu.be/...).",
+                            ]);
+                        }
+                    }
                     $btnItem['url'] = $url;
                 } elseif ($type === 'PHONE_NUMBER') {
                     $phone = trim((string) ($btn['phone_number'] ?? ''));
@@ -499,10 +653,35 @@ class WhatsAppTemplateController extends Controller
             $buttons = $record->buttons ?? [];
         }
 
+        $mediaUrls = $data['media_urls'] ?? ($record->media_urls ?? []);
+        $headerHandle = null;
+
+        if ($request->hasFile('header_file')) {
+            $uploaded = $request->file('header_file');
+            $ext = $uploaded->getClientOriginalExtension() ?: ($headerFormat === 'IMAGE' ? 'jpg' : ($headerFormat === 'VIDEO' ? 'mp4' : 'pdf'));
+            $storedName = 'template_' . Str::random(20) . '.' . $ext;
+            $relPath = $uploaded->storeAs('uploads/whatsapp_templates', $storedName, 'public');
+            $fileUrl = asset('storage/' . $relPath);
+            array_unshift($mediaUrls, $fileUrl);
+
+            try {
+                $headerHandle = $this->whatsApp->uploadMediaHandle($uploaded);
+            } catch (\Throwable $uploadEx) {
+                Log::warning('Meta media handle upload skipped or failed: ' . $uploadEx->getMessage());
+            }
+        }
+
+        $headerText = array_key_exists('header_text', $data) ? $data['header_text'] : $record->header_text;
+        $footerText = array_key_exists('footer_text', $data) ? $data['footer_text'] : $record->footer_text;
+
         $contentChanged = (isset($data['body']) && $data['body'] !== $record->body_preview)
             || (isset($data['category']) && strtolower((string) $data['category']) !== strtolower((string) ($record->category ?? '')))
             || (isset($data['language']) && $data['language'] !== $record->language)
-            || (isset($data['buttons']) && $buttons !== ($record->buttons ?? []));
+            || (isset($data['buttons']) && $buttons !== ($record->buttons ?? []))
+            || ($headerFormat !== $record->header_format)
+            || ($headerText !== $record->header_text)
+            || ($footerText !== $record->footer_text)
+            || ($request->hasFile('header_file'));
 
         $payload = [
             'friendly_name' => $data['friendly_name'] ?? $record->friendly_name,
@@ -511,6 +690,11 @@ class WhatsAppTemplateController extends Controller
             'category' => $data['category'] ?? $record->category,
             'body_examples' => $data['body_examples'] ?? [],
             'buttons' => $buttons,
+            'header_format' => $headerFormat,
+            'header_text' => $headerText,
+            'footer_text' => $footerText,
+            'header_handle' => $headerHandle,
+            'media_urls' => $mediaUrls,
         ];
 
         if ($contentChanged) {
@@ -539,6 +723,10 @@ class WhatsAppTemplateController extends Controller
                 'body_preview' => $payload['body'],
                 'category' => strtolower((string) $payload['category']),
                 'status' => $updated['status'] ?? 'PENDING',
+                'header_format' => $headerFormat,
+                'header_text' => $headerText,
+                'footer_text' => $footerText,
+                'media_urls' => $mediaUrls,
                 'buttons' => $buttons,
                 'synced_at' => now(),
             ])->save();

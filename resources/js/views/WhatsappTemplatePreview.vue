@@ -86,11 +86,15 @@
             ></video>
             <div
               v-else-if="selectedTemplate.header_format === 'DOCUMENT'"
-              class="border rounded p-3 bg-light"
+              class="border rounded p-3 bg-light d-flex align-items-center gap-3"
             >
-              <a :href="selectedTemplate.media_urls[0]" target="_blank" rel="noopener noreferrer">
-                Open template document
-              </a>
+              <i class="bi bi-file-earmark-pdf-fill text-danger fs-1"></i>
+              <div>
+                <div class="fw-semibold">Document Header (PDF)</div>
+                <a :href="selectedTemplate.media_urls[0]" target="_blank" rel="noopener noreferrer" class="btn btn-outline-danger btn-sm mt-1">
+                  <i class="bi bi-box-arrow-up-right me-1"></i>Open Attached PDF
+                </a>
+              </div>
             </div>
             <small class="text-muted d-block mt-1">
               Source: {{ selectedTemplate.media_urls[0] }}
@@ -106,7 +110,7 @@
               <strong>Body Preview</strong>
             </div>
             <div class="card-body py-2">
-              <pre class="mb-0 small">{{ selectedTemplate.body_preview }}</pre>
+              <pre class="mb-0 small" style="white-space: pre-wrap;">{{ selectedTemplate.body_preview }}</pre>
             </div>
           </div>
 
@@ -120,9 +124,15 @@
               <span
                 v-for="(button, idx) in selectedTemplate.buttons"
                 :key="idx"
-                class="badge bg-light text-dark border"
+                class="badge py-1.5 px-2.5 border d-inline-flex align-items-center gap-1.5"
+                :class="isYouTubeButton(button) ? 'bg-danger text-white border-danger shadow-xs' : 'bg-light text-dark'"
               >
-                {{ button.text || button.type || 'Button' }}
+                <i v-if="isYouTubeButton(button)" class="bi bi-youtube fs-6"></i>
+                <i v-else-if="String(button.type || '').toUpperCase() === 'QUICK_REPLY'" class="bi bi-reply-fill text-success"></i>
+                <i v-else-if="String(button.type || '').toUpperCase() === 'PHONE_NUMBER'" class="bi bi-telephone-fill text-success"></i>
+                <i v-else class="bi bi-box-arrow-up-right text-primary"></i>
+                <span>{{ button.text || button.type || 'Button' }}</span>
+                <small v-if="button.url" class="opacity-75 ms-1">({{ button.url }})</small>
               </span>
             </div>
           </div>
@@ -219,6 +229,13 @@ export default {
         params: { id: this.campaignId },
         query: { whatsapp_template: this.selectedTemplateId },
       });
+    },
+    isYouTubeButton(button) {
+      if (!button) return false;
+      const type = String(button.type || '').toUpperCase();
+      if (type !== 'URL') return false;
+      const url = String(button.url || '').toLowerCase();
+      return url.includes('youtube.com') || url.includes('youtu.be');
     },
   },
 };

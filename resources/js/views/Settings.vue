@@ -1542,11 +1542,40 @@
               <div class="col-lg-6 col-md-6 border-end pe-lg-3">
                 <!-- FORM INPUTS -->
                 <div v-if="!wa.viewOnly && !wa.form.sid" class="alert alert-info py-1.5 px-2.5 mb-2 small" style="font-size: 0.8rem; line-height: 1.35;">
-                  Creating this template submits it directly to Meta for review. It will appear under Awaiting Approval until Meta approves or rejects it. This form currently supports text-body templates.
+                  <i class="bi bi-info-circle me-1"></i>Creating this template submits it directly to Meta for review. Choose your template type below (Standard, Image, Video, Document, or YouTube button).
                 </div>
+
+                <!-- TEMPLATE TYPE SELECTOR -->
+                <div v-if="!wa.viewOnly && !wa.form.sid" class="mb-2.5">
+                  <label class="form-label small fw-semibold mb-1 d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-grid-fill text-primary me-1"></i>Template Type <span class="text-danger">*</span></span>
+                    <span class="badge bg-light text-muted border font-monospace text-uppercase" style="font-size: 0.68rem;">{{ wa.form.template_type }}</span>
+                  </label>
+                  <div class="row g-1.5">
+                    <div v-for="type in wa.templateTypeOptions" :key="type.value" class="col-md-4 col-sm-6">
+                      <div
+                        class="border rounded p-1.5 text-center cursor-pointer template-type-card h-100 d-flex flex-column justify-content-center align-items-center"
+                        :class="wa.form.template_type === type.value ? 'border-primary bg-primary bg-opacity-10 text-primary shadow-xs ring-active' : 'bg-white text-dark border-light-subtle'"
+                        @click="selectTemplateType(type.value)"
+                        role="button"
+                      >
+                        <i :class="type.icon" class="fs-5 mb-1"></i>
+                        <div class="fw-semibold" style="font-size: 0.76rem; line-height: 1.2;">{{ type.label }}</div>
+                        <small class="text-muted d-block mt-0.5" style="font-size: 0.65rem; line-height: 1.15;">{{ type.description }}</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="wa.viewOnly || wa.form.sid" class="mb-2">
+                  <span class="badge bg-secondary bg-opacity-10 text-secondary border py-1 px-2" style="font-size: 0.75rem;">
+                    <i :class="currentTypeIcon" class="me-1"></i>{{ currentTypeLabel }}
+                  </span>
+                </div>
+
                 <div class="row g-2">
                   <div class="col-md-6">
-                    <label class="form-label small fw-semibold mb-1">Friendly Name</label>
+                    <label class="form-label small fw-semibold mb-1">Friendly Name <span class="text-danger" v-if="!wa.viewOnly">*</span></label>
                     <input v-model.trim="wa.form.friendly_name" type="text" class="form-control form-control-sm" placeholder="appointment_reminder" maxlength="512" pattern="[a-z0-9_]+" :readonly="wa.viewOnly || !!wa.form.sid" />
                     <small v-if="!wa.viewOnly && !duplicateTemplateWarning" class="text-muted d-block" style="font-size: 0.72rem; line-height: 1.25;">Use lowercase letters, numbers, and underscores for best Meta compatibility.</small>
                     <div v-if="duplicateTemplateWarning" class="text-danger small mt-0.5" style="font-size: 0.75rem;">
@@ -1630,10 +1659,197 @@
                       </div>
                     </div>
                   </div>
-                  <div class="col-12">
-                    <label class="form-label small fw-semibold mb-1">Body</label>
-                    <textarea v-model="wa.form.body" class="form-control form-control-sm" rows="9" placeholder="Hi {{1}}, your order {{2}} is ready for pickup." :readonly="wa.viewOnly"></textarea>
+
+                  <!-- MEDIA HEADER SECTION (IMAGE / VIDEO / DOCUMENT) -->
+                  <div v-if="['image', 'video', 'document'].includes(wa.form.template_type)" class="col-12">
+                    <div class="card border rounded shadow-xs p-2.5 bg-light">
+                      <div class="d-flex justify-content-between align-items-center mb-1.5">
+                        <label class="form-label small fw-semibold mb-0 d-flex align-items-center">
+                          <i :class="currentTypeIcon" class="me-1.5"></i>
+                          {{ wa.form.template_type === 'image' ? 'Image Header' : (wa.form.template_type === 'video' ? 'Video Header (MP4)' : 'Document Header (PDF)') }}
+                          <span class="text-danger ms-1" v-if="!wa.viewOnly && !wa.form.sid">*</span>
+                        </label>
+                        <span class="badge bg-white text-muted border shadow-xs" style="font-size: 0.7rem;">
+                          Recommended Max: {{ headerFileLimitMB }} MB
+                        </span>
+                      </div>
+
+                      <!-- Readonly View for Existing Template Media -->
+                      <div v-if="wa.viewOnly">
+                        <div v-if="firstMediaUrl" class="small text-truncate py-1 px-2 bg-white rounded border">
+                          <a :href="firstMediaUrl" target="_blank" rel="noopener noreferrer" class="text-decoration-none">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>{{ firstMediaUrl }}
+                          </a>
+                        </div>
+                        <div v-else class="text-muted small">No media sample attached.</div>
+                      </div>
+
+                      <!-- Upload Input & Realtime Size Meter -->
+                      <div v-else>
+                        <input
+                          ref="headerFileInput"
+                          type="file"
+                          class="form-control form-control-sm mb-1.5"
+                          :accept="wa.form.template_type === 'image' ? '.jpg,.jpeg,.png,image/jpeg,image/png' : (wa.form.template_type === 'video' ? '.mp4,video/mp4' : '.pdf,application/pdf')"
+                          @change="handleHeaderFileChange"
+                        />
+
+                        <!-- Size Meter and Info -->
+                        <div v-if="wa.form.header_file">
+                          <div class="d-flex justify-content-between align-items-center small mb-1" style="font-size: 0.74rem;">
+                            <span class="text-truncate" style="max-width: 220px;">
+                              <i class="bi bi-paperclip me-1"></i>{{ wa.form.header_file_name }}
+                            </span>
+                            <span :class="headerFileExhausted ? 'text-danger fw-bold' : 'text-success fw-semibold'">
+                              {{ formatBytes(wa.form.header_file_size) }} / {{ headerFileLimitMB }} MB
+                              <span v-if="headerFileExhausted" class="badge bg-danger ms-1">EXHAUSTED</span>
+                              <span v-else class="badge bg-success ms-1">OK</span>
+                            </span>
+                          </div>
+                          <div class="progress" style="height: 6px;">
+                            <div
+                              class="progress-bar"
+                              :class="headerFileExhausted ? 'bg-danger' : 'bg-success'"
+                              role="progressbar"
+                              :style="{ width: headerFileSizePercent + '%' }"
+                            ></div>
+                          </div>
+
+                          <!-- Real-time Exhausted Alert -->
+                          <div v-if="headerFileExhausted" class="alert alert-danger py-1 px-2 mt-1.5 mb-0 small" style="font-size: 0.74rem; line-height: 1.3;">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            {{ wa.form.header_file_error || `File size exhausted! Maximum recommended size for ${wa.form.template_type} is ${headerFileLimitMB} MB.` }}
+                          </div>
+                          <div v-else-if="wa.form.header_file_error" class="alert alert-danger py-1 px-2 mt-1.5 mb-0 small" style="font-size: 0.74rem;">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ wa.form.header_file_error }}
+                          </div>
+
+                          <div class="d-flex justify-content-end mt-1">
+                            <button type="button" class="btn btn-link btn-sm text-danger p-0 text-decoration-none" style="font-size: 0.72rem;" @click="clearHeaderFile">
+                              <i class="bi bi-x-circle me-1"></i>Remove File
+                            </button>
+                          </div>
+                        </div>
+
+                        <div v-else-if="firstMediaUrl" class="text-muted small mt-1" style="font-size: 0.72rem;">
+                          Current sample URL: <a :href="firstMediaUrl" target="_blank">{{ firstMediaUrl }}</a>
+                        </div>
+                        <div v-else class="text-muted small" style="font-size: 0.72rem; line-height: 1.3;">
+                          <i class="bi bi-info-circle me-1"></i>
+                          {{ wa.form.template_type === 'image' ? 'Upload a sample JPG or PNG image (recommended max: 5 MB).' : (wa.form.template_type === 'video' ? 'Upload a sample MP4 video (recommended max: 16 MB).' : 'Upload a sample PDF document (recommended max: 100 MB).') }}
+                        </div>
+                      </div>
+                    </div>
                   </div>
+
+                  <!-- YOUTUBE CONFIGURATION SECTION -->
+                  <div v-if="wa.form.template_type === 'youtube'" class="col-12">
+                    <div class="card border rounded shadow-xs p-2.5 bg-light border-danger border-opacity-25">
+                      <div class="d-flex justify-content-between align-items-center mb-1.5">
+                        <label class="form-label small fw-semibold mb-0 d-flex align-items-center text-danger">
+                          <i class="bi bi-youtube me-1.5 fs-5"></i>
+                          YouTube URL Button
+                          <span class="text-danger ms-1" v-if="!wa.viewOnly">*</span>
+                        </label>
+                        <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 0.7rem;">
+                          URL Button
+                        </span>
+                      </div>
+
+                      <div class="row g-2">
+                        <div class="col-md-7">
+                          <label class="form-label small text-muted mb-0.5" style="font-size: 0.72rem;">
+                            YouTube Video URL <span class="text-danger">*</span>
+                          </label>
+                          <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white px-2 py-0.5 text-danger">
+                              <i class="bi bi-youtube"></i>
+                            </span>
+                            <input
+                              v-model.trim="wa.form.youtube.url"
+                              type="url"
+                              class="form-control form-control-sm py-0.5"
+                              :class="{ 'is-invalid': wa.form.youtube.error }"
+                              placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                              :readonly="wa.viewOnly"
+                              @input="onYouTubeUrlChange"
+                            />
+                          </div>
+                          <div v-if="wa.form.youtube.error" class="text-danger small mt-0.5" style="font-size: 0.72rem;">
+                            <i class="bi bi-exclamation-circle me-1"></i>{{ wa.form.youtube.error }}
+                          </div>
+                          <div v-else-if="wa.form.youtube.video_id" class="text-success small mt-0.5 fw-semibold" style="font-size: 0.72rem;">
+                            <i class="bi bi-check-circle-fill me-1"></i>Valid YouTube Video (ID: {{ wa.form.youtube.video_id }})
+                          </div>
+                        </div>
+                        <div class="col-md-5">
+                          <div class="d-flex justify-content-between align-items-center">
+                            <label class="form-label small text-muted mb-0.5" style="font-size: 0.72rem;">Button Label</label>
+                            <span :class="(wa.form.youtube.button_text || '').length > 25 ? 'text-danger fw-bold' : 'text-muted'" style="font-size: 0.68rem;">
+                              {{ (wa.form.youtube.button_text || '').length }}/25
+                            </span>
+                          </div>
+                          <input
+                            v-model="wa.form.youtube.button_text"
+                            type="text"
+                            class="form-control form-control-sm py-0.5"
+                            :class="{ 'is-invalid': (wa.form.youtube.button_text || '').length > 25 }"
+                            placeholder="Watch on YouTube"
+                            maxlength="30"
+                            :readonly="wa.viewOnly"
+                            @input="onYouTubeButtonTextChange"
+                          />
+                          <small v-if="(wa.form.youtube.button_text || '').length > 25" class="text-danger d-block" style="font-size: 0.68rem;">
+                            Label exceeds 25 chars max limit.
+                          </small>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- HEADER TEXT (OPTIONAL FOR STANDARD TEMPLATES) -->
+                  <div class="col-12" v-if="wa.form.template_type === 'standard' || wa.form.header_text">
+                    <div class="d-flex justify-content-between align-items-center mb-0.5">
+                      <label class="form-label small fw-semibold mb-0">Header Text <small class="text-muted fw-normal">(Optional)</small></label>
+                      <span :class="headerExhausted ? 'text-danger fw-bold' : 'text-muted'" style="font-size: 0.7rem;">
+                        {{ headerCharCount }}/60
+                      </span>
+                    </div>
+                    <input
+                      v-model="wa.form.header_text"
+                      type="text"
+                      class="form-control form-control-sm"
+                      :class="{ 'is-invalid': headerExhausted }"
+                      placeholder="e.g. Account Statement"
+                      maxlength="70"
+                      :readonly="wa.viewOnly"
+                    />
+                    <small v-if="headerExhausted" class="text-danger d-block mt-0.5" style="font-size: 0.72rem;">
+                      <i class="bi bi-exclamation-triangle-fill me-1"></i>Header text limit exhausted (exceeds 60 characters).
+                    </small>
+                  </div>
+
+                  <!-- BODY TEXTAREA WITH REALTIME 1024 CHAR LIMIT -->
+                  <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-0.5">
+                      <label class="form-label small fw-semibold mb-0">Body <span class="text-danger" v-if="!wa.viewOnly">*</span></label>
+                      <span :class="bodyExhausted ? 'text-danger fw-bold' : 'text-muted'" style="font-size: 0.7rem;">
+                        {{ bodyCharCount }}/1024
+                      </span>
+                    </div>
+                    <textarea
+                      v-model="wa.form.body"
+                      class="form-control form-control-sm"
+                      :class="{ 'is-invalid': bodyExhausted }"
+                      rows="8"
+                      placeholder="Hi {{1}}, your order {{2}} is ready for pickup."
+                      :readonly="wa.viewOnly"
+                    ></textarea>
+                    <small v-if="bodyExhausted" class="text-danger d-block mt-0.5" style="font-size: 0.72rem;">
+                      <i class="bi bi-exclamation-triangle-fill me-1"></i>Body limit exhausted! Maximum 1024 characters allowed (currently {{ bodyCharCount }}, {{ bodyCharCount - 1024 }} over limit).
+                    </small>
+                  </div>
+
                   <div v-if="!wa.viewOnly && templateBodyVariableIndexes.length" class="col-12">
                     <label class="form-label small fw-semibold mb-1">Variable Examples <span class="text-danger">*</span></label>
                     <div class="alert alert-warning py-1 px-2 mb-1.5 small" style="font-size: 0.75rem; line-height: 1.3;">Meta requires one realistic sample value for every body variable before it can review the template.</div>
@@ -1644,22 +1860,29 @@
                       </div>
                     </div>
                   </div>
-                  <div v-if="wa.viewOnly && wa.form.media_urls" class="col-12">
-                    <label class="form-label small fw-semibold mb-1">Media URLs</label>
-                    <input v-model="wa.form.media_urls" type="text" class="form-control form-control-sm" readonly />
+
+                  <!-- FOOTER TEXT WITH REALTIME 60 CHAR LIMIT -->
+                  <div class="col-12">
+                    <div class="d-flex justify-content-between align-items-center mb-0.5">
+                      <label class="form-label small fw-semibold mb-0">Footer Text <small class="text-muted fw-normal">(Optional)</small></label>
+                      <span :class="footerExhausted ? 'text-danger fw-bold' : 'text-muted'" style="font-size: 0.7rem;">
+                        {{ footerCharCount }}/60
+                      </span>
+                    </div>
+                    <input
+                      v-model="wa.form.footer_text"
+                      type="text"
+                      class="form-control form-control-sm"
+                      :class="{ 'is-invalid': footerExhausted }"
+                      placeholder="e.g. Reply STOP to opt out"
+                      maxlength="70"
+                      :readonly="wa.viewOnly"
+                    />
+                    <small v-if="footerExhausted" class="text-danger d-block mt-0.5" style="font-size: 0.72rem;">
+                      <i class="bi bi-exclamation-triangle-fill me-1"></i>Footer text limit exhausted (exceeds 60 characters).
+                    </small>
                   </div>
-                  <div class="col-md-4" v-if="wa.form.header_format">
-                    <label class="form-label small fw-semibold mb-1">Header Format</label>
-                    <input :value="wa.form.header_format" type="text" class="form-control form-control-sm" readonly />
-                  </div>
-                  <div class="col-12" v-if="wa.form.header_text">
-                    <label class="form-label small fw-semibold mb-1">Header Text</label>
-                    <input :value="wa.form.header_text" type="text" class="form-control form-control-sm" readonly />
-                  </div>
-                  <div class="col-12" v-if="wa.form.footer_text">
-                    <label class="form-label small fw-semibold mb-1">Footer Text</label>
-                    <input :value="wa.form.footer_text" type="text" class="form-control form-control-sm" readonly />
-                  </div>
+
                   <div class="col-12" v-if="wa.form.variables && Object.keys(wa.form.variables).length > 0">
                     <label class="form-label small fw-semibold mb-1 d-flex align-items-center">
                       Template Variables
@@ -1802,7 +2025,8 @@
                             <div :class="btn.type === 'QUICK_REPLY' ? 'col-md-8' : 'col-md-4'">
                               <div class="input-group input-group-sm">
                                 <span class="input-group-text bg-white px-2 py-0.5">
-                                  <i v-if="btn.type === 'QUICK_REPLY'" class="bi bi-reply-fill text-success"></i>
+                                  <i v-if="isYouTubeButton(btn)" class="bi bi-youtube text-danger"></i>
+                                  <i v-else-if="btn.type === 'QUICK_REPLY'" class="bi bi-reply-fill text-success"></i>
                                   <i v-else-if="btn.type === 'PHONE_NUMBER'" class="bi bi-telephone-fill text-success"></i>
                                   <i v-else class="bi bi-box-arrow-up-right text-primary"></i>
                                 </span>
@@ -1810,10 +2034,21 @@
                                   v-model="btn.text"
                                   type="text"
                                   class="form-control form-control-sm py-0.5"
+                                  :class="{ 'is-invalid': (btn.text || '').length > 25 }"
                                   placeholder="Button Label"
-                                  maxlength="25"
+                                  maxlength="35"
                                 />
+                                <span
+                                  class="input-group-text px-1.5 py-0.5"
+                                  :class="(btn.text || '').length > 25 ? 'bg-danger text-white fw-bold' : 'bg-light text-muted'"
+                                  style="font-size: 0.68rem;"
+                                >
+                                  {{ (btn.text || '').length }}/25
+                                </span>
                               </div>
+                              <small v-if="(btn.text || '').length > 25" class="text-danger d-block mt-0.5" style="font-size: 0.68rem;">
+                                Label exceeds 25 chars max limit.
+                              </small>
                             </div>
 
                             <!-- URL Input if type is URL -->
@@ -1934,31 +2169,77 @@
                       </svg>
 
                       <!-- Media Header Preview -->
-                      <img
-                        v-if="wa.form.header_format === 'IMAGE' && firstMediaUrl"
-                        :src="firstMediaUrl"
-                        class="w-100 rounded mb-1.5 template-header-image"
-                        alt="Template header"
-                      />
-                      <video
-                        v-else-if="wa.form.header_format === 'VIDEO' && firstMediaUrl"
-                        :src="firstMediaUrl"
-                        class="w-100 rounded mb-1.5 template-header-image"
-                        controls
-                        preload="metadata"
-                      ></video>
-                      <div v-else-if="wa.form.header_format === 'IMAGE'" class="whatsapp-document-preview rounded p-2 mb-1.5 text-center">
-                        <i class="bi bi-image fs-4 d-block text-secondary"></i>
-                        <small class="text-muted" style="font-size: 0.72rem;">Image header</small>
-                      </div>
-                      <div v-else-if="wa.form.header_format === 'DOCUMENT'" class="whatsapp-document-preview rounded p-2 mb-1.5 d-flex align-items-center gap-1.5">
-                        <i class="bi bi-file-earmark-text-fill fs-4 text-secondary"></i>
-                        <div class="min-w-0">
-                          <div class="fw-semibold text-truncate" style="font-size: 0.78rem;">Template document</div>
-                          <small class="text-muted" style="font-size: 0.7rem;">Document attachment</small>
+                      <template v-if="wa.form.template_type === 'image' || wa.form.header_format === 'IMAGE'">
+                        <img
+                          v-if="wa.form.header_file_preview || firstMediaUrl"
+                          :src="wa.form.header_file_preview || firstMediaUrl"
+                          class="w-100 rounded mb-1.5 template-header-image"
+                          style="max-height: 200px; object-fit: cover;"
+                          alt="Template header image"
+                        />
+                        <div v-else class="whatsapp-document-preview rounded p-3 mb-1.5 text-center bg-white border">
+                          <i class="bi bi-image fs-3 d-block text-primary"></i>
+                          <div class="fw-semibold small mt-1" style="font-size: 0.78rem;">Image Header</div>
+                          <small class="text-muted" style="font-size: 0.7rem;">Recommended max: 5 MB (JPG/PNG)</small>
                         </div>
-                      </div>
-                      <div v-else-if="wa.form.header_format && !['TEXT', 'IMAGE', 'DOCUMENT'].includes(wa.form.header_format)" class="whatsapp-document-preview rounded p-1.5 mb-1.5 small text-muted" style="font-size: 0.72rem;">
+                      </template>
+
+                      <template v-else-if="wa.form.template_type === 'video' || wa.form.header_format === 'VIDEO'">
+                        <video
+                          v-if="wa.form.header_file_preview || firstMediaUrl"
+                          :src="wa.form.header_file_preview || firstMediaUrl"
+                          class="w-100 rounded mb-1.5 template-header-image"
+                          style="max-height: 200px; background: #000;"
+                          controls
+                          preload="metadata"
+                        ></video>
+                        <div v-else class="whatsapp-document-preview rounded p-3 mb-1.5 text-center bg-dark text-white">
+                          <i class="bi bi-play-circle-fill fs-3 d-block text-danger"></i>
+                          <div class="fw-semibold small mt-1" style="font-size: 0.78rem;">MP4 Video Header</div>
+                          <small class="text-white-50" style="font-size: 0.7rem;">Recommended max: 16 MB</small>
+                        </div>
+                      </template>
+
+                      <template v-else-if="wa.form.template_type === 'document' || wa.form.header_format === 'DOCUMENT'">
+                        <div class="whatsapp-document-card rounded p-2 mb-1.5 d-flex align-items-center gap-2 bg-white border">
+                          <div class="rounded p-2 text-danger bg-danger bg-opacity-10 flex-shrink-0">
+                            <i class="bi bi-file-earmark-pdf-fill fs-3"></i>
+                          </div>
+                          <div class="min-w-0 flex-grow-1 text-start">
+                            <div class="fw-semibold text-truncate small" style="font-size: 0.78rem;">
+                              {{ wa.form.header_file_name || 'Document.pdf' }}
+                            </div>
+                            <div class="d-flex align-items-center gap-1.5 text-muted" style="font-size: 0.68rem;">
+                              <span>PDF Document</span>
+                              <span v-if="wa.form.header_file_size">• {{ formatBytes(wa.form.header_file_size) }}</span>
+                              <span v-else>• Max 100 MB</span>
+                            </div>
+                          </div>
+                          <i class="bi bi-download text-muted me-1"></i>
+                        </div>
+                      </template>
+
+                      <!-- YouTube Card Preview (if YouTube template with valid video ID) -->
+                      <template v-if="wa.form.template_type === 'youtube' && wa.form.youtube?.video_id">
+                        <div class="rounded overflow-hidden mb-1.5 border position-relative">
+                          <img
+                            :src="'https://img.youtube.com/vi/' + wa.form.youtube.video_id + '/hqdefault.jpg'"
+                            class="w-100"
+                            style="max-height: 160px; object-fit: cover; display: block;"
+                            alt="YouTube thumbnail preview"
+                          />
+                          <div class="position-absolute top-50 start-50 translate-middle">
+                            <div class="rounded-circle bg-danger text-white d-flex align-items-center justify-content-center shadow" style="width: 40px; height: 40px;">
+                              <i class="bi bi-play-fill fs-4 ms-0.5"></i>
+                            </div>
+                          </div>
+                          <div class="p-1 bg-dark text-white text-truncate small" style="font-size: 0.7rem;">
+                            <i class="bi bi-youtube text-danger me-1"></i>{{ wa.form.youtube.url }}
+                          </div>
+                        </div>
+                      </template>
+
+                      <div v-else-if="wa.form.header_format && !['TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT'].includes(wa.form.header_format)" class="whatsapp-document-preview rounded p-1.5 mb-1.5 small text-muted" style="font-size: 0.72rem;">
                         <i class="bi bi-paperclip me-1"></i>{{ wa.form.header_format }} header
                       </div>
 
@@ -1976,9 +2257,10 @@
                       </div>
 
                       <!-- Interactive Action Buttons -->
-                      <div v-if="wa.form.buttons?.length" class="whatsapp-template-buttons mt-1.5">
-                        <div v-for="(button, index) in wa.form.buttons" :key="index" class="whatsapp-template-button text-center py-1.5">
-                          <i v-if="String(button.type || '').toUpperCase() === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
+                      <div v-if="previewButtonsList?.length" class="whatsapp-template-buttons mt-1.5">
+                        <div v-for="(button, index) in previewButtonsList" :key="index" class="whatsapp-template-button text-center py-1.5">
+                          <i v-if="isYouTubeButton(button)" class="bi bi-youtube text-danger me-1"></i>
+                          <i v-else-if="String(button.type || '').toUpperCase() === 'QUICK_REPLY'" class="bi bi-reply-fill me-1"></i>
                           <i v-else-if="String(button.type || '').toUpperCase() === 'PHONE_NUMBER'" class="bi bi-telephone-fill me-1"></i>
                           <i v-else class="bi bi-box-arrow-up-right me-1"></i>
                           {{ button.text || button.type || 'Action' }}
@@ -2122,10 +2404,23 @@
               </div>
 
             </div>
+
+            <!-- REAL-TIME VALIDATION WARNING BANNER -->
+            <div v-if="!wa.viewOnly && templateValidationErrors.length" class="alert alert-danger py-2 px-3 mt-3 mb-0 small shadow-xs">
+              <div class="fw-bold mb-1 d-flex align-items-center">
+                <i class="bi bi-exclamation-octagon-fill text-danger me-1.5 fs-6"></i>
+                Cannot submit to Meta: Limit exhausted or validation issue:
+              </div>
+              <ul class="mb-0 ps-3">
+                <li v-for="(err, i) in templateValidationErrors" :key="i">
+                  {{ err }}
+                </li>
+              </ul>
+            </div>
           </div>
           <div class="modal-footer py-2 px-3">
             <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal" :disabled="wa.saving">Close</button>
-            <button v-if="!wa.viewOnly" class="btn btn-sm btn-primary" @click="saveTemplate" :disabled="wa.saving || (!wa.form.sid && !!duplicateTemplateWarning)">
+            <button v-if="!wa.viewOnly" class="btn btn-sm btn-primary" @click="saveTemplate" :disabled="wa.saving || (!wa.form.sid && !!duplicateTemplateWarning) || isSubmitDisabled">
               <span v-if="wa.saving" class="spinner-border spinner-border-sm me-1"></span>
               {{ wa.form.sid ? 'Update Template' : 'Submit to Meta for Approval' }}
             </button>
@@ -3893,6 +4188,13 @@ export default {
         showAddVariable: false,
         newVariableKey: '',
         newVariableValue: '',
+        templateTypeOptions: [
+          { value: 'standard', label: 'Standard Text', icon: 'bi bi-chat-text text-primary', description: 'Plain text or header text' },
+          { value: 'image', label: 'Image Template', icon: 'bi bi-image text-info', description: 'Approved template with image header (max 5 MB)' },
+          { value: 'video', label: 'Video Template', icon: 'bi bi-file-earmark-play text-danger', description: 'Approved template with MP4 video header (max 16 MB)' },
+          { value: 'document', label: 'Document Template', icon: 'bi bi-file-earmark-pdf text-danger', description: 'Approved template with PDF header (max 100 MB)' },
+          { value: 'youtube', label: 'YouTube Template', icon: 'bi bi-youtube text-danger', description: 'Approved template containing YouTube URL button' },
+        ],
         form: {
           sid: null,
           friendly_name: '',
@@ -3907,6 +4209,18 @@ export default {
           buttons: [],
           variables: {},
           body_examples: {},
+          template_type: 'standard',
+          header_file: null,
+          header_file_preview: null,
+          header_file_name: '',
+          header_file_size: 0,
+          header_file_error: null,
+          youtube: {
+            url: '',
+            button_text: 'Watch on YouTube',
+            video_id: null,
+            error: null,
+          },
         },
       },
       templateModal: null,
@@ -4200,6 +4514,110 @@ export default {
     renderedTemplateBody() {
       const text = this.wa.form.body || 'Template message body will appear here.';
       return this.formatWhatsappMessage(text);
+    },
+    headerFileLimitMB() {
+      const t = this.wa.form.template_type;
+      if (t === 'image') return 5;
+      if (t === 'video') return 16;
+      if (t === 'document') return 100;
+      return 0;
+    },
+    headerFileSizePercent() {
+      const limitBytes = this.headerFileLimitMB * 1024 * 1024;
+      if (!limitBytes || !this.wa.form.header_file_size) return 0;
+      const pct = Math.round((this.wa.form.header_file_size / limitBytes) * 100);
+      return Math.min(pct, 100);
+    },
+    headerFileExhausted() {
+      const limitBytes = this.headerFileLimitMB * 1024 * 1024;
+      if (!limitBytes) return false;
+      return (this.wa.form.header_file_size || 0) > limitBytes;
+    },
+    bodyCharCount() {
+      return (this.wa.form.body || '').length;
+    },
+    bodyExhausted() {
+      return this.bodyCharCount > 1024;
+    },
+    headerCharCount() {
+      return (this.wa.form.header_text || '').length;
+    },
+    headerExhausted() {
+      return this.headerCharCount > 60;
+    },
+    footerCharCount() {
+      return (this.wa.form.footer_text || '').length;
+    },
+    footerExhausted() {
+      return this.footerCharCount > 60;
+    },
+    currentTypeLabel() {
+      const opt = this.wa.templateTypeOptions?.find((o) => o.value === this.wa.form.template_type);
+      return opt ? opt.label : 'Standard Text';
+    },
+    currentTypeIcon() {
+      const opt = this.wa.templateTypeOptions?.find((o) => o.value === this.wa.form.template_type);
+      return opt ? opt.icon : 'bi bi-chat-text';
+    },
+    buttonsValidationErrors() {
+      const errors = [];
+      (this.wa.form.buttons || []).forEach((btn, idx) => {
+        const label = btn.text || '';
+        if (label.length > 25) {
+          errors.push(`Button ${idx + 1} ("${label.slice(0, 15)}..."): Label exceeds 25 characters max limit (${label.length}/25).`);
+        }
+      });
+      return errors;
+    },
+    templateValidationErrors() {
+      const errors = [];
+      if (this.bodyExhausted) {
+        errors.push(`Body text exceeds the 1024 character limit (${this.bodyCharCount}/1024).`);
+      }
+      if (this.headerExhausted) {
+        errors.push(`Header text exceeds the 60 character limit (${this.headerCharCount}/60).`);
+      }
+      if (this.footerExhausted) {
+        errors.push(`Footer text exceeds the 60 character limit (${this.footerCharCount}/60).`);
+      }
+      if (this.headerFileExhausted) {
+        errors.push(`Attached header file exceeds the recommended ${this.headerFileLimitMB} MB limit (${this.formatBytes(this.wa.form.header_file_size)}).`);
+      }
+      if (this.wa.form.template_type === 'youtube') {
+        if (!this.wa.form.youtube?.url) {
+          errors.push('A valid YouTube URL is required for YouTube templates.');
+        } else if (this.wa.form.youtube?.error) {
+          errors.push(this.wa.form.youtube.error);
+        }
+        if ((this.wa.form.youtube?.button_text || '').length > 25) {
+          errors.push('YouTube button label exceeds the 25 character limit.');
+        }
+      }
+      if (!this.wa.form.sid && ['image', 'video', 'document'].includes(this.wa.form.template_type) && !this.wa.form.header_file && !this.firstMediaUrl) {
+        errors.push(`Please attach a sample ${this.wa.form.template_type.toUpperCase()} header file.`);
+      }
+      if (this.buttonsValidationErrors.length) {
+        errors.push(...this.buttonsValidationErrors);
+      }
+      return errors;
+    },
+    isSubmitDisabled() {
+      return this.templateValidationErrors.length > 0;
+    },
+    previewButtonsList() {
+      const list = [...(this.wa.form.buttons || [])];
+      if (this.wa.form.template_type === 'youtube' && this.wa.form.youtube?.url) {
+        const hasYt = list.some((b) => this.isYouTubeButton(b));
+        if (!hasYt) {
+          list.unshift({
+            type: 'URL',
+            text: this.wa.form.youtube.button_text || 'Watch on YouTube',
+            url: this.wa.form.youtube.url,
+            is_youtube: true,
+          });
+        }
+      }
+      return list;
     },
     templatePreviewBusinessName() {
       return this.meta?.phone_profile?.verified_name
@@ -5197,6 +5615,130 @@ export default {
         this.templateModal.show();
       }
     },
+    detectTemplateType(template, buttons = []) {
+      const hf = String(template.header_format || '').toUpperCase();
+      if (hf === 'IMAGE') return 'image';
+      if (hf === 'VIDEO') return 'video';
+      if (hf === 'DOCUMENT') return 'document';
+      if (Array.isArray(buttons) && buttons.some(b => this.isYouTubeButton(b))) {
+        return 'youtube';
+      }
+      return 'standard';
+    },
+    selectTemplateType(type) {
+      if (this.wa.viewOnly || this.wa.form.sid) return;
+      this.wa.form.template_type = type;
+      if (type === 'image') {
+        this.wa.form.header_format = 'IMAGE';
+      } else if (type === 'video') {
+        this.wa.form.header_format = 'VIDEO';
+      } else if (type === 'document') {
+        this.wa.form.header_format = 'DOCUMENT';
+      } else {
+        this.wa.form.header_format = '';
+      }
+
+      if (!['image', 'video', 'document'].includes(type)) {
+        this.clearHeaderFile();
+      }
+
+      if (type === 'youtube' && !this.wa.form.youtube) {
+        this.wa.form.youtube = {
+          url: '',
+          button_text: 'Watch on YouTube',
+          video_id: null,
+          error: null,
+        };
+      }
+    },
+    handleHeaderFileChange(e) {
+      const file = e?.target?.files?.[0];
+      if (!file) {
+        this.clearHeaderFile();
+        return;
+      }
+
+      const limitBytes = this.headerFileLimitMB * 1024 * 1024;
+      this.wa.form.header_file = file;
+      this.wa.form.header_file_name = file.name;
+      this.wa.form.header_file_size = file.size;
+
+      if (this.wa.form.header_file_preview && this.wa.form.header_file_preview.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(this.wa.form.header_file_preview);
+        } catch (err) {}
+      }
+
+      if (file.type.startsWith('image/') || file.type === 'video/mp4') {
+        this.wa.form.header_file_preview = URL.createObjectURL(file);
+      } else {
+        this.wa.form.header_file_preview = null;
+      }
+
+      if (file.size > limitBytes) {
+        this.wa.form.header_file_error = `File size (${this.formatBytes(file.size)}) exceeds the recommended maximum of ${this.headerFileLimitMB} MB.`;
+      } else {
+        this.wa.form.header_file_error = null;
+      }
+    },
+    clearHeaderFile() {
+      if (this.wa.form.header_file_preview && this.wa.form.header_file_preview.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(this.wa.form.header_file_preview);
+        } catch (err) {}
+      }
+      this.wa.form.header_file = null;
+      this.wa.form.header_file_preview = null;
+      this.wa.form.header_file_name = '';
+      this.wa.form.header_file_size = 0;
+      this.wa.form.header_file_error = null;
+      if (this.$refs.headerFileInput) {
+        this.$refs.headerFileInput.value = '';
+      }
+    },
+    extractYouTubeId(url) {
+      if (!url) return null;
+      const str = String(url).trim();
+      const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/|v\/))([a-zA-Z0-9_-]{11})/i);
+      return match ? match[1] : null;
+    },
+    isYouTubeUrl(url) {
+      return !!this.extractYouTubeId(url);
+    },
+    isYouTubeButton(button) {
+      if (!button) return false;
+      if (button.is_youtube) return true;
+      const type = String(button.type || '').toUpperCase();
+      if (type !== 'URL') return false;
+      return this.isYouTubeUrl(button.url);
+    },
+    onYouTubeUrlChange() {
+      const url = (this.wa.form.youtube?.url || '').trim();
+      if (!url) {
+        this.wa.form.youtube.video_id = null;
+        this.wa.form.youtube.error = null;
+        return;
+      }
+      const videoId = this.extractYouTubeId(url);
+      if (videoId) {
+        this.wa.form.youtube.video_id = videoId;
+        this.wa.form.youtube.error = null;
+      } else {
+        this.wa.form.youtube.video_id = null;
+        this.wa.form.youtube.error = 'Please enter a valid YouTube video URL (e.g., https://www.youtube.com/watch?v=... or https://youtu.be/...)';
+      }
+    },
+    onYouTubeButtonTextChange() {
+      // Checked reactively via computed properties
+    },
+    formatBytes(bytes) {
+      if (!bytes || bytes <= 0) return '0 B';
+      const k = 1024;
+      const dm = 1;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    },
     viewTemplate(t) {
       this.wa.viewOnly = true;
       this.wa.viewingSid = t.sid;
@@ -5219,6 +5761,23 @@ export default {
             || this.extractTemplateBodyExamples(t)
             || {};
 
+          const templateButtons = Array.isArray(template.buttons)
+            ? template.buttons
+            : (Array.isArray(t.buttons) ? t.buttons : []);
+
+          const detectedType = this.detectTemplateType(template, templateButtons);
+          let ytUrl = '';
+          let ytText = 'Watch on YouTube';
+          let ytId = null;
+          if (detectedType === 'youtube') {
+            const ytBtn = templateButtons.find(b => this.isYouTubeButton(b));
+            if (ytBtn) {
+              ytUrl = ytBtn.url || '';
+              ytText = ytBtn.text || 'Watch on YouTube';
+              ytId = this.extractYouTubeId(ytUrl);
+            }
+          }
+
           this.wa.form = {
             sid: template.id || t.sid,
             friendly_name: template.name || t.name,
@@ -5234,11 +5793,21 @@ export default {
             header_format: template.header_format || t.header_format || '',
             header_text: template.header_text || t.header_text || '',
             footer_text: template.footer_text || t.footer_text || '',
-            buttons: Array.isArray(template.buttons)
-              ? template.buttons
-              : (Array.isArray(t.buttons) ? t.buttons : []),
+            buttons: templateButtons,
             variables: template.variables || t.variables || {},
             body_examples: bodyExamples,
+            template_type: detectedType,
+            header_file: null,
+            header_file_preview: null,
+            header_file_name: '',
+            header_file_size: 0,
+            header_file_error: null,
+            youtube: {
+              url: ytUrl,
+              button_text: ytText,
+              video_id: ytId,
+              error: null,
+            },
           };
 
           this.wa.selectedBanks = (template.banks || t.banks || []).map(b => ({
@@ -5277,6 +5846,20 @@ export default {
         this.fetchBanks();
       }
       const bodyExamples = this.extractTemplateBodyExamples(t) || {};
+      const templateButtons = Array.isArray(t.buttons) ? t.buttons : [];
+      const detectedType = this.detectTemplateType(t, templateButtons);
+      let ytUrl = '';
+      let ytText = 'Watch on YouTube';
+      let ytId = null;
+      if (detectedType === 'youtube') {
+        const ytBtn = templateButtons.find(b => this.isYouTubeButton(b));
+        if (ytBtn) {
+          ytUrl = ytBtn.url || '';
+          ytText = ytBtn.text || 'Watch on YouTube';
+          ytId = this.extractYouTubeId(ytUrl);
+        }
+      }
+
       this.wa.form = {
         sid: t.sid,
         friendly_name: t.name,
@@ -5288,9 +5871,21 @@ export default {
         header_format: t.header_format || '',
         header_text: t.header_text || '',
         footer_text: t.footer_text || '',
-        buttons: Array.isArray(t.buttons) ? t.buttons : [],
+        buttons: templateButtons,
         variables: t.variables || {},
         body_examples: bodyExamples,
+        template_type: detectedType,
+        header_file: null,
+        header_file_preview: null,
+        header_file_name: '',
+        header_file_size: 0,
+        header_file_error: null,
+        youtube: {
+          url: ytUrl,
+          button_text: ytText,
+          video_id: ytId,
+          error: null,
+        },
       };
       if (bodyExamples && Object.keys(bodyExamples).length > 0) {
         this.wa.previewVariables = { ...bodyExamples };
@@ -5319,6 +5914,7 @@ export default {
       this.wa.showAddVariable = false;
       this.wa.newVariableKey = '';
       this.wa.newVariableValue = '';
+      this.clearHeaderFile();
       this.wa.form = {
         sid: null,
         friendly_name: '',
@@ -5333,6 +5929,18 @@ export default {
         buttons: [],
         variables: {},
         body_examples: {},
+        template_type: 'standard',
+        header_file: null,
+        header_file_preview: null,
+        header_file_name: '',
+        header_file_size: 0,
+        header_file_error: null,
+        youtube: {
+          url: '',
+          button_text: 'Watch on YouTube',
+          video_id: null,
+          error: null,
+        },
       };
     },
     formatStatusText(status) {
@@ -5560,6 +6168,11 @@ export default {
         return;
       }
 
+      if (this.templateValidationErrors.length > 0) {
+        notify.warning(this.templateValidationErrors[0], 'Settings');
+        return;
+      }
+
       const buttons = [];
       if (Array.isArray(this.wa.form.buttons)) {
         for (const btn of this.wa.form.buttons) {
@@ -5593,27 +6206,82 @@ export default {
         }
       }
 
+      // If YouTube Template, ensure YouTube button is in buttons array
+      if (this.wa.form.template_type === 'youtube' && this.wa.form.youtube?.url) {
+        const hasYt = buttons.some((b) => this.isYouTubeButton(b));
+        if (!hasYt) {
+          buttons.unshift({
+            type: 'URL',
+            text: (this.wa.form.youtube.button_text || 'Watch on YouTube').trim(),
+            url: this.wa.form.youtube.url.trim(),
+          });
+        }
+      }
+
       const selectedBankIds = (this.wa.selectedBanks || []).map(b => b.id).filter(Boolean);
       if (!selectedBankIds.length) {
         notify.warning('Please select at least one bank for this WhatsApp template.', 'Settings');
         return;
       }
 
-      const payload = {
-        friendly_name: normalizedName,
-        body: this.wa.form.body,
-        language: this.wa.form.language,
-        category: this.wa.form.category,
-        bank_ids: selectedBankIds,
-        media_urls: [],
-        body_examples: bodyExamples,
-        buttons: buttons,
-      };
-
       this.wa.saving = true;
-      const request = this.wa.form.sid
-        ? axios.put(`/api/whatsapp-templates/${this.wa.form.sid}`, payload)
-        : axios.post('/api/whatsapp-templates', payload);
+
+      let request;
+      if (this.wa.form.header_file) {
+        const formData = new FormData();
+        formData.append('friendly_name', normalizedName);
+        formData.append('body', this.wa.form.body);
+        formData.append('language', this.wa.form.language);
+        formData.append('category', this.wa.form.category);
+        formData.append('template_type', this.wa.form.template_type);
+        if (this.wa.form.header_format) {
+          formData.append('header_format', this.wa.form.header_format);
+        }
+        if (this.wa.form.header_text) {
+          formData.append('header_text', this.wa.form.header_text);
+        }
+        if (this.wa.form.footer_text) {
+          formData.append('footer_text', this.wa.form.footer_text);
+        }
+        selectedBankIds.forEach((id) => {
+          formData.append('bank_ids[]', id);
+        });
+        bodyExamples.forEach((ex) => {
+          formData.append('body_examples[]', ex);
+        });
+        formData.append('buttons', JSON.stringify(buttons));
+        formData.append('header_file', this.wa.form.header_file);
+
+        if (this.wa.form.sid) {
+          formData.append('_method', 'PUT');
+          request = axios.post(`/api/whatsapp-templates/${this.wa.form.sid}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        } else {
+          request = axios.post('/api/whatsapp-templates', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+        }
+      } else {
+        const payload = {
+          friendly_name: normalizedName,
+          body: this.wa.form.body,
+          language: this.wa.form.language,
+          category: this.wa.form.category,
+          template_type: this.wa.form.template_type,
+          header_format: this.wa.form.header_format || null,
+          header_text: this.wa.form.header_text || null,
+          footer_text: this.wa.form.footer_text || null,
+          bank_ids: selectedBankIds,
+          media_urls: (this.wa.form.media_urls || '').split(',').map((u) => u.trim()).filter(Boolean),
+          body_examples: bodyExamples,
+          buttons: buttons,
+        };
+
+        request = this.wa.form.sid
+          ? axios.put(`/api/whatsapp-templates/${this.wa.form.sid}`, payload)
+          : axios.post('/api/whatsapp-templates', payload);
+      }
 
       request
         .then(() => {
@@ -6610,6 +7278,18 @@ export default {
 }
 .template-status-card.ring-active {
   box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.3) !important;
+}
+
+.template-type-card {
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+}
+.template-type-card:hover {
+  transform: translateY(-2px);
+  border-color: #0d6efd !important;
+}
+.template-type-card.ring-active {
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.35) !important;
 }
 
 .account-layout {

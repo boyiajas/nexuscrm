@@ -520,6 +520,61 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         return $handle;
     }
 
+    public function uploadMediaHandle(mixed $file, ?string $fileType = null): string
+    {
+        if (empty($this->appId) || empty($this->accessToken)) {
+            throw new \RuntimeException('Meta App ID and Access Token are required to upload template media samples.');
+        }
+
+        if ($file instanceof \Illuminate\Http\UploadedFile) {
+            $fileLength = $file->getSize();
+            $mimeType = $fileType ?: ($file->getMimeType() ?: 'application/octet-stream');
+            $fileName = $file->getClientOriginalName() ?: 'sample_media';
+            $content = file_get_contents($file->getRealPath());
+        } elseif (is_string($file) && file_exists($file)) {
+            $fileLength = filesize($file);
+            $mimeType = $fileType ?: (mime_content_type($file) ?: 'application/octet-stream');
+            $fileName = basename($file);
+            $content = file_get_contents($file);
+        } else {
+            throw new \InvalidArgumentException('Invalid file provided for media handle upload.');
+        }
+
+        // 1. Initialize upload session
+        $initResponse = Http::withToken($this->accessToken)
+            ->timeout(20)
+            ->post("{$this->baseUrl}/{$this->appId}/uploads", [
+                'file_length' => $fileLength,
+                'file_type' => $mimeType,
+                'file_name' => $fileName,
+            ]);
+
+        $initData = $this->decodeResponse($initResponse->status(), $initResponse->json() ?? [], "{$this->appId}/uploads");
+        $uploadSessionId = $initData['id'] ?? null;
+
+        if (!$uploadSessionId) {
+            throw new \RuntimeException('Failed to initialize upload session with Meta.');
+        }
+
+        // 2. Upload file binary data to session
+        $uploadResponse = Http::withHeaders([
+            'Authorization' => "OAuth {$this->accessToken}",
+            'file_offset' => '0',
+            'Content-Type' => 'application/octet-stream',
+        ])->timeout(60)
+          ->withBody($content, 'application/octet-stream')
+          ->post("{$this->baseUrl}/{$uploadSessionId}");
+
+        $uploadData = $this->decodeResponse($uploadResponse->status(), $uploadResponse->json() ?? [], $uploadSessionId);
+        $handle = $uploadData['h'] ?? null;
+
+        if (!$handle) {
+            throw new \RuntimeException('Meta upload session did not return a media handle.');
+        }
+
+        return $handle;
+    }
+
     public function updateBusinessProfile(string $phoneNumberId, array $data): array
     {
         $payload = [
@@ -1116,12 +1171,19 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         ];
     }
 
-    public function createWhatsAppTemplate(string $friendlyName, string $body, string $language = 'en_US', string $category = 'UTILITY', array $mediaUrls = [], array $bodyExamples = [], array $buttons = []): array
-    {
-        if (!empty($mediaUrls)) {
-            throw new \RuntimeException('Creating media-header templates from the CRM is not implemented yet. Create text templates here, or use Meta WhatsApp Manager for media templates.');
-        }
-
+    public function createWhatsAppTemplate(
+        string $friendlyName,
+        string $body,
+        string $language = 'en_US',
+        string $category = 'UTILITY',
+        array $mediaUrls = [],
+        array $bodyExamples = [],
+        array $buttons = [],
+        ?string $headerFormat = null,
+        ?string $headerText = null,
+        ?string $headerHandle = null,
+        ?string $footerText = null
+    ): array {
         $templateName = Str::of($friendlyName)
             ->lower()
             ->replaceMatches('/[^a-z0-9_]+/', '_')
@@ -1135,6 +1197,35 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         $normalizedLanguage = trim($language) !== '' ? trim($language) : 'en_US';
         $normalizedCategory = strtoupper(trim($category) !== '' ? trim($category) : 'UTILITY');
 
+        $components = [];
+
+        // 1. Header component (if any)
+        $normalizedHeaderFormat = $headerFormat ? strtoupper(trim($headerFormat)) : null;
+        if (in_array($normalizedHeaderFormat, ['IMAGE', 'VIDEO', 'DOCUMENT'], true)) {
+            $headerComponent = [
+                'type' => 'HEADER',
+                'format' => $normalizedHeaderFormat,
+            ];
+            if ($headerHandle) {
+                $headerComponent['example'] = [
+                    'header_handle' => [$headerHandle],
+                ];
+            } elseif (!empty($mediaUrls)) {
+                $headerComponent['example'] = [
+                    'header_url' => [reset($mediaUrls)],
+                ];
+            }
+            $components[] = $headerComponent;
+        } elseif ($normalizedHeaderFormat === 'TEXT' || (!empty($headerText) && empty($normalizedHeaderFormat))) {
+            $components[] = [
+                'type' => 'HEADER',
+                'format' => 'TEXT',
+                'text' => $headerText,
+            ];
+            $normalizedHeaderFormat = 'TEXT';
+        }
+
+        // 2. Body component
         $bodyComponent = [
             'type' => 'BODY',
             'text' => $body,
@@ -1142,9 +1233,17 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         if ($bodyExamples !== []) {
             $bodyComponent['example'] = ['body_text' => [array_values($bodyExamples)]];
         }
+        $components[] = $bodyComponent;
 
-        $components = [$bodyComponent];
+        // 3. Footer component (if any)
+        if (!empty($footerText) && trim($footerText) !== '') {
+            $components[] = [
+                'type' => 'FOOTER',
+                'text' => trim($footerText),
+            ];
+        }
 
+        // 4. Buttons component (if any)
         $formattedButtons = [];
         if (!empty($buttons)) {
             foreach ($buttons as $btn) {
@@ -1205,10 +1304,10 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
                 'status' => $response['status'] ?? 'PENDING',
                 'category' => strtolower($normalizedCategory),
             ],
-            'media' => [],
-            'header_format' => null,
-            'header_text' => null,
-            'footer_text' => null,
+            'media' => $mediaUrls,
+            'header_format' => $normalizedHeaderFormat,
+            'header_text' => $headerText,
+            'footer_text' => $footerText,
             'buttons' => $formattedButtons,
             'raw' => $response,
         ];
@@ -1216,6 +1315,30 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
 
     public function updateWhatsAppTemplate(string $templateId, array $data): array
     {
+        $components = [];
+
+        // 1. Header component
+        $headerFormat = !empty($data['header_format']) ? strtoupper(trim((string) $data['header_format'])) : null;
+        if (in_array($headerFormat, ['IMAGE', 'VIDEO', 'DOCUMENT'], true)) {
+            $headerComp = [
+                'type' => 'HEADER',
+                'format' => $headerFormat,
+            ];
+            if (!empty($data['header_handle'])) {
+                $headerComp['example'] = ['header_handle' => [$data['header_handle']]];
+            } elseif (!empty($data['media_urls']) && is_array($data['media_urls'])) {
+                $headerComp['example'] = ['header_url' => [reset($data['media_urls'])]];
+            }
+            $components[] = $headerComp;
+        } elseif ($headerFormat === 'TEXT' || (!empty($data['header_text']) && empty($headerFormat))) {
+            $components[] = [
+                'type' => 'HEADER',
+                'format' => 'TEXT',
+                'text' => (string) ($data['header_text'] ?? ''),
+            ];
+        }
+
+        // 2. Body component
         $bodyComponent = [
             'type' => 'BODY',
             'text' => (string) ($data['body'] ?? ''),
@@ -1223,9 +1346,17 @@ class MetaWhatsAppService implements WhatsAppServiceInterface
         if (! empty($data['body_examples'])) {
             $bodyComponent['example'] = ['body_text' => [array_values($data['body_examples'])]];
         }
+        $components[] = $bodyComponent;
 
-        $components = [$bodyComponent];
+        // 3. Footer component
+        if (!empty($data['footer_text']) && trim((string) $data['footer_text']) !== '') {
+            $components[] = [
+                'type' => 'FOOTER',
+                'text' => trim((string) $data['footer_text']),
+            ];
+        }
 
+        // 4. Buttons component
         if (!empty($data['buttons']) && is_array($data['buttons'])) {
             $formattedButtons = [];
             foreach ($data['buttons'] as $btn) {
