@@ -81,6 +81,11 @@ class RolePermissionRegressionTest extends TestCase
             $this->createCustomRole('META_BILLING_CUSTOM', ['view_meta_billing'])
         ));
         $this->getJson('/api/meta-billing')->assertOk();
+
+        Sanctum::actingAs($this->makeUserForRole(
+            $this->createCustomRole('ANALYTICS_VIEWER_CUSTOM', ['view_analytics'])
+        ));
+        $this->getJson('/api/analytics')->assertOk();
     }
 
     public function test_endpoints_use_their_own_permissions_instead_of_shared_management_shortcuts(): void
@@ -106,6 +111,7 @@ class RolePermissionRegressionTest extends TestCase
         $this->getJson('/api/chat/sessions')->assertForbidden();
         $this->getJson('/api/whatsapp-flows')->assertForbidden();
         $this->getJson('/api/meta-billing')->assertForbidden();
+        $this->getJson('/api/analytics')->assertForbidden();
 
         Sanctum::actingAs($this->makeUserForRole(
             $this->createCustomRole('WABA_NUMBERS_WITHOUT_PAUSE_CUSTOM', ['settings_waba_numbers'])
@@ -168,6 +174,57 @@ class RolePermissionRegressionTest extends TestCase
         // Acting as user with this updated role is now forbidden
         Sanctum::actingAs($this->makeUserForRole($role->fresh()));
         $this->getJson('/api/meta-billing')->assertForbidden();
+    }
+
+    public function test_analytics_permission_can_be_checked_and_unchecked_on_role(): void
+    {
+        $admin = $this->makeUserForRole(
+            $this->createCustomRole('ADMIN_FOR_PERMS_ANALYTICS', ['manage_roles'])
+        );
+        Sanctum::actingAs($admin);
+
+        $permissionsResponse = $this->getJson('/api/permissions')->assertOk();
+        $analyticsPerm = collect($permissionsResponse->json())->firstWhere('code', 'view_analytics');
+        $this->assertNotNull($analyticsPerm);
+        $this->assertSame('Analytics / Reports', $analyticsPerm['name']);
+        $this->assertSame('Security & Audit', $analyticsPerm['module']);
+
+        $role = $this->createCustomRole('REPORTS_ANALYST_CUSTOM', []);
+
+        // Check permission (add view_analytics)
+        $this->putJson("/api/roles/{$role->id}", [
+            'code' => $role->code,
+            'name' => $role->name,
+            'description' => $role->description,
+            'whatsapp_daily_limit' => $role->whatsapp_daily_limit,
+            'watermark_enabled' => true,
+            'is_active' => true,
+            'permissions' => ['view_analytics'],
+        ])->assertOk();
+
+        $this->assertTrue($role->fresh()->permissions()->where('code', 'view_analytics')->exists());
+
+        // Acting as user with this role can access analytics
+        Sanctum::actingAs($this->makeUserForRole($role->fresh()));
+        $this->getJson('/api/analytics')->assertOk();
+
+        // Uncheck permission (remove view_analytics)
+        Sanctum::actingAs($admin);
+        $this->putJson("/api/roles/{$role->id}", [
+            'code' => $role->code,
+            'name' => $role->name,
+            'description' => $role->description,
+            'whatsapp_daily_limit' => $role->whatsapp_daily_limit,
+            'watermark_enabled' => true,
+            'is_active' => true,
+            'permissions' => [],
+        ])->assertOk();
+
+        $this->assertFalse($role->fresh()->permissions()->where('code', 'view_analytics')->exists());
+
+        // Acting as user with this updated role is now forbidden
+        Sanctum::actingAs($this->makeUserForRole($role->fresh()));
+        $this->getJson('/api/analytics')->assertForbidden();
     }
 
     private function createCustomRole(string $code, array $permissionCodes): Role

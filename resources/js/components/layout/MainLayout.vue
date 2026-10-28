@@ -64,9 +64,9 @@
         </ul>
 
         <!-- SECURITY & ANALYTICS -->
-        <div class="px-3 pt-1 pb-1 small sidebar-section-title fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;">Security & Analytics</div>
-        <ul class="nav nav-pills flex-column px-2 gap-1 mb-2">
-          <li class="nav-item">
+        <div class="px-3 pt-1 pb-1 small sidebar-section-title fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 0.05em;" v-if="canViewSecuritySection">Security & Analytics</div>
+        <ul class="nav nav-pills flex-column px-2 gap-1 mb-2" v-if="canViewSecuritySection">
+          <li class="nav-item" v-if="canViewAnalytics">
             <router-link :to="{ name: 'analytics' }" class="nav-link" :class="{ active: isActive('analytics') }">
               <i class="bi bi-bar-chart-line-fill me-2"></i><span class="nav-label">Analytics / Reports</span>
             </router-link>
@@ -525,8 +525,21 @@ export default {
     canViewQueueJobs() {
       return this.hasAnyRole(['SUPER_ADMIN']);
     },
+    canViewAnalytics() {
+      return this.isSuperAdmin || this.hasPermission('view_analytics');
+    },
     canViewMetaBilling() {
       return this.isSuperAdmin || this.hasPermission('view_meta_billing');
+    },
+    canViewSecuritySection() {
+      return (
+        this.canViewAnalytics ||
+        this.canViewMetaBilling ||
+        this.canViewAuditLog ||
+        this.canViewSecurityIncidents ||
+        this.canViewComplianceConsole ||
+        this.canViewExportRequests
+      );
     },
     roleWatermarkEnabled() {
       if (Array.isArray(this.user?.roles) && this.user.roles.length) {

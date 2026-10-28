@@ -27,6 +27,9 @@ class AnalyticsController extends Controller
     public function index(Request $request)
     {
         $user = auth()->user();
+        if (!$user?->canViewAnalytics()) {
+            return response()->json(['message' => 'Unauthorized access to Analytics & Reports.'], 403);
+        }
         
         $timeframe = $request->query('timeframe', 'daily');
         $dateRange = $request->query('date_range');

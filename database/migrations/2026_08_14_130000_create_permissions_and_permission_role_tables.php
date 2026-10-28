@@ -75,6 +75,7 @@ return new class extends Migration
             ['code' => 'approve_exports', 'name' => 'Approve Data Exports', 'module' => 'Security & Audit', 'description' => 'Review and approve export requests submitted by users.'],
             ['code' => 'bypass_export_approval', 'name' => 'Direct Instant Data Export', 'module' => 'Security & Audit', 'description' => 'Export data immediately without requiring compliance approval.'],
             ['code' => 'view_meta_billing', 'name' => 'Meta Billing', 'module' => 'Security & Audit', 'description' => 'Access Meta Billing statements, monthly WhatsApp messaging charges, and payment telemetry.'],
+            ['code' => 'view_analytics', 'name' => 'Analytics / Reports', 'module' => 'Security & Audit', 'description' => 'Access performance analytics, delivery tracking, Meta messaging spend, and campaign reports.'],
 
             // Automation & Workflows
             ['code' => 'manage_auto_replies', 'name' => 'Manage Auto Replies', 'module' => 'Automation & Workflows', 'description' => 'Configure automated WhatsApp keyword response rules.'],
@@ -98,19 +99,19 @@ return new class extends Migration
             'MANAGER' => [
                 'view_clients', 'create_clients', 'edit_clients', 'import_clients',
                 'view_campaigns', 'create_campaigns', 'edit_campaigns', 'send_whatsapp', 'view_live_chat',
-                'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'request_exports', 'approve_exports', 'view_meta_billing',
+                'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'request_exports', 'approve_exports', 'view_meta_billing', 'view_analytics',
                 'manage_auto_replies', 'manage_whatsapp_flows', 'settings_user_account',
             ],
             'CALL_CENTRE_MANAGER' => [
                 'view_clients', 'create_clients', 'edit_clients', 'import_clients',
                 'view_campaigns', 'create_campaigns', 'edit_campaigns', 'send_whatsapp', 'view_live_chat',
-                'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'request_exports',
+                'view_audit_logs', 'view_security_incidents', 'view_compliance_console', 'request_exports', 'view_analytics',
                 'manage_auto_replies', 'manage_whatsapp_flows', 'settings_user_account',
             ],
             'TEAM_LEADER' => [
                 'view_clients', 'create_clients', 'edit_clients',
                 'view_campaigns', 'create_campaigns', 'send_whatsapp', 'view_live_chat',
-                'view_security_incidents', 'view_compliance_console', 'request_exports', 'settings_user_account',
+                'view_security_incidents', 'view_compliance_console', 'request_exports', 'settings_user_account', 'view_analytics',
             ],
             'AGENT' => [
                 'view_clients', 'edit_clients', 'portfolio_scoped_only',

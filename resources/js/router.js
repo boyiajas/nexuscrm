@@ -69,7 +69,11 @@ const routes = [
         path: 'analytics',
         name: 'analytics',
         component: Analytics,
-        meta: { sensitiveView: true, pageIcon: 'bi-bar-chart-line-fill' },
+        meta: {
+          requiredAnyPermission: ['view_analytics'],
+          sensitiveView: true,
+          pageIcon: 'bi-bar-chart-line-fill'
+        },
       },
       {
         path: 'meta-billing',
