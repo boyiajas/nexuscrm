@@ -75,7 +75,11 @@ const routes = [
         path: 'meta-billing',
         name: 'meta-billing',
         component: MetaBilling,
-        meta: { sensitiveView: true, pageIcon: 'bi-receipt-cutoff' },
+        meta: {
+          requiredAnyPermission: ['view_meta_billing'],
+          sensitiveView: true,
+          pageIcon: 'bi-receipt-cutoff'
+        },
       },
       {
         path: 'settings',
@@ -175,8 +179,8 @@ router.beforeEach((to, from, next) => {
 
     const roleCodes = resolveStoredUserRoles(user);
 
-    // Super Admin and Admin bypass all route checks
-    if (!roleCodes.includes('SUPER_ADMIN') && !roleCodes.includes('ADMIN')) {
+    // Super Admin bypasses all route checks
+    if (!roleCodes.includes('SUPER_ADMIN')) {
       const requiredAnyPermission = Array.isArray(to.meta?.requiredAnyPermission)
         ? to.meta.requiredAnyPermission
         : [];

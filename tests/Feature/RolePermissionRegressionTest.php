@@ -7,6 +7,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -72,6 +73,14 @@ class RolePermissionRegressionTest extends TestCase
         $this->patchJson('/api/settings/meta/phone-numbers/1247262038476724/pause', [
             'paused' => true,
         ])->assertOk();
+
+        Http::fake([
+            'https://graph.facebook.com/*' => Http::response(['data' => []], 200),
+        ]);
+        Sanctum::actingAs($this->makeUserForRole(
+            $this->createCustomRole('META_BILLING_CUSTOM', ['view_meta_billing'])
+        ));
+        $this->getJson('/api/meta-billing')->assertOk();
     }
 
     public function test_endpoints_use_their_own_permissions_instead_of_shared_management_shortcuts(): void
@@ -96,6 +105,7 @@ class RolePermissionRegressionTest extends TestCase
         $this->getJson('/api/import-uploads')->assertForbidden();
         $this->getJson('/api/chat/sessions')->assertForbidden();
         $this->getJson('/api/whatsapp-flows')->assertForbidden();
+        $this->getJson('/api/meta-billing')->assertForbidden();
 
         Sanctum::actingAs($this->makeUserForRole(
             $this->createCustomRole('WABA_NUMBERS_WITHOUT_PAUSE_CUSTOM', ['settings_waba_numbers'])
@@ -103,6 +113,61 @@ class RolePermissionRegressionTest extends TestCase
         $this->patchJson('/api/settings/meta/phone-numbers/1247262038476724/pause', [
             'paused' => true,
         ])->assertForbidden();
+    }
+
+    public function test_meta_billing_permission_can_be_checked_and_unchecked_on_role(): void
+    {
+        Http::fake([
+            'https://graph.facebook.com/*' => Http::response(['data' => []], 200),
+        ]);
+
+        $admin = $this->makeUserForRole(
+            $this->createCustomRole('ADMIN_FOR_PERMS', ['manage_roles'])
+        );
+        Sanctum::actingAs($admin);
+
+        $permissionsResponse = $this->getJson('/api/permissions')->assertOk();
+        $metaBillingPerm = collect($permissionsResponse->json())->firstWhere('code', 'view_meta_billing');
+        $this->assertNotNull($metaBillingPerm);
+        $this->assertSame('Meta Billing', $metaBillingPerm['name']);
+        $this->assertSame('Security & Audit', $metaBillingPerm['module']);
+
+        $role = $this->createCustomRole('AUDITOR_CUSTOM', []);
+
+        // Check permission (add view_meta_billing)
+        $this->putJson("/api/roles/{$role->id}", [
+            'code' => $role->code,
+            'name' => $role->name,
+            'description' => $role->description,
+            'whatsapp_daily_limit' => $role->whatsapp_daily_limit,
+            'watermark_enabled' => true,
+            'is_active' => true,
+            'permissions' => ['view_meta_billing'],
+        ])->assertOk();
+
+        $this->assertTrue($role->fresh()->permissions()->where('code', 'view_meta_billing')->exists());
+
+        // Acting as user with this role can access meta billing
+        Sanctum::actingAs($this->makeUserForRole($role->fresh()));
+        $this->getJson('/api/meta-billing')->assertOk();
+
+        // Uncheck permission (remove view_meta_billing)
+        Sanctum::actingAs($admin);
+        $this->putJson("/api/roles/{$role->id}", [
+            'code' => $role->code,
+            'name' => $role->name,
+            'description' => $role->description,
+            'whatsapp_daily_limit' => $role->whatsapp_daily_limit,
+            'watermark_enabled' => true,
+            'is_active' => true,
+            'permissions' => [],
+        ])->assertOk();
+
+        $this->assertFalse($role->fresh()->permissions()->where('code', 'view_meta_billing')->exists());
+
+        // Acting as user with this updated role is now forbidden
+        Sanctum::actingAs($this->makeUserForRole($role->fresh()));
+        $this->getJson('/api/meta-billing')->assertForbidden();
     }
 
     private function createCustomRole(string $code, array $permissionCodes): Role

@@ -526,12 +526,7 @@ export default {
       return this.hasAnyRole(['SUPER_ADMIN']);
     },
     canViewMetaBilling() {
-      return (
-        this.hasAnyRole(['SUPER_ADMIN', 'ADMIN', 'MANAGER']) ||
-        this.hasPermission('settings_meta_whatsapp') ||
-        this.hasPermission('manage_system_settings') ||
-        this.hasPermission('view_campaigns')
-      );
+      return this.isSuperAdmin || this.hasPermission('view_meta_billing');
     },
     roleWatermarkEnabled() {
       if (Array.isArray(this.user?.roles) && this.user.roles.length) {

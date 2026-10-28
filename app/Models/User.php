@@ -246,6 +246,11 @@ class User extends Authenticatable
         return $this->isSuperAdmin() || $this->hasPermission('settings_meta_whatsapp');
     }
 
+    public function canViewMetaBilling(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('view_meta_billing');
+    }
+
     public function canAccessWabaProfileSettings(): bool
     {
         return $this->isSuperAdmin() || $this->hasPermission('settings_waba_profile');

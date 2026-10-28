@@ -23,6 +23,10 @@ class MetaBillingController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = auth()->user();
+        if (!$user?->canViewMetaBilling()) {
+            return response()->json(['message' => 'Unauthorized access to Meta Billing.'], 403);
+        }
+
         if ($user && !$user->canAccessAllBanks() && !$user->isSuperAdmin()) {
             $accessibleBankIds = $user->accessibleBankIds() ?? [];
             $requestedBankId = $request->query('bank_id');
@@ -48,6 +52,11 @@ class MetaBillingController extends Controller
      */
     public function sync(Request $request): JsonResponse
     {
+        $user = auth()->user();
+        if (!$user?->canViewMetaBilling()) {
+            return response()->json(['message' => 'Unauthorized access to Meta Billing.'], 403);
+        }
+
         $params = [
             'date_range' => $request->input('date_range', 'last_30_days'),
             'bank_id' => $request->input('bank_id'),
