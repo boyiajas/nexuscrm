@@ -1546,22 +1546,22 @@
                 </div>
 
                 <!-- TEMPLATE TYPE SELECTOR -->
-                <div v-if="!wa.viewOnly && !wa.form.sid" class="mb-2.5">
+                <div v-if="!wa.viewOnly && !wa.form.sid" class="mb-2">
                   <label class="form-label small fw-semibold mb-1 d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-grid-fill text-primary me-1"></i>Template Type <span class="text-danger">*</span></span>
-                    <span class="badge bg-light text-muted border font-monospace text-uppercase" style="font-size: 0.68rem;">{{ wa.form.template_type }}</span>
+                    <span class="badge bg-light text-muted border font-monospace text-uppercase" style="font-size: 0.66rem;">{{ wa.form.template_type }}</span>
                   </label>
-                  <div class="row g-1.5">
-                    <div v-for="type in wa.templateTypeOptions" :key="type.value" class="col-md-4 col-sm-6">
+                  <div class="row g-1">
+                    <div v-for="type in wa.templateTypeOptions" :key="type.value" class="col-md-4 col-6">
                       <div
-                        class="border rounded p-1.5 text-center cursor-pointer template-type-card h-100 d-flex flex-column justify-content-center align-items-center"
+                        class="border rounded py-1 px-1 text-center cursor-pointer template-type-card h-100 d-flex flex-column justify-content-center align-items-center"
                         :class="wa.form.template_type === type.value ? 'border-primary bg-primary bg-opacity-10 text-primary shadow-xs ring-active' : 'bg-white text-dark border-light-subtle'"
                         @click="selectTemplateType(type.value)"
                         role="button"
                       >
-                        <i :class="type.icon" class="fs-5 mb-1"></i>
-                        <div class="fw-semibold" style="font-size: 0.76rem; line-height: 1.2;">{{ type.label }}</div>
-                        <small class="text-muted d-block mt-0.5" style="font-size: 0.65rem; line-height: 1.15;">{{ type.description }}</small>
+                        <i :class="type.icon" class="mb-0.5" style="font-size: 0.95rem;"></i>
+                        <div class="fw-semibold text-truncate w-100" style="font-size: 0.72rem; line-height: 1.15;">{{ type.label }}</div>
+                        <small class="text-muted d-block text-truncate w-100" style="font-size: 0.62rem; line-height: 1.1;">{{ type.description }}</small>
                       </div>
                     </div>
                   </div>
@@ -4189,11 +4189,11 @@ export default {
         newVariableKey: '',
         newVariableValue: '',
         templateTypeOptions: [
-          { value: 'standard', label: 'Standard Text', icon: 'bi bi-chat-text text-primary', description: 'Plain text or header text' },
-          { value: 'image', label: 'Image Template', icon: 'bi bi-image text-info', description: 'Approved template with image header (max 5 MB)' },
-          { value: 'video', label: 'Video Template', icon: 'bi bi-file-earmark-play text-danger', description: 'Approved template with MP4 video header (max 16 MB)' },
-          { value: 'document', label: 'Document Template', icon: 'bi bi-file-earmark-pdf text-danger', description: 'Approved template with PDF header (max 100 MB)' },
-          { value: 'youtube', label: 'YouTube Template', icon: 'bi bi-youtube text-danger', description: 'Approved template containing YouTube URL button' },
+          { value: 'standard', label: 'Standard', icon: 'bi bi-chat-text text-primary', description: 'Text only' },
+          { value: 'image', label: 'Image', icon: 'bi bi-image text-info', description: 'JPG/PNG (≤5MB)' },
+          { value: 'video', label: 'Video', icon: 'bi bi-file-earmark-play text-danger', description: 'MP4 (≤16MB)' },
+          { value: 'document', label: 'Document', icon: 'bi bi-file-earmark-pdf text-danger', description: 'PDF (≤100MB)' },
+          { value: 'youtube', label: 'YouTube', icon: 'bi bi-youtube text-danger', description: 'URL button' },
         ],
         form: {
           sid: null,
@@ -4552,8 +4552,14 @@ export default {
       return this.footerCharCount > 60;
     },
     currentTypeLabel() {
-      const opt = this.wa.templateTypeOptions?.find((o) => o.value === this.wa.form.template_type);
-      return opt ? opt.label : 'Standard Text';
+      const map = {
+        standard: 'Standard Text Template',
+        image: 'Image Header Template',
+        video: 'Video Header Template',
+        document: 'Document Header Template',
+        youtube: 'YouTube Button Template',
+      };
+      return map[this.wa.form.template_type] || 'Standard Text Template';
     },
     currentTypeIcon() {
       const opt = this.wa.templateTypeOptions?.find((o) => o.value === this.wa.form.template_type);
@@ -7281,11 +7287,14 @@ export default {
 }
 
 .template-type-card {
+  padding: 0.25rem 0.35rem !important;
+  min-height: 48px;
+  border-radius: 6px;
   transition: all 0.15s ease-in-out;
   cursor: pointer;
 }
 .template-type-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   border-color: #0d6efd !important;
 }
 .template-type-card.ring-active {
