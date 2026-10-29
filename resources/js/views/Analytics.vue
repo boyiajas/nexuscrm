@@ -28,7 +28,7 @@
         <div class="input-group input-group-sm bg-white shadow-sm border rounded">
           <span class="input-group-text bg-white border-0 text-muted"><i class="bi bi-briefcase"></i></span>
           <select class="form-select border-0 shadow-none fw-semibold" style="font-size: 0.8rem; width: auto;" v-model="selectedBankId" @change="onBankFilterChange">
-            <option value="all">All Institutions ({{ banks.length }})</option>
+            <option value="all" v-if="isSuperAdmin || banks.length > 1">All Institutions ({{ banks.length }})</option>
             <option v-for="b in banks" :key="b.id" :value="b.id">{{ b.name }}</option>
           </select>
         </div>
@@ -878,7 +878,20 @@ export default {
       }
       pages.push(total);
       return pages;
-    }
+    },
+    isSuperAdmin() {
+      const stored = localStorage.getItem('nexus_user');
+      if (!stored) return false;
+      try {
+        const user = JSON.parse(stored);
+        const roles = Array.isArray(user.role_codes) && user.role_codes.length
+          ? user.role_codes
+          : [user.role].filter(Boolean);
+        return roles.includes('SUPER_ADMIN');
+      } catch {
+        return false;
+      }
+    },
   },
   watch: {
     campaignSearch() {
@@ -907,6 +920,9 @@ export default {
       try {
         const res = await axios.get('/api/banks', { params: { per_page: 200 } });
         this.banks = res.data.data || res.data || [];
+        if (this.banks.length === 1 && !this.isSuperAdmin) {
+          this.selectedBankId = this.banks[0].id;
+        }
       } catch (e) {
         console.error('Failed to load banks for analytics filter', e);
       }

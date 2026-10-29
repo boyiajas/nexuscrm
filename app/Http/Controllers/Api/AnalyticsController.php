@@ -36,10 +36,17 @@ class AnalyticsController extends Controller
         $bankId = $request->query('bank_id');
 
         $selectedBankId = ($bankId && $bankId !== 'all') ? (int) $bankId : null;
-        if ($selectedBankId && $user && !$user->canAccessAllBanks() && !$user->isSuperAdmin()) {
-            $accessibleBankIds = $user->accessibleBankIds() ?? [];
-            if (!in_array($selectedBankId, $accessibleBankIds, true)) {
-                $selectedBankId = -1; // Force empty result if unauthorized
+        $isBankScopedUser = $user && !$user->canAccessAllBanks() && !$user->isSuperAdmin();
+        $userAccessibleBankIds = $isBankScopedUser ? ($user->accessibleBankIds() ?? []) : [];
+        $userDepartmentIds = ($isBankScopedUser && !$user->isAdmin()) ? ($user->resolvedDepartmentIds() ?? []) : [];
+
+        if ($isBankScopedUser) {
+            if ($selectedBankId) {
+                if (!in_array($selectedBankId, $userAccessibleBankIds, true)) {
+                    $selectedBankId = -1; // Force empty result if unauthorized
+                }
+            } elseif (empty($userAccessibleBankIds)) {
+                $selectedBankId = -1; // Force empty result if user has no assigned banks
             }
         }
 
@@ -80,7 +87,23 @@ class AnalyticsController extends Controller
         }
 
         // 1. CAMPAIGNS DATA (Computed first so all KPIs, spend, templates and agent metrics are reconciled)
-        $templateCaches = WhatsappTemplateCache::all();
+        $templateCachesQuery = WhatsappTemplateCache::query();
+        if ($selectedBankId) {
+            if ($selectedBankId === -1) {
+                $templateCachesQuery->whereRaw('1 = 0');
+            } else {
+                $templateCachesQuery->where(function ($q) use ($selectedBankId) {
+                    $q->whereHas('banks', fn ($b) => $b->where('banks.id', $selectedBankId))
+                      ->orWhereDoesntHave('banks');
+                });
+            }
+        } elseif ($isBankScopedUser) {
+            $templateCachesQuery->where(function ($q) use ($userAccessibleBankIds) {
+                $q->whereHas('banks', fn ($b) => $b->whereIn('banks.id', $userAccessibleBankIds))
+                  ->orWhereDoesntHave('banks');
+            });
+        }
+        $templateCaches = $templateCachesQuery->get();
 
         $campaignsQuery = Campaign::with(['bank', 'whatsappMessages.createdBy:id,name'])
             ->orderBy('created_at', 'desc');
@@ -280,8 +303,9 @@ class AnalyticsController extends Controller
 
         $recoveryClientsQuery = Client::whereIn('payment_option', [Client::PAYMENT_OPTION_PTP, Client::PAYMENT_OPTION_DEBIT_ORDER]);
         if ($selectedBankId) {
-            $recoveryClientsQuery->where('bank_id', $selectedBankId);
+            $recoveryClientsQuery->where('clients.bank_id', $selectedBankId);
         }
+        $this->scopeClientQueryToUser($recoveryClientsQuery, $user);
         $recoveryAmount = (float) $recoveryClientsQuery->sum(DB::raw('COALESCE(ptp_amount, settlement_amount, 0)'));
         if ($recoveryAmount <= 0) {
             $recoveryAmount = (float) $recoveryClientsQuery->sum(DB::raw('COALESCE(settlement_amount, arrears_amount, 0)'));
@@ -291,11 +315,28 @@ class AnalyticsController extends Controller
         // 4. ASSETS
         $activeCampaignsQuery = Campaign::where('status', 'Active');
         if ($selectedBankId) {
-            $activeCampaignsQuery->where('bank_id', $selectedBankId);
+            $activeCampaignsQuery->where('campaigns.bank_id', $selectedBankId);
         }
         $this->scopeCampaignQueryToUser($activeCampaignsQuery, $user);
         $activeCampaigns = $activeCampaignsQuery->count();
-        $approvedTemplates = WhatsappTemplateCache::where('status', 'APPROVED')->count();
+
+        $approvedTemplatesQuery = WhatsappTemplateCache::where('status', 'APPROVED');
+        if ($selectedBankId) {
+            if ($selectedBankId === -1) {
+                $approvedTemplatesQuery->whereRaw('1 = 0');
+            } else {
+                $approvedTemplatesQuery->where(function ($q) use ($selectedBankId) {
+                    $q->whereHas('banks', fn ($b) => $b->where('banks.id', $selectedBankId))
+                      ->orWhereDoesntHave('banks');
+                });
+            }
+        } elseif ($isBankScopedUser) {
+            $approvedTemplatesQuery->where(function ($q) use ($userAccessibleBankIds) {
+                $q->whereHas('banks', fn ($b) => $b->whereIn('banks.id', $userAccessibleBankIds))
+                  ->orWhereDoesntHave('banks');
+            });
+        }
+        $approvedTemplates = $approvedTemplatesQuery->count();
 
         // 5. CHART DATA
         $chartLabels = [];
@@ -501,7 +542,19 @@ class AnalyticsController extends Controller
 
         if ($selectedBankId) {
             $templateStatsQuery->where('campaigns.bank_id', $selectedBankId);
+        } elseif ($isBankScopedUser) {
+            $templateStatsQuery->whereIn('campaigns.bank_id', $userAccessibleBankIds);
         }
+
+        if ($isBankScopedUser && !empty($userDepartmentIds)) {
+            $templateStatsQuery->whereExists(function ($dq) use ($userDepartmentIds) {
+                $dq->select(DB::raw(1))
+                    ->from('campaign_department')
+                    ->whereColumn('campaign_department.campaign_id', 'campaigns.id')
+                    ->whereIn('campaign_department.department_id', $userDepartmentIds);
+            });
+        }
+
         if ($startDate) {
             $templateStatsQuery->where('campaign_whatsapp_recipients.created_at', '>=', $startDate);
         }
@@ -520,6 +573,17 @@ class AnalyticsController extends Controller
 
         if ($selectedBankId) {
             $templateCampaignsQuery->where('campaigns.bank_id', $selectedBankId);
+        } elseif ($isBankScopedUser) {
+            $templateCampaignsQuery->whereIn('campaigns.bank_id', $userAccessibleBankIds);
+        }
+
+        if ($isBankScopedUser && !empty($userDepartmentIds)) {
+            $templateCampaignsQuery->whereExists(function ($dq) use ($userDepartmentIds) {
+                $dq->select(DB::raw(1))
+                    ->from('campaign_department')
+                    ->whereColumn('campaign_department.campaign_id', 'campaigns.id')
+                    ->whereIn('campaign_department.department_id', $userDepartmentIds);
+            });
         }
         $templateCampaigns = $templateCampaignsQuery->get();
 
@@ -623,7 +687,19 @@ class AnalyticsController extends Controller
 
         if ($selectedBankId) {
             $agentStatsQuery->where('campaigns.bank_id', $selectedBankId);
+        } elseif ($isBankScopedUser) {
+            $agentStatsQuery->whereIn('campaigns.bank_id', $userAccessibleBankIds);
         }
+
+        if ($isBankScopedUser && !empty($userDepartmentIds)) {
+            $agentStatsQuery->whereExists(function ($dq) use ($userDepartmentIds) {
+                $dq->select(DB::raw(1))
+                    ->from('campaign_department')
+                    ->whereColumn('campaign_department.campaign_id', 'campaigns.id')
+                    ->whereIn('campaign_department.department_id', $userDepartmentIds);
+            });
+        }
+
         if ($startDate) {
             $agentStatsQuery->where('campaign_whatsapp_recipients.created_at', '>=', $startDate);
         }
@@ -635,9 +711,17 @@ class AnalyticsController extends Controller
             ->get()
             ->keyBy('created_by_user_id');
 
-        $chatSessionsByAgent = DB::table('chat_sessions')
+        $chatSessionsQuery = DB::table('chat_sessions')
             ->selectRaw('agent_id, COUNT(*) as total_chats, SUM(unread_count) as total_unread')
-            ->whereNotNull('agent_id')
+            ->whereNotNull('agent_id');
+
+        if ($selectedBankId) {
+            $chatSessionsQuery->where('bank_id', $selectedBankId);
+        } elseif ($isBankScopedUser) {
+            $chatSessionsQuery->whereIn('bank_id', $userAccessibleBankIds);
+        }
+
+        $chatSessionsByAgent = $chatSessionsQuery
             ->groupBy('agent_id')
             ->get()
             ->keyBy('agent_id');
@@ -651,28 +735,27 @@ class AnalyticsController extends Controller
                 'MANAGER',
             ]);
 
-        if (!$user?->canAccessAllBanks() && !$user?->isSuperAdmin()) {
-            $bankIds = $user?->accessibleBankIds() ?? [];
-            if (empty($bankIds)) {
+        if ($selectedBankId) {
+            if ($selectedBankId === -1) {
                 $agentsQuery->whereRaw('1 = 0');
             } else {
-                $agentsQuery->where(function ($query) use ($bankIds) {
-                    $query->whereIn('users.bank_id', $bankIds)
-                        ->orWhereHas('banks', fn ($bQuery) => $bQuery->whereIn('banks.id', $bankIds));
+                $agentsQuery->where(function ($query) use ($selectedBankId) {
+                    $query->where('users.bank_id', $selectedBankId)
+                        ->orWhereHas('banks', fn ($bQuery) => $bQuery->where('banks.id', $selectedBankId));
                 });
-
-                if (!$user->isAdmin()) {
-                    $departmentIds = $user?->resolvedDepartmentIds() ?? [];
-                    if (empty($departmentIds)) {
-                        $agentsQuery->whereRaw('1 = 0');
-                    } else {
-                        $agentsQuery->where(function ($query) use ($departmentIds) {
-                            $query->whereIn('users.department_id', $departmentIds)
-                                ->orWhereHas('departments', fn ($dQuery) => $dQuery->whereIn('departments.id', $departmentIds));
-                        });
-                    }
-                }
             }
+        } elseif ($isBankScopedUser) {
+            $agentsQuery->where(function ($query) use ($userAccessibleBankIds) {
+                $query->whereIn('users.bank_id', $userAccessibleBankIds)
+                    ->orWhereHas('banks', fn ($bQuery) => $bQuery->whereIn('banks.id', $userAccessibleBankIds));
+            });
+        }
+
+        if ($isBankScopedUser && !empty($userDepartmentIds)) {
+            $agentsQuery->where(function ($query) use ($userDepartmentIds) {
+                $query->whereIn('users.department_id', $userDepartmentIds)
+                    ->orWhereHas('departments', fn ($dQuery) => $dQuery->whereIn('departments.id', $userDepartmentIds));
+            });
         }
 
         $agentsData = $agentsQuery->get()->map(function ($ag) use ($agentStats, $chatSessionsByAgent) {

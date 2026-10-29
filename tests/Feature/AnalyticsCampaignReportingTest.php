@@ -7,6 +7,7 @@ use App\Models\Campaign;
 use App\Models\CampaignWhatsappMessage;
 use App\Models\CampaignWhatsappRecipient;
 use App\Models\Client;
+use App\Models\Department;
 use App\Models\Role;
 use App\Models\User;
 use Carbon\Carbon;
@@ -448,6 +449,116 @@ class AnalyticsCampaignReportingTest extends TestCase
         $this->assertSame('$0.07', $response->json('spend.total'));
         $this->assertSame('$0.05', $response->json('spend.marketing.cost'));
         $this->assertSame('$0.02', $response->json('spend.utility.cost'));
+    }
+
+    public function test_non_super_admin_is_strictly_scoped_to_assigned_bank_and_department(): void
+    {
+        $bankA = Bank::query()->create(['name' => 'Bank A', 'code' => 'bank-a', 'status' => 'Active']);
+        $bankB = Bank::query()->create(['name' => 'Bank B', 'code' => 'bank-b', 'status' => 'Active']);
+
+        $deptA = Department::query()->create(['name' => 'Dept A', 'bank_id' => $bankA->id]);
+        $deptB = Department::query()->create(['name' => 'Dept B', 'bank_id' => $bankB->id]);
+
+        $managerRole = Role::query()->where('code', User::ROLE_MANAGER)->firstOrFail();
+
+        $manager = User::factory()->create([
+            'name' => 'Scoped Manager',
+            'bank_id' => $bankA->id,
+            'role' => User::ROLE_MANAGER,
+            'status' => 'Active',
+            'password_reset_required' => false,
+            'password_changed_at' => now(),
+        ]);
+        $manager->roles()->sync([$managerRole->id]);
+        $manager->departments()->sync([$deptA->id]);
+        $manager->banks()->sync([$bankA->id]);
+
+        $clientA = Client::query()->create([
+            'name' => 'Client A',
+            'phone' => '+27820000001',
+            'bank_id' => $bankA->id,
+            'payment_option' => Client::PAYMENT_OPTION_PTP,
+            'ptp_amount' => 1500,
+        ]);
+        $clientA->departments()->sync([$deptA->id]);
+
+        $clientB = Client::query()->create([
+            'name' => 'Client B',
+            'phone' => '+27820000002',
+            'bank_id' => $bankB->id,
+            'payment_option' => Client::PAYMENT_OPTION_PTP,
+            'ptp_amount' => 9999,
+        ]);
+        $clientB->departments()->sync([$deptB->id]);
+
+        $campaignA = Campaign::query()->create([
+            'name' => 'Campaign Bank A',
+            'bank_id' => $bankA->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        $campaignA->departments()->sync([$deptA->id]);
+
+        $msgA = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaignA->id,
+            'created_by_user_id' => $manager->id,
+            'template_name' => 'fnb_notice',
+            'total_recipients' => 1,
+            'status' => 'sent',
+        ]);
+
+        CampaignWhatsappRecipient::query()->create([
+            'campaign_id' => $campaignA->id,
+            'whatsapp_message_id' => $msgA->id,
+            'client_id' => $clientA->id,
+            'phone' => $clientA->phone,
+            'status' => 'delivered',
+        ]);
+
+        $campaignB = Campaign::query()->create([
+            'name' => 'Campaign Bank B',
+            'bank_id' => $bankB->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+        $campaignB->departments()->sync([$deptB->id]);
+
+        $msgB = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaignB->id,
+            'template_name' => 'capfin_notice',
+            'total_recipients' => 1,
+            'status' => 'sent',
+        ]);
+
+        CampaignWhatsappRecipient::query()->create([
+            'campaign_id' => $campaignB->id,
+            'whatsapp_message_id' => $msgB->id,
+            'client_id' => $clientB->id,
+            'phone' => $clientB->phone,
+            'status' => 'delivered',
+        ]);
+
+        Sanctum::actingAs($manager);
+
+        // 1. Calling /api/banks only returns Bank A
+        $banksRes = $this->getJson('/api/banks')->assertOk();
+        $bankIds = collect($banksRes->json('data'))->pluck('id')->all();
+        $this->assertContains($bankA->id, $bankIds);
+        $this->assertNotContains($bankB->id, $bankIds);
+
+        // 2. Calling /api/analytics with no bank filter (or bank_id=all)
+        $resAll = $this->getJson('/api/analytics?bank_id=all')->assertOk();
+        $campaignNames = collect($resAll->json('tables.campaigns'))->pluck('name')->all();
+        $this->assertContains('Campaign Bank A', $campaignNames);
+        $this->assertNotContains('Campaign Bank B', $campaignNames);
+
+        $this->assertSame('1', $resAll->json('summary.dispatched'));
+        $this->assertSame('$1,500.00', $resAll->json('spend.recovery_amount'));
+
+        // 3. Attempting to access Bank B directly via bank_id param is rejected/empty
+        $resB = $this->getJson("/api/analytics?bank_id={$bankB->id}")->assertOk();
+        $this->assertEmpty($resB->json('tables.campaigns'));
+        $this->assertSame('0', $resB->json('summary.dispatched'));
     }
 
     private function createSuperAdminAndBank(): array
