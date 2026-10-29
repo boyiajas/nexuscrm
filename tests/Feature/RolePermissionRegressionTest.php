@@ -227,6 +227,67 @@ class RolePermissionRegressionTest extends TestCase
         $this->getJson('/api/analytics')->assertForbidden();
     }
 
+    public function test_view_analytics_cost_permission_can_be_checked_and_unchecked_on_role(): void
+    {
+        $admin = $this->makeUserForRole(
+            Role::query()->where('code', User::ROLE_SUPER_ADMIN)->firstOrFail(),
+            User::ROLE_SUPER_ADMIN
+        );
+
+        $role = Role::query()->create([
+            'code' => 'ANALYTICS_TEST_ROLE',
+            'name' => 'Analytics Test Role',
+            'description' => 'Test role for analytics cost toggle',
+            'whatsapp_daily_limit' => 100,
+            'watermark_enabled' => true,
+            'is_system' => false,
+            'is_active' => true,
+        ]);
+
+        // 1. Check permissions (view_analytics AND view_analytics_cost)
+        Sanctum::actingAs($admin);
+        $this->putJson("/api/roles/{$role->id}", [
+            'code' => $role->code,
+            'name' => $role->name,
+            'description' => $role->description,
+            'whatsapp_daily_limit' => $role->whatsapp_daily_limit,
+            'watermark_enabled' => true,
+            'is_active' => true,
+            'permissions' => ['view_analytics', 'view_analytics_cost'],
+        ])->assertOk();
+
+        $this->assertTrue($role->fresh()->permissions()->where('code', 'view_analytics')->exists());
+        $this->assertTrue($role->fresh()->permissions()->where('code', 'view_analytics_cost')->exists());
+
+        // Acting as user with role having cost permission: can_view_cost is true
+        $user = $this->makeUserForRole($role->fresh());
+        Sanctum::actingAs($user);
+        $res = $this->getJson('/api/analytics')->assertOk();
+        $this->assertTrue($res->json('can_view_cost'));
+
+        // 2. Uncheck permission (remove view_analytics_cost, keep view_analytics)
+        Sanctum::actingAs($admin);
+        $this->putJson("/api/roles/{$role->id}", [
+            'code' => $role->code,
+            'name' => $role->name,
+            'description' => $role->description,
+            'whatsapp_daily_limit' => $role->whatsapp_daily_limit,
+            'watermark_enabled' => true,
+            'is_active' => true,
+            'permissions' => ['view_analytics'],
+        ])->assertOk();
+
+        $this->assertTrue($role->fresh()->permissions()->where('code', 'view_analytics')->exists());
+        $this->assertFalse($role->fresh()->permissions()->where('code', 'view_analytics_cost')->exists());
+
+        // Acting as user with role where cost permission is removed:
+        // User can still access analytics, but cost is redacted and can_view_cost is false
+        Sanctum::actingAs($user->fresh());
+        $resWithoutCost = $this->getJson('/api/analytics')->assertOk();
+        $this->assertFalse($resWithoutCost->json('can_view_cost'));
+        $this->assertNull($resWithoutCost->json('spend.total'));
+    }
+
     private function createCustomRole(string $code, array $permissionCodes): Role
     {
         $role = Role::query()->create([

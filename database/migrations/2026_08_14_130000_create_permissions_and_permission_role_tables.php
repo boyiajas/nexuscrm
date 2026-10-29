@@ -76,6 +76,7 @@ return new class extends Migration
             ['code' => 'bypass_export_approval', 'name' => 'Direct Instant Data Export', 'module' => 'Security & Audit', 'description' => 'Export data immediately without requiring compliance approval.'],
             ['code' => 'view_meta_billing', 'name' => 'Meta Billing', 'module' => 'Security & Audit', 'description' => 'Access Meta Billing statements, monthly WhatsApp messaging charges, and payment telemetry.'],
             ['code' => 'view_analytics', 'name' => 'Analytics / Reports', 'module' => 'Security & Audit', 'description' => 'Access performance analytics, delivery tracking, Meta messaging spend, and campaign reports.'],
+            ['code' => 'view_analytics_cost', 'name' => 'View Meta Costs & Spend', 'module' => 'Security & Audit', 'description' => 'Access Meta Cloud spend cards, campaign estimated costs, template message rates, and cost telemetry on the Analytics page.'],
 
             // Automation & Workflows
             ['code' => 'manage_auto_replies', 'name' => 'Manage Auto Replies', 'module' => 'Automation & Workflows', 'description' => 'Configure automated WhatsApp keyword response rules.'],

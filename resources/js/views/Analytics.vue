@@ -7,7 +7,7 @@
           <i class="bi bi-circle-fill text-success" style="font-size: 0.6rem;"></i> 
           Statistics & Reports
         </h3>
-        <p class="text-muted small mb-0">In-depth performance analytics, delivery tracking, Meta messaging spend, and agent efficiency metrics.</p>
+        <p class="text-muted small mb-0">In-depth performance analytics, delivery tracking<span v-if="canViewCost">, Meta messaging spend</span>, and agent efficiency metrics.</p>
       </div>
       
       <div class="d-flex flex-wrap align-items-center gap-2">
@@ -101,7 +101,7 @@
         <button class="nav-link" data-bs-toggle="pill" data-bs-target="#campaigns">
           <i class="bi bi-megaphone me-1"></i> Campaign Performance
         </button>
-        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#whatsapp">
+        <button v-if="canViewCost" class="nav-link" data-bs-toggle="pill" data-bs-target="#whatsapp">
           <i class="bi bi-whatsapp me-1"></i> WhatsApp Templates & Cost
         </button>
         <button class="nav-link" data-bs-toggle="pill" data-bs-target="#agents">
@@ -116,7 +116,7 @@
           <!-- KPI Cards -->
           <div class="row g-3 mb-4">
             <!-- Dispatched -->
-            <div class="col-12 col-md-6 col-lg-3">
+            <div :class="canViewCost ? 'col-12 col-md-6 col-lg-3' : 'col-12 col-md-4'">
               <div class="card h-100 border-0 shadow-sm border-start border-4 border-dark">
                 <div class="card-body">
                   <div class="d-flex justify-content-between align-items-start mb-2">
@@ -133,7 +133,7 @@
             </div>
             
             <!-- Delivery -->
-            <div class="col-12 col-md-6 col-lg-3">
+            <div :class="canViewCost ? 'col-12 col-md-6 col-lg-3' : 'col-12 col-md-4'">
               <div class="card h-100 border-0 shadow-sm border-start border-4 border-success">
                 <div class="card-body">
                   <div class="d-flex justify-content-between align-items-start mb-2">
@@ -150,7 +150,7 @@
             </div>
 
             <!-- Spend -->
-            <div class="col-12 col-md-6 col-lg-3">
+            <div v-if="canViewCost" class="col-12 col-md-6 col-lg-3">
               <div class="card h-100 border-0 shadow-sm border-start border-4 border-primary">
                 <div class="card-body">
                   <div class="d-flex justify-content-between align-items-start mb-2">
@@ -167,7 +167,7 @@
             </div>
 
             <!-- Assets -->
-            <div class="col-12 col-md-6 col-lg-3">
+            <div :class="canViewCost ? 'col-12 col-md-6 col-lg-3' : 'col-12 col-md-4'">
               <div class="card h-100 border-0 shadow-sm border-start border-4 border-secondary position-relative overflow-hidden">
                 <div class="card-body">
                   <div class="d-flex justify-content-between align-items-start mb-2">
@@ -190,7 +190,7 @@
 
           <!-- Chart Section -->
           <div class="row g-3 mb-4">
-            <div class="col-12 col-lg-8 col-xl-9">
+            <div :class="canViewCost ? 'col-12 col-lg-8 col-xl-9' : 'col-12'">
               <div class="card border-0 shadow-sm h-100">
                 <div class="card-body p-4">
                   <div class="d-flex justify-content-between align-items-start mb-4">
@@ -242,7 +242,7 @@
             </div>
             
             <!-- Right Sidebar -->
-            <div class="col-12 col-lg-4 col-xl-3">
+            <div v-if="canViewCost" class="col-12 col-lg-4 col-xl-3">
               <div class="d-flex flex-column h-100 gap-3">
                 <!-- Spend Breakdown -->
                 <div class="card border-0 shadow-sm flex-grow-1">
@@ -316,7 +316,7 @@
         </div>
 
         <!-- TEMPLATES TAB -->
-        <div class="tab-pane fade" id="whatsapp">
+        <div v-if="canViewCost" class="tab-pane fade" id="whatsapp">
           <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
               <div>
@@ -507,12 +507,12 @@
                       <th class="text-end">OPT-OUTS</th>
                       <th class="text-end">PTP</th>
                       <th class="text-end">DEBIT ORDER</th>
-                      <th class="text-end">EST. META COST</th>
+                      <th v-if="canViewCost" class="text-end">EST. META COST</th>
                     </tr>
                   </thead>
                   <tbody class="border-top-0">
                     <tr v-if="filteredCampaigns.length === 0">
-                      <td colspan="14" class="text-center py-4 text-muted">
+                      <td :colspan="canViewCost ? 14 : 13" class="text-center py-4 text-muted">
                         No campaigns found matching the current criteria.
                       </td>
                     </tr>
@@ -560,7 +560,7 @@
                         <div class="text-success fw-semibold">{{ cmp.debit_order }}</div>
                         <div class="text-muted" style="font-size: 0.7rem;">Not set: {{ cmp.payment_not_set }}</div>
                       </td>
-                      <td class="text-end">
+                      <td v-if="canViewCost" class="text-end">
                         <div class="fw-semibold text-dark">{{ cmp.cost }}</div>
                         <div class="text-muted" style="font-size: 0.7rem;" v-if="cmp.rate && cmp.template_category">
                           {{ cmp.rate }} ({{ cmp.template_category }})
@@ -745,6 +745,7 @@ export default {
       systemName: 'SR Solution',
       appShortName: 'SR',
       loading: true,
+      backendCanViewCost: null,
       timeframe: 'daily',
       dateRange: 'last_30_days',
       selectedBankId: 'all',
@@ -892,6 +893,12 @@ export default {
         return false;
       }
     },
+    canViewCost() {
+      if (typeof this.backendCanViewCost === 'boolean') {
+        return this.backendCanViewCost;
+      }
+      return this.isSuperAdmin || this.hasPermission('view_analytics_cost');
+    },
   },
   watch: {
     campaignSearch() {
@@ -916,6 +923,25 @@ export default {
     this.fetchData();
   },
   methods: {
+    hasPermission(permCode) {
+      const stored = localStorage.getItem('nexus_user');
+      if (!stored) return false;
+      try {
+        const user = JSON.parse(stored);
+        const roles = Array.isArray(user.role_codes) && user.role_codes.length
+          ? user.role_codes
+          : [user.role].filter(Boolean);
+        if (roles.includes('SUPER_ADMIN')) {
+          return true;
+        }
+        if (Array.isArray(user.permission_codes)) {
+          return user.permission_codes.includes(permCode);
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    },
     async fetchBanks() {
       try {
         const res = await axios.get('/api/banks', { params: { per_page: 200 } });
@@ -977,6 +1003,10 @@ export default {
         });
         const data = response.data;
         
+        if (typeof data.can_view_cost === 'boolean') {
+          this.backendCanViewCost = data.can_view_cost;
+        }
+
         if (data.system_name) {
           this.systemName = data.system_name;
         }
@@ -1028,7 +1058,9 @@ export default {
       const totalCost = exportList.reduce((acc, c) => acc + cleanFloat(c.cost), 0);
       const overallDeliveryRate = totalSent > 0 ? ((totalDeliveredCombined / totalSent) * 100).toFixed(1) + '%' : '0.0%';
 
-      const title = 'Campaign Performance & Financial Report';
+      const title = this.canViewCost
+        ? 'Campaign Performance & Financial Report'
+        : 'Campaign Performance Report';
 
       const metadata = [
         { label: 'System Console', value: systemName },
@@ -1054,8 +1086,11 @@ export default {
         { label: 'Promises to Pay (PTP)', value: String(totalPtp) },
         { label: 'Debit Orders Captured', value: String(totalDebitOrder) },
         { label: 'Payment Options Not Set', value: String(totalPaymentNotSet) },
-        { label: 'Total Estimated Meta Cost', value: '$' + totalCost.toFixed(2) },
       ];
+
+      if (this.canViewCost) {
+        summaryKpis.push({ label: 'Total Estimated Meta Cost', value: '$' + totalCost.toFixed(2) });
+      }
 
       const tableHeaders = [
         'Campaign Name',
@@ -1076,34 +1111,38 @@ export default {
         'PTP',
         'Debit Order',
         'Payment Not Set',
-        'Template Category',
-        'Rate / Msg',
-        'Estimated Meta Cost',
       ];
 
-      const tableRows = exportList.map((c) => [
-        c.name,
-        c.id,
-        c.bank,
-        c.batch,
-        c.status,
-        c.created_at || 'N/A',
-        c.sent,
-        c.delivered_read || '0',
-        c.delivered_unread || '0',
-        c.delivered || '0',
-        c.failed || '0',
-        c.delivery,
-        c.replies,
-        c.quick_replies,
-        c.opt_outs,
-        c.ptp,
-        c.debit_order,
-        c.payment_not_set,
-        c.template_category || 'N/A',
-        c.rate || 'N/A',
-        c.cost,
-      ]);
+      if (this.canViewCost) {
+        tableHeaders.push('Template Category', 'Rate / Msg', 'Estimated Meta Cost');
+      }
+
+      const tableRows = exportList.map((c) => {
+        const row = [
+          c.name,
+          c.id,
+          c.bank,
+          c.batch,
+          c.status,
+          c.created_at || 'N/A',
+          c.sent,
+          c.delivered_read || '0',
+          c.delivered_unread || '0',
+          c.delivered || '0',
+          c.failed || '0',
+          c.delivery,
+          c.replies,
+          c.quick_replies,
+          c.opt_outs,
+          c.ptp,
+          c.debit_order,
+          c.payment_not_set,
+        ];
+        if (this.canViewCost) {
+          row.push(c.template_category || 'N/A', c.rate || 'N/A', c.cost);
+        }
+        return row;
+      });
 
       const totalsRow = [
         'GRAND TOTAL',
@@ -1124,10 +1163,11 @@ export default {
         totalPtp,
         totalDebitOrder,
         totalPaymentNotSet,
-        '',
-        '',
-        '$' + totalCost.toFixed(2),
       ];
+
+      if (this.canViewCost) {
+        totalsRow.push('', '', '$' + totalCost.toFixed(2));
+      }
 
       if (format === 'pdf') {
         exportToPdf({
@@ -1162,7 +1202,7 @@ export default {
       } else {
         // CSV format
         const fileRows = [];
-        fileRows.push([`${systemName.toUpperCase()} - CAMPAIGN PERFORMANCE & FINANCIAL REPORT`]);
+        fileRows.push([`${systemName.toUpperCase()} - ${title.toUpperCase()}`]);
         fileRows.push(['Report Generated At', generatedAt]);
         fileRows.push(['Filter Period', dateRangeLabel]);
         fileRows.push(['Institution / Department', bankLabel]);

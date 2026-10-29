@@ -256,6 +256,11 @@ class User extends Authenticatable
         return $this->isSuperAdmin() || $this->hasPermission('view_analytics');
     }
 
+    public function canViewAnalyticsCost(): bool
+    {
+        return $this->isSuperAdmin() || $this->hasPermission('view_analytics_cost');
+    }
+
     public function canAccessWabaProfileSettings(): bool
     {
         return $this->isSuperAdmin() || $this->hasPermission('settings_waba_profile');

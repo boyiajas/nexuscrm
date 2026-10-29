@@ -31,6 +31,8 @@ class AnalyticsController extends Controller
             return response()->json(['message' => 'Unauthorized access to Analytics & Reports.'], 403);
         }
         
+        $canViewCost = (bool) $user?->canViewAnalyticsCost();
+
         $timeframe = $request->query('timeframe', 'daily');
         $dateRange = $request->query('date_range');
         $bankId = $request->query('bank_id');
@@ -154,7 +156,7 @@ class AnalyticsController extends Controller
         $spendUtility = 0.0;
         $spendAuth = 0.0;
 
-        $campaignsData = $campaignsCollection->map(function ($cmp) use ($user, $templateCaches, &$campaignReports, &$totalMarketingMsgs, &$totalUtilityMsgs, &$totalAuthMsgs, &$spendMarketing, &$spendUtility, &$spendAuth) {
+        $campaignsData = $campaignsCollection->map(function ($cmp) use ($user, $canViewCost, $templateCaches, &$campaignReports, &$totalMarketingMsgs, &$totalUtilityMsgs, &$totalAuthMsgs, &$spendMarketing, &$spendUtility, &$spendAuth) {
             $report = $this->campaignReportService->build(
                 $cmp,
                 !$user?->isSuperAdmin()
@@ -218,8 +220,8 @@ class AnalyticsController extends Controller
                 'ptp' => $report['payment_options']['ptp'],
                 'debit_order' => $report['payment_options']['debit_order'],
                 'payment_not_set' => $report['payment_options']['not_set'],
-                'cost' => '$' . number_format($cost, 2),
-                'rate' => '$' . number_format($rate, 4),
+                'cost' => $canViewCost ? '$' . number_format($cost, 2) : null,
+                'rate' => $canViewCost ? '$' . number_format($rate, 4) : null,
                 'template_category' => $templateCategory,
                 'template_name' => $templateName,
                 'recoveryPct' => 'N/A',
@@ -624,7 +626,8 @@ class AnalyticsController extends Controller
                 $deliveredTpl,
                 $repliedTpl,
                 $cNames,
-                $bankName
+                $bankName,
+                $canViewCost
             );
         }
 
@@ -660,7 +663,8 @@ class AnalyticsController extends Controller
                 $deliveredTpl,
                 $repliedTpl,
                 $cNames,
-                $bankName
+                $bankName,
+                $canViewCost
             );
         }
 
@@ -795,6 +799,7 @@ class AnalyticsController extends Controller
         });
 
         return response()->json([
+            'can_view_cost' => $canViewCost,
             'summary' => [
                 'dispatched' => number_format($dispatched),
                 'delivered' => number_format($delivered),
@@ -804,29 +809,52 @@ class AnalyticsController extends Controller
                 'read_rate' => $readRate . '%',
                 'engagement_rate' => $engagementRate . '%',
             ],
-            'spend' => [
+            'spend' => $canViewCost ? [
                 'total' => '$' . number_format($totalSpend, 2),
                 'avg_per_delivered' => '$' . number_format($avgSpend, 3),
                 'marketing' => [
                     'cost' => '$' . number_format($spendMarketing, 2),
                     'msgs' => number_format($totalMarketingMsgs),
                     'rate' => '$0.0175',
-                    'pct' => $totalAccepted > 0 ? round(($totalMarketingMsgs / $totalAccepted) * 100) : 0
+                    'pct' => $totalAccepted > 0 ? round(($totalMarketingMsgs / $totalAccepted) * 100) : 0,
                 ],
                 'utility' => [
                     'cost' => '$' . number_format($spendUtility, 2),
                     'msgs' => number_format($totalUtilityMsgs),
                     'rate' => '$0.0076',
-                    'pct' => $totalAccepted > 0 ? round(($totalUtilityMsgs / $totalAccepted) * 100) : 0
+                    'pct' => $totalAccepted > 0 ? round(($totalUtilityMsgs / $totalAccepted) * 100) : 0,
                 ],
                 'auth' => [
                     'cost' => '$' . number_format($spendAuth, 2),
                     'msgs' => number_format($totalAuthMsgs),
                     'rate' => '$0.0076',
-                    'pct' => $totalAccepted > 0 ? round(($totalAuthMsgs / $totalAccepted) * 100) : 0
+                    'pct' => $totalAccepted > 0 ? round(($totalAuthMsgs / $totalAccepted) * 100) : 0,
                 ],
                 'recovery_multiplier' => '$' . number_format($recoveryMultiplier, 2),
                 'recovery_amount' => '$' . number_format($recoveryAmount, 2),
+            ] : [
+                'total' => null,
+                'avg_per_delivered' => null,
+                'marketing' => [
+                    'cost' => null,
+                    'msgs' => number_format($totalMarketingMsgs),
+                    'rate' => null,
+                    'pct' => $totalAccepted > 0 ? round(($totalMarketingMsgs / $totalAccepted) * 100) : 0,
+                ],
+                'utility' => [
+                    'cost' => null,
+                    'msgs' => number_format($totalUtilityMsgs),
+                    'rate' => null,
+                    'pct' => $totalAccepted > 0 ? round(($totalUtilityMsgs / $totalAccepted) * 100) : 0,
+                ],
+                'auth' => [
+                    'cost' => null,
+                    'msgs' => number_format($totalAuthMsgs),
+                    'rate' => null,
+                    'pct' => $totalAccepted > 0 ? round(($totalAuthMsgs / $totalAccepted) * 100) : 0,
+                ],
+                'recovery_multiplier' => null,
+                'recovery_amount' => null,
             ],
             'assets' => [
                 'campaigns' => $activeCampaigns,
@@ -961,7 +989,8 @@ class AnalyticsController extends Controller
         int $delivered,
         int $replied,
         array $campaignNames,
-        ?string $bankName = null
+        ?string $bankName = null,
+        bool $canViewCost = true
     ): array {
         $catUpper = strtoupper(trim($category ?: 'UTILITY'));
         $rate = match ($catUpper) {
@@ -997,8 +1026,8 @@ class AnalyticsController extends Controller
             'sent' => number_format($sent),
             'delivery' => number_format($deliveryRate, 1) . '%',
             'reply' => number_format($replyRate, 1) . '%',
-            'rate' => '$' . number_format($rate, 4),
-            'cost' => '$' . number_format($cost, 2),
+            'rate' => $canViewCost ? '$' . number_format($rate, 4) : null,
+            'cost' => $canViewCost ? '$' . number_format($cost, 2) : null,
             'status' => $status,
         ];
     }

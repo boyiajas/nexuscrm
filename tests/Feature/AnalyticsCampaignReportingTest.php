@@ -553,12 +553,116 @@ class AnalyticsCampaignReportingTest extends TestCase
         $this->assertNotContains('Campaign Bank B', $campaignNames);
 
         $this->assertSame('1', $resAll->json('summary.dispatched'));
-        $this->assertSame('$1,500.00', $resAll->json('spend.recovery_amount'));
+        // Manager without view_analytics_cost has spend redacted
+        $this->assertFalse($resAll->json('can_view_cost'));
+        $this->assertNull($resAll->json('spend.recovery_amount'));
+
+        // When manager is granted view_analytics_cost, recovery_amount is visible
+        $costPerm = \App\Models\Permission::query()->where('code', 'view_analytics_cost')->first();
+        if ($costPerm) {
+            $managerRole->permissions()->attach($costPerm->id);
+        }
+        $resWithCost = $this->getJson('/api/analytics?bank_id=all')->assertOk();
+        $this->assertTrue($resWithCost->json('can_view_cost'));
+        $this->assertSame('$1,500.00', $resWithCost->json('spend.recovery_amount'));
 
         // 3. Attempting to access Bank B directly via bank_id param is rejected/empty
         $resB = $this->getJson("/api/analytics?bank_id={$bankB->id}")->assertOk();
         $this->assertEmpty($resB->json('tables.campaigns'));
         $this->assertSame('0', $resB->json('summary.dispatched'));
+    }
+
+    public function test_analytics_cost_visibility_permission_controls_spend_and_rates(): void
+    {
+        [$superAdmin, $bank] = $this->createSuperAdminAndBank();
+
+        $client = Client::query()->create([
+            'name' => 'Cost Test Client',
+            'phone' => '+27820000088',
+            'bank_id' => $bank->id,
+        ]);
+
+        $campaign = Campaign::query()->create([
+            'name' => 'Marketing Campaign',
+            'bank_id' => $bank->id,
+            'status' => 'Active',
+            'channels' => ['whatsapp'],
+        ]);
+
+        $msg = CampaignWhatsappMessage::query()->create([
+            'campaign_id' => $campaign->id,
+            'template_name' => 'discount_special',
+            'total_recipients' => 1,
+            'status' => 'sent',
+        ]);
+
+        CampaignWhatsappRecipient::query()->create([
+            'campaign_id' => $campaign->id,
+            'whatsapp_message_id' => $msg->id,
+            'client_id' => $client->id,
+            'phone' => $client->phone,
+            'status' => 'delivered',
+        ]);
+
+        // 1. Super admin can always see cost
+        Sanctum::actingAs($superAdmin);
+        $resSuper = $this->getJson('/api/analytics')->assertOk();
+        $this->assertTrue($resSuper->json('can_view_cost'));
+        $this->assertNotNull($resSuper->json('spend.total'));
+        $this->assertNotNull($resSuper->json('tables.campaigns.0.cost'));
+        $this->assertNotNull($resSuper->json('tables.campaigns.0.rate'));
+
+        // 2. User with role having view_analytics but NOT view_analytics_cost
+        $userRole = Role::query()->create([
+            'code' => 'ANALYTICS_NO_COST',
+            'name' => 'Analytics Without Cost',
+            'whatsapp_daily_limit' => 100,
+            'watermark_enabled' => true,
+            'is_system' => false,
+            'is_active' => true,
+        ]);
+        $viewAnalyticsPerm = \App\Models\Permission::query()->where('code', 'view_analytics')->firstOrFail();
+        $userRole->permissions()->attach($viewAnalyticsPerm->id);
+
+        $dept = Department::query()->create(['name' => 'Cost Dept', 'code' => 'cost-dept']);
+        $client->departments()->sync([$dept->id]);
+        $campaign->departments()->sync([$dept->id]);
+
+        $limitedUser = User::factory()->create([
+            'bank_id' => $bank->id,
+            'role' => $userRole->code,
+            'status' => 'Active',
+            'password_reset_required' => false,
+            'password_changed_at' => now(),
+        ]);
+        $limitedUser->roles()->sync([$userRole->id]);
+        $limitedUser->banks()->sync([$bank->id]);
+        $limitedUser->departments()->sync([$dept->id]);
+
+        Sanctum::actingAs($limitedUser);
+        $resLimited = $this->getJson('/api/analytics')->assertOk();
+        $this->assertFalse($resLimited->json('can_view_cost'));
+        $this->assertNull($resLimited->json('spend.total'));
+        $this->assertNull($resLimited->json('spend.avg_per_delivered'));
+        $this->assertNull($resLimited->json('spend.marketing.cost'));
+        $this->assertNull($resLimited->json('spend.marketing.rate'));
+        $this->assertNull($resLimited->json('spend.recovery_multiplier'));
+        $this->assertNull($resLimited->json('tables.campaigns.0.cost'));
+        $this->assertNull($resLimited->json('tables.campaigns.0.rate'));
+
+        // Summary message counts remain visible
+        $this->assertSame('1', $resLimited->json('summary.dispatched'));
+        $this->assertSame('1', $resLimited->json('summary.delivered'));
+
+        // 3. Granting view_analytics_cost to the role restores cost metrics
+        $costPerm = \App\Models\Permission::query()->where('code', 'view_analytics_cost')->firstOrFail();
+        $userRole->permissions()->attach($costPerm->id);
+
+        $resGranted = $this->getJson('/api/analytics')->assertOk();
+        $this->assertTrue($resGranted->json('can_view_cost'));
+        $this->assertNotNull($resGranted->json('spend.total'));
+        $this->assertNotNull($resGranted->json('tables.campaigns.0.cost'));
+        $this->assertNotNull($resGranted->json('tables.campaigns.0.rate'));
     }
 
     private function createSuperAdminAndBank(): array
