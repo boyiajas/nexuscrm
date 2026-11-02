@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SettingsController extends Controller
 {
@@ -153,6 +154,120 @@ class SettingsController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Failed to fetch phone numbers from Meta: ' . $e->getMessage()], 422);
         }
+    }
+
+    public function exportMetaPhoneNumbers(Request $request): StreamedResponse
+    {
+        $this->authorizeAdmin();
+
+        $format = strtolower($request->query('format', 'excel'));
+        $isCsv = in_array($format, ['csv'], true);
+        $fileName = 'waba_phone_numbers_' . now()->format('Ymd_His') . ($isCsv ? '.csv' : '.xls');
+
+        return response()->streamDownload(function () use ($isCsv) {
+            $service = app(MetaWhatsAppService::class);
+            $numbers = collect($service->getPhoneNumbers())->values();
+            $profiles = WhatsappAccount::query()
+                ->get(['id', 'name', 'phone_number_id', 'display_phone_number']);
+            $profilesByPhoneId = $profiles
+                ->filter(fn (WhatsappAccount $profile) => filled($profile->phone_number_id))
+                ->keyBy(fn (WhatsappAccount $profile) => (string) $profile->phone_number_id);
+            $profilesByDisplayNumber = $profiles
+                ->filter(fn (WhatsappAccount $profile) => filled($profile->display_phone_number))
+                ->keyBy(fn (WhatsappAccount $profile) => preg_replace('/\D+/', '', (string) $profile->display_phone_number));
+
+            $numberControlService = app(WhatsAppNumberControlService::class);
+            $numbers = $numbers->map(function (array $number) use ($profilesByPhoneId, $profilesByDisplayNumber, $numberControlService) {
+                $profile = $profilesByPhoneId->get((string) ($number['id'] ?? ''));
+                if (!$profile) {
+                    $normalizedDisplayNumber = preg_replace('/\D+/', '', (string) ($number['display_phone_number'] ?? ''));
+                    $profile = $profilesByDisplayNumber->get($normalizedDisplayNumber);
+                }
+
+                $controlStatus = $numberControlService->statusFor(
+                    isset($number['id']) ? (string) $number['id'] : null,
+                    $number['display_phone_number'] ?? null,
+                    $number['quality_rating'] ?? null
+                );
+
+                return array_merge($number, [
+                    'whatsapp_profile_id' => $profile?->id,
+                    'whatsapp_profile_name' => $profile?->name,
+                ], $controlStatus);
+            });
+
+            $headers = [
+                'Display Number',
+                'Phone Number ID',
+                'Verified Name',
+                'Requested Display Name',
+                'WhatsApp Profile',
+                'Quality Rating',
+                'Code Verification Status',
+                'Name Approval Status',
+                'Messaging Tier',
+                'Operational Status',
+            ];
+
+            if ($isCsv) {
+                echo "\xEF\xBB\xBF";
+                $out = fopen('php://output', 'w');
+                fputcsv($out, $headers);
+                foreach ($numbers as $num) {
+                    $requestedName = !empty($num['new_display_name'])
+                        ? $num['new_display_name'] . ' (' . ($num['new_name_status'] ?? 'PENDING') . ')'
+                        : '-';
+                    $operational = !empty($num['is_paused']) ? 'Paused' : 'Active';
+                    fputcsv($out, [
+                        $num['display_phone_number'] ?? '-',
+                        $num['id'] ?? '-',
+                        $num['verified_name'] ?? '-',
+                        $requestedName,
+                        $num['whatsapp_profile_name'] ?? 'Not linked',
+                        $num['quality_rating'] ?? 'UNKNOWN',
+                        $num['code_verification_status'] ?? 'UNVERIFIED',
+                        $num['name_status'] ?? 'PENDING',
+                        $num['messaging_limit_tier'] ?? '-',
+                        $operational,
+                    ]);
+                }
+                fclose($out);
+            } else {
+                echo "\xEF\xBB\xBF";
+                echo '<html><head><meta charset="UTF-8"><title>WABA Phone Numbers</title></head><body>';
+                echo '<table border="1" style="border-collapse: collapse; font-family: sans-serif; font-size: 10pt;">';
+                echo '<thead><tr>';
+                foreach ($headers as $heading) {
+                    echo '<th style="background-color: #0284c7; color: #ffffff; font-weight: bold; padding: 6px 10px;">' . htmlspecialchars($heading, ENT_QUOTES, 'UTF-8') . '</th>';
+                }
+                echo '</tr></thead><tbody>';
+
+                foreach ($numbers as $num) {
+                    $requestedName = !empty($num['new_display_name'])
+                        ? $num['new_display_name'] . ' (' . ($num['new_name_status'] ?? 'PENDING') . ')'
+                        : '-';
+                    $operational = !empty($num['is_paused']) ? 'Paused' : 'Active';
+
+                    echo '<tr>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($num['display_phone_number'] ?? '-', ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px; font-family: monospace;">' . htmlspecialchars($num['id'] ?? '-', ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($num['verified_name'] ?? '-', ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($requestedName, ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($num['whatsapp_profile_name'] ?? 'Not linked', ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($num['quality_rating'] ?? 'UNKNOWN', ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($num['code_verification_status'] ?? 'UNVERIFIED', ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($num['name_status'] ?? 'PENDING', ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($num['messaging_limit_tier'] ?? '-', ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td style="padding: 5px 8px;">' . htmlspecialchars($operational, ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '</tr>';
+                }
+
+                echo '</tbody></table></body></html>';
+            }
+        }, $fileName, [
+            'Content-Type' => $isCsv ? 'text/csv; charset=UTF-8' : 'application/vnd.ms-excel',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+        ]);
     }
 
     public function submitMetaPhoneNumber(Request $request)

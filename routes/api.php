@@ -166,6 +166,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('settings/meta/webhook-subscriptions', [SettingsController::class, 'getWebhookSubscriptions']);
 
     Route::get('settings/meta/phone-numbers', [SettingsController::class, 'fetchMetaPhoneNumbers']);
+    Route::get('settings/meta/phone-numbers/export', [SettingsController::class, 'exportMetaPhoneNumbers']);
     Route::post('settings/meta/phone-numbers', [SettingsController::class, 'submitMetaPhoneNumber']);
     Route::post('settings/meta/phone-numbers/request-verification', [SettingsController::class, 'requestMetaPhoneVerification']);
     Route::post('/settings/meta/phone-numbers/verify', [App\Http\Controllers\Api\SettingsController::class, 'verifyMetaPhoneNumber']);

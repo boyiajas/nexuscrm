@@ -260,4 +260,64 @@ class WhatsAppPhoneNumberProfileTest extends TestCase
         ]);
         $response->assertForbidden();
     }
+
+    public function test_admin_can_export_registered_waba_phone_numbers_in_excel_and_csv_formats(): void
+    {
+        $wabaId = '406811385845304';
+        Http::fake([
+            "https://graph.facebook.com/v25.0/{$wabaId}/phone_numbers*" => Http::response([
+                'data' => [
+                    [
+                        'id' => '773609549180055',
+                        'display_phone_number' => '+1 555-835-5133',
+                        'verified_name' => 'Strauss Daly CRM',
+                        'quality_rating' => 'GREEN',
+                        'code_verification_status' => 'VERIFIED',
+                        'name_status' => 'APPROVED',
+                        'new_display_name' => 'Strauss Daly Legal Services',
+                        'new_name_status' => 'APPROVAL_PENDING',
+                        'messaging_limit_tier' => 'TIER_10K',
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        Sanctum::actingAs($this->adminUser);
+
+        // Test Excel export (default)
+        $excelResponse = $this->get('/api/settings/meta/phone-numbers/export?format=excel');
+        $excelResponse->assertOk();
+        $this->assertStringContainsString('application/vnd.ms-excel', $excelResponse->headers->get('content-type'));
+        $excelContent = $excelResponse->streamedContent();
+        $this->assertStringContainsString('Display Number', $excelContent);
+        $this->assertStringContainsString('Phone Number ID', $excelContent);
+        $this->assertStringContainsString('Verified Name', $excelContent);
+        $this->assertStringContainsString('WhatsApp Profile', $excelContent);
+        $this->assertStringContainsString('Quality Rating', $excelContent);
+        $this->assertStringContainsString('+1 555-835-5133', $excelContent);
+        $this->assertStringContainsString('773609549180055', $excelContent);
+        $this->assertStringContainsString('Strauss Daly CRM', $excelContent);
+        $this->assertStringContainsString('Strauss Daly Legal Services (APPROVAL_PENDING)', $excelContent);
+
+        // Test CSV export
+        $csvResponse = $this->get('/api/settings/meta/phone-numbers/export?format=csv');
+        $csvResponse->assertOk();
+        $this->assertStringContainsString('text/csv', $csvResponse->headers->get('content-type'));
+        $csvContent = $csvResponse->streamedContent();
+        $this->assertStringContainsString('Display Number', $csvContent);
+        $this->assertStringContainsString('Phone Number ID', $csvContent);
+        $this->assertStringContainsString('Verified Name', $csvContent);
+        $this->assertStringContainsString('+1 555-835-5133', $csvContent);
+        $this->assertStringContainsString('773609549180055', $csvContent);
+        $this->assertStringContainsString('Strauss Daly CRM', $csvContent);
+    }
+
+    public function test_regular_user_is_forbidden_from_exporting_waba_phone_numbers(): void
+    {
+        Sanctum::actingAs($this->regularUser);
+
+        $response = $this->get('/api/settings/meta/phone-numbers/export');
+        $response->assertForbidden();
+    }
 }
+

@@ -1084,7 +1084,60 @@
             <h5 class="mb-1">WhatsApp Phone Numbers</h5>
             <small class="text-muted">Submit, verify, register, and manage numbers associated with your WhatsApp Business Account (WABA).</small>
           </div>
-          <div class="d-flex gap-2">
+          <div class="d-flex flex-wrap gap-2">
+            <div class="dropdown">
+              <button
+                type="button"
+                class="btn btn-outline-success btn-sm dropdown-toggle d-flex align-items-center gap-1 shadow-sm"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                :disabled="wn.loading || !wn.numbers.length || wn.exporting"
+                title="Export registered WhatsApp numbers"
+              >
+                <span v-if="wn.exporting" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                <i v-else class="bi bi-file-earmark-arrow-down me-1"></i>
+                <span>Export Numbers</span>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 py-2" style="min-width: 220px; z-index: 1050;">
+                <li><h6 class="dropdown-header text-uppercase small fw-bold text-muted">Select Export Format</h6></li>
+                <li>
+                  <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportWhatsappNumbers('excel')">
+                    <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                    <div>
+                      <div class="fw-semibold">Excel Workbook (.xls)</div>
+                      <small class="text-muted">Formatted spreadsheet</small>
+                    </div>
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportWhatsappNumbers('csv')">
+                    <i class="bi bi-filetype-csv text-secondary fs-5"></i>
+                    <div>
+                      <div class="fw-semibold">CSV Spreadsheet (.csv)</div>
+                      <small class="text-muted">Comma-separated values</small>
+                    </div>
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportWhatsappNumbers('pdf')">
+                    <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                    <div>
+                      <div class="fw-semibold">PDF Document (.pdf)</div>
+                      <small class="text-muted">Printable summary document</small>
+                    </div>
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportWhatsappNumbers('word')">
+                    <i class="bi bi-file-earmark-word text-primary fs-5"></i>
+                    <div>
+                      <div class="fw-semibold">Word Document (.doc)</div>
+                      <small class="text-muted">Editable document memo</small>
+                    </div>
+                  </a>
+                </li>
+              </ul>
+            </div>
             <button class="btn btn-outline-primary btn-sm" @click="fetchWhatsappNumbers" :disabled="wn.loading">
               <span v-if="wn.loading" class="spinner-border spinner-border-sm me-1"></span>
               Refresh
@@ -1180,6 +1233,71 @@
         </div>
 
         <div class="card shadow-sm border mb-4">
+          <div class="card-header bg-white py-2 px-3 d-flex flex-wrap justify-content-between align-items-center gap-2 border-bottom">
+            <div class="d-flex align-items-center gap-2">
+              <span class="fw-bold small text-dark">
+                <i class="bi bi-telephone-fill text-success me-1"></i> Registered Phone Numbers
+              </span>
+              <span v-if="wn.numbers.length" class="badge bg-light text-secondary border">
+                {{ wn.numbers.length }} number{{ wn.numbers.length === 1 ? '' : 's' }}
+              </span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <div class="dropdown">
+                <button
+                  type="button"
+                  class="btn btn-outline-success btn-xs py-1 px-2 dropdown-toggle d-flex align-items-center gap-1 shadow-none"
+                  style="font-size: 0.75rem;"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  :disabled="wn.loading || !wn.numbers.length || wn.exporting"
+                  title="Export table data"
+                >
+                  <i class="bi bi-file-earmark-arrow-down"></i>
+                  <span>Export Numbers</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 py-2" style="min-width: 220px; z-index: 1050;">
+                  <li><h6 class="dropdown-header text-uppercase small fw-bold text-muted" style="font-size: 0.7rem;">Select Export Format</h6></li>
+                  <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportWhatsappNumbers('excel')">
+                      <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                      <div>
+                        <div class="fw-semibold">Excel Workbook (.xls)</div>
+                        <small class="text-muted">Formatted spreadsheet</small>
+                      </div>
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportWhatsappNumbers('csv')">
+                      <i class="bi bi-filetype-csv text-secondary fs-5"></i>
+                      <div>
+                        <div class="fw-semibold">CSV Spreadsheet (.csv)</div>
+                        <small class="text-muted">Comma-separated values</small>
+                      </div>
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportWhatsappNumbers('pdf')">
+                      <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                      <div>
+                        <div class="fw-semibold">PDF Document (.pdf)</div>
+                        <small class="text-muted">Printable summary document</small>
+                      </div>
+                    </a>
+                  </li>
+                  <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2 py-2" href="#" @click.prevent="exportWhatsappNumbers('word')">
+                      <i class="bi bi-file-earmark-word text-primary fs-5"></i>
+                      <div>
+                        <div class="fw-semibold">Word Document (.doc)</div>
+                        <small class="text-muted">Editable document memo</small>
+                      </div>
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
           <div class="card-body p-0">
             <div v-if="wn.loading" class="p-4 text-center text-muted">
               <span class="spinner-border spinner-border-sm me-2"></span>
@@ -3933,6 +4051,7 @@ import ConfirmationModal from '../components/ConfirmationModal.vue';
 import TableLoadingWrapper from '../components/TableLoadingWrapper.vue';
 import { createManagedModal, disposeManagedModal } from '../utils/modal';
 import { notify } from '../utils/notify';
+import { exportToCsv, exportToExcel, exportToWord, exportToPdf } from '../utils/reportExporter';
 import 'vue-multiselect/dist/vue-multiselect.min.css';
 
 export default {
@@ -4103,6 +4222,7 @@ export default {
       wn: {
         loading: false,
         saving: false,
+        exporting: false,
         pendingRequesting: false,
         selectedPendingIds: [],
         numbers: [],
@@ -6750,6 +6870,135 @@ export default {
           }
         },
       });
+    },
+    exportWhatsappNumbers(format = 'excel') {
+      const exportList = this.wn.numbers || [];
+      if (!exportList.length) {
+        notify.warning('No WhatsApp phone numbers available to export.', 'WABA Numbers');
+        return;
+      }
+
+      this.wn.exporting = true;
+      try {
+        let systemName = this.system?.form?.app_name || 'SR Solution';
+        try {
+          const stored = JSON.parse(localStorage.getItem('nexus_branding') || '{}');
+          if (stored.app_name) {
+            systemName = stored.app_name;
+          }
+        } catch (e) {}
+
+        const now = new Date();
+        const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        const fileDate = now.toISOString().slice(0, 10);
+        const cleanSysName = systemName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+        const filenameBase = `${cleanSysName}_WABA_Phone_Numbers_${fileDate}`;
+
+        const title = 'WhatsApp Business Account (WABA) Registered Phone Numbers';
+        const wabaId = this.meta?.form?.meta_whatsapp_business_account_id || 'N/A';
+
+        const metadata = [
+          { label: 'System Console', value: systemName },
+          { label: 'Report Generated At', value: generatedAt },
+          { label: 'WhatsApp Business Account ID', value: String(wabaId) },
+          { label: 'Total Numbers Registered', value: String(exportList.length) },
+        ];
+
+        const highQuality = exportList.filter(n => ['GREEN', 'HIGH'].includes(String(n.quality_rating || '').toUpperCase())).length;
+        const verified = exportList.filter(n => String(n.code_verification_status || '').toUpperCase() === 'VERIFIED').length;
+        const approvedName = exportList.filter(n => String(n.name_status || '').toUpperCase() === 'APPROVED').length;
+        const paused = exportList.filter(n => n.is_paused).length;
+
+        const summaryKpis = [
+          { label: 'Total Provisioned Numbers', value: String(exportList.length) },
+          { label: 'High Quality (GREEN)', value: String(highQuality) },
+          { label: 'Verified Ownership', value: String(verified) },
+          { label: 'Approved Display Names', value: String(approvedName) },
+          { label: 'Active Numbers', value: String(exportList.length - paused) },
+          { label: 'Paused Numbers', value: String(paused) },
+        ];
+
+        const tableHeaders = [
+          'Display Number',
+          'Phone Number ID',
+          'Verified Name',
+          'Requested Display Name',
+          'WhatsApp Profile',
+          'Quality Rating',
+          'Code Verification Status',
+          'Name Approval Status',
+          'Messaging Tier',
+          'Operational Status',
+        ];
+
+        const tableRows = exportList.map((n) => [
+          n.display_phone_number || '-',
+          n.id || '-',
+          n.verified_name || '-',
+          n.new_display_name ? `${n.new_display_name} (${n.new_name_status || 'PENDING'})` : '-',
+          n.whatsapp_profile_name || 'Not linked',
+          n.quality_rating || 'UNKNOWN',
+          n.code_verification_status || 'UNVERIFIED',
+          n.name_status || 'PENDING',
+          n.messaging_limit_tier || '-',
+          n.is_paused ? 'Paused' : 'Active',
+        ]);
+
+        if (format === 'pdf') {
+          exportToPdf({
+            title,
+            systemName,
+            metadata,
+            summaryKpis,
+            tableHeaders,
+            tableRows,
+            totalsRow: null,
+          });
+          notify.success('WABA phone numbers PDF export generated.', 'WABA Numbers');
+        } else if (format === 'excel') {
+          exportToExcel(filenameBase, {
+            title,
+            systemName,
+            metadata,
+            summaryKpis,
+            tableHeaders,
+            tableRows,
+            totalsRow: null,
+          });
+          notify.success('WABA phone numbers Excel export downloaded.', 'WABA Numbers');
+        } else if (format === 'word') {
+          exportToWord(filenameBase, {
+            title,
+            systemName,
+            metadata,
+            summaryKpis,
+            tableHeaders,
+            tableRows,
+            totalsRow: null,
+          });
+          notify.success('WABA phone numbers Word export generated.', 'WABA Numbers');
+        } else {
+          // CSV format
+          const fileRows = [];
+          fileRows.push([`${systemName.toUpperCase()} - ${title.toUpperCase()}`]);
+          fileRows.push(['Report Generated At', generatedAt]);
+          fileRows.push(['WhatsApp Business Account ID', String(wabaId)]);
+          fileRows.push([]);
+          fileRows.push(['EXECUTIVE SUMMARY & METRICS']);
+          summaryKpis.forEach((k) => fileRows.push([k.label, k.value]));
+          fileRows.push([]);
+          fileRows.push(tableHeaders);
+          tableRows.forEach((r) => fileRows.push(r));
+
+          exportToCsv(filenameBase, fileRows);
+          notify.success('WABA phone numbers CSV export downloaded.', 'WABA Numbers');
+        }
+      } catch (err) {
+        console.error('Failed to export WABA phone numbers:', err);
+        notify.error('Failed to export phone numbers: ' + (err.message || 'Unknown error'), 'WABA Numbers');
+      } finally {
+        this.wn.exporting = false;
+      }
     },
     qualityRatingBadge(rating) {
       const r = String(rating || '').trim().toUpperCase();
