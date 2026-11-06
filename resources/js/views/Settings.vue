@@ -1348,6 +1348,14 @@
                   </td>
                   <td>{{ num.messaging_limit_tier || '-' }}</td>
                   <td class="text-end pe-4">
+                    <router-link
+                      :to="`/analytics?tab=response-times&waba_number=${num.id}`"
+                      class="btn btn-light text-success border-0 p-1 px-2 me-1"
+                      title="View agent response time analytics for this number"
+                      aria-label="View response time analytics"
+                    >
+                      <i class="bi bi-stopwatch"></i>
+                    </router-link>
                     <button
                       type="button"
                       class="btn btn-light text-primary border-0 p-1 px-2 me-1"

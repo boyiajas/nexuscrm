@@ -191,6 +191,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('dashboard', [DashboardController::class, 'index']);
     Route::get('analytics', [\App\Http\Controllers\Api\AnalyticsController::class, 'index']);
+    Route::get('analytics/response-times', [\App\Http\Controllers\Api\AnalyticsController::class, 'whatsappResponseTimes']);
+    Route::get('analytics/response-times/session-turns/{sessionId}', [\App\Http\Controllers\Api\AnalyticsController::class, 'whatsappSessionTurns']);
+    Route::get('analytics/response-times/export', [\App\Http\Controllers\Api\AnalyticsController::class, 'exportWhatsappResponseTimes']);
     Route::get('meta-billing', [\App\Http\Controllers\Api\MetaBillingController::class, 'index']);
     Route::post('meta-billing/sync', [\App\Http\Controllers\Api\MetaBillingController::class, 'sync']);
     Route::post('meta-billing/ad-account', [\App\Http\Controllers\Api\MetaBillingController::class, 'updateAdAccount']);

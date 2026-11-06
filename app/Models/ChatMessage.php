@@ -11,6 +11,7 @@ class ChatMessage extends Model
 
     protected $fillable = [
         'chat_session_id',
+        'user_id',
         'sender',
         'content',
         'media_url',
@@ -33,5 +34,10 @@ class ChatMessage extends Model
     public function session()
     {
         return $this->belongsTo(ChatSession::class, 'chat_session_id');
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

@@ -12,15 +12,18 @@ use App\Models\Client;
 use App\Models\User;
 use App\Models\WhatsappTemplateCache;
 use App\Services\CampaignWhatsappReportService;
+use App\Services\WhatsAppResponseTimeService;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AnalyticsController extends Controller
 {
     use AppliesAccessScopes;
 
     public function __construct(
-        protected CampaignWhatsappReportService $campaignReportService
+        protected CampaignWhatsappReportService $campaignReportService,
+        protected WhatsAppResponseTimeService $responseTimeService
     ) {
     }
 
@@ -1030,5 +1033,295 @@ class AnalyticsController extends Controller
             'cost' => $canViewCost ? '$' . number_format($cost, 2) : null,
             'status' => $status,
         ];
+    }
+
+    public function whatsappResponseTimes(Request $request)
+    {
+        $user = auth()->user();
+        if (!$user?->canViewAnalytics()) {
+            return response()->json(['message' => 'Unauthorized access to Analytics & Reports.'], 403);
+        }
+
+        [$startDate, $endDate] = $this->parseAnalyticsDateRange($request);
+
+        $bankId = $request->query('bank_id');
+        $selectedBankId = ($bankId && $bankId !== 'all') ? (int) $bankId : null;
+
+        $wabaPhoneNumberId = $request->query('waba_phone_number_id');
+        if ($wabaPhoneNumberId === 'all' || $wabaPhoneNumberId === '') {
+            $wabaPhoneNumberId = null;
+        }
+
+        $agentId = $request->filled('agent_id') ? (int) $request->query('agent_id') : null;
+        $clientId = $request->filled('client_id') ? (int) $request->query('client_id') : null;
+        $chatSessionId = $request->filled('chat_session_id') ? (int) $request->query('chat_session_id') : null;
+        $slaThresholdMinutes = (int) $request->query('sla_threshold_minutes', 15);
+
+        $analytics = $this->responseTimeService->getAnalytics(
+            startDate: $startDate,
+            endDate: $endDate,
+            bankId: $selectedBankId,
+            wabaPhoneNumberId: $wabaPhoneNumberId,
+            agentId: $agentId,
+            clientId: $clientId,
+            chatSessionId: $chatSessionId,
+            requestingUser: $user,
+            slaThresholdMinutes: $slaThresholdMinutes
+        );
+
+        return response()->json($analytics);
+    }
+
+    public function whatsappSessionTurns(Request $request, int $sessionId)
+    {
+        $user = auth()->user();
+        if (!$user?->canViewAnalytics()) {
+            return response()->json(['message' => 'Unauthorized access to Analytics & Reports.'], 403);
+        }
+
+        $slaThresholdMinutes = (int) $request->query('sla_threshold_minutes', 15);
+        $turnAudit = $this->responseTimeService->getSessionTurnAudit($sessionId, $user, $slaThresholdMinutes);
+
+        if (!$turnAudit) {
+            return response()->json(['message' => 'Chat session not found or unauthorized.'], 404);
+        }
+
+        return response()->json($turnAudit);
+    }
+
+    public function exportWhatsappResponseTimes(Request $request): StreamedResponse
+    {
+        $user = auth()->user();
+        if (!$user?->canViewAnalytics()) {
+            abort(403, 'Unauthorized access to Analytics & Reports.');
+        }
+
+        [$startDate, $endDate] = $this->parseAnalyticsDateRange($request);
+        $bankId = $request->query('bank_id');
+        $selectedBankId = ($bankId && $bankId !== 'all') ? (int) $bankId : null;
+
+        $wabaPhoneNumberId = $request->query('waba_phone_number_id');
+        if ($wabaPhoneNumberId === 'all' || $wabaPhoneNumberId === '') {
+            $wabaPhoneNumberId = null;
+        }
+
+        $agentId = $request->filled('agent_id') ? (int) $request->query('agent_id') : null;
+        $clientId = $request->filled('client_id') ? (int) $request->query('client_id') : null;
+        $slaThresholdMinutes = (int) $request->query('sla_threshold_minutes', 15);
+        $level = strtolower($request->query('level', 'numbers'));
+        $format = strtolower($request->query('format', 'excel'));
+        $isCsv = in_array($format, ['csv'], true);
+
+        $analytics = $this->responseTimeService->getAnalytics(
+            startDate: $startDate,
+            endDate: $endDate,
+            bankId: $selectedBankId,
+            wabaPhoneNumberId: $wabaPhoneNumberId,
+            agentId: $agentId,
+            clientId: $clientId,
+            requestingUser: $user,
+            slaThresholdMinutes: $slaThresholdMinutes
+        );
+
+        $dateStr = now()->format('Ymd_His');
+        $fileName = "response_times_{$level}_{$dateStr}." . ($isCsv ? 'csv' : 'xls');
+
+        return response()->streamDownload(function () use ($analytics, $level, $isCsv, $slaThresholdMinutes) {
+            $summary = $analytics['summary'] ?? [];
+
+            if ($level === 'agents') {
+                $title = 'Agent WhatsApp Response Time Report';
+                $headers = [
+                    'Agent Name',
+                    'Email',
+                    'Role',
+                    'Clients Served',
+                    'Total Inbound',
+                    'Answered Inquiries',
+                    'Pending Inquiries',
+                    'Avg Response Time',
+                    'Median Response Time',
+                    'Fastest Response',
+                    'Slowest Response',
+                    "SLA (< {$slaThresholdMinutes}m) %",
+                ];
+                $rows = array_map(function ($ag) {
+                    return [
+                        $ag['name'] ?? '—',
+                        $ag['email'] ?? '—',
+                        $ag['role'] ?? '—',
+                        $ag['clients_count'] ?? 0,
+                        $ag['total_inbound'] ?? 0,
+                        $ag['answered_count'] ?? 0,
+                        $ag['pending_count'] ?? 0,
+                        $ag['avg_response_human'] ?? '—',
+                        $ag['median_response_human'] ?? '—',
+                        $ag['fastest_response_human'] ?? '—',
+                        $ag['slowest_response_human'] ?? '—',
+                        $ag['sla_compliance_formatted'] ?? '—',
+                    ];
+                }, $analytics['agents'] ?? []);
+            } elseif ($level === 'clients') {
+                $title = 'Client Turnaround & Response Time Report';
+                $headers = [
+                    'Client Name',
+                    'Phone Number',
+                    'Bank',
+                    'Assigned Agent',
+                    'Status',
+                    'Total Inbound',
+                    'Answered Turns',
+                    'Pending Turns',
+                    'Avg Response Time',
+                    'Fastest Response',
+                    'Slowest Response',
+                    'Last Inbound Time',
+                    'Last Agent Reply Time',
+                ];
+                $rows = array_map(function ($c) {
+                    return [
+                        $c['client_name'] ?? '—',
+                        $c['client_phone'] ?? '—',
+                        $c['bank_name'] ?? '—',
+                        $c['last_agent_name'] ?? '—',
+                        $c['has_pending'] ? 'Pending Reply' : 'Answered',
+                        $c['total_inbound'] ?? 0,
+                        $c['answered_count'] ?? 0,
+                        $c['pending_count'] ?? 0,
+                        $c['avg_response_human'] ?? '—',
+                        $c['fastest_response_human'] ?? '—',
+                        $c['slowest_response_human'] ?? '—',
+                        $c['last_inbound_formatted'] ?? '—',
+                        $c['last_reply_formatted'] ?? '—',
+                    ];
+                }, $analytics['clients'] ?? []);
+            } else {
+                $title = 'WhatsApp Phone Numbers Response Time Report';
+                $headers = [
+                    'Display Number',
+                    'Phone Number ID',
+                    'Verified Name',
+                    'Active Agents',
+                    'Total Inbound',
+                    'Answered Inquiries',
+                    'Pending Inquiries',
+                    'Avg Response Time',
+                    'Median Response Time',
+                    'Fastest Response',
+                    'Slowest Response',
+                    "SLA (< {$slaThresholdMinutes}m) %",
+                ];
+                $rows = array_map(function ($num) {
+                    return [
+                        $num['display_phone_number'] ?? '—',
+                        $num['phone_number_id'] ?? '—',
+                        $num['verified_name'] ?? '—',
+                        $num['active_agents_count'] ?? 0,
+                        $num['total_inbound'] ?? 0,
+                        $num['answered_count'] ?? 0,
+                        $num['pending_count'] ?? 0,
+                        $num['avg_response_human'] ?? '—',
+                        $num['median_response_human'] ?? '—',
+                        $num['fastest_response_human'] ?? '—',
+                        $num['slowest_response_human'] ?? '—',
+                        $num['sla_compliance_formatted'] ?? '—',
+                    ];
+                }, $analytics['numbers'] ?? []);
+            }
+
+            if ($isCsv) {
+                echo "\xEF\xBB\xBF";
+                $out = fopen('php://output', 'w');
+                fputcsv($out, [$title]);
+                fputcsv($out, ['Report Generated At', now()->format('Y-m-d H:i:s')]);
+                fputcsv($out, ['Overall Avg Response Time', $summary['avg_response_human'] ?? '—']);
+                fputcsv($out, ['Overall Median Response Time', $summary['median_response_human'] ?? '—']);
+                fputcsv($out, ['Overall SLA Compliance Rate', $summary['sla_compliance_formatted'] ?? '—']);
+                fputcsv($out, []);
+                fputcsv($out, $headers);
+                foreach ($rows as $row) {
+                    fputcsv($out, $row);
+                }
+                fclose($out);
+            } else {
+                echo "\xEF\xBB\xBF";
+                echo '<html><head><meta charset="UTF-8"><title>' . htmlspecialchars($title) . '</title></head><body>';
+                echo '<h2>' . htmlspecialchars($title) . '</h2>';
+                echo '<p><strong>Generated At:</strong> ' . now()->format('Y-m-d H:i:s') . ' | ';
+                echo '<strong>Overall Avg:</strong> ' . htmlspecialchars($summary['avg_response_human'] ?? '—') . ' | ';
+                echo '<strong>Overall Median:</strong> ' . htmlspecialchars($summary['median_response_human'] ?? '—') . ' | ';
+                echo '<strong>SLA Compliance:</strong> ' . htmlspecialchars($summary['sla_compliance_formatted'] ?? '—') . '</p>';
+                echo '<table border="1" style="border-collapse: collapse; font-family: sans-serif; font-size: 10pt;">';
+                echo '<thead><tr>';
+                foreach ($headers as $heading) {
+                    echo '<th style="background-color: #0284c7; color: #ffffff; font-weight: bold; padding: 6px 10px;">' . htmlspecialchars($heading, ENT_QUOTES, 'UTF-8') . '</th>';
+                }
+                echo '</tr></thead><tbody>';
+                foreach ($rows as $row) {
+                    echo '<tr>';
+                    foreach ($row as $cell) {
+                        echo '<td style="padding: 5px 8px;">' . htmlspecialchars((string) $cell, ENT_QUOTES, 'UTF-8') . '</td>';
+                    }
+                    echo '</tr>';
+                }
+                echo '</tbody></table></body></html>';
+            }
+        }, $fileName, [
+            'Content-Type' => $isCsv ? 'text/csv; charset=UTF-8' : 'application/vnd.ms-excel',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
+        ]);
+    }
+
+    protected function parseAnalyticsDateRange(Request $request): array
+    {
+        $dateRange = $request->query('date_range');
+        $timeframe = $request->query('timeframe', 'daily');
+
+        $startDate = null;
+        $endDate = Carbon::now()->endOfDay();
+
+        if ($dateRange === 'today') {
+            $startDate = Carbon::now()->startOfDay();
+        } elseif ($dateRange === 'yesterday') {
+            $startDate = Carbon::now()->subDay()->startOfDay();
+            $endDate = Carbon::now()->subDay()->endOfDay();
+        } elseif ($dateRange === 'last_7_days' || $dateRange === '7_days') {
+            $startDate = Carbon::now()->subDays(6)->startOfDay();
+        } elseif ($dateRange === 'year_to_date' || $dateRange === 'ytd') {
+            $startDate = Carbon::now()->startOfYear();
+        } elseif ($dateRange === 'all_time' || $dateRange === 'all') {
+            $startDate = null;
+            $endDate = null;
+        } elseif ($dateRange === 'last_30_days' || $dateRange === '30_days') {
+            $startDate = Carbon::now()->subDays(29)->startOfDay();
+        } elseif ($dateRange === 'this_month') {
+            $startDate = Carbon::now()->startOfMonth();
+        } elseif ($dateRange === 'last_month') {
+            $startDate = Carbon::now()->subMonth()->startOfMonth();
+            $endDate = Carbon::now()->subMonth()->endOfMonth();
+        } elseif ($dateRange === 'last_90_days' || $dateRange === '3_months' || $dateRange === '3_month') {
+            $startDate = Carbon::now()->subMonths(3)->startOfDay();
+        } elseif ($dateRange === '6_months' || $dateRange === '6_month') {
+            $startDate = Carbon::now()->subMonths(6)->startOfDay();
+        } elseif ($dateRange === '1_year' || $dateRange === '1_years' || $dateRange === '12_months') {
+            $startDate = Carbon::now()->subYear()->startOfDay();
+        } elseif ($dateRange === '2_years' || $dateRange === '2_year' || $dateRange === '24_months') {
+            $startDate = Carbon::now()->subYears(2)->startOfDay();
+        } elseif ($request->filled('start_date') && $request->filled('end_date')) {
+            $startDate = Carbon::parse($request->input('start_date'))->startOfDay();
+            $endDate = Carbon::parse($request->input('end_date'))->endOfDay();
+        } elseif ($dateRange) {
+            $startDate = Carbon::now()->startOfYear();
+        } else {
+            if ($timeframe === 'monthly') {
+                $startDate = Carbon::now()->subMonths(11)->startOfMonth();
+            } elseif ($timeframe === 'weekly' || $timeframe === '3month') {
+                $startDate = Carbon::now()->subWeeks(7)->startOfWeek();
+            } else {
+                $startDate = Carbon::now()->subDays(29)->startOfDay();
+            }
+        }
+
+        return [$startDate, $endDate];
     }
 }

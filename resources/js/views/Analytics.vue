@@ -107,6 +107,9 @@
         <button class="nav-link" data-bs-toggle="pill" data-bs-target="#agents">
           <i class="bi bi-people me-1"></i> Agent & User Statistics
         </button>
+        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#response-times" @click="onResponseTimesTabClick" id="response-times-tab">
+          <i class="bi bi-stopwatch me-1"></i> Response Times
+        </button>
       </div>
 
       <!-- Tab Content -->
@@ -728,6 +731,677 @@
             </div>
           </div>
         </div>
+
+        <!-- RESPONSE TIMES TAB (AGENT/USER TO CLIENT SLA & TURNAROUND) -->
+        <div class="tab-pane fade" id="response-times">
+          <!-- Top Sub-Navigation & Controls -->
+          <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body p-3">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <!-- Level Switcher -->
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <span class="text-muted small fw-semibold me-1"><i class="bi bi-funnel me-1"></i> View Level:</span>
+                  <div class="btn-group btn-group-sm" role="group">
+                    <button
+                      type="button"
+                      class="btn px-3 fw-semibold"
+                      :class="rtViewLevel === 'numbers' ? 'btn-primary' : 'btn-outline-secondary'"
+                      @click="setRtViewLevel('numbers')"
+                    >
+                      <i class="bi bi-telephone-fill me-1"></i> WhatsApp Numbers
+                      <span class="badge bg-white text-primary ms-1" v-if="rtData.numbers?.length">{{ rtData.numbers.length }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="btn px-3 fw-semibold"
+                      :class="rtViewLevel === 'agents' ? 'btn-primary' : 'btn-outline-secondary'"
+                      @click="setRtViewLevel('agents')"
+                    >
+                      <i class="bi bi-person-badge-fill me-1"></i> Agent / User Turnaround
+                      <span class="badge bg-white text-primary ms-1" v-if="rtData.agents?.length">{{ rtData.agents.length }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="btn px-3 fw-semibold"
+                      :class="rtViewLevel === 'clients' ? 'btn-primary' : 'btn-outline-secondary'"
+                      @click="setRtViewLevel('clients')"
+                    >
+                      <i class="bi bi-person-lines-fill me-1"></i> Client Inquiries
+                      <span class="badge bg-white text-primary ms-1" v-if="rtData.clients?.length">{{ rtData.clients.length }}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Right Action Controls (SLA Selector & Export) -->
+                <div class="d-flex flex-wrap align-items-center gap-2 ms-auto">
+                  <!-- SLA Threshold Dropdown -->
+                  <div class="input-group input-group-sm" style="width: auto;">
+                    <span class="input-group-text bg-light text-muted border-end-0">
+                      <i class="bi bi-bullseye me-1"></i> SLA Target:
+                    </span>
+                    <select
+                      class="form-select form-select-sm"
+                      v-model.number="rtSlaThreshold"
+                      @change="onSlaThresholdChange"
+                      style="min-width: 110px;"
+                    >
+                      <option :value="5">&lt; 5 minutes</option>
+                      <option :value="10">&lt; 10 minutes</option>
+                      <option :value="15">&lt; 15 minutes (Standard)</option>
+                      <option :value="30">&lt; 30 minutes</option>
+                      <option :value="60">&lt; 1 hour</option>
+                      <option :value="120">&lt; 2 hours</option>
+                    </select>
+                  </div>
+
+                  <!-- Refresh Button -->
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    @click="fetchResponseTimesData"
+                    :disabled="rtLoading"
+                    title="Refresh response time data"
+                  >
+                    <i class="bi bi-arrow-clockwise" :class="{ 'spin-icon': rtLoading }"></i>
+                  </button>
+
+                  <!-- Export Dropdown -->
+                  <div class="dropdown">
+                    <button
+                      class="btn btn-sm btn-success dropdown-toggle fw-semibold d-flex align-items-center gap-1"
+                      type="button"
+                      data-bs-toggle="dropdown"
+                      aria-expanded="false"
+                      :disabled="rtLoading"
+                    >
+                      <i class="bi bi-download"></i>
+                      <span>Export {{ rtViewLevelLabel }}</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                      <li>
+                        <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="#" @click.prevent="exportResponseTimes('excel')">
+                          <i class="bi bi-file-earmark-excel text-success fs-5"></i>
+                          <div>
+                            <div class="fw-semibold">Excel Spreadsheet (.xls)</div>
+                            <small class="text-muted">Formatted with KPI strip & tables</small>
+                          </div>
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="#" @click.prevent="exportResponseTimes('csv')">
+                          <i class="bi bi-filetype-csv text-primary fs-5"></i>
+                          <div>
+                            <div class="fw-semibold">CSV Data File (.csv)</div>
+                            <small class="text-muted">Raw RFC-4180 comma-separated values</small>
+                          </div>
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="#" @click.prevent="exportResponseTimes('pdf')">
+                          <i class="bi bi-file-earmark-pdf text-danger fs-5"></i>
+                          <div>
+                            <div class="fw-semibold">PDF Document (.pdf)</div>
+                            <small class="text-muted">Printable landscape executive sheet</small>
+                          </div>
+                        </a>
+                      </li>
+                      <li>
+                        <a class="dropdown-item py-2 d-flex align-items-center gap-2" href="#" @click.prevent="exportResponseTimes('word')">
+                          <i class="bi bi-file-earmark-word text-primary fs-5"></i>
+                          <div>
+                            <div class="fw-semibold">Word Document (.doc)</div>
+                            <small class="text-muted">Editable executive memo</small>
+                          </div>
+                        </a>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Active Drill-Down Filter Alert / Breadcrumb -->
+              <div v-if="rtSelectedNumberId || rtSelectedAgentId" class="mt-3 pt-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div class="d-flex flex-wrap align-items-center gap-2 small">
+                  <span class="text-muted fw-semibold">Active Filter:</span>
+                  <span v-if="rtSelectedNumberId" class="badge bg-primary-subtle text-primary border border-primary-subtle d-inline-flex align-items-center gap-1 px-2 py-1">
+                    <i class="bi bi-telephone-fill"></i> Number: {{ activeRtNumberLabel }}
+                    <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.6rem;" @click="clearRtNumberFilter" aria-label="Clear"></button>
+                  </span>
+                  <span v-if="rtSelectedAgentId" class="badge bg-info-subtle text-info-emphasis border border-info-subtle d-inline-flex align-items-center gap-1 px-2 py-1">
+                    <i class="bi bi-person-fill"></i> Agent: {{ activeRtAgentLabel }}
+                    <button type="button" class="btn-close btn-close-sm ms-1" style="font-size: 0.6rem;" @click="clearRtAgentFilter" aria-label="Clear"></button>
+                  </span>
+                </div>
+                <button type="button" class="btn btn-link btn-sm text-decoration-none text-muted p-0" @click="clearAllRtFilters">
+                  <i class="bi bi-x-circle me-1"></i> Clear All Filters
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- KPI Summary Cards Strip -->
+          <div class="row g-3 mb-4">
+            <!-- Avg Response Time -->
+            <div class="col-12 col-sm-6 col-lg-3">
+              <div class="card h-100 border-0 shadow-sm border-start border-4 border-primary">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="text-uppercase text-muted fw-bold" style="font-size: 0.68rem; letter-spacing: 0.05em;">Average Response Time</div>
+                    <div class="bg-primary-subtle text-primary rounded p-1"><i class="bi bi-stopwatch-fill"></i></div>
+                  </div>
+                  <h2 class="fw-black mb-1 text-primary">{{ rtData.summary?.avg_response_human || '—' }}</h2>
+                  <div class="small text-muted">
+                    Mean turnaround across {{ rtData.summary?.answered_count || 0 }} replied inquiries
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Median Response Time -->
+            <div class="col-12 col-sm-6 col-lg-3">
+              <div class="card h-100 border-0 shadow-sm border-start border-4 border-info">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="text-uppercase text-muted fw-bold" style="font-size: 0.68rem; letter-spacing: 0.05em;">Median Response Time</div>
+                    <div class="bg-info-subtle text-info rounded p-1"><i class="bi bi-bullseye"></i></div>
+                  </div>
+                  <h2 class="fw-black mb-1 text-dark">{{ rtData.summary?.median_response_human || '—' }}</h2>
+                  <div class="small text-muted">
+                    50th percentile (resilient to after-hours gaps)
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Inbound Inquiries -->
+            <div class="col-12 col-sm-6 col-lg-3">
+              <div class="card h-100 border-0 shadow-sm border-start border-4 border-success">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="text-uppercase text-muted fw-bold" style="font-size: 0.68rem; letter-spacing: 0.05em;">Inbound Inquiries</div>
+                    <div class="bg-success-subtle text-success rounded p-1"><i class="bi bi-chat-left-dots-fill"></i></div>
+                  </div>
+                  <h2 class="fw-black mb-1 text-dark">{{ rtData.summary?.total_inbound || 0 }}</h2>
+                  <div class="small text-muted d-flex align-items-center gap-2">
+                    <span class="text-success fw-semibold"><i class="bi bi-check-circle-fill me-1"></i>{{ rtData.summary?.answered_count || 0 }} Answered</span>
+                    <span v-if="rtData.summary?.pending_count" class="text-warning fw-semibold"><i class="bi bi-hourglass-split me-1"></i>{{ rtData.summary?.pending_count }} Pending</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SLA Compliance -->
+            <div class="col-12 col-sm-6 col-lg-3">
+              <div class="card h-100 border-0 shadow-sm border-start border-4" :class="rtData.summary?.sla_compliance_rate >= 85 ? 'border-success' : (rtData.summary?.sla_compliance_rate >= 60 ? 'border-warning' : 'border-danger')">
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div class="text-uppercase text-muted fw-bold" style="font-size: 0.68rem; letter-spacing: 0.05em;">SLA Adherence (&lt; {{ rtSlaThreshold }}m)</div>
+                    <div class="rounded p-1" :class="rtData.summary?.sla_compliance_rate >= 85 ? 'bg-success-subtle text-success' : 'bg-warning-subtle text-warning'"><i class="bi bi-patch-check-fill"></i></div>
+                  </div>
+                  <h2 class="fw-black mb-1" :class="rtData.summary?.sla_compliance_rate >= 85 ? 'text-success' : 'text-warning-emphasis'">
+                    {{ rtData.summary?.sla_compliance_formatted || '—' }}
+                  </h2>
+                  <div class="small text-muted">
+                    {{ rtData.summary?.sla_compliant_count || 0 }} / {{ rtData.summary?.answered_count || 0 }} inquiries answered in SLA
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LEVEL 1: WHATSAPP NUMBERS PERFORMANCE MATRIX -->
+          <div v-if="rtViewLevel === 'numbers'" class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 border-0">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                  <h6 class="mb-0 fw-bold"><i class="bi bi-telephone-fill text-primary me-2"></i>WhatsApp Phone Numbers Response Matrix</h6>
+                  <small class="text-muted">Turnaround speed and inquiry resolution performance per registered WABA number</small>
+                </div>
+                <div class="input-group input-group-sm" style="max-width: 260px;">
+                  <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                  <input type="text" class="form-control border-start-0" placeholder="Search number / name..." v-model="rtNumberSearch" />
+                </div>
+              </div>
+            </div>
+            <div class="card-body p-0">
+              <div v-if="rtLoading" class="p-5 text-center text-muted">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span>Analyzing response time metrics...</span>
+              </div>
+              <div v-else-if="!filteredRtNumbers.length" class="p-5 text-center text-muted">
+                <i class="bi bi-inbox fs-1 d-block mb-2 text-secondary"></i>
+                <div class="fw-semibold">No response time data found for registered WhatsApp numbers.</div>
+                <small>Try selecting a broader date range or clearing filters.</small>
+              </div>
+              <div v-else class="table-responsive">
+                <table class="table table-hover align-middle mb-0 custom-table">
+                  <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                      <th class="ps-4">WhatsApp Phone Number</th>
+                      <th>Phone Number ID</th>
+                      <th class="text-center">Active Agents</th>
+                      <th class="text-end">Total Inbound</th>
+                      <th class="text-end">Answered</th>
+                      <th class="text-end">Pending</th>
+                      <th class="text-end">Avg Response</th>
+                      <th class="text-end">Median</th>
+                      <th class="text-end">Fastest / Slowest</th>
+                      <th class="text-end">SLA (&lt; {{ rtSlaThreshold }}m)</th>
+                      <th class="text-end pe-4">Drill Down</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="num in filteredRtNumbers" :key="num.phone_number_id">
+                      <td class="ps-4">
+                        <div class="d-flex align-items-center gap-2">
+                          <div class="bg-success-subtle text-success rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 34px; height: 34px;">
+                            <i class="bi bi-whatsapp"></i>
+                          </div>
+                          <div>
+                            <div class="fw-bold text-dark">{{ num.display_phone_number }}</div>
+                            <small class="text-muted">{{ num.verified_name }}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="badge bg-light text-dark border font-monospace">{{ num.phone_number_id }}</span>
+                      </td>
+                      <td class="text-center">
+                        <span class="badge bg-light text-dark border fw-normal">{{ num.active_agents_count }} agents</span>
+                      </td>
+                      <td class="text-end fw-bold">{{ num.total_inbound }}</td>
+                      <td class="text-end text-success fw-semibold">{{ num.answered_count }}</td>
+                      <td class="text-end">
+                        <span v-if="num.pending_count > 0" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                          {{ num.pending_count }} waiting
+                        </span>
+                        <span v-else class="text-muted">—</span>
+                      </td>
+                      <td class="text-end">
+                        <span class="badge fw-bold px-2 py-1" :class="getSlaBadgeClass(num.avg_response_seconds)">
+                          {{ num.avg_response_human }}
+                        </span>
+                      </td>
+                      <td class="text-end font-monospace small text-muted">{{ num.median_response_human }}</td>
+                      <td class="text-end small">
+                        <span class="text-success">{{ num.fastest_response_human }}</span> / <span class="text-danger">{{ num.slowest_response_human }}</span>
+                      </td>
+                      <td class="text-end fw-bold" :class="num.sla_compliance_rate >= 85 ? 'text-success' : 'text-warning-emphasis'">
+                        {{ num.sla_compliance_formatted }}
+                      </td>
+                      <td class="text-end pe-4">
+                        <div class="btn-group btn-group-sm">
+                          <button
+                            type="button"
+                            class="btn btn-outline-primary btn-sm py-1 px-2"
+                            @click="filterByNumberAndSwitch(num.phone_number_id, 'agents')"
+                            title="Drill down to agents on this number"
+                          >
+                            <i class="bi bi-people me-1"></i> Agents
+                          </button>
+                          <button
+                            type="button"
+                            class="btn btn-outline-secondary btn-sm py-1 px-2"
+                            @click="filterByNumberAndSwitch(num.phone_number_id, 'clients')"
+                            title="Drill down to clients on this number"
+                          >
+                            <i class="bi bi-person-lines-fill me-1"></i> Clients
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- LEVEL 2: AGENT / USER PERFORMANCE BREAKDOWN -->
+          <div v-if="rtViewLevel === 'agents'" class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 border-0">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                  <h6 class="mb-0 fw-bold"><i class="bi bi-person-badge-fill text-primary me-2"></i>Agent & User Response Turnaround</h6>
+                  <small class="text-muted">Staff responsiveness, inquiry resolution speed, and client communication SLAs</small>
+                </div>
+                <div class="input-group input-group-sm" style="max-width: 260px;">
+                  <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                  <input type="text" class="form-control border-start-0" placeholder="Search agent / role..." v-model="rtAgentSearch" />
+                </div>
+              </div>
+            </div>
+            <div class="card-body p-0">
+              <div v-if="rtLoading" class="p-5 text-center text-muted">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span>Compiling agent response turnaround metrics...</span>
+              </div>
+              <div v-else-if="!filteredRtAgents.length" class="p-5 text-center text-muted">
+                <i class="bi bi-people fs-1 d-block mb-2 text-secondary"></i>
+                <div class="fw-semibold">No agent turnaround records found for the selected filters.</div>
+                <small>Try selecting a broader date range or clearing the WhatsApp number filter.</small>
+              </div>
+              <div v-else class="table-responsive">
+                <table class="table table-hover align-middle mb-0 custom-table">
+                  <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                      <th class="ps-4">Agent / User</th>
+                      <th>Role</th>
+                      <th class="text-center">Clients Served</th>
+                      <th class="text-end">Total Inbound</th>
+                      <th class="text-end">Answered</th>
+                      <th class="text-end">Pending</th>
+                      <th class="text-end">Avg Response</th>
+                      <th class="text-end">Median</th>
+                      <th class="text-end">Fastest / Slowest</th>
+                      <th class="text-end">SLA (&lt; {{ rtSlaThreshold }}m)</th>
+                      <th class="text-end pe-4">Drill Down</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="agent in filteredRtAgents" :key="agent.user_id || 'unassigned'">
+                      <td class="ps-4">
+                        <div class="d-flex align-items-center gap-2">
+                          <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold small" style="width: 32px; height: 32px;">
+                            {{ agent.initials }}
+                          </div>
+                          <div>
+                            <div class="fw-bold text-dark">{{ agent.name }}</div>
+                            <small class="text-muted">{{ agent.email }}</small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="badge bg-light text-dark border fw-normal">{{ agent.role }}</span>
+                      </td>
+                      <td class="text-center fw-semibold">{{ agent.clients_count }}</td>
+                      <td class="text-end fw-bold">{{ agent.total_inbound }}</td>
+                      <td class="text-end text-success fw-semibold">{{ agent.answered_count }}</td>
+                      <td class="text-end">
+                        <span v-if="agent.pending_count > 0" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+                          {{ agent.pending_count }} waiting
+                        </span>
+                        <span v-else class="text-muted">—</span>
+                      </td>
+                      <td class="text-end">
+                        <span class="badge fw-bold px-2 py-1" :class="getSlaBadgeClass(agent.avg_response_seconds)">
+                          {{ agent.avg_response_human }}
+                        </span>
+                      </td>
+                      <td class="text-end font-monospace small text-muted">{{ agent.median_response_human }}</td>
+                      <td class="text-end small">
+                        <span class="text-success">{{ agent.fastest_response_human }}</span> / <span class="text-danger">{{ agent.slowest_response_human }}</span>
+                      </td>
+                      <td class="text-end fw-bold" :class="agent.sla_compliance_rate >= 85 ? 'text-success' : 'text-warning-emphasis'">
+                        {{ agent.sla_compliance_formatted }}
+                      </td>
+                      <td class="text-end pe-4">
+                        <button
+                          type="button"
+                          class="btn btn-outline-primary btn-sm py-1 px-2"
+                          @click="filterByAgentAndSwitch(agent.user_id)"
+                          :disabled="!agent.user_id"
+                          title="View clients handled by this agent"
+                        >
+                          <i class="bi bi-person-lines-fill me-1"></i> Clients
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- LEVEL 3: CLIENT INQUIRIES & SESSIONS BREAKDOWN -->
+          <div v-if="rtViewLevel === 'clients'" class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-white py-3 border-0">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                  <h6 class="mb-0 fw-bold"><i class="bi bi-person-lines-fill text-primary me-2"></i>Client Inquiries & Chat Sessions</h6>
+                  <small class="text-muted">Turnaround speed per individual client, with chat turn-by-turn audit</small>
+                </div>
+                <div class="input-group input-group-sm" style="max-width: 260px;">
+                  <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                  <input type="text" class="form-control border-start-0" placeholder="Search client / phone..." v-model="rtClientSearch" />
+                </div>
+              </div>
+            </div>
+            <div class="card-body p-0">
+              <div v-if="rtLoading" class="p-5 text-center text-muted">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                <span>Compiling client response times...</span>
+              </div>
+              <div v-else-if="!filteredRtClients.length" class="p-5 text-center text-muted">
+                <i class="bi bi-chat-left-dots fs-1 d-block mb-2 text-secondary"></i>
+                <div class="fw-semibold">No client conversation turns found for the selected filters.</div>
+                <small>Try selecting a broader date range or clearing agent/number filters.</small>
+              </div>
+              <div v-else class="table-responsive">
+                <table class="table table-hover align-middle mb-0 custom-table">
+                  <thead class="table-light text-muted small text-uppercase">
+                    <tr>
+                      <th class="ps-4">Client Name & Phone</th>
+                      <th>Bank / Institution</th>
+                      <th>Handling Agent</th>
+                      <th class="text-center">Status</th>
+                      <th class="text-end">Turns</th>
+                      <th class="text-end">Avg Response</th>
+                      <th>Last Inbound</th>
+                      <th>Last Agent Reply</th>
+                      <th class="text-end pe-4">Chat Turn Audit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="client in filteredRtClients" :key="client.session_id || client.client_id">
+                      <td class="ps-4">
+                        <div class="fw-bold text-dark">{{ client.client_name }}</div>
+                        <small class="text-muted font-monospace">{{ client.client_phone }}</small>
+                      </td>
+                      <td>
+                        <span class="badge bg-light text-dark border fw-normal">{{ client.bank_name }}</span>
+                      </td>
+                      <td>
+                        <div class="d-flex align-items-center gap-1">
+                          <i class="bi bi-person text-secondary"></i>
+                          <span class="small fw-semibold">{{ client.last_agent_name }}</span>
+                        </div>
+                      </td>
+                      <td class="text-center">
+                        <span v-if="client.has_pending" class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                          <i class="bi bi-hourglass-split me-1"></i> Waiting Reply
+                        </span>
+                        <span v-else class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                          <i class="bi bi-check2-all me-1"></i> Answered
+                        </span>
+                      </td>
+                      <td class="text-end fw-semibold">
+                        {{ client.total_inbound }} <small class="text-muted">({{ client.answered_count }}a / {{ client.pending_count }}p)</small>
+                      </td>
+                      <td class="text-end">
+                        <span class="badge fw-bold px-2 py-1" :class="getSlaBadgeClass(client.avg_response_seconds)">
+                          {{ client.avg_response_human }}
+                        </span>
+                      </td>
+                      <td class="small text-muted">{{ client.last_inbound_formatted }}</td>
+                      <td class="small">
+                        <span v-if="client.has_pending" class="text-warning-emphasis fw-semibold">
+                          <i class="bi bi-clock me-1"></i> {{ client.longest_wait_human }} elapsed
+                        </span>
+                        <span v-else class="text-muted">
+                          {{ client.last_reply_formatted }}
+                        </span>
+                      </td>
+                      <td class="text-end pe-4">
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-primary py-1 px-3 fw-semibold"
+                          @click="openTurnAuditModal(client.session_id)"
+                          :disabled="!client.session_id"
+                        >
+                          <i class="bi bi-clock-history me-1"></i> Audit Turns
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHAT TURN-BY-TURN AUDIT MODAL (LEVEL 4 DRILL-DOWN) -->
+    <div
+      v-if="auditModal.visible"
+      class="modal fade show d-block"
+      tabindex="-1"
+      role="dialog"
+      style="background: rgba(15, 23, 42, 0.6); z-index: 1060;"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content border-0 shadow-lg rounded-3">
+          <div class="modal-header bg-white border-bottom py-3">
+            <div>
+              <h5 class="modal-title fw-bold text-dark d-flex align-items-center gap-2">
+                <i class="bi bi-clock-history text-primary"></i>
+                Chat Response Turn-Around Audit
+              </h5>
+              <small class="text-muted">
+                {{ auditModal.session?.client_name }} ({{ auditModal.session?.phone }}) &bull; Bank: {{ auditModal.session?.bank_name }}
+              </small>
+            </div>
+            <button type="button" class="btn-close" @click="closeTurnAuditModal" aria-label="Close"></button>
+          </div>
+
+          <div class="modal-body p-4 bg-light">
+            <!-- Modal Session KPI Summary Bar -->
+            <div class="row g-2 mb-4">
+              <div class="col-4">
+                <div class="bg-white p-2 rounded border text-center">
+                  <small class="text-muted text-uppercase" style="font-size: 0.65rem;">Avg Turnaround</small>
+                  <div class="fw-bold fs-6 text-primary">{{ auditModal.summary?.avg_response_human || '—' }}</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="bg-white p-2 rounded border text-center">
+                  <small class="text-muted text-uppercase" style="font-size: 0.65rem;">Total Turns</small>
+                  <div class="fw-bold fs-6 text-dark">{{ auditModal.turns?.length || 0 }}</div>
+                </div>
+              </div>
+              <div class="col-4">
+                <div class="bg-white p-2 rounded border text-center">
+                  <small class="text-muted text-uppercase" style="font-size: 0.65rem;">Handling Agent</small>
+                  <div class="fw-bold fs-6 text-dark text-truncate">{{ auditModal.session?.assigned_agent_name || 'Unassigned' }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div v-if="auditModal.loading" class="text-center py-5">
+              <div class="spinner-border text-primary spinner-border-sm me-2"></div>
+              <span class="text-muted">Loading chat interaction turn timeline...</span>
+            </div>
+
+            <!-- Empty Turns State -->
+            <div v-else-if="!auditModal.turns?.length" class="text-center py-5 text-muted">
+              <i class="bi bi-chat-square-text fs-1 d-block mb-2 text-secondary"></i>
+              <div class="fw-semibold">No interaction turns recorded for this session.</div>
+            </div>
+
+            <!-- Timeline of Interaction Turns -->
+            <div v-else class="turn-timeline d-flex flex-column gap-3">
+              <div
+                v-for="turn in auditModal.turns"
+                :key="turn.turn_index"
+                class="card border-0 shadow-sm rounded-3 overflow-hidden"
+              >
+                <!-- Turn Card Header -->
+                <div class="card-header bg-white py-2 px-3 border-bottom d-flex justify-content-between align-items-center">
+                  <div class="fw-bold small text-dark d-flex align-items-center gap-2">
+                    <span class="badge bg-dark text-white rounded-pill px-2">Turn #{{ turn.turn_index }}</span>
+                    <span class="text-muted">{{ turn.inbound_formatted }}</span>
+                  </div>
+                  <div>
+                    <span
+                      v-if="turn.status === 'answered'"
+                      class="badge fw-bold px-2 py-1"
+                      :class="getSlaBadgeClass(turn.duration_seconds)"
+                    >
+                      <i class="bi bi-stopwatch me-1"></i> Turnaround: {{ turn.duration_human }}
+                    </span>
+                    <span
+                      v-else
+                      class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1 fw-bold"
+                    >
+                      <i class="bi bi-hourglass-split me-1"></i> Awaiting Agent ({{ turn.wait_human }} wait)
+                    </span>
+                  </div>
+                </div>
+
+                <div class="card-body p-3">
+                  <!-- 1. Client Inbound Message -->
+                  <div class="d-flex align-items-start gap-2 mb-3">
+                    <div class="bg-secondary text-white rounded-circle p-1 d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-size: 0.75rem;">
+                      <i class="bi bi-person-fill"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <small class="fw-bold text-dark">Client: {{ turn.client_name }}</small>
+                        <small class="text-muted font-monospace" style="font-size: 0.75rem;">{{ turn.inbound_formatted }}</small>
+                      </div>
+                      <div class="p-2 rounded bg-light border text-dark small" style="white-space: pre-wrap;">
+                        {{ turn.inbound_content || '[Media / Attachment]' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 2. Agent Response (or Pending Alert) -->
+                  <div v-if="turn.status === 'answered'" class="d-flex align-items-start gap-2 ps-4 border-start border-2 border-primary ms-3">
+                    <div class="bg-primary text-white rounded-circle p-1 d-flex align-items-center justify-content-center" style="width: 28px; height: 28px; font-size: 0.75rem;">
+                      <i class="bi bi-reply-fill"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                      <div class="d-flex align-items-center justify-content-between mb-1">
+                        <small class="fw-bold text-primary">
+                          Agent Reply: {{ turn.user_name }}
+                        </small>
+                        <small class="text-muted font-monospace" style="font-size: 0.75rem;">{{ turn.reply_formatted }}</small>
+                      </div>
+                      <div class="p-2 rounded bg-primary-subtle text-dark small" style="white-space: pre-wrap;">
+                        {{ turn.reply_content || '[Template / Media Attachment]' }}
+                      </div>
+                      <div class="mt-1 d-flex align-items-center gap-2" style="font-size: 0.75rem;">
+                        <span class="text-muted">Turn response gap:</span>
+                        <span class="fw-bold" :class="turn.duration_seconds <= (rtSlaThreshold * 60) ? 'text-success' : 'text-danger'">
+                          {{ turn.duration_human }} ({{ turn.duration_seconds }}s)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 3. If Pending -->
+                  <div v-else class="ps-4 border-start border-2 border-warning ms-3">
+                    <div class="alert alert-warning py-2 px-3 mb-0 d-flex align-items-center gap-2 small">
+                      <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+                      <div>
+                        <strong>No agent response yet!</strong>
+                        <div class="text-muted">Client has been waiting for <strong>{{ turn.wait_human }}</strong> since {{ turn.inbound_formatted }}.</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer bg-white border-top py-2 px-3 d-flex justify-content-between">
+            <small class="text-muted">Target SLA: &lt; {{ rtSlaThreshold }} minutes turnaround</small>
+            <button type="button" class="btn btn-secondary btn-sm px-4 fw-semibold" @click="closeTurnAuditModal">
+              Close Audit
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -788,7 +1462,41 @@ export default {
         templates: [],
         campaigns: [],
         agents: [],
-      }
+      },
+      // Response Times State (Agent/User to Client SLA & Turnaround)
+      rtLoading: false,
+      rtViewLevel: 'numbers', // 'numbers' | 'agents' | 'clients'
+      rtSlaThreshold: 15,
+      rtSelectedNumberId: null,
+      rtSelectedAgentId: null,
+      rtNumberSearch: '',
+      rtAgentSearch: '',
+      rtClientSearch: '',
+      rtData: {
+        summary: {
+          total_inbound: 0,
+          answered_count: 0,
+          pending_count: 0,
+          avg_response_human: '—',
+          median_response_human: '—',
+          fastest_response_human: '—',
+          slowest_response_human: '—',
+          sla_compliance_formatted: '—',
+          longest_wait_human: '—',
+          sla_compliance_rate: 0,
+        },
+        sla_threshold_minutes: 15,
+        numbers: [],
+        agents: [],
+        clients: [],
+      },
+      auditModal: {
+        visible: false,
+        loading: false,
+        session: {},
+        summary: {},
+        turns: [],
+      },
     };
   },
   computed: {
@@ -899,6 +1607,58 @@ export default {
       }
       return this.isSuperAdmin || this.hasPermission('view_analytics_cost');
     },
+    filteredRtNumbers() {
+      let list = this.rtData?.numbers || [];
+      if (this.rtNumberSearch && this.rtNumberSearch.trim()) {
+        const q = this.rtNumberSearch.trim().toLowerCase();
+        list = list.filter(n =>
+          (n.display_phone_number && n.display_phone_number.toLowerCase().includes(q)) ||
+          (n.verified_name && n.verified_name.toLowerCase().includes(q)) ||
+          (n.phone_number_id && String(n.phone_number_id).toLowerCase().includes(q))
+        );
+      }
+      return list;
+    },
+    filteredRtAgents() {
+      let list = this.rtData?.agents || [];
+      if (this.rtAgentSearch && this.rtAgentSearch.trim()) {
+        const q = this.rtAgentSearch.trim().toLowerCase();
+        list = list.filter(a =>
+          (a.name && a.name.toLowerCase().includes(q)) ||
+          (a.email && a.email.toLowerCase().includes(q)) ||
+          (a.role && a.role.toLowerCase().includes(q))
+        );
+      }
+      return list;
+    },
+    filteredRtClients() {
+      let list = this.rtData?.clients || [];
+      if (this.rtClientSearch && this.rtClientSearch.trim()) {
+        const q = this.rtClientSearch.trim().toLowerCase();
+        list = list.filter(c =>
+          (c.client_name && c.client_name.toLowerCase().includes(q)) ||
+          (c.client_phone && c.client_phone.toLowerCase().includes(q)) ||
+          (c.bank_name && c.bank_name.toLowerCase().includes(q)) ||
+          (c.last_agent_name && c.last_agent_name.toLowerCase().includes(q))
+        );
+      }
+      return list;
+    },
+    rtViewLevelLabel() {
+      if (this.rtViewLevel === 'agents') return 'Agents';
+      if (this.rtViewLevel === 'clients') return 'Clients';
+      return 'Numbers';
+    },
+    activeRtNumberLabel() {
+      if (!this.rtSelectedNumberId) return '';
+      const num = (this.rtData?.numbers || []).find(n => String(n.phone_number_id) === String(this.rtSelectedNumberId));
+      return num ? `${num.display_phone_number} (${num.verified_name})` : String(this.rtSelectedNumberId);
+    },
+    activeRtAgentLabel() {
+      if (!this.rtSelectedAgentId) return '';
+      const ag = (this.rtData?.agents || []).find(a => String(a.user_id) === String(this.rtSelectedAgentId));
+      return ag ? ag.name : `Agent #${this.rtSelectedAgentId}`;
+    },
   },
   watch: {
     campaignSearch() {
@@ -921,6 +1681,20 @@ export default {
     } catch (e) {}
     this.fetchBanks();
     this.fetchData();
+
+    if (this.$route?.query?.waba_number) {
+      this.rtSelectedNumberId = String(this.$route.query.waba_number);
+      this.rtViewLevel = 'agents';
+    }
+
+    if (this.$route?.query?.tab === 'response-times' || this.$route?.query?.waba_number) {
+      this.$nextTick(() => {
+        const btn = document.getElementById('response-times-tab');
+        if (btn) btn.click();
+      });
+    }
+
+    this.fetchResponseTimesData();
   },
   methods: {
     hasPermission(permCode) {
@@ -956,10 +1730,12 @@ export default {
     onDateFilterChange() {
       this.currentPage = 1;
       this.fetchData();
+      this.fetchResponseTimesData();
     },
     onBankFilterChange() {
       this.currentPage = 1;
       this.fetchData();
+      this.fetchResponseTimesData();
     },
     setPage(p) {
       if (p === '...' || p < 1 || p > this.totalPages) return;
@@ -1576,6 +2352,267 @@ export default {
           }
         }
       });
+    },
+    setRtViewLevel(level) {
+      this.rtViewLevel = level;
+    },
+    onResponseTimesTabClick() {
+      if (!this.rtData?.numbers?.length) {
+        this.fetchResponseTimesData();
+      }
+    },
+    onSlaThresholdChange() {
+      this.fetchResponseTimesData();
+    },
+    async fetchResponseTimesData() {
+      this.rtLoading = true;
+      try {
+        const response = await axios.get('/api/analytics/response-times', {
+          params: {
+            date_range: this.dateRange,
+            bank_id: this.selectedBankId,
+            waba_phone_number_id: this.rtSelectedNumberId,
+            agent_id: this.rtSelectedAgentId,
+            sla_threshold_minutes: this.rtSlaThreshold,
+          }
+        });
+        this.rtData = response.data;
+      } catch (err) {
+        console.error('Failed to load response times analytics', err);
+      } finally {
+        this.rtLoading = false;
+      }
+    },
+    filterByNumberAndSwitch(phoneId, level = 'agents') {
+      this.rtSelectedNumberId = String(phoneId);
+      this.rtViewLevel = level;
+      this.fetchResponseTimesData();
+    },
+    filterByAgentAndSwitch(agentId) {
+      if (!agentId) return;
+      this.rtSelectedAgentId = Number(agentId);
+      this.rtViewLevel = 'clients';
+      this.fetchResponseTimesData();
+    },
+    clearRtNumberFilter() {
+      this.rtSelectedNumberId = null;
+      this.fetchResponseTimesData();
+    },
+    clearRtAgentFilter() {
+      this.rtSelectedAgentId = null;
+      this.fetchResponseTimesData();
+    },
+    clearAllRtFilters() {
+      this.rtSelectedNumberId = null;
+      this.rtSelectedAgentId = null;
+      this.rtViewLevel = 'numbers';
+      this.fetchResponseTimesData();
+    },
+    async openTurnAuditModal(sessionId) {
+      if (!sessionId) return;
+      this.auditModal.visible = true;
+      this.auditModal.loading = true;
+      this.auditModal.session = {};
+      this.auditModal.summary = {};
+      this.auditModal.turns = [];
+
+      try {
+        const res = await axios.get(`/api/analytics/response-times/session-turns/${sessionId}`, {
+          params: {
+            sla_threshold_minutes: this.rtSlaThreshold,
+          }
+        });
+        this.auditModal.session = res.data.session || {};
+        this.auditModal.summary = res.data.summary || {};
+        this.auditModal.turns = res.data.turns || [];
+      } catch (e) {
+        console.error('Failed to fetch turn audit for session', e);
+      } finally {
+        this.auditModal.loading = false;
+      }
+    },
+    closeTurnAuditModal() {
+      this.auditModal.visible = false;
+      this.auditModal.turns = [];
+    },
+    getSlaBadgeClass(seconds) {
+      if (seconds === null || seconds === undefined) {
+        return 'bg-light text-muted border';
+      }
+      const target = (this.rtSlaThreshold || 15) * 60;
+      if (seconds <= target) {
+        return 'bg-success-subtle text-success border border-success-subtle';
+      }
+      if (seconds <= target * 2) {
+        return 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+      }
+      return 'bg-danger-subtle text-danger border border-danger-subtle';
+    },
+    exportResponseTimes(format = 'excel') {
+      const systemName = this.systemName || 'SR Solution';
+      const now = new Date();
+      const generatedAt = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+      const fileDate = now.toISOString().slice(0, 10);
+      const cleanSysName = systemName.replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const filenameBase = `${cleanSysName}_WhatsApp_Response_Times_${this.rtViewLevel}_${fileDate}`;
+
+      const summary = this.rtData?.summary || {};
+      const metadata = [
+        { label: 'System Console', value: systemName },
+        { label: 'Report Generated At', value: generatedAt },
+        { label: 'Timeframe / Scope', value: this.getDateRangeLabel(this.dateRange) },
+        { label: 'Institution / Bank', value: this.getSelectedBankLabel() },
+        { label: 'Target Response SLA', value: `< ${this.rtSlaThreshold} minutes` },
+      ];
+
+      const summaryKpis = [
+        { label: 'Average Response Time', value: summary.avg_response_human || '—' },
+        { label: 'Median Response Time', value: summary.median_response_human || '—' },
+        { label: 'Total Inbound Inquiries', value: String(summary.total_inbound || 0) },
+        { label: 'Answered Inquiries', value: String(summary.answered_count || 0) },
+        { label: 'Pending Inquiries', value: String(summary.pending_count || 0) },
+        { label: 'SLA Compliance Rate', value: summary.sla_compliance_formatted || '—' },
+      ];
+
+      let title = 'WhatsApp Inbound & Agent Response Time Report';
+      let tableHeaders = [];
+      let tableRows = [];
+
+      if (this.rtViewLevel === 'agents') {
+        title = 'Agent WhatsApp Response Time & SLA Performance Report';
+        tableHeaders = [
+          'Agent Name',
+          'Email',
+          'Role',
+          'Clients Served',
+          'Total Inbound',
+          'Answered',
+          'Pending',
+          'Avg Response',
+          'Median',
+          'Fastest',
+          'Slowest',
+          `SLA (< ${this.rtSlaThreshold}m)`,
+        ];
+        tableRows = (this.filteredRtAgents || []).map(a => [
+          a.name || '—',
+          a.email || '—',
+          a.role || '—',
+          String(a.clients_count || 0),
+          String(a.total_inbound || 0),
+          String(a.answered_count || 0),
+          String(a.pending_count || 0),
+          a.avg_response_human || '—',
+          a.median_response_human || '—',
+          a.fastest_response_human || '—',
+          a.slowest_response_human || '—',
+          a.sla_compliance_formatted || '—',
+        ]);
+      } else if (this.rtViewLevel === 'clients') {
+        title = 'Client Inquiry Response Times & Turnaround Report';
+        tableHeaders = [
+          'Client Name',
+          'Phone Number',
+          'Bank',
+          'Handling Agent',
+          'Status',
+          'Total Inbound',
+          'Answered Turns',
+          'Pending Turns',
+          'Avg Response',
+          'Last Inbound',
+          'Last Agent Reply',
+        ];
+        tableRows = (this.filteredRtClients || []).map(c => [
+          c.client_name || '—',
+          c.client_phone || '—',
+          c.bank_name || '—',
+          c.last_agent_name || '—',
+          c.has_pending ? 'Pending Reply' : 'Answered',
+          String(c.total_inbound || 0),
+          String(c.answered_count || 0),
+          String(c.pending_count || 0),
+          c.avg_response_human || '—',
+          c.last_inbound_formatted || '—',
+          c.has_pending ? `Waiting ${c.longest_wait_human}` : (c.last_reply_formatted || '—'),
+        ]);
+      } else {
+        title = 'WhatsApp Phone Numbers Response Time Performance Report';
+        tableHeaders = [
+          'Display Number',
+          'Phone Number ID',
+          'Verified Name',
+          'Active Agents',
+          'Total Inbound',
+          'Answered',
+          'Pending',
+          'Avg Response',
+          'Median',
+          'Fastest',
+          'Slowest',
+          `SLA (< ${this.rtSlaThreshold}m)`,
+        ];
+        tableRows = (this.filteredRtNumbers || []).map(n => [
+          n.display_phone_number || '—',
+          n.phone_number_id || '—',
+          n.verified_name || '—',
+          String(n.active_agents_count || 0),
+          String(n.total_inbound || 0),
+          String(n.answered_count || 0),
+          String(n.pending_count || 0),
+          n.avg_response_human || '—',
+          n.median_response_human || '—',
+          n.fastest_response_human || '—',
+          n.slowest_response_human || '—',
+          n.sla_compliance_formatted || '—',
+        ]);
+      }
+
+      if (format === 'pdf') {
+        exportToPdf({
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow: null,
+        });
+      } else if (format === 'excel') {
+        exportToExcel(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow: null,
+        });
+      } else if (format === 'word') {
+        exportToWord(filenameBase, {
+          title,
+          systemName,
+          metadata,
+          summaryKpis,
+          tableHeaders,
+          tableRows,
+          totalsRow: null,
+        });
+      } else {
+        const fileRows = [];
+        fileRows.push([`${systemName.toUpperCase()} - ${title.toUpperCase()}`]);
+        fileRows.push(['Report Generated At', generatedAt]);
+        fileRows.push(['Timeframe / Scope', this.getDateRangeLabel(this.dateRange)]);
+        fileRows.push(['Institution / Bank', this.getSelectedBankLabel()]);
+        fileRows.push([]);
+        fileRows.push(['EXECUTIVE SUMMARY & SLA PERFORMANCE']);
+        summaryKpis.forEach(k => fileRows.push([k.label, k.value]));
+        fileRows.push([]);
+        fileRows.push(tableHeaders);
+        tableRows.forEach(r => fileRows.push(r));
+
+        exportToCsv(filenameBase, fileRows);
+      }
     }
   }
 };

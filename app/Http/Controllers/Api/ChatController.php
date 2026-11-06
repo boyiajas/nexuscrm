@@ -567,6 +567,7 @@ class ChatController extends Controller
 
         $message = $session->messages()->create([
             'sender'      => 'agent',
+            'user_id'     => Auth::id(),
             'content'     => $content,
             'media_url'   => $mediaUrl,
             'media_type'  => $mediaType,
@@ -700,6 +701,7 @@ class ChatController extends Controller
         $content = $this->renderTemplateMessage($template, $variables);
         $message = $session->messages()->create([
             'sender' => 'agent',
+            'user_id' => Auth::id(),
             'content' => $content,
             'is_template' => true,
             'sent_at' => now(),
