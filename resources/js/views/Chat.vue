@@ -251,7 +251,42 @@
             </div>
             <small class="text-muted">
               {{ activeSession.platform }}
-              <span v-if="activeWaba"> • WABA: <strong :class="isCurrentChatLocked ? 'text-danger fw-bold' : 'text-dark'">{{ activeWaba.bank_name ? `${activeWaba.bank_name} • ` : '' }}{{ activeWaba.label }} ({{ activeWaba.number }})</strong>
+              <span v-if="activeWaba || availableWabas.length"> • WABA:
+                <span class="dropdown d-inline-block">
+                  <a
+                    href="#"
+                    class="text-decoration-none dropdown-toggle py-0 px-1.5 rounded"
+                    :class="[
+                      isCurrentChatLocked ? 'text-danger fw-bold' : 'text-dark fw-bold',
+                      canManageChat && !activeSession.is_client_only ? 'bg-light border text-primary-emphasis' : ''
+                    ]"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    :title="canManageChat && !activeSession.is_client_only ? 'Click to switch WhatsApp number' : ''"
+                    style="font-size: 0.80rem;"
+                  >
+                    <i class="bi bi-whatsapp me-1 text-success"></i>
+                    {{ activeWaba ? `${activeWaba.bank_name ? `${activeWaba.bank_name} • ` : ''}${activeWaba.label} (${activeWaba.number})` : (activeSession.waba_phone_number_id || 'Select WhatsApp Line') }}
+                  </a>
+                  <ul v-if="canManageChat && !activeSession.is_client_only" class="dropdown-menu shadow border-0" style="min-width: 280px; max-height: 320px; overflow-y: auto;">
+                    <li class="dropdown-header text-uppercase small fw-bold text-muted">Switch WhatsApp Line</li>
+                    <li v-for="w in availableWabasForActiveSession" :key="w.phone_number_id || w.number">
+                      <a
+                        class="dropdown-item py-1.5 d-flex align-items-center justify-content-between"
+                        :class="{ 'active': activeWaba && (String(activeWaba.phone_number_id) === String(w.phone_number_id) || activeWaba.number === w.number) }"
+                        href="#"
+                        @click.prevent="switchWabaNumber(w)"
+                      >
+                        <div class="small">
+                          <div class="fw-semibold">{{ w.bank_name ? `${w.bank_name} • ` : '' }}{{ w.label }}</div>
+                          <div class="text-muted" style="font-size: 0.75rem;">{{ w.number }}</div>
+                        </div>
+                        <span v-if="w.is_paused" class="badge bg-danger-subtle text-danger ms-2" style="font-size: 0.65rem;">Paused</span>
+                        <i v-else-if="activeWaba && (String(activeWaba.phone_number_id) === String(w.phone_number_id) || activeWaba.number === w.number)" class="bi bi-check2 text-primary ms-2"></i>
+                      </a>
+                    </li>
+                  </ul>
+                </span>
                 <span
                   v-if="activeWabaHealthStatus"
                   class="badge ms-1.5 py-0 px-1.5 align-middle"
@@ -274,6 +309,11 @@
               <i class="bi bi-three-dots-vertical" style="cursor: pointer;" data-bs-toggle="dropdown" aria-expanded="false" title="Menu"></i>
               <ul class="dropdown-menu dropdown-menu-end shadow border-0 chat-action-menu" style="min-width: 220px;">
                 <li><a class="dropdown-item py-2" href="#" @click.prevent="showContactInfo(activeSession)"><i class="bi bi-person-vcard me-2 text-primary"></i>Client Info</a></li>
+                <li v-if="canManageChat && !activeSession.is_client_only && availableWabasForActiveSession.length > 1">
+                  <a class="dropdown-item py-2" href="#" @click.prevent="openSwitchWabaModal()">
+                    <i class="bi bi-arrow-left-right me-2 text-info"></i>Switch WhatsApp Line
+                  </a>
+                </li>
                 <li v-if="canManageChat && !loadingMessages">
                   <a class="dropdown-item py-2" href="#" @click.prevent="markSessionUnread(activeSession)">
                     <i class="bi bi-envelope me-2 text-primary"></i>Mark as unread
@@ -910,6 +950,57 @@
         </div>
       </div>
     </div>
+
+    <!-- Switch WABA Line Modal -->
+    <div class="modal fade" id="switchWabaModal" tabindex="-1" ref="switchWabaModal">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow border-0">
+          <div class="modal-header border-bottom py-3">
+            <h5 class="modal-title h6 mb-0 text-dark fw-bold d-flex align-items-center">
+              <i class="bi bi-whatsapp text-success me-2 fs-5"></i>Switch WhatsApp Line
+            </h5>
+            <button type="button" class="btn-close" @click="closeSwitchWabaModal" :disabled="switchingWaba" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-3">
+            <p class="text-muted small mb-3">
+              Select the WhatsApp Business line to use for chatting with <strong>{{ activeSession?.client_name }}</strong>:
+            </p>
+            <div class="list-group list-group-flush border rounded overflow-hidden">
+              <button
+                v-for="w in availableWabasForActiveSession"
+                :key="w.phone_number_id || w.number"
+                type="button"
+                class="list-group-item list-group-item-action d-flex align-items-center justify-content-between p-3"
+                :class="{ 'active': activeWaba && (String(activeWaba.phone_number_id) === String(w.phone_number_id) || activeWaba.number === w.number) }"
+                @click="switchWabaNumber(w)"
+                :disabled="switchingWaba"
+              >
+                <div>
+                  <div class="fw-semibold text-truncate">{{ w.bank_name ? `${w.bank_name} • ` : '' }}{{ w.label }}</div>
+                  <div class="small font-monospace" :class="activeWaba && (String(activeWaba.phone_number_id) === String(w.phone_number_id) || activeWaba.number === w.number) ? 'text-white-50' : 'text-muted'">{{ w.number }}</div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                  <span v-if="w.is_paused" class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1" style="font-size: 0.70rem;">
+                    <i class="bi bi-pause-circle me-1"></i>Paused
+                  </span>
+                  <span v-else class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1" style="font-size: 0.70rem;">
+                    <i class="bi bi-check-circle me-1"></i>{{ w.health_status || 'Active' }}
+                  </span>
+                  <i v-if="activeWaba && (String(activeWaba.phone_number_id) === String(w.phone_number_id) || activeWaba.number === w.number)" class="bi bi-check-lg fs-5 ms-1"></i>
+                </div>
+              </button>
+            </div>
+            <div v-if="switchingWaba" class="text-center mt-3 text-muted small">
+              <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+              Updating WhatsApp line...
+            </div>
+          </div>
+          <div class="modal-footer border-top py-2">
+            <button type="button" class="btn btn-sm btn-light border" @click="closeSwitchWabaModal" :disabled="switchingWaba">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
     
   </div>
 </template>
@@ -985,6 +1076,8 @@ export default {
         waba_number: '',
         opt_in: 'yes',
       },
+      switchWabaModalInstance: null,
+      switchingWaba: false,
     };
   },
   computed: {
@@ -1033,12 +1126,32 @@ export default {
         );
         if (found) return found;
       }
+      const bank = this.activeSession.bank || this.activeSession.client?.bank || (this.availableBanks || []).find(b => String(b.id) === String(this.activeSession.bank_id || this.activeSession.client?.bank_id));
       const bankId = this.activeSession.bank_id || this.activeSession.bank?.id || this.activeSession.client?.bank_id;
+      if (bank?.primary_whatsapp_number) {
+        const foundPrimary = this.availableWabas.find(w =>
+          this.phonesMatch(w.number, bank.primary_whatsapp_number) ||
+          String(w.phone_number_id) === String(bank.primary_whatsapp_number)
+        );
+        if (foundPrimary) return foundPrimary;
+      }
       if (bankId) {
         const foundByBank = this.availableWabas.find(w => String(w.bank_id) === String(bankId));
         if (foundByBank) return foundByBank;
       }
       return null;
+    },
+    availableWabasForActiveSession() {
+      if (!this.activeSession) return [];
+      const sessionBankId = this.activeSession.bank_id || this.activeSession.bank?.id || this.activeSession.client?.bank_id;
+      if (sessionBankId) {
+        const bankWabas = (this.availableWabas || []).filter(w => String(w.bank_id) === String(sessionBankId));
+        if (bankWabas.length > 0) {
+          const otherWabas = (this.availableWabas || []).filter(w => String(w.bank_id) !== String(sessionBankId));
+          return [...bankWabas, ...otherWabas];
+        }
+      }
+      return this.availableWabas || [];
     },
     activeWabaHealthStatus() {
       if (this.activeWaba?.health_status) {
@@ -1155,6 +1268,8 @@ export default {
     }
     disposeManagedModal(this.templateModalInstance);
     this.templateModalInstance = null;
+    disposeManagedModal(this.switchWabaModalInstance);
+    this.switchWabaModalInstance = null;
   },
   methods: {
     hasPermission(permCode) {
@@ -1931,14 +2046,25 @@ export default {
         }
       }
 
+      const defaultBankId = sourceSession?.bank_id || sourceWaba?.bank_id || (this.filterBank !== 'all' ? this.filterBank : (this.availableBanks[0]?.id || ''));
+      const defaultBank = (this.availableBanks || []).find(b => String(b.id) === String(defaultBankId));
+      let defaultWabaNum = sourceSession?.waba_phone_number_id || (this.filterWaba !== 'all' ? this.filterWaba : '');
+      if (!defaultWabaNum && defaultBank?.primary_whatsapp_number) {
+        const foundPrimary = (this.availableWabas || []).find(w => this.phonesMatch(w.number, defaultBank.primary_whatsapp_number) || String(w.phone_number_id) === String(defaultBank.primary_whatsapp_number));
+        defaultWabaNum = foundPrimary?.phone_number_id || defaultBank.primary_whatsapp_number;
+      }
+      if (!defaultWabaNum) {
+        defaultWabaNum = this.availableWabas[0]?.phone_number_id || '';
+      }
+
       this.sourceChatSessionId = sourceSession?.id || null;
       this.newClientForm = {
         first_name: '',
         surname: '',
         phone: sourceSession?.phone || '',
         departments: initialDepartments,
-        bank_id: sourceSession?.bank_id || sourceWaba?.bank_id || (this.filterBank !== 'all' ? this.filterBank : (this.availableBanks[0]?.id || '')),
-        waba_number: sourceSession?.waba_phone_number_id || (this.filterWaba !== 'all' ? this.filterWaba : (this.availableWabas[0]?.phone_number_id || '')),
+        bank_id: defaultBankId,
+        waba_number: defaultWabaNum,
         opt_in: 'yes',
       };
       
@@ -2038,6 +2164,44 @@ export default {
       const num = Number(val);
       if (isNaN(num)) return '-';
       return 'R ' + num.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    },
+    openSwitchWabaModal() {
+      if (!this.$refs.switchWabaModal) return;
+      if (!this.switchWabaModalInstance) {
+        this.switchWabaModalInstance = createManagedModal(this.$refs.switchWabaModal);
+      }
+      this.switchWabaModalInstance?.show();
+    },
+    closeSwitchWabaModal() {
+      if (!this.switchingWaba) {
+        this.switchWabaModalInstance?.hide();
+      }
+    },
+    switchWabaNumber(targetWaba) {
+      if (!this.canManageChat || !this.activeSession || this.switchingWaba) return;
+      const targetId = targetWaba.phone_number_id || targetWaba.number;
+      if (!targetId) return;
+
+      this.switchingWaba = true;
+      axios.patch(`/api/chat/sessions/${this.activeSession.id}/waba-number`, {
+        waba_number: targetId
+      })
+      .then((res) => {
+        this.activeSession = res.data;
+        const idx = this.sessions.findIndex(s => s.id === this.activeSession.id);
+        if (idx !== -1) {
+          this.sessions.splice(idx, 1, { ...this.sessions[idx], ...res.data, waba_phone_number_id: targetId });
+        }
+        notify.success(`WhatsApp line switched to ${targetWaba.label || targetWaba.number}`, 'Line Updated');
+        this.closeSwitchWabaModal();
+      })
+      .catch((err) => {
+        console.error('Failed to switch WhatsApp line', err);
+        notify.error(err.response?.data?.message || 'Failed to switch WhatsApp line.', 'Chat');
+      })
+      .finally(() => {
+        this.switchingWaba = false;
+      });
     },
     toggleSearch() {
       this.isSearching = true;

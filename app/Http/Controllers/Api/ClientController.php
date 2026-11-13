@@ -501,6 +501,25 @@ class ClientController extends Controller
                 $client->departments()->sync($data['department_ids']);
             }
 
+            // Sync any existing WhatsApp chat sessions for this client if bank changed or if session WABA is unset/mismatched
+            $bankChanged = array_key_exists('bank_id', $client->getChanges());
+            $bank = $client->bank_id ? \App\Models\Bank::with('whatsappAccount')->find($client->bank_id) : null;
+            if ($bank) {
+                $targetWaba = $bank->whatsappAccount?->phone_number_id ?: $bank->primary_whatsapp_number;
+                $client->chatSessions()->where('platform', 'whatsapp')->each(function ($session) use ($client, $targetWaba, $bankChanged) {
+                    $updates = [];
+                    if ($session->bank_id !== $client->bank_id) {
+                        $updates['bank_id'] = $client->bank_id;
+                    }
+                    if (($bankChanged || empty($session->waba_phone_number_id)) && !empty($targetWaba)) {
+                        $updates['waba_phone_number_id'] = $targetWaba;
+                    }
+                    if (!empty($updates)) {
+                        $session->update($updates);
+                    }
+                });
+            }
+
             DB::commit();
 
             $this->clientInstitutionService->syncClientInstitutionTags($client, syncPeers: true);

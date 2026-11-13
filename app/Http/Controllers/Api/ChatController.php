@@ -416,6 +416,23 @@ class ChatController extends Controller
             }));
         }
 
+        // 5. Prioritize bank primary numbers and default senders
+        $bankPrimaryMap = $allBanks->pluck('primary_whatsapp_number', 'id')->filter()->all();
+        usort($wabas, function ($a, $b) use ($bankPrimaryMap, $resolver) {
+            $aBankId = $a['bank_id'] ?? null;
+            $bBankId = $b['bank_id'] ?? null;
+            $aPrimary = $aBankId && isset($bankPrimaryMap[$aBankId]) && $resolver->phonesMatch($a['number'], $bankPrimaryMap[$aBankId]);
+            $bPrimary = $bBankId && isset($bankPrimaryMap[$bBankId]) && $resolver->phonesMatch($b['number'], $bankPrimaryMap[$bBankId]);
+
+            if ($aPrimary && !$bPrimary) return -1;
+            if (!$aPrimary && $bPrimary) return 1;
+
+            if (!empty($a['default']) && empty($b['default'])) return -1;
+            if (empty($a['default']) && !empty($b['default'])) return 1;
+
+            return strcasecmp($a['label'] ?? '', $b['label'] ?? '');
+        });
+
         $settings = \App\Models\SystemSetting::first();
         $liveChatLocked = $settings ? (bool) $settings->live_chat_locked : false;
         $liveChatLockedMessage = $settings ? $settings->live_chat_locked_message : 'Live chat is temporarily disabled.';
@@ -815,8 +832,21 @@ class ChatController extends Controller
             'unread_count'=> 0,
         ];
 
+        $defaultWabaNumber = null;
         if (!empty($data['waba_number'])) {
-            $attributes['waba_phone_number_id'] = $data['waba_number'];
+            $defaultWabaNumber = $data['waba_number'];
+        } elseif ($platform === 'whatsapp') {
+            $senderContext = method_exists($this->whatsApp, 'resolveSenderForClient')
+                ? $this->whatsApp->resolveSenderForClient($client)
+                : null;
+            $defaultWabaNumber = $senderContext['phone_number_id']
+                ?? $senderContext['display_phone_number']
+                ?? $client->bank?->whatsappAccount?->phone_number_id
+                ?? $client->bank?->primary_whatsapp_number;
+        }
+
+        if ($defaultWabaNumber) {
+            $attributes['waba_phone_number_id'] = $defaultWabaNumber;
         }
 
         $session = null;
@@ -851,6 +881,12 @@ class ChatController extends Controller
 
         if (!empty($data['waba_number']) && $session->waba_phone_number_id !== $data['waba_number']) {
             $session->update(['waba_phone_number_id' => $data['waba_number']]);
+        } elseif (empty($session->waba_phone_number_id) && $defaultWabaNumber) {
+            $session->update(['waba_phone_number_id' => $defaultWabaNumber]);
+        }
+
+        if (empty($session->bank_id) && $client->bank_id) {
+            $session->update(['bank_id' => $client->bank_id]);
         }
 
         // Load messages ordered and reset unread count when fetched
@@ -958,13 +994,15 @@ class ChatController extends Controller
         return $user;
     }
 
-    protected function authorizeManage(): void
+    protected function authorizeManage(): ?\App\Models\User
     {
         $user = Auth::user();
 
         if (!$user || !$user->canSendWhatsapp()) {
             abort(403, 'You are not allowed to manage live chat.');
         }
+
+        return $user;
     }
 
     protected function authorizeSessionScope($user, ChatSession $session): void
@@ -1163,6 +1201,72 @@ class ChatController extends Controller
             'payment_option' => $client->payment_option,
             'payment_option_updated_at' => optional($client->payment_option_updated_at)->toDateTimeString(),
         ]);
+    }
+
+    public function updateWabaNumber(Request $request, ChatSession $session)
+    {
+        $user = $this->authorizeManage();
+        $this->authorizeSessionScope($user, $session);
+
+        $data = $request->validate([
+            'waba_number' => ['required', 'string', 'max:255'],
+        ]);
+
+        $targetWaba = trim((string) $data['waba_number']);
+        /** @var BankWabaResolver $resolver */
+        $resolver = app(BankWabaResolver::class);
+
+        // If user is restricted to certain banks, ensure they have access to this WABA number
+        if (!$user->canAccessAllBanks()) {
+            $userBankIds = $user->accessibleBankIds() ?: $user->resolvedBankIds();
+            $allowedPhoneIds = $resolver->getAllowedWabaPhoneIdsForBanks($userBankIds);
+            $allowedNumbers = $resolver->getPhoneNumbersForBanks($userBankIds);
+
+            $isAllowed = in_array($targetWaba, $allowedPhoneIds, true)
+                || in_array($targetWaba, $allowedNumbers, true)
+                || collect($allowedNumbers)->contains(fn ($num) => $resolver->phonesMatch($num, $targetWaba));
+
+            if (!$isAllowed) {
+                return response()->json([
+                    'message' => 'You do not have permission to assign this WhatsApp number.'
+                ], 403);
+            }
+        }
+
+        // Match bank for the target WABA number if possible
+        $matchedBank = $resolver->resolveBankForSender($targetWaba, $targetWaba);
+        $updateData = ['waba_phone_number_id' => $targetWaba];
+        if ($matchedBank) {
+            $updateData['bank_id'] = $matchedBank->id;
+        }
+
+        $session->update($updateData);
+
+        // Load enriched session details
+        $session->load(['messages' => function ($q) {
+            $q->orderBy('sent_at', 'asc');
+        }, 'agent', 'client.bank', 'bank.whatsappAccount', 'bank.whatsappAccounts']);
+
+        $settings = \App\Models\SystemSetting::first();
+        $session->is_live_chat_locked = $settings ? $settings->isLiveChatLockedForSession($session) : false;
+        $session->is_template_locked = $settings ? $settings->isTemplateSendingLockedForSession($session) : false;
+
+        $control = null;
+        $cleanDigits = preg_replace('/\D+/', '', $targetWaba);
+        $control = \App\Models\WhatsappNumberControl::where('phone_number_id', $targetWaba)
+            ->when($cleanDigits, fn ($q) => $q->orWhere('normalized_display_phone_number', $cleanDigits))
+            ->first();
+
+        $qualityRating = $control?->quality_rating ?: 'GREEN';
+        $session->waba_quality_rating = $qualityRating;
+        $session->waba_health_status = ($control?->is_paused) ? 'Paused' : match (strtoupper((string) $qualityRating)) {
+            'GREEN' => 'Good',
+            'YELLOW' => 'Medium',
+            'RED' => 'Poor',
+            default => 'Good',
+        };
+
+        return response()->json($this->appendCampaignMessages($session));
     }
 
     protected function isSessionClientOptedOut(ChatSession $session): bool

@@ -127,6 +127,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('chat/sessions/{session}/block', [ChatController::class, 'block']);
     Route::post('chat/sessions/{session}/opt-in', [ChatController::class, 'updateOptIn']);
     Route::post('chat/sessions/{session}/payment-option', [ChatController::class, 'updatePaymentOption']);
+    Route::patch('chat/sessions/{session}/waba-number', [ChatController::class, 'updateWabaNumber']);
     Route::delete('chat/sessions/{session}', [ChatController::class, 'destroy']);
     Route::post('chat/session-for-client', [ChatController::class, 'sessionForClient']);
 

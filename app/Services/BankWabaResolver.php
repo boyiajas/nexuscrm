@@ -140,12 +140,30 @@ class BankWabaResolver
         // 5. Match by label / verified_name or account name
         $nameToMatch = strtolower(trim($acc?->name ?: ($label ?? '')));
         if (!empty($nameToMatch)) {
+            // 5a. Prioritize exact match on name or code
             $bank = $allBanks->first(function ($b) use ($nameToMatch) {
                 $bankName = strtolower(trim($b->name));
                 $bankCode = strtolower(trim($b->code));
-                return $bankName === $nameToMatch
-                    || $bankCode === $nameToMatch
-                    || str_contains($bankName, $nameToMatch)
+                return $bankName === $nameToMatch || $bankCode === $nameToMatch;
+            });
+            if ($bank) {
+                $this->linkAccountAndBank($acc, $bank);
+                return $bank;
+            }
+
+            // 5b. Fallback to substring matching only if trailing digits do not conflict
+            $bank = $allBanks->first(function ($b) use ($nameToMatch) {
+                $bankName = strtolower(trim($b->name));
+                $bankCode = strtolower(trim($b->code));
+
+                // If either string has trailing digits that differ, do not falsely match (e.g. 'ABSA UDB 2' vs 'ABSA UDB')
+                preg_match('/\d+$/', $bankName, $mBank);
+                preg_match('/\d+$/', $nameToMatch, $mMatch);
+                if (($mBank[0] ?? null) !== ($mMatch[0] ?? null)) {
+                    return false;
+                }
+
+                return str_contains($bankName, $nameToMatch)
                     || str_contains($nameToMatch, $bankName);
             });
             if ($bank) {
