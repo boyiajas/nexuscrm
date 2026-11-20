@@ -29,7 +29,7 @@ const MainLayout = () => import('./components/layout/MainLayout.vue');
 
 const routes = [
   { path: '/login', name: 'login', component: Login },
-  { path: '/register', name: 'register', component: Register },
+  // { path: '/register', name: 'register', component: Register },
   {
     path: '/',
     component: MainLayout,
@@ -155,7 +155,7 @@ function resolveStoredUserRoles(user) {
 
 // Simple auth guard
 router.beforeEach((to, from, next) => {
-  const publicPages = ['/login', '/register'];
+  const publicPages = ['/login']; // ['/login', '/register'];
   const authRequired = !publicPages.includes(to.path);
 
   const storedToken = localStorage.getItem('nexus_token');
@@ -166,7 +166,7 @@ router.beforeEach((to, from, next) => {
     return next({ name: 'login' });
   }
 
-  if ((to.name === 'login' || to.name === 'register') && isLoggedIn) {
+  if (to.name === 'login' && isLoggedIn) {
     return next({ name: 'dashboard' });
   }
 

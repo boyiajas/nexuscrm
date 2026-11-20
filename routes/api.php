@@ -31,7 +31,7 @@ use Illuminate\Support\Facades\Route;
 
 
 
-Route::post('/register', [AuthController::class, 'register']);
+// Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/login/mfa/verify', [AuthController::class, 'verifyLoginMfa']);
 Route::post('/login/mfa/resend', [AuthController::class, 'resendLoginMfa']);
